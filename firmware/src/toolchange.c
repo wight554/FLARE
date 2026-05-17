@@ -41,8 +41,6 @@ void tc_start(int target_lane, uint32_t now_ms) {
     set_toolhead_filament(false);
     if (target_lane == active_lane) {
         g_tc_ctx.state = TC_LOAD_START;
-    } else if (ENABLE_CUTTER && UNLOAD_CUT) {
-        g_tc_ctx.state = TC_UNLOAD_CUT;
     } else {
         g_tc_ctx.state = TC_UNLOAD_REVERSE;
     }
@@ -135,6 +133,27 @@ const char *task_name(task_t t) {
     }
 }
 
+static bool tc_unload_cut_pending(void) {
+    return ENABLE_CUTTER && UNLOAD_CUT && !g_tc_ctx.unload_cut_done;
+}
+
+static void tc_unload_next_after_clear(uint32_t now_ms) {
+    g_tc_ctx.phase_start_ms = now_ms;
+    if (tc_unload_cut_pending()) {
+        g_tc_ctx.state = TC_UNLOAD_CUT;
+    } else {
+        g_tc_ctx.state = (TC_TIMEOUT_Y_MS > 0) ? TC_UNLOAD_WAIT_Y :
+                         (TC_TIMEOUT_TH_MS > 0) ? TC_UNLOAD_WAIT_TH : TC_UNLOAD_DONE;
+    }
+}
+
+static void tc_start_unload_lane(lane_t *A, uint32_t now_ms) {
+    A->unload_to_in = false;
+    A->unload_buf_recover_done = true;
+    lane_start(A, TASK_UNLOAD, REV_SPS, false, now_ms, (float)UNLOAD_MAX_MM);
+    A->suppress_unloaded_event = true;
+}
+
 void tc_tick(uint32_t now_ms) {
     uint32_t age = now_ms - g_tc_ctx.phase_start_ms;
     lane_t *A = lane_ptr(active_lane);
@@ -152,6 +171,7 @@ void tc_tick(uint32_t now_ms) {
 
         case TC_UNLOAD_WAIT_CUT:
             if (!cutter_busy()) {
+                g_tc_ctx.unload_cut_done = true;
                 g_tc_ctx.phase_start_ms = now_ms;
                 g_tc_ctx.state = TC_UNLOAD_REVERSE;
             } else if (age > (uint32_t)TC_TIMEOUT_CUT_MS) {
@@ -163,11 +183,10 @@ void tc_tick(uint32_t now_ms) {
             char lane_s[2] = { (char)('0' + active_lane), 0 };
             cmd_event("TC:UNLOADING", lane_s);
             if (!lane_out_present(A)) {
-                g_tc_ctx.phase_start_ms = now_ms;
-                g_tc_ctx.state = (TC_TIMEOUT_Y_MS > 0) ? TC_UNLOAD_WAIT_Y :
-                                 (TC_TIMEOUT_TH_MS > 0) ? TC_UNLOAD_WAIT_TH : TC_UNLOAD_DONE;
+                if (!g_tc_ctx.unload_cut_done) g_tc_ctx.unload_cut_done = true;
+                tc_unload_next_after_clear(now_ms);
             } else {
-                lane_start(A, TASK_UNLOAD, REV_SPS, false, now_ms, (float)UNLOAD_MAX_MM);
+                tc_start_unload_lane(A, now_ms);
                 g_tc_ctx.phase_start_ms = now_ms;
                 g_tc_ctx.state = TC_UNLOAD_WAIT_OUT;
             }
@@ -175,13 +194,12 @@ void tc_tick(uint32_t now_ms) {
         }
 
         case TC_UNLOAD_WAIT_OUT:
-            if (!lane_out_present(A)) {
-                lane_stop(A);
-                g_tc_ctx.phase_start_ms = now_ms;
-                g_tc_ctx.state = (TC_TIMEOUT_Y_MS > 0) ? TC_UNLOAD_WAIT_Y :
-                                 (TC_TIMEOUT_TH_MS > 0) ? TC_UNLOAD_WAIT_TH : TC_UNLOAD_DONE;
-            } else if (A->task == TASK_IDLE) {
-                tc_enter_error("UNLOAD_TIMEOUT");
+            if (A->task == TASK_IDLE) {
+                if (lane_out_present(A)) {
+                    tc_enter_error("UNLOAD_TIMEOUT");
+                } else {
+                    tc_unload_next_after_clear(now_ms);
+                }
             }
             break;
 

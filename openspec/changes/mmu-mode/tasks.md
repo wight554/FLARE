@@ -37,10 +37,12 @@ Status legend: [ ] todo  [~] in progress  [x] done
       `python3 -m py_compile scripts/*.py`.
 
 ## 4. TC: equivalence
-- [ ] Confirm/align TC unload phase == new UL semantics (TC ≡ UL+swap+FL)
-- [ ] Gate on renamed `UNLOAD_CUT`
-- [ ] Regression: preload, autoload, TC: end-to-end
-- [ ] Build + commit + push
+- [x] Confirm/align TC unload phase == new UL semantics (TC ≡ UL+swap+FL)
+- [x] Gate on renamed `UNLOAD_CUT`
+- [x] Regression: preload, autoload, TC: end-to-end
+- [x] Build + commit + push
+      Validation 2026-05-17: code review of preload/autoload paths plus
+      `ninja -C build_local`; `python3 -m py_compile scripts/*.py`.
 
 ## 5. Klipper integration
 - [ ] KLIPPER.md `change_lane` macro: extruder tip-form + unload from gears →
