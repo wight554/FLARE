@@ -284,12 +284,11 @@ after `SS:`; `HD` appears with the core sync fields near `SM`.
 Most faults (`TIMEOUT`, sensor-related faults) are transient and reset on the next command.
 **`FAULT:DRY_SPIN`** is sticky: it blocks automatic background tasks (Sync, RELOAD follow) to prevent motor wear. It clears automatically when a new spool is inserted (`IN` sensor triggers) or when a manual load command (`LO:`, `FL:`, etc.) is issued.
 
-### Trailing-Bias Tuning Quickstart (Phase 2.7)
-For slow-extrusion soak workflows, use this SET sequence to converge the baseline:
-1. `STATUS` to confirm baseline `RT:`, `BPV:` (or `BP:`).
-2. `SET:TRAIL_BIAS_FRAC:0.4`
-3. `SAVE`
-4. Soak 5+ minutes. Verify the post-blend position `BPV:` shifts ≥ 1.5 mm toward trailing without increasing `AD:` counts or causing extruder stall.
+### Tuning Guide
+
+For first-time tuning, two-profile capture, flow-schedule analysis, and
+verification steps, use [TUNING.md](./TUNING.md). This manual remains the
+command and field reference.
 
 ---
 

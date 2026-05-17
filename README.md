@@ -184,6 +184,7 @@ sidecar + Klipper UDS calibration prints -> analyze CSV/state -> review config.p
 
 - `HARDWARE.md`: board wiring and hardware assumptions
 - `MANUAL.md`: runtime behavior and operator guidance
+- `TUNING.md`: end-to-end operator tuning guide
 - `TEST_CASES.md`: bring-up and regression checklist for real hardware
 - `WORKFLOW.md`: current Git workflow for `main` and optional short-lived branches
 

@@ -26,9 +26,11 @@
 
 ## 3. Link + de-jargon existing docs
 
-- [ ] 3.1 `README.md`: add a TUNING.md link in the appropriate section
-- [ ] 3.2 `MANUAL.md`: replace the stale "Trailing-Bias Tuning Quickstart (Phase 2.7)" heading with a one-line redirect to `TUNING.md` (no content duplication; reference detail stays, phase label gone)
-- [ ] 3.3 Cross-link git workflow (`WORKFLOW.md`) instead of copying
+- [x] 3.1 `README.md`: add a TUNING.md link in the appropriate section
+- [x] 3.2 `MANUAL.md`: replace the stale "Trailing-Bias Tuning Quickstart (Phase 2.7)" heading with a one-line redirect to `TUNING.md` (no content duplication; reference detail stays, phase label gone)
+- [x] 3.3 Cross-link git workflow (`WORKFLOW.md`) instead of copying
+      Validation 2026-05-18: README links `TUNING.md`; MANUAL quickstart is
+      now a redirect; TUNING links `WORKFLOW.md` without copying workflow text.
 
 ## 4. Accuracy pass + closeout
 
