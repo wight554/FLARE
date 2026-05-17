@@ -7,15 +7,17 @@ Status legend: [ ] todo  [~] in progress  [x] done
       analysis ⇒ HOLD primitive REQUIRED (see proposal "Resolved").
 
 ## 1. Tunable rename TC_AUTO_CUT → UNLOAD_CUT
-- [ ] `controller_shared.h` extern rename
-- [ ] `main.c` global rename
-- [ ] `settings_store.c` field rename + `SETTINGS_VERSION` bump
-- [ ] `scripts/gen_config.py` key `tc_auto_cut` → `unload_cut`
-- [ ] `config.ini` + `config.ini.example` key rename
-- [ ] `firmware/include/tune.h` regenerate (CONF_UNLOAD_CUT)
-- [ ] protocol.c SET + GET token rename
-- [ ] Docs: MANUAL.md / BEHAVIOR.md / KLIPPER.md references
-- [ ] `ninja -C build_local` + `py_compile` green; commit + push
+- [x] `controller_shared.h` extern rename
+- [x] `main.c` global rename
+- [x] `settings_store.c` field rename + `SETTINGS_VERSION` bump
+- [x] `scripts/gen_config.py` key `tc_auto_cut` → `unload_cut`
+- [x] `config.ini` + `config.ini.example` key rename
+- [x] `firmware/include/tune.h` regenerate (CONF_UNLOAD_CUT)
+- [x] protocol.c SET + GET token rename
+- [x] Docs: MANUAL.md / BEHAVIOR.md / KLIPPER.md references
+- [x] `ninja -C build_local` + `py_compile` green; commit + push
+      Validation 2026-05-17: `ninja -C build_local`;
+      `python3 -m py_compile scripts/*.py`.
 
 ## 2. UL: cut-on-unload
 - [ ] protocol.c `UL:` multi-phase: clear OUT → CU → clear OUT (cutter enabled)

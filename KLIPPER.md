@@ -108,8 +108,9 @@ gcode:
 
 ## Toolchange macros — TC:
 
-`TC:<lane>` unloads the current lane (optionally cuts), swaps, loads the new
-lane, and waits for `TS:1`. `flare_cmd.py` blocks until `EV:TC:DONE` or
+`TC:<lane>` unloads the current lane (cuts when `UNLOAD_CUT=1` and the cutter
+is enabled), swaps, loads the new lane, and waits for `TS:1`.
+`flare_cmd.py` blocks until `EV:TC:DONE` or
 `EV:TC:ERROR`, so Klipper naturally pauses printing during the change.
 
 ```ini

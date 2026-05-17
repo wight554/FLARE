@@ -197,6 +197,7 @@ Runtime status `BL` is the learned control baseline. `GET:` / `SET:` / `SV:` / `
 ### Cutter / Servo
 | Parameter | `config.ini` Key | Description | Default |
 |-----------|------------------|-------------|---------|
+| `UNLOAD_CUT` | `unload_cut` | Cut during unload sequences when the cutter is enabled | 0 |
 | `SERVO_BLOCK` | `servo_block_us` | Servo block position used between cutter phases | 950 |
 | `CUT_FEED_RATE` | `cut_feed_rate` | Motor speed (mm/min) during cutter feed; ramped from zero — lower if motor stalls | 600 |
 
