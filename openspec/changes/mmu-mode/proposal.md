@@ -81,11 +81,18 @@ ramming retract stays well under buffer half-travel and
 - Hotend hot zone ~46 mm of 66 mm + gears-to-hotend length ⇒ Park retract
   must pull ~70 mm+ to clear extruder gears (huge vs 7.8 mm — intended
   neg-sync follow, then `TC:`).
-- Margin math: a single 5 mm cooldown retract from a centered buffer reaches
+- Operator's actual profile: pause → ~1 mm retract → ~0.5 mm push → small
+  retract/push wiggles → one long retract to gears at the very end. Per-move
+  amplitude (sub-mm to ~1 mm) is well under 7.8 mm — but cumulative net
+  retract over many wiggle cycles can still exceed half-travel, and buffer
+  is not guaranteed centered at paused-print entry.
+- Margin math (worst case, LH-Stinger 5 mm): from a centered buffer reaches
   −5 mm (deadband ≈ 0.15·7.8 ≈ 1.17 mm) — reliably flips `BUF_TRAILING`.
   `POST_PRINT_STAB_DELAY_MS` default = **0** ⇒ neg-sync reverses the lane
-  motor immediately, mid-cooldown. Buffer is not guaranteed centered at a
-  paused-print entry, worsening this.
+  motor immediately, mid-cooldown.
+- => HOLD retained for **determinism** (not per-move-amplitude luck):
+  regardless of profile, the wiggle regime is fully partitioned from the
+  final extraction.
 - Caller analysis: `buffer_stabilize_tick` runs every loop;
   `buffer_stabilize_controller_idle()` requires `!sync_enabled` + idle lanes.
   So `TS:1` during tip forming → `sync_tick` chases the wiggle; `TS:0` →
