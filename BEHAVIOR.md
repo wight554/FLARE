@@ -115,7 +115,11 @@ stops with `EV:UNLOAD_BLOCKED` after `UNLOAD_ADV_BLOCK_MS`.
 
 ### `UM:` — Unload from MMU
 
-Runs reverse at `REV_RATE` until IN clears.
+Runs reverse at `REV_RATE` until IN clears. If OUT is present at entry, `UM:`
+first runs the full `UL:` cycle (including cut when enabled), then continues
+reverse until IN clears. If OUT is already clear at entry, it does not cut; if
+the Y-splitter is still present, it performs the non-cut clear/retract leg
+before continuing to IN clear.
 Use this when the filament tip is between IN and OUT (pre-loaded state).
 
 ---

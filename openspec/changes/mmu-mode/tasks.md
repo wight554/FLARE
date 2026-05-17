@@ -29,10 +29,12 @@ Status legend: [ ] todo  [~] in progress  [x] done
       `python3 -m py_compile scripts/*.py`.
 
 ## 3. UM: entry-conditional cut
-- [ ] Flow 1 (OUT/YS present at entry): full UL cycle (cut if enabled) + extend
+- [x] Flow 1 (OUT/YS present at entry): full UL cycle (cut if enabled) + extend
       reverse until IN clears
-- [ ] Flow 2 (OUT clear at entry): no cut, retract until IN clears
-- [ ] Build + commit + push
+- [x] Flow 2 (OUT clear at entry): no cut, retract until IN clears
+- [x] Build + commit + push
+      Validation 2026-05-17: `ninja -C build_local`;
+      `python3 -m py_compile scripts/*.py`.
 
 ## 4. TC: equivalence
 - [ ] Confirm/align TC unload phase == new UL semantics (TC ≡ UL+swap+FL)
