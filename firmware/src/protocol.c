@@ -31,6 +31,29 @@ static uint32_t g_cmd_event_window_ms = 0;
 static int g_cmd_event_count = 0;
 static bool g_live_tune_lock = false;
 
+typedef enum {
+    MANUAL_UNLOAD_IDLE,
+    MANUAL_UNLOAD_WAIT_FIRST_CLEAR,
+    MANUAL_UNLOAD_WAIT_CUT,
+    MANUAL_UNLOAD_WAIT_FINAL_CLEAR
+} manual_unload_state_t;
+
+typedef struct {
+    manual_unload_state_t state;
+    lane_t *lane;
+} manual_unload_ctx_t;
+
+static manual_unload_ctx_t g_manual_unload = {0};
+
+static bool manual_unload_active(void) {
+    return g_manual_unload.state != MANUAL_UNLOAD_IDLE;
+}
+
+static void manual_unload_reset(void) {
+    g_manual_unload.state = MANUAL_UNLOAD_IDLE;
+    g_manual_unload.lane = NULL;
+}
+
 static bool live_tune_locked_param(const char *param) {
     return !strcmp(param, "BASELINE_RATE") ||
            !strcmp(param, "BASELINE_SPS") ||
@@ -47,6 +70,7 @@ static bool live_tune_locked_param(const char *param) {
 }
 
 static bool controller_activity_in_progress(void) {
+    if (manual_unload_active()) return true;
     if (g_tc_ctx.state != TC_IDLE || cutter_busy() || g_boot_stabilizing) return true;
     if (g_lane_l1.task != TASK_IDLE || g_lane_l2.task != TASK_IDLE) return true;
     return false;
@@ -198,7 +222,63 @@ static lane_t* get_active_lane_and_clear_error(void) {
     return A;
 }
 
+static void start_manual_unload_lane(lane_t *A, bool suppress_event, uint32_t now_ms) {
+    A->unload_to_in = false;
+    A->unload_buf_recover_done = true;
+    lane_start(A, TASK_UNLOAD, REV_SPS, false, now_ms, (float)UNLOAD_MAX_MM);
+    A->suppress_unloaded_event = suppress_event;
+}
+
+static void manual_unload_tick(uint32_t now_ms) {
+    lane_t *A = g_manual_unload.lane;
+    if (!A) {
+        manual_unload_reset();
+        return;
+    }
+
+    switch (g_manual_unload.state) {
+        case MANUAL_UNLOAD_IDLE:
+            return;
+
+        case MANUAL_UNLOAD_WAIT_FIRST_CLEAR:
+            if (A->task == TASK_IDLE) {
+                if (lane_out_present(A)) {
+                    manual_unload_reset();
+                    return;
+                }
+                cutter_start(A, true, now_ms);
+                g_manual_unload.state = MANUAL_UNLOAD_WAIT_CUT;
+            }
+            break;
+
+        case MANUAL_UNLOAD_WAIT_CUT:
+            if (!cutter_busy()) {
+                if (lane_out_present(A)) {
+                    start_manual_unload_lane(A, false, now_ms);
+                    g_manual_unload.state = MANUAL_UNLOAD_WAIT_FINAL_CLEAR;
+                } else {
+                    char lane_s[2] = { (char)('0' + A->lane_id), 0 };
+                    cmd_event("UNLOADED", lane_s);
+                    manual_unload_reset();
+                }
+            }
+            break;
+
+        case MANUAL_UNLOAD_WAIT_FINAL_CLEAR:
+            if (A->task == TASK_IDLE) {
+                manual_unload_reset();
+            }
+            break;
+    }
+}
+
 static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
+    if (manual_unload_active() &&
+        strcmp(cmd, "ST") && strcmp(cmd, "?") && strcmp(cmd, "GET")) {
+        cmd_reply("ER", "BUSY");
+        return;
+    }
+
     if (!strcmp(cmd, "TC")) {
         int ln = atoi(p);
         if (ln == 1 || ln == 2) {
@@ -230,9 +310,13 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         if (!lane_out_present(A)) { cmd_reply("ER", "NOT_LOADED"); return; }
         sync_disable(false);
         set_toolhead_filament(false);
-        A->unload_to_in = false;
-        A->unload_buf_recover_done = true;
-        lane_start(A, TASK_UNLOAD, REV_SPS, false, now_ms, (float)UNLOAD_MAX_MM);
+        if (ENABLE_CUTTER && UNLOAD_CUT) {
+            start_manual_unload_lane(A, true, now_ms);
+            g_manual_unload.lane = A;
+            g_manual_unload.state = MANUAL_UNLOAD_WAIT_FIRST_CLEAR;
+        } else {
+            start_manual_unload_lane(A, false, now_ms);
+        }
         cmd_reply("OK", NULL);
     } else if (!strcmp(cmd, "UM")) {
         lane_t *A = get_active_lane_and_clear_error();
@@ -339,6 +423,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
     } else if (!strcmp(cmd, "ST")) {
         tc_abort();
         cutter_abort();
+        manual_unload_reset();
         sync_disable(false);
         stop_all();
         set_toolhead_filament(false);
@@ -823,6 +908,8 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
 }
 
 void cmd_poll(uint32_t now_ms) {
+    manual_unload_tick(now_ms);
+
     int c;
     int bytes_processed = 0;
     int commands_processed = 0;

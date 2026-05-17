@@ -67,6 +67,7 @@ typedef struct lane_s {
     float dist_at_in_clear_mm;
     bool prev_in;
     bool unload_to_in;
+    bool suppress_unloaded_event;
 } lane_t;
 
 typedef enum {

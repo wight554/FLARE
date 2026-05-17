@@ -173,6 +173,7 @@ void lane_setup(lane_t *L, uint pin_in, uint pin_out, motor_t m, int lane_id, tm
     L->dist_at_in_clear_mm = 0.0f;
     L->prev_in = false;
     L->unload_to_in = false;
+    L->suppress_unloaded_event = false;
 }
 
 void lane_stop(lane_t *L) {
@@ -184,6 +185,7 @@ void lane_stop(lane_t *L) {
     L->retract_deadline_ms = 0;
     L->buf_advance_since_ms = 0;
     L->reload_tail_ms = 0;
+    L->suppress_unloaded_event = false;
     L->current_sps = 0;
     L->target_sps = 0;
     motor_stop(&L->m);
@@ -200,6 +202,7 @@ void lane_start(lane_t *L, task_t t, int sps, bool forward, uint32_t now_ms, flo
     L->unload_sensor_latch = false;
     L->retract_deadline_ms = 0;
     L->dist_at_in_clear_mm = 0.0f;
+    L->suppress_unloaded_event = false;
 
     L->task_limit_mm = limit_mm;
 
@@ -341,8 +344,9 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                 done = (int32_t)(now_ms - L->retract_deadline_ms) >= 0;
             }
             if (done) {
+                bool suppress_event = L->suppress_unloaded_event;
                 lane_stop(L);
-                cmd_event("UNLOADED", lane_s);
+                if (!suppress_event) cmd_event("UNLOADED", lane_s);
             }
         }
     }

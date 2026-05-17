@@ -103,14 +103,15 @@ Runs `TASK_LOAD_FULL` at `FEED_RATE` continuously until the host sends `TS:1`
 
 ### `UL:` — Unload from extruder
 
-Runs reverse at `REV_RATE` until OUT clears.
+Runs reverse at `REV_RATE` until OUT clears. When `UNLOAD_CUT=1` and the
+cutter is enabled, `UL:` suppresses the first `EV:UNLOADED`, runs the full
+cutter sequence, then reverses again until OUT clears and emits the final
+`EV:UNLOADED`.
 **Requires OUT to be triggered before starting** — returns `ER:NOT_LOADED` if
 OUT is already clear.
 
-If buffer enters `BUF_ADVANCE` during `UL:`, firmware performs a one-shot
-stabilization sequence: stop reverse, feed forward gently by ~half buffer
-travel (`BUF_HALF_TRAVEL`), then resume reverse unload. Recovery speed is controlled
-by `BUF_STAB_RATE` (default 600 mm/min).
+If the printer blocks retraction and the buffer stays in `BUF_ADVANCE`, `UL:`
+stops with `EV:UNLOAD_BLOCKED` after `UNLOAD_ADV_BLOCK_MS`.
 
 ### `UM:` — Unload from MMU
 

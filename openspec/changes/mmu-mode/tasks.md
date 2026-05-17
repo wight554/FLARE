@@ -20,11 +20,13 @@ Status legend: [ ] todo  [~] in progress  [x] done
       `python3 -m py_compile scripts/*.py`.
 
 ## 2. UL: cut-on-unload
-- [ ] protocol.c `UL:` multi-phase: clear OUT → CU → clear OUT (cutter enabled)
-- [ ] Preserve single-retract path when `!ENABLE_CUTTER || !UNLOAD_CUT`
-- [ ] Emit `EV:UNLOADED` only after final clear (flare_cmd.py blocking intact)
-- [ ] Regression: RELOAD `TASK_UNLOAD` path must NOT cut
-- [ ] Build + commit + push
+- [x] protocol.c `UL:` multi-phase: clear OUT → CU → clear OUT (cutter enabled)
+- [x] Preserve single-retract path when `!ENABLE_CUTTER || !UNLOAD_CUT`
+- [x] Emit `EV:UNLOADED` only after final clear (flare_cmd.py blocking intact)
+- [x] Regression: RELOAD `TASK_UNLOAD` path must NOT cut
+- [x] Build + commit + push
+      Validation 2026-05-17: `ninja -C build_local`;
+      `python3 -m py_compile scripts/*.py`.
 
 ## 3. UM: entry-conditional cut
 - [ ] Flow 1 (OUT/YS present at entry): full UL cycle (cut if enabled) + extend
