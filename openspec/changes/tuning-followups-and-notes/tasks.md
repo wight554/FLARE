@@ -29,5 +29,8 @@
 
 ## 5. Closeout
 
-- [ ] 5.1 `openspec validate tuning-followups-and-notes --strict`
-- [ ] 5.2 Run host tests + `scripts/validate_regression.sh`; confirm `git status` clean (no untracked test artifact); no firmware/control diff in this change
+- [x] 5.1 `openspec validate tuning-followups-and-notes --strict`
+- [x] 5.2 Run host tests + `scripts/validate_regression.sh`; confirm `git status` clean (no untracked test artifact); no firmware/control diff in this change
+      Validation 2026-05-18: `openspec validate tuning-followups-and-notes --strict`;
+      all seven `scripts/test_*.py` host tests; `scripts/validate_regression.sh`;
+      `git status` clean before marking closeout.
