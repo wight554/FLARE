@@ -32,10 +32,14 @@ macros. Net new firmware is small.
 5. Klipper `change_lane` macro: extruder-side tip forming + unload from gears,
    then issue `TC:` (no host `UL:` for spool change).
 6. Docs sync: MANUAL.md, KLIPPER.md, BEHAVIOR.md, config.ini(.example).
-7. **Sync HOLD primitive (REQUIRED).** A command/state that suppresses BOTH
-   `sync_tick` correction AND `buffer_stabilize_tick` neg-sync for the active
-   lane (motor idle, estimator frozen, buffer floats) during Klipper tip
-   forming, released before the Park extraction / `TC:`.
+7. **Sync HOLD primitive (REQUIRED, partial).** Explicit `HD:1`/`HD:0`
+   toggle that suppresses `sync_tick` and `BUFFER_SERVICE_NEG_SYNC` but keeps
+   `BUFFER_SERVICE_STABILIZE` (basic re-center), for the tip-forming wiggle
+   regime; released before the ~20-30 mm extraction / `TC:`.
+8. **Command-light flow (no `TS:`/`SM:` reliance).** Loaded state and sync
+   start are detected automatically (`TS_BUF_MS` self-trigger +
+   `AUTO_MODE` buffer auto-start). Klipper sends no `TS:1`/`TS:0`/`SM:`.
+   Hard requirement: `TS_BUF_MS > 0` (or physical TS sensor).
 
 ### Out of scope
 - None.

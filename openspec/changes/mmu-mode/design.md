@@ -64,7 +64,20 @@ behind OUT — this is why UL cutter-enabled spec is clear→cut→clear.
       neg-sync engages because HOLD is off.
    5. `TC:<lane>` — unload(+cut)+swap+load; flare_cmd.py blocks until
       `EV:TC:DONE`/`EV:TC:ERROR`.
-   6. pickup: filament enters toolhead, prime, `TS:1`.
+   6. pickup: filament enters toolhead, prime, resume print. **No `TS:1`.**
+
+   **No-command corollary (binds steps 5–6):** no reliance on `TS:`/`SM:`.
+   - Load completion: `TC:`/`FL:` `TC_LOAD_WAIT_TH` needs
+     `toolhead_has_filament`. `motion.c:356-360`: with `TS_BUF_FALLBACK_MS>0`
+     (`SET:TS_BUF_MS`), buffer held ADVANCE for the dwell → NOSF self-calls
+     `set_toolhead_filament(true)`. No `TS:1` required.
+   - Sync start: `AUTO_MODE` on → `sync.c:916` auto-starts sync on
+     `BUF_ADVANCE` when print resumes. No `TS:1` required.
+   - Sync stop / unload: `UL:`/`TC:`/`HD:` already call `sync_disable` +
+     `set_toolhead_filament(false)` internally. No `TS:0` required.
+   - **Hard requirement:** `TS_BUF_MS > 0` (or a physical TS sensor),
+     otherwise `TC_LOAD_WAIT_TH` never completes → `LOAD_TIMEOUT`. This is the
+     only config gate for the command-light flow.
 
    `POST_PRINT_STAB_DELAY_MS`=0 is now correct, not a hazard: HOLD owns the
    small-wiggle regime (step 2), so instant neg-sync at step 4 is desired.
