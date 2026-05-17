@@ -354,6 +354,8 @@ def deterministic_profile_params(rows):
                 float(n),
             ))
 
+    # Intentional: Python 3 round() uses banker's rounding. Keep that rule for
+    # deterministic reducers so repeated analysis stays byte-identical.
     baseline = round(weighted_mean(weighted_x)) if weighted_x else 1600.0
     bias = clamp(weighted_mean(weighted_bias), BIAS_SAFE_MIN, BIAS_SAFE_MAX) if weighted_bias else 0.4
     return int(baseline), bias

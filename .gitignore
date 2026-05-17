@@ -30,6 +30,9 @@ cmake_install.cmake
 # AI Scratchpads
 scratch/
 
+# transient local test streams
+scripts/test_stream.log
+
 # local AI/agent config lives in home directories; keep repo to project specs
 .agent/
 .agents/

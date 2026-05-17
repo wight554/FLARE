@@ -20,9 +20,12 @@
 
 ## 4. Repo cleanup
 
-- [ ] 4.1 Make `scripts/test_flare_baseline_recommender.py` self-contained: generate its input stream in a temp dir and clean up (no `scripts/test_stream.log` left behind)
-- [ ] 4.2 Add `scripts/test_stream.log` to `.gitignore` (belt-and-suspenders); confirm `git status` clean after running the recommender test
-- [ ] 4.3 Add a comment in `scripts/flare_analyze.py` documenting that Python 3 `round()` banker's rounding in the deterministic reducer is intentional and determinism-preserving (do not "fix" to round-half-up)
+- [x] 4.1 Make `scripts/test_flare_baseline_recommender.py` self-contained: generate its input stream in a temp dir and clean up (no `scripts/test_stream.log` left behind)
+- [x] 4.2 Add `scripts/test_stream.log` to `.gitignore` (belt-and-suspenders); confirm `git status` clean after running the recommender test
+- [x] 4.3 Add a comment in `scripts/flare_analyze.py` documenting that Python 3 `round()` banker's rounding in the deterministic reducer is intentional and determinism-preserving (do not "fix" to round-half-up)
+      Validation 2026-05-18: `python3 scripts/test_flare_baseline_recommender.py`;
+      `python3 -m py_compile scripts/*.py`; `git status` no longer reports
+      `scripts/test_stream.log`.
 
 ## 5. Closeout
 
