@@ -1,7 +1,8 @@
 # Change: mmu-mode (Klipper-driven non-automated MMU)
 
 ## Status
-Draft — exploration captured, decisions converged, BUF travel numbers pending.
+Draft — exploration captured, decisions converged. Buffer half-travel
+measured (7.8 mm); tip-forming analysis resolves HOLD command as REQUIRED.
 
 ## Why
 We want a Klipper-driven multi-material flow where the printer owns toolhead-side
@@ -31,11 +32,13 @@ macros. Net new firmware is small.
 5. Klipper `change_lane` macro: extruder-side tip forming + unload from gears,
    then issue `TC:` (no host `UL:` for spool change).
 6. Docs sync: MANUAL.md, KLIPPER.md, BEHAVIOR.md, config.ini(.example).
+7. **Sync HOLD primitive (REQUIRED).** A command/state that suppresses BOTH
+   `sync_tick` correction AND `buffer_stabilize_tick` neg-sync for the active
+   lane (motor idle, estimator frozen, buffer floats) during Klipper tip
+   forming, released before the Park extraction / `TC:`.
 
-### Out of scope (deferred, decision pending)
-- Explicit sync HOLD command for tip-forming isolation. Needed only if buffer
-  travel cannot low-pass-filter the tip-forming amplitude. Decision gated on
-  measured `BUF_TRAVEL` vs intended max ramming retract.
+### Out of scope
+- None.
 
 ## Behavior Contracts
 
@@ -65,10 +68,29 @@ further suppresses chasing. Conflict is tunable, not architectural, provided
 ramming retract stays well under buffer half-travel and
 `POST_PRINT_STAB_DELAY_MS` exceeds the longest tip-forming move duration.
 
+## Resolved: tip-forming vs buffer geometry
+- `GET:BUF_HALF_TRAVEL` = **7.8 mm** (tight).
+- LH-Stinger Pico-MMU tip-forming defaults: `cooldown_dist` 5 mm,
+  `cooldown_pull_speed` 70 mm/s (~71 ms/move), `cooldown_secondary_moves` 1,
+  `pause_retract_dist` 0.5 mm, `dip_melt_gap` 2 mm, `park_speed` 130 mm/s.
+- Hotend hot zone ~46 mm of 66 mm + gears-to-hotend length ⇒ Park retract
+  must pull ~70 mm+ to clear extruder gears (huge vs 7.8 mm — intended
+  neg-sync follow, then `TC:`).
+- Margin math: a single 5 mm cooldown retract from a centered buffer reaches
+  −5 mm (deadband ≈ 0.15·7.8 ≈ 1.17 mm) — reliably flips `BUF_TRAILING`.
+  `POST_PRINT_STAB_DELAY_MS` default = **0** ⇒ neg-sync reverses the lane
+  motor immediately, mid-cooldown. Buffer is not guaranteed centered at a
+  paused-print entry, worsening this.
+- Caller analysis: `buffer_stabilize_tick` runs every loop;
+  `buffer_stabilize_controller_idle()` requires `!sync_enabled` + idle lanes.
+  So `TS:1` during tip forming → `sync_tick` chases the wiggle; `TS:0` →
+  neg-sync chases it instead. **Neither existing `TS:`/`SM:` state suppresses
+  both.** ⇒ A genuine HOLD primitive is REQUIRED, not optional.
+
 ## Open Questions
-1. `BUF_TRAVEL` half-travel value (`GET:BUF_TRAVEL`) and intended max
-   tip-forming/ramming retract — decides whether the deferred HOLD command is
-   required.
+- Park retract total distance for this hotend (≈ hot-zone 46 mm + bowden to
+  gears) — sizes the post-HOLD-release neg-sync/extraction expectation only;
+  does not block design.
 
 ## Regression Surface
 - Every host `UL:`/`UM:` Flow-1 now cuts when cutter enabled (manual spool

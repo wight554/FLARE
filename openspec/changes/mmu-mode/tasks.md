@@ -3,8 +3,8 @@
 Status legend: [ ] todo  [~] in progress  [x] done
 
 ## 0. Pre-flight
-- [ ] Get `GET:BUF_TRAVEL` half-travel + intended max tip-forming/ramming
-      retract from operator → decide HOLD-command necessity.
+- [x] Buffer half-travel measured: `BUF_HALF_TRAVEL` = 7.8 mm. Tip-forming
+      analysis ⇒ HOLD primitive REQUIRED (see proposal "Resolved").
 
 ## 1. Tunable rename TC_AUTO_CUT → UNLOAD_CUT
 - [ ] `controller_shared.h` extern rename
@@ -41,10 +41,15 @@ Status legend: [ ] todo  [~] in progress  [x] done
       `TC:`; remove `FLARE_UNLOAD` from spool-change path
 - [ ] Document tip-forming vs sync tuning (POST_PRINT_STAB_DELAY_MS, BUF travel)
 
-## 6. (Conditional) Sync HOLD command
-- [ ] Only if task 0 shows buffer travel can't absorb tip-forming amplitude
-- [ ] Define `SM:` HOLD semantics (freeze motor, ignore estimator, buffer
-      absorbs) + release; macro hooks around tip forming
+## 6. Sync HOLD primitive (REQUIRED)
+- [ ] Add `g_sync_hold` flag (settings? runtime-only — likely runtime)
+- [ ] Short-circuit top of `sync_tick` when held (no correction, motor idle)
+- [ ] Short-circuit neg-sync branch in `buffer_stabilize_tick` when held
+- [ ] Command surface: `SM:` HOLD value (or new `HD:`) SET + GET + ?: dump
+- [ ] Auto-clear on `TS:1` and on `TC:`/`UL:` start (safety: never stuck held)
+- [ ] `change_lane` macro: set HOLD → tip form → clear HOLD → `TC:`
+- [ ] Regression: held state must not block hard-brake during actual feed
+- [ ] Build + commit + push
 
 ## 7. Close-out
 - [ ] Full regression review per design.md Validation

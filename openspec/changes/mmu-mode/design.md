@@ -55,8 +55,15 @@ behind OUT — this is why UL cutter-enabled spec is clear→cut→clear.
 6. **Klipper owns toolhead.** `change_lane` macro: form tip + retract out of
    gears via extruder (FLARE follows via negative sync while `sync_enabled`),
    then `TC:`; nosf_cmd.py blocks until `EV:TC:DONE`/`EV:TC:ERROR`.
-7. **HOLD command deferred.** Adopt only if measured buffer half-travel cannot
-   absorb tip-forming amplitude.
+7. **HOLD primitive REQUIRED.** Buffer half-travel 7.8 mm; LH-Stinger
+   cooldown retract 5 mm reliably flips `BUF_TRAILING`;
+   `POST_PRINT_STAB_DELAY_MS`=0 ⇒ instant neg-sync. `buffer_stabilize_tick`
+   runs every loop and neg-syncs whenever `!sync_enabled` + idle lanes, so
+   `TS:0` does not suppress it (`sync_tick` does the chasing under `TS:1`,
+   neg-sync under `TS:0`). Add `g_sync_hold` flag short-circuiting the top of
+   `sync_tick` and the neg-sync branch of `buffer_stabilize_tick`; no lane
+   motion while held. Klipper sets HOLD before tip forming, clears it before
+   Park extraction / `TC:`.
 
 ## Implementation Plan (per file, when approved)
 
