@@ -41,6 +41,7 @@ int g_baseline_sps = CONF_BASELINE_SPS;
 float g_baseline_alpha = CONF_BASELINE_ALPHA;
 static const flow_schedule_point_t g_flow_sched_config[CONF_FLOW_SCHED_CAP] = CONF_FLOW_SCHED;
 static flow_schedule_point_t g_flow_sched_runtime[CONF_FLOW_SCHED_CAP] = CONF_FLOW_SCHED;
+static int g_flow_sched_live_delta[CONF_FLOW_SCHED_CAP] = {0};
 static int g_flow_sched_len = CONF_FLOW_SCHED_LEN;
 uint32_t sync_fast_brake_until_ms = 0;
 static bool sync_trailing_recovery_active = false;
@@ -137,6 +138,9 @@ void flow_schedule_refresh_scalar(void) {
     g_flow_sched_runtime[0].flow_sps = g_baseline_target_sps;
     g_flow_sched_runtime[0].baseline_sps = g_baseline_target_sps;
     g_flow_sched_runtime[0].bias_milli = clamp_i((int)(SYNC_TRAILING_BIAS_FRAC * 1000.0f + 0.5f), 0, 700);
+    for (int i = 0; i < CONF_FLOW_SCHED_CAP; i++) {
+        g_flow_sched_live_delta[i] = 0;
+    }
 }
 
 void flow_schedule_reset_runtime(void) {
@@ -146,6 +150,9 @@ void flow_schedule_reset_runtime(void) {
 
     for (int i = 0; i < g_flow_sched_len; i++) {
         g_flow_sched_runtime[i] = g_flow_sched_config[i];
+    }
+    for (int i = 0; i < CONF_FLOW_SCHED_CAP; i++) {
+        g_flow_sched_live_delta[i] = 0;
     }
 
     if (CONF_FLOW_SCHED_LEN <= 1) {
@@ -159,31 +166,53 @@ static int lerp_i(int a, int b, int x, int x0, int x1) {
     return a + (int)(((int64_t)(b - a) * (int64_t)(x - x0)) / (int64_t)span);
 }
 
+static int flow_active_segment(int flow_sps) {
+    int len = flow_sched_len_clamped();
+    flow_schedule_point_t *sched = g_flow_sched_runtime;
+    if (len <= 1 || flow_sps <= sched[0].flow_sps) return 0;
+
+    int last = len - 1;
+    if (flow_sps >= sched[last].flow_sps) return last;
+
+    for (int i = 0; i < last; i++) {
+        if (flow_sps <= sched[i + 1].flow_sps) return i;
+    }
+    return last;
+}
+
 flow_param_t flow_param(int flow_sps) {
     int len = flow_sched_len_clamped();
     flow_schedule_point_t *sched = g_flow_sched_runtime;
+    int segment = flow_active_segment(flow_sps);
+    flow_param_t p;
 
     if (len <= 1 || flow_sps <= sched[0].flow_sps) {
-        return (flow_param_t){ sched[0].baseline_sps, sched[0].bias_milli };
+        p = (flow_param_t){ sched[0].baseline_sps, sched[0].bias_milli };
+        p.baseline_sps += g_flow_sched_live_delta[segment];
+        return p;
     }
 
     int last = len - 1;
     if (flow_sps >= sched[last].flow_sps) {
-        return (flow_param_t){ sched[last].baseline_sps, sched[last].bias_milli };
+        p = (flow_param_t){ sched[last].baseline_sps, sched[last].bias_milli };
+        p.baseline_sps += g_flow_sched_live_delta[segment];
+        return p;
     }
 
     for (int i = 0; i < last; i++) {
         int x0 = sched[i].flow_sps;
         int x1 = sched[i + 1].flow_sps;
         if (flow_sps >= x0 && flow_sps <= x1) {
-            flow_param_t p;
             p.baseline_sps = lerp_i(sched[i].baseline_sps, sched[i + 1].baseline_sps, flow_sps, x0, x1);
             p.bias_milli = lerp_i(sched[i].bias_milli, sched[i + 1].bias_milli, flow_sps, x0, x1);
+            p.baseline_sps += g_flow_sched_live_delta[segment];
             return p;
         }
     }
 
-    return (flow_param_t){ sched[last].baseline_sps, sched[last].bias_milli };
+    p = (flow_param_t){ sched[last].baseline_sps, sched[last].bias_milli };
+    p.baseline_sps += g_flow_sched_live_delta[segment];
+    return p;
 }
 
 static int lane_motion_sps(lane_t *L) {
@@ -221,7 +250,8 @@ static float buf_target_reserve_mm(void) {
     float threshold = buf_threshold_mm();
     float physical_half = buf_physical_half_travel_mm();
     float pct = (float)SYNC_RESERVE_PCT / 100.0f;
-    float bias = clamp_f(SYNC_TRAILING_BIAS_FRAC, 0.0f, 0.7f);
+    flow_param_t fp = flow_param((int)extruder_est_sps);
+    float bias = clamp_f((float)fp.bias_milli / 1000.0f, 0.0f, 0.7f);
     float target = -(threshold * pct);
     float center_guard_mm = threshold * SYNC_RESERVE_CENTER_GUARD_FRAC;
 
@@ -808,8 +838,12 @@ static void baseline_update_on_settle(uint32_t mid_dwell_ms, uint32_t now_ms) {
             if (g_last_baseline_update_ms == 0 ||
                 (elapsed_ms >= CONF_BASELINE_COOLDOWN_MS && elapsed_mm >= CONF_BASELINE_COOLDOWN_MM)) {
                 
-                int new_baseline = (int)(CONF_BASELINE_ALPHA * (float)sync_current_sps + (1.0f - CONF_BASELINE_ALPHA) * (float)g_baseline_sps);
-                if (new_baseline > g_baseline_sps) {
+                int flow_sps = (int)extruder_est_sps;
+                int segment = flow_active_segment(flow_sps);
+                flow_param_t fp = flow_param(flow_sps);
+                int new_baseline = (int)(CONF_BASELINE_ALPHA * (float)sync_current_sps + (1.0f - CONF_BASELINE_ALPHA) * (float)fp.baseline_sps);
+                if (new_baseline > fp.baseline_sps) {
+                    g_flow_sched_live_delta[segment] += new_baseline - fp.baseline_sps;
                     g_baseline_sps = new_baseline;
                 }
                 
@@ -824,7 +858,8 @@ static void baseline_update_on_settle(uint32_t mid_dwell_ms, uint32_t now_ms) {
 }
 
 static int baseline_control_floor_sps(void) {
-    return (g_baseline_sps > g_baseline_target_sps) ? g_baseline_sps : g_baseline_target_sps;
+    flow_param_t fp = flow_param((int)extruder_est_sps);
+    return fp.baseline_sps;
 }
 
 int sync_clamp_max_sps(int requested_sps) {
@@ -892,10 +927,11 @@ void sync_disable(bool reset_estimator) {
 static int sync_bootstrap_sps(void) {
     int max_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
     int startup_floor_sps = TRAILING_SPS + PRE_RAMP_SPS;
+    int baseline_floor_sps = baseline_control_floor_sps();
 
     /* Adaptive floor: if we have a learned baseline, don't start way below it. */
-    if (g_baseline_sps > (startup_floor_sps * 2)) {
-        int adaptive_floor = g_baseline_sps / 2;
+    if (baseline_floor_sps > (startup_floor_sps * 2)) {
+        int adaptive_floor = baseline_floor_sps / 2;
         if (adaptive_floor > startup_floor_sps) startup_floor_sps = adaptive_floor;
     }
     if (startup_floor_sps < BUF_STAB_SPS) startup_floor_sps = BUF_STAB_SPS;

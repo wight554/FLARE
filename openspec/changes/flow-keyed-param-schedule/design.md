@@ -223,6 +223,33 @@ table is inert additive config until then.
 - Keep the existing deterministic scalar test unchanged to guard
   `--emit-baseline` compatibility.
 
+### Phase 3 firmware plan
+
+#### Current source findings
+- `buf_target_reserve_mm()` is the only reserve-target path that reads
+  `SYNC_TRAILING_BIAS_FRAC`; replacing that read with `flow_param()` preserves
+  reserve correction, zone bias, wall trim, and collapse logic unchanged.
+- `baseline_control_floor_sps()` feeds the KP cap and currently uses the global
+  scalar `g_baseline_sps` / `g_baseline_target_sps`.
+- `sync_bootstrap_sps()` uses `g_baseline_sps` only for the adaptive startup
+  floor; it can use the same schedule-backed baseline floor helper.
+- `baseline_update_on_settle()` is the disciplined live learner. Its existing
+  gates can remain unchanged while the accepted delta moves from global
+  `g_baseline_sps` to an ephemeral live delta for the active flow segment.
+
+#### `firmware/src/sync.c`
+- Add an ephemeral per-segment live baseline delta array reset alongside the
+  runtime schedule on settings defaults/load or scalar refresh.
+- Make `flow_param()` add the live delta for the active segment after the
+  generated schedule interpolation/clamp.
+- Change `baseline_update_on_settle()` to compute the current scheduled
+  baseline at `extruder_est_sps`, ratchet only the active segment delta upward,
+  and leave the persistence scalar untouched.
+- Change `baseline_control_floor_sps()` and `sync_bootstrap_sps()` to consume
+  schedule-backed baseline values.
+- Change `buf_target_reserve_mm()` to consume schedule-backed bias milli while
+  leaving the rest of reserve-target math untouched.
+
 ## Open Questions
 
 - Default breakpoint cap `N` and the curvature-drop metric exact form —

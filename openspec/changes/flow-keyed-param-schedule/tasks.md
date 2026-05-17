@@ -21,10 +21,14 @@
 
 ## 3. Phase 3 — Firmware switch to schedule (control)
 
-- [ ] 3.1 Replace scalar baseline/bias reads in `sync.c` with `flow_param(extruder_est_sps)` at the existing read sites; full-bias / reserve / collapse code untouched
-- [ ] 3.2 Scope disciplined live ratchet to the active flow segment (keep multi-cycle / variance / cooldown / up-only / non-persistent / SYNC_ACTIVE gating)
-- [ ] 3.3 Reboot/settings-reload restores schedule from config; live segment delta discarded
-- [ ] 3.4 Local `cmake --build build_local`; `scripts/validate_regression.sh`; flow-sweep parity vs scalar config still byte-identical
+- [x] 3.1 Replace scalar baseline/bias reads in `sync.c` with `flow_param(extruder_est_sps)` at the existing read sites; full-bias / reserve / collapse code untouched
+- [x] 3.2 Scope disciplined live ratchet to the active flow segment (keep multi-cycle / variance / cooldown / up-only / non-persistent / SYNC_ACTIVE gating)
+- [x] 3.3 Reboot/settings-reload restores schedule from config; live segment delta discarded
+- [x] 3.4 Local `cmake --build build_local`; `scripts/validate_regression.sh`; flow-sweep parity vs scalar config still byte-identical
+      Validation 2026-05-18: `ninja -C build_local`;
+      `python3 -m py_compile scripts/*.py`; `scripts/validate_regression.sh`.
+      Scalar parity is preserved by the `LEN==1` exact `flow_param()` path with
+      live deltas reset on config/defaults reload.
 
 ## 4. Closeout
 
