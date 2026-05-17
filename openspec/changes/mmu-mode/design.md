@@ -50,8 +50,16 @@ behind OUT — this is why UL cutter-enabled spec is clear→cut→clear.
    `UL:`/`UM:` and `TC:`. Gated by `ENABLE_CUTTER`.
 4. **`UM:` cut by entry condition.** OUT/YS present at entry → full UL cycle
    (cut included) + extend reverse to clear IN. OUT clear at entry → no cut.
-5. **`TC:` ≡ UL+swap+FL.** TC unload phase reuses the new UL semantics so
-   `TC:` and host `UL:`+`T:`+`FL:` are behaviorally equivalent.
+5. **`TC:` ≡ UL old + swap + FL new — reuse existing flows, no new logic.**
+   TC unload = existing `TASK_UNLOAD` with UL cut semantics; TC load =
+   existing `TASK_LOAD_FULL`. `TASK_LOAD_FULL` self-completes via
+   `loaded = toolhead_has_filament || buf_advance_sane || buf_trailing_sane`
+   (`motion.c:380`) and, under `AUTO_MODE`, sets `sync_enabled` on LOADED
+   (`motion.c:383`). The stricter `TC_LOAD_WAIT_TH` gate
+   (`toolchange.c:240`, hard-requires `toolhead_has_filament`) is dropped /
+   aligned to the FL `loaded` OR-condition so `TS:1`/`TS_BUF_MS` is an
+   optional accelerator, not a gate. `TC:` and `UL:`+`T:`+`FL:` stay
+   behaviorally equivalent.
 6. **Klipper owns toolhead — `change_lane` 6-step sequence:**
    1. `HD:1` — enable HOLD (explicit).
    2. tip forming (pause-retract, push, cooldown×N, dip). HOLD active:
@@ -67,17 +75,17 @@ behind OUT — this is why UL cutter-enabled spec is clear→cut→clear.
    6. pickup: filament enters toolhead, prime, resume print. **No `TS:1`.**
 
    **No-command corollary (binds steps 5–6):** no reliance on `TS:`/`SM:`.
-   - Load completion: `TC:`/`FL:` `TC_LOAD_WAIT_TH` needs
-     `toolhead_has_filament`. `motion.c:356-360`: with `TS_BUF_FALLBACK_MS>0`
-     (`SET:TS_BUF_MS`), buffer held ADVANCE for the dwell → NOSF self-calls
-     `set_toolhead_filament(true)`. No `TS:1` required.
-   - Sync start: `AUTO_MODE` on → `sync.c:916` auto-starts sync on
-     `BUF_ADVANCE` when print resumes. No `TS:1` required.
+   - Load completion: `TASK_LOAD_FULL` self-completes on `buf_advance_sane`
+     / `buf_trailing_sane` (geometry past OUT, `motion.c:380`) — no
+     `toolhead_has_filament` needed. `TS_BUF_MS` self-trigger
+     (`motion.c:356-360`) and explicit `TS:1` are optional accelerators.
+   - Sync start: under `AUTO_MODE`, `sync_enabled` set on LOADED
+     (`motion.c:383`) and/or auto-start on `BUF_ADVANCE` (`sync.c:916`).
+     No `TS:1` required.
    - Sync stop / unload: `UL:`/`TC:`/`HD:` already call `sync_disable` +
      `set_toolhead_filament(false)` internally. No `TS:0` required.
-   - **Hard requirement:** `TS_BUF_MS > 0` (or a physical TS sensor),
-     otherwise `TC_LOAD_WAIT_TH` never completes → `LOAD_TIMEOUT`. This is the
-     only config gate for the command-light flow.
+   - No hard config gate: `TS_BUF_MS`/physical sensor only speed up or
+     firm up detection; the buffer-geometry path stands alone.
 
    `POST_PRINT_STAB_DELAY_MS`=0 is now correct, not a hazard: HOLD owns the
    small-wiggle regime (step 2), so instant neg-sync at step 4 is desired.

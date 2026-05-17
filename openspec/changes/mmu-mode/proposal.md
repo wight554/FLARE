@@ -36,10 +36,11 @@ macros. Net new firmware is small.
    toggle that suppresses `sync_tick` and `BUFFER_SERVICE_NEG_SYNC` but keeps
    `BUFFER_SERVICE_STABILIZE` (basic re-center), for the tip-forming wiggle
    regime; released before the ~20-30 mm extraction / `TC:`.
-8. **Command-light flow (no `TS:`/`SM:` reliance).** Loaded state and sync
-   start are detected automatically (`TS_BUF_MS` self-trigger +
-   `AUTO_MODE` buffer auto-start). Klipper sends no `TS:1`/`TS:0`/`SM:`.
-   Hard requirement: `TS_BUF_MS > 0` (or physical TS sensor).
+8. **Command-light flow (no `TS:`/`SM:` reliance).** `TC:` = UL old +
+   swap + FL new, reusing existing `TASK_UNLOAD`/`TASK_LOAD_FULL`
+   completion. FL self-completes on buffer geometry (`buf_advance_sane`),
+   `AUTO_MODE` sets sync on LOADED. Klipper sends no `TS:1`/`TS:0`/`SM:`.
+   `TS_BUF_MS`/physical sensor/`TS:1` are optional accelerators, not gates.
 
 ### Out of scope
 - None.
