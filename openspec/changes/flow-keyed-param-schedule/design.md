@@ -187,6 +187,42 @@ table is inert additive config until then.
 - Run `python3 -m py_compile scripts/*.py`, `ninja -C build_local`, and the
   new test before the Phase 1 commit.
 
+### Phase 2 analyzer plan
+
+#### Current source findings
+- `scripts/flare_analyze.py` already has an additive deterministic
+  `emit_baseline` branch in `run()`, but the CLI parser does not currently
+  expose `--emit-baseline`, `--profile-fast`, or `--profile-slow`.
+- The deterministic scalar branch groups MID rows by stable bucket label,
+  uses sample-count weights, clamps bias with `BIAS_SAFE_MIN/MAX`, and writes
+  scalar `baseline_rate` / `sync_trailing_bias_frac`.
+- Existing analyzer regression tests call `run()` directly with
+  `SimpleNamespace`, so schedule emission can be covered without shelling out.
+
+#### `scripts/flare_analyze.py`
+- Add a shared deterministic reducer helper for the current two-profile scalar
+  behavior so `emit_baseline` output remains unchanged.
+- Add `emit_flow_schedule` mode using the same two-profile inputs. Group MID
+  rows by `v_fil` bin, reduce each mature bin with per-bucket medians and
+  sample-count weights, clamp bias, and sort points by flow.
+- Treat a bin as mature only when it has at least `MIN_RUN_BUCKET_ROWS`
+  samples; if fewer than two bins survive, emit a one-point scalar-equivalent
+  schedule.
+- Reduce over-cap schedules deterministically: keep endpoints, then repeatedly
+  drop the lowest-curvature interior point, breaking ties by lower flow. For
+  cap 1, emit the scalar-equivalent one-point schedule.
+- Expose `--emit-baseline`, `--emit-flow-schedule`, `--profile-fast`,
+  `--profile-slow`, and `--flow-schedule-cap` in argparse while keeping normal
+  review-patch validation in `run()`.
+
+#### `scripts/test_flare_analyze.py`
+- Add a deterministic schedule fixture test that writes the same two profiles
+  twice and asserts byte-identical schedule output.
+- Add a sparse fixture test that verifies schedule emission falls back to one
+  point.
+- Keep the existing deterministic scalar test unchanged to guard
+  `--emit-baseline` compatibility.
+
 ## Open Questions
 
 - Default breakpoint cap `N` and the curvature-drop metric exact form —

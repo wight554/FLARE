@@ -36,6 +36,7 @@ RAW_COVERAGE_WARN = 0.80  # Raw MID-row coverage is diagnostic only, not a hard 
 BIAS_SAFE_MIN = 0.05
 BIAS_SAFE_MAX = 0.65
 SIGMA_HARDWARE_CEILING_MM = 5.0  # Absolute FAIL floor: sensor/buffer mechanical failure.
+DEFAULT_FLOW_SCHEDULE_CAP = 8
 DEFAULTS = {
     "baseline_rate": 1600.0,
     "sync_trailing_bias_frac": 0.4,
@@ -298,6 +299,161 @@ def weighted_mean(values):
     if total_w <= 0.0:
         return 0.0
     return sum(value * w for value, w in values) / total_w
+
+
+def read_flow_schedule_cap(path):
+    if not path or not os.path.exists(path):
+        return DEFAULT_FLOW_SCHEDULE_CAP
+    with open(path) as fh:
+        for line in fh:
+            line = line.split("#", 1)[0].strip()
+            if not line or ":" not in line:
+                continue
+            key, raw = line.split(":", 1)
+            if key.strip() != "flow_schedule_cap":
+                continue
+            try:
+                return int(float(raw.strip().split()[0]))
+            except (ValueError, IndexError):
+                return DEFAULT_FLOW_SCHEDULE_CAP
+    return DEFAULT_FLOW_SCHEDULE_CAP
+
+
+def clamp_flow_schedule_cap(cap):
+    cap = int(cap)
+    if cap < 1:
+        raise ValueError("flow_schedule_cap must be >= 1")
+    if cap > 16:
+        raise ValueError("flow_schedule_cap must be <= 16")
+    return cap
+
+
+def deterministic_profile_params(rows):
+    mids = mid_rows(rows)
+    grouped = defaultdict(list)
+    for r in mids:
+        grouped[bucket_label(r.get("feature", ""), to_float(r.get("v_fil")))].append(r)
+
+    if not grouped:
+        return None
+
+    weighted_x = []
+    weighted_bias = []
+    for label in sorted(grouped.keys()):
+        bucket_rows = grouped[label]
+        n = len(bucket_rows)
+        if n == 0:
+            continue
+        ests = [to_float(r.get("est_sps")) for r in bucket_rows]
+        bp_delta = [to_float(r.get("bp_mm")) - to_float(r.get("rt_mm")) for r in bucket_rows]
+        if ests:
+            weighted_x.append((median(ests), float(n)))
+        if bp_delta:
+            weighted_bias.append((
+                clamp(0.4 + median(bp_delta) / 7.8, BIAS_SAFE_MIN, BIAS_SAFE_MAX),
+                float(n),
+            ))
+
+    baseline = round(weighted_mean(weighted_x)) if weighted_x else 1600.0
+    bias = clamp(weighted_mean(weighted_bias), BIAS_SAFE_MIN, BIAS_SAFE_MAX) if weighted_bias else 0.4
+    return int(baseline), bias
+
+
+def interpolate_float(a, b, x, x0, x1):
+    span = x1 - x0
+    if span <= 0:
+        return float(a)
+    return float(a) + (float(b - a) * float(x - x0) / float(span))
+
+
+def reduce_flow_schedule_points(points, cap):
+    if cap <= 1:
+        return points[:1]
+    reduced = list(points)
+    while len(reduced) > cap:
+        ranked = []
+        for idx in range(1, len(reduced) - 1):
+            prev_flow, prev_base, prev_bias = reduced[idx - 1]
+            flow, baseline, bias = reduced[idx]
+            next_flow, next_base, next_bias = reduced[idx + 1]
+            pred_base = interpolate_float(prev_base, next_base, flow, prev_flow, next_flow)
+            pred_bias = interpolate_float(prev_bias, next_bias, flow, prev_flow, next_flow)
+            curvature = abs(float(baseline) - pred_base) + abs(float(bias) - pred_bias)
+            ranked.append((curvature, flow, idx))
+        if not ranked:
+            break
+        _curvature, _flow, drop_idx = min(ranked)
+        del reduced[drop_idx]
+    return reduced
+
+
+def deterministic_flow_schedule(rows, cap):
+    scalar = deterministic_profile_params(rows)
+    if scalar is None:
+        return None
+
+    scalar_baseline, scalar_bias = scalar
+    scalar_point = (
+        int(scalar_baseline),
+        int(scalar_baseline),
+        int(round(clamp(scalar_bias, BIAS_SAFE_MIN, BIAS_SAFE_MAX) * 1000.0)),
+    )
+    if cap <= 1:
+        return [scalar_point]
+
+    by_flow = defaultdict(list)
+    for r in mid_rows(rows):
+        by_flow[bin_v_fil(to_float(r.get("v_fil")))].append(r)
+
+    points = []
+    for flow in sorted(by_flow.keys()):
+        flow_rows = by_flow[flow]
+        if len(flow_rows) < MIN_RUN_BUCKET_ROWS:
+            continue
+
+        by_bucket = defaultdict(list)
+        for r in flow_rows:
+            by_bucket[bucket_label(r.get("feature", ""), to_float(r.get("v_fil")))].append(r)
+
+        weighted_x = []
+        weighted_bias = []
+        for label in sorted(by_bucket.keys()):
+            bucket_rows = by_bucket[label]
+            n = len(bucket_rows)
+            if n == 0:
+                continue
+            ests = [to_float(r.get("est_sps")) for r in bucket_rows]
+            bp_delta = [to_float(r.get("bp_mm")) - to_float(r.get("rt_mm")) for r in bucket_rows]
+            if ests:
+                weighted_x.append((median(ests), float(n)))
+            if bp_delta:
+                weighted_bias.append((
+                    clamp(0.4 + median(bp_delta) / 7.8, BIAS_SAFE_MIN, BIAS_SAFE_MAX),
+                    float(n),
+                ))
+        if not weighted_x:
+            continue
+        baseline = int(round(weighted_mean(weighted_x)))
+        if weighted_bias:
+            bias = clamp(weighted_mean(weighted_bias), BIAS_SAFE_MIN, BIAS_SAFE_MAX)
+            bias_milli = int(round(bias * 1000.0))
+        else:
+            bias_milli = scalar_point[2]
+        points.append((int(flow), baseline, bias_milli))
+
+    if len(points) < 2:
+        return [scalar_point]
+    return reduce_flow_schedule_points(points, cap)
+
+
+def write_flow_schedule(path, cap, points):
+    with open(path, "w") as fh:
+        fh.write("# flare_analyze.py emitted flow schedule\n")
+        fh.write("# Each point: flow_sps, baseline_sps, trailing_bias_frac\n")
+        fh.write(f"flow_schedule_cap: {cap}\n\n")
+        fh.write("[flow_schedule.v1]\n")
+        for idx, (flow_sps, baseline_sps, bias_milli) in enumerate(points):
+            fh.write(f"point{idx}: {flow_sps}, {baseline_sps}, {bias_milli / 1000.0:.3f}\n")
 
 
 def contributor_entries(state_buckets, force=False, include_stale=False):
@@ -832,9 +988,15 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
 
 
 def run(args):
-    if getattr(args, "emit_baseline", False):
+    if getattr(args, "emit_baseline", False) or getattr(args, "emit_flow_schedule", False):
+        if getattr(args, "emit_baseline", False) and getattr(args, "emit_flow_schedule", False):
+            print("Error: choose only one emit mode", file=sys.stderr)
+            return 1
         if not getattr(args, "profile_fast", None) or not getattr(args, "profile_slow", None):
-            print("Error: --emit-baseline requires both --profile-fast and --profile-slow", file=sys.stderr)
+            print("Error: emit mode requires both --profile-fast and --profile-slow", file=sys.stderr)
+            return 1
+        if not getattr(args, "out", None) and getattr(args, "emit_flow_schedule", False):
+            print("Error: --emit-flow-schedule requires --out", file=sys.stderr)
             return 1
         try:
             fast_runs, fast_rows = read_csv_runs([args.profile_fast])
@@ -844,41 +1006,28 @@ def run(args):
             return 1
 
         all_rows = fast_rows + slow_rows
-        mids = mid_rows(all_rows)
-        grouped = defaultdict(list)
-        for r in mids:
-            grouped[bucket_label(r.get("feature", ""), to_float(r.get("v_fil")))].append(r)
-
-        if not grouped:
+        scalar = deterministic_profile_params(all_rows)
+        if scalar is None:
             print("Error: no MID rows found in profiles", file=sys.stderr)
             return 1
+        baseline, bias = scalar
 
-        weighted_x = []
-        weighted_bias = []
-        for label in sorted(grouped.keys()):
-            rows = grouped[label]
-            n = len(rows)
-            if n == 0:
-                continue
-            ests = [to_float(r.get("est_sps")) for r in rows]
-            bp_delta = [to_float(r.get("bp_mm")) - to_float(r.get("rt_mm")) for r in rows]
-            if ests:
-                weighted_x.append((median(ests), float(n)))
-            if bp_delta:
-                weighted_bias.append((
-                    clamp(0.4 + median(bp_delta) / 7.8, BIAS_SAFE_MIN, BIAS_SAFE_MAX),
-                    float(n)
-                ))
-
-        if weighted_x:
-            baseline = round(weighted_mean(weighted_x))
-        else:
-            baseline = 1600.0
-
-        if weighted_bias:
-            bias = clamp(weighted_mean(weighted_bias), BIAS_SAFE_MIN, BIAS_SAFE_MAX)
-        else:
-            bias = 0.4
+        if getattr(args, "emit_flow_schedule", False):
+            raw_cap = getattr(args, "flow_schedule_cap", None)
+            try:
+                cap = clamp_flow_schedule_cap(
+                    raw_cap if raw_cap is not None else read_flow_schedule_cap(getattr(args, "config", None))
+                )
+            except ValueError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                return 1
+            points = deterministic_flow_schedule(all_rows, cap)
+            if points is None:
+                print("Error: no MID rows found in profiles", file=sys.stderr)
+                return 1
+            write_flow_schedule(args.out, cap, points)
+            print(f"[*] Wrote deterministic flow schedule to {args.out}")
+            return 0
 
         if args.out:
             with open(args.out, "w") as fh:
@@ -891,10 +1040,10 @@ def run(args):
         return 0
 
     if not getattr(args, "inputs", None):
-        print("Error: --in required unless using --emit-baseline", file=sys.stderr)
+        print("Error: --in required unless using --emit-baseline or --emit-flow-schedule", file=sys.stderr)
         return 1
     if not getattr(args, "out", None):
-        print("Error: --out required unless using --emit-baseline", file=sys.stderr)
+        print("Error: --out required unless using --emit-baseline or --emit-flow-schedule", file=sys.stderr)
         return 1
 
     try:
@@ -996,12 +1145,17 @@ def run(args):
 
 def main():
     ap = argparse.ArgumentParser(description="Analyze FLARE calibration CSVs")
-    ap.add_argument("--in", dest="inputs", nargs="+", required=True)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--in", dest="inputs", nargs="+")
+    ap.add_argument("--out")
     ap.add_argument("--mode", choices=["safe", "aggressive"], default="safe")
     ap.add_argument("--state", help="Optional flare_live_tuner.py bucket state JSON")
     ap.add_argument("--machine-id", default="default", help="Machine ID for state file (default: default)")
     ap.add_argument("--config", default="config.ini", help="Current config.ini for current-value display")
+    ap.add_argument("--profile-fast", help="Fast-profile CSV for deterministic emit modes")
+    ap.add_argument("--profile-slow", help="Slow-profile CSV for deterministic emit modes")
+    ap.add_argument("--emit-baseline", action="store_true", help="Emit deterministic scalar baseline patch from two profiles")
+    ap.add_argument("--emit-flow-schedule", action="store_true", help="Emit deterministic flow-keyed schedule from two profiles")
+    ap.add_argument("--flow-schedule-cap", type=int, help="Maximum emitted schedule points (1..16)")
     ap.add_argument("--acceptance-gate", action="store_true", help="Exit non-zero unless Phase 2.9 acceptance checks pass")
     ap.add_argument("--commit-watermark", action="store_true", help="Write analysis values to _meta watermark in state JSON")
     ap.add_argument("--keys", help="Comma-separated list of keys to update in watermark (defaults to all)")

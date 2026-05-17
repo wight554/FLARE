@@ -12,10 +12,12 @@
 
 ## 2. Phase 2 — Analyzer schedule emission (host)
 
-- [ ] 2.1 Add schedule-emit mode to `scripts/flare_analyze.py`: group buckets by `v_fil_bin`, apply existing maturity gates, one (flow, baseline, bias) per surviving bin via the `sync-tuning-and-relief-finish` n-weighted reducer + `BIAS_SAFE_MIN/MAX`
-- [ ] 2.2 Deterministic reduction to ≤ `N` points: keep endpoints, drop lowest-curvature interior point until ≤ `N`, ties broken by lowest flow; no wall-clock recency
-- [ ] 2.3 Sparse fallback: too few mature bins → emit `LEN==1` scalar-equivalent schedule
-- [ ] 2.4 Tests: same buckets twice → byte-identical schedule; sparse input → `LEN==1`; existing scalar `--emit-baseline` path unchanged
+- [x] 2.1 Add schedule-emit mode to `scripts/flare_analyze.py`: group buckets by `v_fil_bin`, apply existing maturity gates, one (flow, baseline, bias) per surviving bin via the `sync-tuning-and-relief-finish` n-weighted reducer + `BIAS_SAFE_MIN/MAX`
+- [x] 2.2 Deterministic reduction to ≤ `N` points: keep endpoints, drop lowest-curvature interior point until ≤ `N`, ties broken by lowest flow; no wall-clock recency
+- [x] 2.3 Sparse fallback: too few mature bins → emit `LEN==1` scalar-equivalent schedule
+- [x] 2.4 Tests: same buckets twice → byte-identical schedule; sparse input → `LEN==1`; existing scalar `--emit-baseline` path unchanged
+      Validation 2026-05-18: `python3 scripts/test_flare_analyze.py`;
+      `python3 -m py_compile scripts/*.py`.
 
 ## 3. Phase 3 — Firmware switch to schedule (control)
 

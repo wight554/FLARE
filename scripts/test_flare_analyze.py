@@ -853,6 +853,89 @@ def test_deterministic_baseline():
     return "deterministic baseline is byte-identical for same inputs"
 
 
+def test_deterministic_flow_schedule():
+    with tempfile.TemporaryDirectory() as td:
+        fast_csv = os.path.join(td, "fast.csv")
+        slow_csv = os.path.join(td, "slow.csv")
+        config = os.path.join(td, "config.ini")
+        write_config(config)
+
+        fast_rows = []
+        for flow in (1500, 2000, 2500, 3000):
+            fast_rows.extend(
+                row(flow * 10 + i * 100, feature="A", v_fil=flow, est=flow + (flow // 100), bp=-3.0 + (flow / 10000.0), rt=-3.0)
+                for i in range(60)
+            )
+        write_csv(fast_csv, fast_rows)
+
+        slow_rows = []
+        for flow in (500, 1000, 1500):
+            slow_rows.extend(
+                row(flow * 10 + i * 100, feature="B", v_fil=flow, est=flow + 25, bp=-3.0 - (flow / 12000.0), rt=-3.0)
+                for i in range(60)
+            )
+        write_csv(slow_csv, slow_rows)
+
+        out = os.path.join(td, "schedule.ini")
+        args = SimpleNamespace(
+            emit_flow_schedule=True,
+            emit_baseline=False,
+            profile_fast=fast_csv,
+            profile_slow=slow_csv,
+            out=out,
+            config=config,
+            flow_schedule_cap=4,
+            inputs=None,
+        )
+        assert analyze.run(args) == 0
+        with open(out) as fh:
+            content = fh.read()
+
+        out2 = os.path.join(td, "schedule2.ini")
+        args.out = out2
+        assert analyze.run(args) == 0
+        with open(out2) as fh:
+            content2 = fh.read()
+
+        point_lines = [line for line in content.splitlines() if line.startswith("point")]
+        assert content == content2, (content, content2)
+        assert "flow_schedule_cap: 4" in content, content
+        assert len(point_lines) == 4, content
+        assert point_lines[0].startswith("point0: 500,"), content
+        assert point_lines[-1].startswith("point3: 3000,"), content
+    return "flow schedule is byte-identical and capped deterministically"
+
+
+def test_sparse_flow_schedule_falls_back_to_one_point():
+    with tempfile.TemporaryDirectory() as td:
+        fast_csv = os.path.join(td, "fast.csv")
+        slow_csv = os.path.join(td, "slow.csv")
+        config = os.path.join(td, "config.ini")
+        write_config(config)
+
+        write_csv(fast_csv, [row(i * 100, feature="Only", v_fil=1000, est=900, bp=-3.0, rt=-3.0) for i in range(30)])
+        write_csv(slow_csv, [row(3000 + i * 100, feature="Only", v_fil=1000, est=900, bp=-3.0, rt=-3.0) for i in range(30)])
+
+        out = os.path.join(td, "schedule.ini")
+        args = SimpleNamespace(
+            emit_flow_schedule=True,
+            emit_baseline=False,
+            profile_fast=fast_csv,
+            profile_slow=slow_csv,
+            out=out,
+            config=config,
+            flow_schedule_cap=8,
+            inputs=None,
+        )
+        assert analyze.run(args) == 0
+        with open(out) as fh:
+            content = fh.read()
+        point_lines = [line for line in content.splitlines() if line.startswith("point")]
+        assert len(point_lines) == 1, content
+        assert point_lines[0] == "point0: 900, 900, 0.400", content
+    return "sparse schedule emission falls back to scalar-equivalent point"
+
+
 def main():
     tests = [
         ("baseline", test_baseline_from_dominant_cluster),
@@ -890,6 +973,8 @@ def main():
         ("2.14-sigma", test_2_14_high_sigma_fails_initially),
         ("2.14-runs", test_2_14_two_runs_fails_initially),
         ("determ", test_deterministic_baseline),
+        ("flow-sched", test_deterministic_flow_schedule),
+        ("flow-sparse", test_sparse_flow_schedule_falls_back_to_one_point),
     ]
     print(f"{'case':<12} result")
     print(f"{'-' * 12} {'-' * 40}")
