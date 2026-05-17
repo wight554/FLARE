@@ -9,17 +9,20 @@
 
 ## 2. Write TUNING.md
 
-- [ ] 2.1 TL;DR "simplest path" (defaults working) at the very top
-- [ ] 2.2 Plain "what tuning does / good vs bad" section, zero firmware assumptions, no Phase labels
-- [ ] 2.3 Prerequisites with exact commands: find serial port, find Klipper socket, install pyserial, back up state file
-- [ ] 2.4 Two-profile bracket model up front: same model, fastest- vs slowest-cubic-flow slicer profile, concrete how-to-pick + one worked example
-- [ ] 2.5 Capture — Klipper sidecar path: full `gcode_marker.py --emit sidecar` + `flare_live_tuner.py --observe-daemon --klipper-uds ... --sidecar ...` command lines + expected output
-- [ ] 2.6 Capture — standalone shell-marker fallback: full command lines (`--klipper-mode off` / marker file) + expected output, presented first-class
-- [ ] 2.7 Analyze: exact `flare_analyze.py --profile-fast --profile-slow --emit-flow-schedule [--flow-schedule-cap N] --out ...`; show sample output; explain sparse→one-point
-- [ ] 2.8 Review/apply: which keys into `config.ini`; exact `gen_config.py`, `ninja -C build_local`, `flash_flare.sh`, watermark (`flare_analyze.py --commit-watermark --state ...`) commands
-- [ ] 2.9 `flare_baseline_recommender.py`: exact `--port`/`--file` invocation, observe-only (no writes), how to read suggested baseline + drift summary, analyzer remains authority
-- [ ] 2.10 Verification: exact `STATUS` command; read `SYNC_REFILL_MM`/`SYNC_RELIEVE_MM`; operator meaning of `FAULT_HOLD`/`FAULT_HOLD_RECOVERY`/`cannot_refill`/`cannot_relieve` (observable only, link BEHAVIOR.md)
-- [ ] 2.11 Troubleshooting: acceptance-gate FAIL vs WARN in plain words + action each; "different numbers each run" → determinism + scalar one-point safe path
+- [x] 2.1 TL;DR "simplest path" (defaults working) at the very top
+- [x] 2.2 Plain "what tuning does / good vs bad" section, zero firmware assumptions, no Phase labels
+- [x] 2.3 Prerequisites with exact commands: find serial port, find Klipper socket, install pyserial, back up state file
+- [x] 2.4 Two-profile bracket model up front: same model, fastest- vs slowest-cubic-flow slicer profile, concrete how-to-pick + one worked example
+- [x] 2.5 Capture — Klipper sidecar path: full `gcode_marker.py --emit sidecar` + `flare_live_tuner.py --observe-daemon --klipper-uds ... --sidecar ...` command lines + expected output
+- [x] 2.6 Capture — standalone shell-marker fallback: full command lines (`--klipper-mode off` / marker file) + expected output, presented first-class
+- [x] 2.7 Analyze: exact `flare_analyze.py --profile-fast --profile-slow --emit-flow-schedule [--flow-schedule-cap N] --out ...`; show sample output; explain sparse→one-point
+- [x] 2.8 Review/apply: which keys into `config.ini`; exact `gen_config.py`, `ninja -C build_local`, `flash_flare.sh`, watermark (`flare_analyze.py --commit-watermark --state ...`) commands
+- [x] 2.9 `flare_baseline_recommender.py`: exact `--port`/`--file` invocation, observe-only (no writes), how to read suggested baseline + drift summary, analyzer remains authority
+- [x] 2.10 Verification: exact `STATUS` command; read `SYNC_REFILL_MM`/`SYNC_RELIEVE_MM`; operator meaning of `FAULT_HOLD`/`FAULT_HOLD_RECOVERY`/`cannot_refill`/`cannot_relieve` (observable only, link BEHAVIOR.md)
+- [x] 2.11 Troubleshooting: acceptance-gate FAIL vs WARN in plain words + action each; "different numbers each run" → determinism + scalar one-point safe path
+      Validation 2026-05-18: `TUNING.md` created from captured help output;
+      includes both capture paths, flow-schedule analyze/apply, recommender,
+      verification, troubleshooting, and open questions.
 
 ## 3. Link + de-jargon existing docs
 
