@@ -82,10 +82,12 @@ ramming retract stays well under buffer half-travel and
   must pull ~70 mm+ to clear extruder gears (huge vs 7.8 mm — intended
   neg-sync follow, then `TC:`).
 - Operator's actual profile: pause → ~1 mm retract → ~0.5 mm push → small
-  retract/push wiggles → one long retract to gears at the very end. Per-move
-  amplitude (sub-mm to ~1 mm) is well under 7.8 mm — but cumulative net
-  retract over many wiggle cycles can still exceed half-travel, and buffer
-  is not guaranteed centered at paused-print entry.
+  retract/push wiggles → one long retract to gears at the very end. The
+  "small" wiggle moves are filament/profile dependent and **per some users
+  reach 20+ mm** — far past 7.8 mm half-travel. Without HOLD each such move
+  pins the buffer rail and fires neg-sync mid-tip-form. Plus cumulative net
+  drift and uncentered paused-print entry. HOLD is strongly required, not a
+  marginal safeguard.
 - Margin math (worst case, LH-Stinger 5 mm): from a centered buffer reaches
   −5 mm (deadband ≈ 0.15·7.8 ≈ 1.17 mm) — reliably flips `BUF_TRAILING`.
   `POST_PRINT_STAB_DELAY_MS` default = **0** ⇒ neg-sync reverses the lane
