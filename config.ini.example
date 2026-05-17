@@ -56,7 +56,9 @@ run_current:
 # baseline_variance_reject_frac: 0.15
 # baseline_cooldown_ms: 2000
 # baseline_cooldown_mm: 5.0
-# sync_fault_hold_recovery_ms: 5000
+# sync_fault_hold_recovery_ms: 5000     # VERIFY: retune from FAULT_HOLD/FAULT_HOLD_RECOVERY event logs
+# sync_cannot_refill_mm: 50.0
+# sync_cannot_relieve_mm: 50.0
 # buf_predict_thr_ms: 250
 # global_max_rate: 4000         # absolute ceiling for every commanded motor rate (mm/min)
 # sync_kp_rate: 900

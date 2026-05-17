@@ -351,6 +351,8 @@ def main():
         f"#define CONF_BASELINE_COOLDOWN_MS {get('baseline_cooldown_ms')}",
         f"#define CONF_BASELINE_COOLDOWN_MM {get_float('baseline_cooldown_mm')}f",
         f"#define CONF_SYNC_FAULT_HOLD_RECOVERY_MS {get('sync_fault_hold_recovery_ms')}",
+        f"#define CONF_SYNC_CANNOT_REFILL_MM {get_float('sync_cannot_refill_mm')}f",
+        f"#define CONF_SYNC_CANNOT_RELIEVE_MM {get_float('sync_cannot_relieve_mm')}f",
         f"#define CONF_BUF_PREDICT_THR_MS {get('buf_predict_thr_ms')}",
         f"#define CONF_GLOBAL_MAX_SPS      {mm_min_to_sps(get('global_max_rate'), l1)}",
         f"#define CONF_SYNC_KP_SPS        {mm_min_to_sps(get('sync_kp_rate'), l1)}",

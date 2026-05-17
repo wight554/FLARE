@@ -128,7 +128,7 @@ def read_csv_runs(paths):
     for idx, path in enumerate(paths, 1):
         with open(path, newline="") as fh:
             rows = list(csv.DictReader(fh))
-            
+
         normalized = []
         for row in rows:
             # Map flare_logger.py (Phase 2.7) OR flare_live_tuner.py CsvEmitter (Phase 2.9/2.11)
@@ -352,7 +352,7 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
     runs = runs_subset
     rows = rows_subset
     mids = mid_rows(rows)
-    
+
     import time
     now_ts = time.time()
     stale_cutoff = now_ts - 60 * 86400
@@ -366,7 +366,7 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
     else:
         qualifying = set()
         locked_only = False
-    
+
     by_bucket = defaultdict(list)
     for r in mids:
         label = bucket_label(r.get("feature", ""), to_float(r.get("v_fil")))
@@ -701,12 +701,12 @@ def acceptance_gate(rows, runs, state_buckets, current, mode="safe", force=False
         warnings.append(f"soak immature: locked bucket count {len(locked)} < 3")
 
     telemetry = {
-        "ADV_DWELL_STOP": 0,
+        "FAULT_HOLD": 0,
         "ADV_RISK_HIGH": 0,
         "EST_FALLBACK": 0,
     }
-    if telemetry["ADV_DWELL_STOP"] != 0:
-        reasons.append("ADV_DWELL_STOP count > 0")
+    if telemetry["FAULT_HOLD"] != 0:
+        reasons.append("FAULT_HOLD count > 0")
     if telemetry["ADV_RISK_HIGH"] > 5 * max(1, len(runs)):
         reasons.append("ADV_RISK_HIGH count > 5 per run")
     if telemetry["EST_FALLBACK"] != 0:
@@ -784,7 +784,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
                 "# Telemetry: "
                 f"ADV_RISK_HIGH={tel['ADV_RISK_HIGH']}, "
                 f"EST_FALLBACK={tel['EST_FALLBACK']}, "
-                f"ADV_DWELL_STOP={tel['ADV_DWELL_STOP']}\n"
+                f"FAULT_HOLD={tel['FAULT_HOLD']}\n"
             )
             if gate.get("warnings"):
                 fh.write("# Warnings:\n")
@@ -832,6 +832,71 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
 
 
 def run(args):
+    if getattr(args, "emit_baseline", False):
+        if not getattr(args, "profile_fast", None) or not getattr(args, "profile_slow", None):
+            print("Error: --emit-baseline requires both --profile-fast and --profile-slow", file=sys.stderr)
+            return 1
+        try:
+            fast_runs, fast_rows = read_csv_runs([args.profile_fast])
+            slow_runs, slow_rows = read_csv_runs([args.profile_slow])
+        except FileNotFoundError as exc:
+            print(f"Error: file not found: {exc.filename}", file=sys.stderr)
+            return 1
+
+        all_rows = fast_rows + slow_rows
+        mids = mid_rows(all_rows)
+        grouped = defaultdict(list)
+        for r in mids:
+            grouped[bucket_label(r.get("feature", ""), to_float(r.get("v_fil")))].append(r)
+
+        if not grouped:
+            print("Error: no MID rows found in profiles", file=sys.stderr)
+            return 1
+
+        weighted_x = []
+        weighted_bias = []
+        for label in sorted(grouped.keys()):
+            rows = grouped[label]
+            n = len(rows)
+            if n == 0:
+                continue
+            ests = [to_float(r.get("est_sps")) for r in rows]
+            bp_delta = [to_float(r.get("bp_mm")) - to_float(r.get("rt_mm")) for r in rows]
+            if ests:
+                weighted_x.append((median(ests), float(n)))
+            if bp_delta:
+                weighted_bias.append((
+                    clamp(0.4 + median(bp_delta) / 7.8, BIAS_SAFE_MIN, BIAS_SAFE_MAX),
+                    float(n)
+                ))
+
+        if weighted_x:
+            baseline = round(weighted_mean(weighted_x))
+        else:
+            baseline = 1600.0
+
+        if weighted_bias:
+            bias = clamp(weighted_mean(weighted_bias), BIAS_SAFE_MIN, BIAS_SAFE_MAX)
+        else:
+            bias = 0.4
+
+        if args.out:
+            with open(args.out, "w") as fh:
+                fh.write(f"baseline_rate: {int(baseline)}\n")
+                fh.write(f"sync_trailing_bias_frac: {bias:.3f}\n")
+            print(f"[*] Wrote deterministic baseline to {args.out}")
+        else:
+            print(f"baseline_rate: {int(baseline)}")
+            print(f"sync_trailing_bias_frac: {bias:.3f}")
+        return 0
+
+    if not getattr(args, "inputs", None):
+        print("Error: --in required unless using --emit-baseline", file=sys.stderr)
+        return 1
+    if not getattr(args, "out", None):
+        print("Error: --out required unless using --emit-baseline", file=sys.stderr)
+        return 1
+
     try:
         runs, rows = read_csv_runs(args.inputs)
     except FileNotFoundError as exc:

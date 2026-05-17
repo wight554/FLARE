@@ -579,9 +579,9 @@ class Tuner:
         if line.startswith("EV:SYNC,ADV_RISK_HIGH"):
             self.frozen_until = now + 30.0
             self._rollback_active()
-        elif line.startswith("EV:SYNC,ADV_DWELL_STOP"):
+        elif line.startswith("EV:SYNC,FAULT_HOLD"):
             self.halted = True
-            print("[tuner] HALT: ADV_DWELL_STOP; operator resume required", file=sys.stderr)
+            print("[tuner] HALT: FAULT_HOLD; operator resume required", file=sys.stderr)
         elif line.startswith("EV:BUF,EST_FALLBACK"):
             self.frozen_until = now + 30.0
 

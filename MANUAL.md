@@ -254,7 +254,7 @@ after `SS:`; `HD` appears with the core sync fields near `SM`.
 | `MOVE_DONE` | `lane` | Exact move completed. |
 | `ACTIVE` | `lane\|NONE`| Reported when the active lane changes. |
 | `FAULT:DRY_SPIN`| `lane` | Motor spinning > 8s without filament (`IN` clear). |
-| `SYNC` | `AUTO_START\|AUTO_STOP\|ADV_DWELL_STOP\|ADV_DWELL_WARN\|ADV_RISK_HIGH` | Automatic sync state transitions. `ADV_DWELL_STOP` fires when pinned at advance for `SYNC_ADV_STOP_MS`. `ADV_DWELL_WARN` fires when centering drift reaches a significant threshold. `ADV_RISK_HIGH` fires (rate-limited 1/30 s) when advance-pin density in the rolling window reaches `ADV_RISK_THR`. |
+| `SYNC` | `AUTO_START\|AUTO_STOP\|FAULT_HOLD\|FAULT_HOLD_RECOVERY\|ADV_DWELL_WARN\|ADV_RISK_HIGH` | Automatic sync state transitions. `FAULT_HOLD` fires on advance-dwell timeout or hard-wall critical; recovers automatically after `CONF_SYNC_FAULT_HOLD_RECOVERY_MS`. `ADV_DWELL_WARN` fires when centering drift reaches a significant threshold. `ADV_RISK_HIGH` fires when advance-pin density in the rolling window reaches `ADV_RISK_THR`. |
 | `BUF` | `DRIFT_RESET` | Drift EWMA was reset. Fires when sync stops, `EST_FALLBACK` occurs, or sensor is hot-swapped. Subsequent `BPN` will restart from 0. |
 | `BUF` | `EST_LOW_CF\|EST_FALLBACK` | Buffer estimator events. `EST_LOW_CF` fires when confidence drops; `EST_FALLBACK` fires when sigma exceeds the hard cap. |
 | `BUF_STAB` | `START\|DONE\|TIMEOUT` | Buffer neutralization started, reached `MID`, or hit its safety timeout. |
@@ -394,6 +394,22 @@ tracked as diagnostics but excluded from lock/write eligibility.
 
 Phase 2.11 adds residual-aware lock hysteresis. A locked bucket is no longer
 unlocked by one moderate sample; the tuner waits for catastrophic mismatch,
+sustained outlier streak, or sustained mean drift. Buckets with high residual
+scatter remain `STABLE` with `wait=noise sigma/x=...` instead of locking and
+chattering. Freshly locked buckets may briefly show `wait=dwell N/20` while the
+new unlock detector gathers post-lock evidence.
+
+`--state-info --verbose` appends residual diagnostics to the table:
+`sigma2` is the residual-variance EWMA, `streak` is the current moderate
+outlier streak, `dwell` is the number of samples observed since the last lock,
+and `last_unlock` records `catastrophic`, `streak`, or `drift` when an unlock
+actually occurs. With `--csv --verbose`, the same data is appended as
+`resid_var_ewma,outlier_streak,locked_sample_count,last_unlock_reason`.
+
+If a serial write fails in an explicit live-write mode, the tuner waits 1 s and
+attempts to reopen the same port up to five times. If reconnect fails, it exits
+non-zero and leaves the state file unchanged.
+ mismatch,
 sustained outlier streak, or sustained mean drift. Buckets with high residual
 scatter remain `STABLE` with `wait=noise sigma/x=...` instead of locking and
 chattering. Freshly locked buckets may briefly show `wait=dwell N/20` while the

@@ -814,6 +814,45 @@ def test_2_14_two_runs_fails_initially():
     return "two runs pass with warning after demotion"
 
 
+def test_deterministic_baseline():
+    with tempfile.TemporaryDirectory() as td:
+        fast_csv = os.path.join(td, "fast.csv")
+        slow_csv = os.path.join(td, "slow.csv")
+        out = os.path.join(td, "out.ini")
+
+        fast_rows = [row(i * 100, feature="A", v_fil=2000, est=2000.0, bp=1.0, rt=0.0) for i in range(100)]
+        write_csv(fast_csv, fast_rows)
+
+        slow_rows = [row(i * 100, feature="B", v_fil=100, est=500.0, bp=-1.0, rt=0.0) for i in range(100)]
+        write_csv(slow_csv, slow_rows)
+
+        config = os.path.join(td, "config.ini")
+        write_config(config)
+
+        args = SimpleNamespace(
+            emit_baseline=True,
+            profile_fast=fast_csv,
+            profile_slow=slow_csv,
+            out=out,
+            config=config,
+            inputs=None,
+        )
+        assert analyze.run(args) == 0
+
+        with open(out) as fh:
+            content = fh.read()
+        assert "baseline_rate: " in content
+        assert "sync_trailing_bias_frac: " in content
+
+        out2 = os.path.join(td, "out2.ini")
+        args.out = out2
+        assert analyze.run(args) == 0
+        with open(out2) as fh:
+            content2 = fh.read()
+        assert content == content2
+    return "deterministic baseline is byte-identical for same inputs"
+
+
 def main():
     tests = [
         ("baseline", test_baseline_from_dominant_cluster),
@@ -850,6 +889,7 @@ def main():
         ("2.14-mass", test_2_14_diluted_mass_fails_initially),
         ("2.14-sigma", test_2_14_high_sigma_fails_initially),
         ("2.14-runs", test_2_14_two_runs_fails_initially),
+        ("determ", test_deterministic_baseline),
     ]
     print(f"{'case':<12} result")
     print(f"{'-' * 12} {'-' * 40}")

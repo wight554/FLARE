@@ -126,17 +126,17 @@ def test_adv_risk_freeze_and_rollback():
         return "ADV_RISK_HIGH rolls back and freezes writes"
 
 
-def test_adv_dwell_stop_halts():
+def test_fault_hold_halts():
     with tempfile.TemporaryDirectory() as td:
         clock = Clock()
         t, fake = make_tuner(os.path.join(td, "state.json"), clock)
-        t.on_event("EV:SYNC,ADV_DWELL_STOP")
+        t.on_event("EV:SYNC,FAULT_HOLD")
         for _ in range(250):
             clock.step(0.25)
             t.on_status(status(est=2200))
         assert t.halted
         assert not fake.writes, fake.writes
-        return "ADV_DWELL_STOP halts without further writes"
+        return "FAULT_HOLD halts without further writes"
 
 
 def test_rate_limit_three_sets_per_window():
@@ -1279,7 +1279,7 @@ def main():
         ("warm-up", test_cold_start_no_set),
         ("locked", test_locked_warm_start_zero_sets),
         ("adv-risk", test_adv_risk_freeze_and_rollback),
-        ("halt", test_adv_dwell_stop_halts),
+        ("halt", test_fault_hold_halts),
         ("rate-limit", test_rate_limit_three_sets_per_window),
         ("baseline-off", test_baseline_writes_disabled_by_default),
         ("observe-default", test_observe_default_no_writes),

@@ -952,7 +952,22 @@ void buf_sensor_tick(uint32_t now_ms) {
         lane_t *A = lane_ptr(active_lane);
         if (A) {
             uint8_t idx = (active_lane == 2) ? 1 : 0;
-            g_sync_mmu_total_mm += (float)lane_motion_sps(A) * ((float)elapsed_ms / 1000.0f) * MM_PER_STEP[idx];
+            float delta_mm = (float)lane_motion_sps(A) * ((float)elapsed_ms / 1000.0f) * MM_PER_STEP[idx];
+            g_sync_mmu_total_mm += delta_mm;
+
+            if (g_buf.state == BUF_ADVANCE) {
+                g_sync_refill_effort_mm += delta_mm;
+                if (!g_sync_cannot_refill_warned && g_sync_refill_effort_mm >= CONF_SYNC_CANNOT_REFILL_MM) {
+                    g_sync_cannot_refill_warned = true;
+                    cmd_event("SYNC", "cannot_refill");
+                }
+            } else if (g_buf.state == BUF_TRAILING) {
+                g_sync_relieve_effort_mm += delta_mm;
+                if (!g_sync_cannot_relieve_warned && g_sync_relieve_effort_mm >= CONF_SYNC_CANNOT_RELIEVE_MM) {
+                    g_sync_cannot_relieve_warned = true;
+                    cmd_event("SYNC", "cannot_relieve");
+                }
+            }
         }
 
         float half = buf_physical_half_travel_mm();
@@ -1015,6 +1030,7 @@ void sync_tick(uint32_t now_ms) {
     lane_t *A = lane_ptr(active_lane);
     if (!A || tc_state() != TC_IDLE || g_boot_stabilizing) return;
     if (g_sync_state == SYNC_FAULT_HOLD) {
+        // VERIFY: retune from FAULT_HOLD/FAULT_HOLD_RECOVERY event logs
         if (now_ms - g_sync_fault_hold_entry_ms >= CONF_SYNC_FAULT_HOLD_RECOVERY_MS) {
             sync_set_state(SYNC_OFF);
             cmd_event("SYNC", "FAULT_HOLD_RECOVERY");
@@ -1300,10 +1316,10 @@ void sync_tick(uint32_t now_ms) {
         uint32_t adv_dwell_ms = now_ms - sync_advance_pin_since_ms;
         if (SYNC_ADVANCE_DWELL_STOP_MS > 0 &&
             adv_dwell_ms >= (uint32_t)SYNC_ADVANCE_DWELL_STOP_MS) {
-            sync_disable(true);
+            sync_fault_hold();
             extruder_est_last_update_ms = now_ms;
             sync_apply_to_active();
-            cmd_event("SYNC", "ADV_DWELL_STOP");
+            cmd_event("SYNC", "FAULT_HOLD");
             return;
         }
         if (SYNC_ADVANCE_RAMP_DELAY_MS > 0 &&
@@ -1350,10 +1366,10 @@ void sync_tick(uint32_t now_ms) {
                                  trailing_push_mm_s > SYNC_TRAILING_HARD_PUSH_MM_S &&
                                  trailing_wall_ms < SYNC_TRAILING_HARD_WALL_MS;
     if (trailing_wall_critical) {
-        sync_disable(true);
+        sync_fault_hold();
         extruder_est_last_update_ms = now_ms;
         sync_apply_to_active();
-        cmd_event("SYNC", "AUTO_STOP");
+        cmd_event("SYNC", "FAULT_HOLD");
         return;
     }
 

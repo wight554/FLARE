@@ -193,7 +193,8 @@ static void status_dump(void) {
         }
         snprintf(b + blen, sizeof(b) - (size_t)blen,
             ",RT:%.2f,RD:%.2f,AD:%u,TD:%u,TW:%u,EA:%u,SK:%u,CF:%.2f,RI:%.2f,RC:%d,ES:%.2f,EC:%d"
-            ",BPR:%.2f,BPD:%.2f,BPN:%d,APX:%d,RDC:%d,TB:%d,MC:%d,VB:%d,BPV:%d,MK:%u:%s",
+            ",BPR:%.2f,BPD:%.2f,BPN:%d,APX:%d,RDC:%d,TB:%d,MC:%d,VB:%d,BPV:%d,MK:%u:%s"
+            ",SYNC_REFILL_MM:%d,SYNC_RELIEVE_MM:%d",
             (double)sync_reserve_target_mm(),
             (double)sync_reserve_deadband_mm(),
             (unsigned)ad_ms,
@@ -216,7 +217,9 @@ static void status_dump(void) {
             (int)(BUF_VARIANCE_BLEND_FRAC * 100.0f),
             (int)(g_buf_pos * 100.0f),
             g_marker_seq,
-            g_marker_tag);
+            g_marker_tag,
+            (int)g_sync_refill_effort_mm,
+            (int)g_sync_relieve_effort_mm);
     }
 
     cmd_reply("OK", b);
@@ -822,6 +825,8 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "TC_CUT_MS")) snprintf(out, sizeof(out), "TC_CUT_MS:%d", TC_TIMEOUT_CUT_MS);
         else if (!strcmp(param, "TC_TH_MS")) snprintf(out, sizeof(out), "TC_TH_MS:%d", TC_TIMEOUT_TH_MS);
         else if (!strcmp(param, "TC_Y_MS")) snprintf(out, sizeof(out), "TC_Y_MS:%d", TC_TIMEOUT_Y_MS);
+        else if (!strcmp(param, "SYNC_REFILL_MM")) snprintf(out, sizeof(out), "SYNC_REFILL_MM:%d", (int)g_sync_refill_effort_mm);
+        else if (!strcmp(param, "SYNC_RELIEVE_MM")) snprintf(out, sizeof(out), "SYNC_RELIEVE_MM:%d", (int)g_sync_relieve_effort_mm);
         else if (!strcmp(param, "SYNC_KP_RATE")) snprintf(out, sizeof(out), "SYNC_KP_RATE:%.1f", (double)sps_to_mm_per_min(SYNC_KP_SPS));
         else if (!strcmp(param, "SYNC_OVERSHOOT_PCT")) snprintf(out, sizeof(out), "SYNC_OVERSHOOT_PCT:%d", SYNC_OVERSHOOT_PCT);
         else if (!strcmp(param, "SYNC_RESERVE_PCT")) snprintf(out, sizeof(out), "SYNC_RESERVE_PCT:%d", SYNC_RESERVE_PCT);

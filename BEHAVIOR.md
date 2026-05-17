@@ -328,9 +328,12 @@ prevents the circular estimator ceiling that could otherwise stall refill
 when the extruder is outpacing the MMU.
 
 If the arm remains pinned for longer than `SYNC_ADV_STOP_MS` (default 6000
-ms), sync auto-stops with `EV:SYNC,ADV_DWELL_STOP`. This is the safety net
-for genuine extruder-overload conditions where no amount of speed increase
-will refill the buffer. `SYNC_ADV_STOP_MS: 0` disables the hard stop.
+ms), sync enters a non-destructive fault hold with `EV:SYNC,FAULT_HOLD`. This
+is the safety net for genuine extruder-overload conditions where no amount of
+speed increase will refill the buffer. Sync automatically recovers after
+`CONF_SYNC_FAULT_HOLD_RECOVERY_MS` (default 5000 ms), emitting
+`EV:SYNC,FAULT_HOLD_RECOVERY` and attempting to re-arm. `SYNC_ADV_STOP_MS: 0`
+disables the hard stop.
 
 The `AD:` status field exposes the current advance-dwell timer in real time
 for tuning and regression monitoring.
