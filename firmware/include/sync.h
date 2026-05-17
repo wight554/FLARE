@@ -17,9 +17,17 @@ extern bool sync_auto_started;
 #define sync_enabled (g_sync_state == SYNC_ACTIVE)
 #define g_sync_hold (g_sync_state == SYNC_HOLD || g_sync_state == SYNC_FAULT_HOLD)
 
+typedef struct {
+    int baseline_sps;
+    int bias_milli;
+} flow_param_t;
+
 void sync_set_state(sync_state_t new_state);
 void sync_relief_pause(void);
 void sync_fault_hold(void);
+void flow_schedule_reset_runtime(void);
+void flow_schedule_refresh_scalar(void);
+flow_param_t flow_param(int flow_sps);
 
 const char *buf_state_name(buf_state_t s);
 buf_state_t buf_state_raw(void);

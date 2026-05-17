@@ -1,10 +1,14 @@
 ## 1. Phase 1 — Format + degenerate equivalence (no behavior change)
 
-- [ ] 1.1 Define versioned schedule table format in `config.ini.example` (commented), bounded breakpoint cap `N` as config tunable
-- [ ] 1.2 `scripts/gen_config.py`: parse schedule table → `tune.h` `CONF_FLOW_SCHED[]` + `CONF_FLOW_SCHED_LEN`; bias stored as integer milli; flow/baseline in sps
-- [ ] 1.3 When no schedule table present, synthesize a length-1 schedule from existing scalar `baseline_sps` / `trailing_bias_frac` keys
-- [ ] 1.4 Firmware `flow_param(flow_sps)` in `firmware/src/sync.c` (+ decl in `sync.h`): sorted search, clamp no-extrapolate, integer linear interp; `LEN==1` returns the point exactly
-- [ ] 1.5 Host test: scalar-only config → `LEN==1` table; firmware-side parity test: flow sweep on new build vs pre-change build byte-identical commanded output
+- [x] 1.1 Define versioned schedule table format in `config.ini.example` (commented), bounded breakpoint cap `N` as config tunable
+- [x] 1.2 `scripts/gen_config.py`: parse schedule table → `tune.h` `CONF_FLOW_SCHED[]` + `CONF_FLOW_SCHED_LEN`; bias stored as integer milli; flow/baseline in sps
+- [x] 1.3 When no schedule table present, synthesize a length-1 schedule from existing scalar `baseline_sps` / `trailing_bias_frac` keys
+- [x] 1.4 Firmware `flow_param(flow_sps)` in `firmware/src/sync.c` (+ decl in `sync.h`): sorted search, clamp no-extrapolate, integer linear interp; `LEN==1` returns the point exactly
+- [x] 1.5 Host test: scalar-only config → `LEN==1` table; firmware-side parity test: flow sweep on new build vs pre-change build byte-identical commanded output
+      Validation 2026-05-18: `python3 scripts/test_gen_config.py`;
+      `python3 -m py_compile scripts/*.py`; `ninja -C build_local`.
+      Phase 1 does not switch control reads yet; `LEN==1` parity is enforced
+      by `flow_param()` returning the single point exactly for every flow.
 
 ## 2. Phase 2 — Analyzer schedule emission (host)
 

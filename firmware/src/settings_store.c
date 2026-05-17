@@ -223,6 +223,7 @@ void settings_defaults(void) {
     BUF_DRIFT_APPLY_MIN_CF = CONF_BUF_DRIFT_APPLY_MIN_CF;
     
     SYNC_TRAILING_BIAS_FRAC = clamp_f(CONF_SYNC_TRAILING_BIAS_FRAC, 0.0f, 0.7f);
+    flow_schedule_reset_runtime();
     MID_CREEP_TIMEOUT_MS = CONF_MID_CREEP_TIMEOUT_MS;
     MID_CREEP_RATE_SPS_PER_S = CONF_MID_CREEP_RATE_SPS_PER_S;
     MID_CREEP_CAP_FRAC = CONF_MID_CREEP_CAP_FRAC;
@@ -554,6 +555,7 @@ void settings_load(void) {
     BUF_DRIFT_APPLY_MIN_CF = clamp_f(s->buf_drift_apply_min_cf, 0.0f, 1.0f);
 
     SYNC_TRAILING_BIAS_FRAC = clamp_f(s->sync_trailing_bias_frac, 0.0f, 0.7f);
+    flow_schedule_reset_runtime();
     MID_CREEP_TIMEOUT_MS = clamp_i(s->mid_creep_timeout_ms, 0, 60000);
     MID_CREEP_RATE_SPS_PER_S = clamp_i(s->mid_creep_rate_sps_per_s, 0, 1000);
     MID_CREEP_CAP_FRAC = clamp_i(s->mid_creep_cap_frac, 0, 100);

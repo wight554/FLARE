@@ -56,6 +56,18 @@ run_current:
 # baseline_variance_reject_frac: 0.15
 # baseline_cooldown_ms: 2000
 # baseline_cooldown_mm: 5.0
+# flow_schedule_cap: 8        # Max generated flow schedule breakpoints (1..16).
+#                             # If no table is present, baseline_rate +
+#                             # sync_trailing_bias_frac become a 1-point schedule.
+#
+# [flow_schedule.v1]          # Optional, versioned flow-keyed schedule.
+#                             # Native firmware units: flow_sps, baseline_sps,
+#                             # trailing_bias_frac (or bias milli 0..700).
+# point0: 6000, 7000, 0.30
+# point1: 12000, 13000, 0.40
+#
+# Return to flat config keys after the optional section:
+# [DEFAULT]
 # sync_fault_hold_recovery_ms: 5000     # VERIFY: retune from FAULT_HOLD/FAULT_HOLD_RECOVERY event logs
 # sync_cannot_refill_mm: 50.0
 # sync_cannot_relieve_mm: 50.0

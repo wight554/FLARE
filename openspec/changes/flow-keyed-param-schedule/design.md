@@ -128,6 +128,65 @@ Built after `sync-tuning-and-relief-finish`. Phased:
 Rollback: per phase. Reverting phase 3 restores scalar reads; the schedule
 table is inert additive config until then.
 
+## Implementation Notes (2026-05-18)
+
+### Current source findings
+- `scripts/gen_config.py` currently emits only scalar `CONF_BASELINE_SPS`
+  and `CONF_SYNC_TRAILING_BIAS_FRAC`; no structured table support exists.
+- `sync.c` owns scalar runtime state (`g_baseline_target_sps`,
+  `g_baseline_sps`) and uses `SYNC_TRAILING_BIAS_FRAC` in
+  `buf_target_reserve_mm()`. The live learner in
+  `baseline_update_on_settle()` updates only the global `g_baseline_sps`.
+- `settings_store.c` persists scalar baseline/bias. Phase 1 can keep
+  persistence unchanged by synthesizing the schedule from the persisted scalar
+  on defaults/load paths and by keeping schedule table compile-time only.
+- `protocol.c` exposes scalar `BASELINE_RATE`/`BASELINE_SPS` and
+  `TRAIL_BIAS_FRAC`; these remain valid scalar controls and should refresh the
+  degenerate runtime schedule.
+- `config.ini` and `firmware/include/tune.h` are ignored local artifacts; only
+  `config.ini.example` and generator/source changes should be committed.
+
+### File-level plan
+
+#### `config.ini.example`
+- Add commented `flow_schedule_cap` and a versioned commented
+  `[flow_schedule.v1]` example near the scalar baseline/bias keys.
+- Explain that absence of the table synthesizes a 1-point schedule from
+  `baseline_rate` and `sync_trailing_bias_frac`.
+
+#### `scripts/gen_config.py`
+- Parse optional `flow_schedule.v1` entries from sections or flat keys into
+  sorted `(flow_sps, baseline_sps, bias_milli)` points.
+- Add `flow_schedule_cap` default and clamp emitted length to the cap.
+- Emit `flow_schedule_point_t`, `CONF_FLOW_SCHED_CAP`,
+  `CONF_FLOW_SCHED_LEN`, and `CONF_FLOW_SCHED[]`.
+- If no table exists, synthesize one point from scalar `baseline_rate` and
+  `sync_trailing_bias_frac`; this is the degenerate compatibility path.
+
+#### `firmware/include/sync.h` + `firmware/src/sync.c`
+- Add `flow_param_t` and `flow_param(int flow_sps)` using clamped integer
+  linear interpolation over `CONF_FLOW_SCHED`.
+- Add helpers to reset the runtime schedule from generated config and refresh
+  a scalar single-point schedule when `SET:BASELINE_*` or
+  `SET:TRAIL_BIAS_FRAC` changes.
+- Keep `LEN==1` returning exact configured values for all flow inputs.
+
+#### `firmware/src/settings_store.c`
+- Call the reset/refresh helpers after defaults and load so reboot or
+  settings reload discards live schedule deltas.
+- Do not change `settings_t` layout in Phase 1; no settings version bump.
+
+#### `firmware/src/protocol.c`
+- After scalar baseline or bias SET handlers, refresh the degenerate runtime
+  schedule from the updated scalar values so existing protocol controls stay
+  coherent.
+
+#### Validation
+- Add a focused generator test that scalar-only config produces
+  `CONF_FLOW_SCHED_LEN 1` and exact scalar-equivalent point values.
+- Run `python3 -m py_compile scripts/*.py`, `ninja -C build_local`, and the
+  new test before the Phase 1 commit.
+
 ## Open Questions
 
 - Default breakpoint cap `N` and the curvature-drop metric exact form —

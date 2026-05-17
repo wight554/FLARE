@@ -58,7 +58,10 @@ DEFAULTS = {
     "baseline_variance_reject_frac": "0.15",
     "baseline_cooldown_ms": "2000",
     "baseline_cooldown_mm": "5.0",
+    "flow_schedule_cap": "8",
     "sync_fault_hold_recovery_ms": "5000",
+    "sync_cannot_refill_mm": "50.0",
+    "sync_cannot_relieve_mm": "50.0",
     "buf_predict_thr_ms": "250",
     "sync_kp_rate": "900",
     "sync_overshoot_pct": "25",
@@ -155,7 +158,13 @@ DEFAULTS = {
 def read_flat_ini(path):
     with open(path, "r") as f:
         content = f.read()
-    if not any(line.strip().startswith("[") for line in content.splitlines()):
+    first_content = ""
+    for line in content.splitlines():
+        stripped = line.strip()
+        if stripped and not stripped.startswith(("#", ";")):
+            first_content = stripped
+            break
+    if first_content and not first_content.startswith("["):
         content = "[DEFAULT]\n" + content
     cfg = configparser.ConfigParser(strict=False, inline_comment_prefixes=('#', ';'))
     cfg.read_string(content)
@@ -163,7 +172,7 @@ def read_flat_ini(path):
     for section in cfg.sections():
         for key, val in cfg.items(section):
             params[key.lower()] = val
-    return params
+    return params, cfg
 
 
 def parse_gear_ratio(s):
@@ -184,7 +193,7 @@ def main():
         print(f"  Copy config.ini.example to config.ini and fill in your values.")
         sys.exit(1)
 
-    raw = read_flat_ini(config_path)
+    raw, cfg = read_flat_ini(config_path)
     params = {**DEFAULTS, **raw}
 
     def get(key):
@@ -282,6 +291,67 @@ def main():
         if mm_min <= 0: return 0
         return int(round(mm_min / 60.0 / m_params["mm_per_step"]))
 
+    def parse_flow_schedule():
+        cap = int(get("flow_schedule_cap") or "8")
+        if cap < 1:
+            print("Error: flow_schedule_cap must be >= 1")
+            sys.exit(1)
+        if cap > 16:
+            print("Error: flow_schedule_cap must be <= 16")
+            sys.exit(1)
+
+        points = []
+        section = "flow_schedule.v1"
+        if cfg.has_section(section):
+            raw_section = getattr(cfg, "_sections", {}).get(section, {})
+            for key in sorted(raw_section):
+                if key == "__name__" or not key.startswith("point"):
+                    continue
+                parts = [p.strip() for p in raw_section[key].split(",")]
+                if len(parts) != 3:
+                    print(f"Error: {section}.{key} must be flow_sps, baseline_sps, bias_frac")
+                    sys.exit(1)
+                try:
+                    flow_sps = int(round(float(parts[0])))
+                    baseline_sps = int(round(float(parts[1])))
+                    bias_raw = float(parts[2])
+                except ValueError:
+                    print(f"Error: {section}.{key} contains a non-numeric value")
+                    sys.exit(1)
+                bias_milli = int(round(bias_raw if abs(bias_raw) > 1.0 else bias_raw * 1000.0))
+                points.append((flow_sps, baseline_sps, bias_milli))
+
+        if not points:
+            baseline_sps = mm_min_to_sps(get("baseline_rate"), l1)
+            bias_milli = int(round(get_float("sync_trailing_bias_frac") * 1000.0))
+            points = [(baseline_sps, baseline_sps, bias_milli)]
+
+        points.sort(key=lambda p: p[0])
+        if len(points) > cap:
+            print(f"Error: flow schedule has {len(points)} points but flow_schedule_cap is {cap}")
+            sys.exit(1)
+
+        prev_flow = None
+        for flow_sps, baseline_sps, bias_milli in points:
+            if flow_sps < 0 or baseline_sps < 0:
+                print("Error: flow schedule flow_sps and baseline_sps must be >= 0")
+                sys.exit(1)
+            if prev_flow is not None and flow_sps <= prev_flow:
+                print("Error: flow schedule flow_sps values must be strictly increasing")
+                sys.exit(1)
+            if bias_milli < 0 or bias_milli > 700:
+                print("Error: flow schedule bias must be in 0.0..0.7 or 0..700 milli")
+                sys.exit(1)
+            prev_flow = flow_sps
+
+        return cap, points
+
+    flow_sched_cap, flow_sched = parse_flow_schedule()
+    flow_sched_entries = ", ".join(
+        f"{{{flow_sps}, {baseline_sps}, {bias_milli}}}"
+        for flow_sps, baseline_sps, bias_milli in flow_sched
+    )
+
     rel_config = os.path.relpath(config_path, REPO_ROOT)
     lines = [
         "#pragma once",
@@ -353,6 +423,10 @@ def main():
         f"#define CONF_SYNC_FAULT_HOLD_RECOVERY_MS {get('sync_fault_hold_recovery_ms')}",
         f"#define CONF_SYNC_CANNOT_REFILL_MM {get_float('sync_cannot_refill_mm')}f",
         f"#define CONF_SYNC_CANNOT_RELIEVE_MM {get_float('sync_cannot_relieve_mm')}f",
+        f"#define CONF_FLOW_SCHED_CAP     {flow_sched_cap}",
+        "typedef struct { int flow_sps; int baseline_sps; int bias_milli; } flow_schedule_point_t;",
+        f"#define CONF_FLOW_SCHED_LEN     {len(flow_sched)}",
+        f"#define CONF_FLOW_SCHED         {{{flow_sched_entries}}}",
         f"#define CONF_BUF_PREDICT_THR_MS {get('buf_predict_thr_ms')}",
         f"#define CONF_GLOBAL_MAX_SPS      {mm_min_to_sps(get('global_max_rate'), l1)}",
         f"#define CONF_SYNC_KP_SPS        {mm_min_to_sps(get('sync_kp_rate'), l1)}",

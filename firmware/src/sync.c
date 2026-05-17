@@ -39,6 +39,9 @@ int sync_current_sps = 0;
 int g_baseline_target_sps = CONF_BASELINE_SPS;
 int g_baseline_sps = CONF_BASELINE_SPS;
 float g_baseline_alpha = CONF_BASELINE_ALPHA;
+static const flow_schedule_point_t g_flow_sched_config[CONF_FLOW_SCHED_CAP] = CONF_FLOW_SCHED;
+static flow_schedule_point_t g_flow_sched_runtime[CONF_FLOW_SCHED_CAP] = CONF_FLOW_SCHED;
+static int g_flow_sched_len = CONF_FLOW_SCHED_LEN;
 uint32_t sync_fast_brake_until_ms = 0;
 static bool sync_trailing_recovery_active = false;
 static uint32_t sync_continuous_trailing_since_ms = 0;
@@ -122,6 +125,66 @@ static uint32_t g_buf_pending_since_ms = 0;
 static float g_buf_physical_entry_pos_mm = 0.0f;
 
 static void buf_update(buf_state_t new_state, uint32_t now_ms);
+
+static int flow_sched_len_clamped(void) {
+    if (g_flow_sched_len < 1) return 1;
+    if (g_flow_sched_len > CONF_FLOW_SCHED_CAP) return CONF_FLOW_SCHED_CAP;
+    return g_flow_sched_len;
+}
+
+void flow_schedule_refresh_scalar(void) {
+    g_flow_sched_len = 1;
+    g_flow_sched_runtime[0].flow_sps = g_baseline_target_sps;
+    g_flow_sched_runtime[0].baseline_sps = g_baseline_target_sps;
+    g_flow_sched_runtime[0].bias_milli = clamp_i((int)(SYNC_TRAILING_BIAS_FRAC * 1000.0f + 0.5f), 0, 700);
+}
+
+void flow_schedule_reset_runtime(void) {
+    g_flow_sched_len = CONF_FLOW_SCHED_LEN;
+    if (g_flow_sched_len < 1) g_flow_sched_len = 1;
+    if (g_flow_sched_len > CONF_FLOW_SCHED_CAP) g_flow_sched_len = CONF_FLOW_SCHED_CAP;
+
+    for (int i = 0; i < g_flow_sched_len; i++) {
+        g_flow_sched_runtime[i] = g_flow_sched_config[i];
+    }
+
+    if (CONF_FLOW_SCHED_LEN <= 1) {
+        flow_schedule_refresh_scalar();
+    }
+}
+
+static int lerp_i(int a, int b, int x, int x0, int x1) {
+    int span = x1 - x0;
+    if (span <= 0) return a;
+    return a + (int)(((int64_t)(b - a) * (int64_t)(x - x0)) / (int64_t)span);
+}
+
+flow_param_t flow_param(int flow_sps) {
+    int len = flow_sched_len_clamped();
+    flow_schedule_point_t *sched = g_flow_sched_runtime;
+
+    if (len <= 1 || flow_sps <= sched[0].flow_sps) {
+        return (flow_param_t){ sched[0].baseline_sps, sched[0].bias_milli };
+    }
+
+    int last = len - 1;
+    if (flow_sps >= sched[last].flow_sps) {
+        return (flow_param_t){ sched[last].baseline_sps, sched[last].bias_milli };
+    }
+
+    for (int i = 0; i < last; i++) {
+        int x0 = sched[i].flow_sps;
+        int x1 = sched[i + 1].flow_sps;
+        if (flow_sps >= x0 && flow_sps <= x1) {
+            flow_param_t p;
+            p.baseline_sps = lerp_i(sched[i].baseline_sps, sched[i + 1].baseline_sps, flow_sps, x0, x1);
+            p.bias_milli = lerp_i(sched[i].bias_milli, sched[i + 1].bias_milli, flow_sps, x0, x1);
+            return p;
+        }
+    }
+
+    return (flow_param_t){ sched[last].baseline_sps, sched[last].bias_milli };
+}
 
 static int lane_motion_sps(lane_t *L) {
     if (!L) return 0;
@@ -1528,4 +1591,3 @@ float sync_bp_drift_correction_applied_mm(void) {
 int sync_mid_creep_sps(void) {
     return g_mid_creep_sps;
 }
-

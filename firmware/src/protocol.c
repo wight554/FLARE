@@ -683,11 +683,13 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             int baseline_sps = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
             g_baseline_target_sps = baseline_sps;
             g_baseline_sps = baseline_sps;
+            flow_schedule_refresh_scalar();
         }
         else if (!strcmp(base_param, "BASELINE_SPS")) {
             int baseline_sps = motion_clamp_rate_sps(clamp_i(iv, 200, 50000));
             g_baseline_target_sps = baseline_sps;
             g_baseline_sps = baseline_sps;
+            flow_schedule_refresh_scalar();
         }
         else if (!strcmp(base_param, "BUF_SENSOR")) {
             if (sync_enabled || tc_state() != TC_IDLE ||
@@ -709,7 +711,10 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "SYNC_KP_RATE")) SYNC_KP_SPS = clamp_i(mm_per_min_to_sps(fv), 0, 50000);
         else if (!strcmp(base_param, "SYNC_OVERSHOOT_PCT")) SYNC_OVERSHOOT_PCT = clamp_i(iv, 0, 200);
         else if (!strcmp(base_param, "SYNC_RESERVE_PCT")) SYNC_RESERVE_PCT = clamp_i(iv, 0, 150);
-        else if (!strcmp(base_param, "TRAIL_BIAS_FRAC")) SYNC_TRAILING_BIAS_FRAC = clamp_f(fv, 0.0f, 0.7f);
+        else if (!strcmp(base_param, "TRAIL_BIAS_FRAC")) {
+            SYNC_TRAILING_BIAS_FRAC = clamp_f(fv, 0.0f, 0.7f);
+            flow_schedule_refresh_scalar();
+        }
         else if (!strcmp(base_param, "SYNC_AUTO_STOP")) SYNC_AUTO_STOP_MS = clamp_i(iv, 0, 30000);
         else if (!strcmp(base_param, "MID_CREEP_TIMEOUT_MS")) MID_CREEP_TIMEOUT_MS = clamp_i(iv, 0, 60000);
         else if (!strcmp(base_param, "MID_CREEP_RATE") || !strcmp(base_param, "MID_CREEP_RATE_SPS_PER_S")) MID_CREEP_RATE_SPS_PER_S = clamp_i(iv, 0, 1000);
