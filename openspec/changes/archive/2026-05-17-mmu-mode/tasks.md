@@ -78,4 +78,4 @@ Status legend: [ ] todo  [~] in progress  [x] done
 - [x] Full regression review per design.md Validation
       Validation 2026-05-17: `bash scripts/validate_regression.sh` passed.
 - [x] Update `openspec/specs/toolchange-orchestration` + `klipper-integration`
-- [ ] Archive change
+- [x] Archive change
