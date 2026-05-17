@@ -21,6 +21,10 @@ Treat FLARE as the firmware brand, artifact identity, and host-tool namespace:
   `.flare.*`.
 - Rename analysis patch sections to `[flare_review]` and
   `[flare_contributors]`.
+- Do not add compatibility aliases for pre-rebrand names because the firmware
+  has not shipped as a stable external interface.
+- Document the acronym and scope in operator-facing docs so future contributors
+  do not treat FLARE as a hardware module name.
 
 ## File Plan
 
@@ -40,6 +44,9 @@ with local build.
 - Update headings and prose where FLARE means firmware brand.
 - Rename helper filenames, protocol markers, sidecar suffixes, state dirs, and
   Klipper examples.
+- Add naming context: FLARE = Filament Lane Automation and Reload Engine,
+  scoped to firmware/control logic, with lane automation covering cutter
+  sequencing and swap orchestration.
 
 Risk: broad replacement can create stale prose. Check for any old-brand hits
 after edits and read the surrounding docs.

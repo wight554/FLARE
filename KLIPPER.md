@@ -7,6 +7,10 @@ and toolchange macros, and buffer/sync tuning.
 For the FLARE command reference see `MANUAL.md`; for behavioral details see
 `BEHAVIOR.md`.
 
+FLARE is the firmware/tooling namespace. The examples below intentionally use
+`flare` command names, `FLARE_TUNE` markers, and `.flare` sidecars because the
+project has not yet shipped a stable external API.
+
 ---
 
 ## Serial port setup
@@ -39,8 +43,8 @@ response arrives. Simple commands (SET:, GET:, T:, SM:, TS:, FD:, ST:,
 success, 1 on error or timeout. All received lines are printed so Klipper's
 `VERBOSE` output shows them in the Mainsail / Fluidd console.
 
-The helper filename and sample `gcode_shell_command flare` name are kept for
-backward compatibility with existing printer configs.
+The helper filename and sample `gcode_shell_command flare` name are the active
+development interface.
 
 Install the Klipper `gcode_shell_command` extension if not already present
 (available via KIAUH → Advanced, or copy `gcode_shell_command.py` to

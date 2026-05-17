@@ -22,7 +22,11 @@ Lets user verify context loaded before work begins.
 
 ## What This Project Is
 
-**FLARE** = standalone dual-lane MMU / RELOAD controller firmware for RP2040 on FYSETC ERB V2.0.
+**FLARE** = **Filament Lane Automation and Reload Engine**: standalone
+dual-lane MMU / RELOAD controller firmware for RP2040 on FYSETC ERB V2.0.
+The name applies to firmware and host tooling, not the complete mechanical
+module. This firmware is still in active development, so breaking namespace
+changes are allowed when they keep the tree coherent.
 
 - Two TMC2209 stepper drivers, one per filament lane, over UART
 - Per-lane IN / OUT filament switches; optional Y-splitter switch; optional toolhead sensor (TS:)

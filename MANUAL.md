@@ -13,6 +13,21 @@ Unsolicited `EV:` traffic is best-effort. Firmware drops events when USB CDC is 
 
 ---
 
+## Firmware Identity
+
+FLARE means **Filament Lane Automation and Reload Engine**. The name is scoped
+to firmware and host tooling: it describes the controller logic that automates
+filament lanes, coordinates cutting/unloading/loading, manages buffer sync, and
+handles RELOAD failover. It is not a claim that the repo defines the complete
+mechanical module.
+
+Because the firmware is still in active development, command-line tools,
+telemetry marker names, sidecar filenames, state directories, and Klipper
+examples use the FLARE namespace directly. No compatibility aliases are
+guaranteed until a stable release is declared.
+
+---
+
 ## Operating Modes
 
 FLARE behavior is controlled by two independent flags: **`AUTO_MODE`** (Flow Control) and **`RELOAD_MODE`** (Redundancy Control).

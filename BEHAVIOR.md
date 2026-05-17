@@ -6,6 +6,16 @@ failure modes, interlocks, and recovery paths. For the command syntax see
 
 ---
 
+## Firmware Scope
+
+FLARE is the firmware engine for lane automation and reload behavior. It owns
+the controller-side decisions: lane motion, preload/unload/load tasks,
+toolchange phases, cutter sequencing, buffer sync, fault handling, and RELOAD
+handoff. It does not name a complete hardware assembly; hardware references in
+this repo describe known tested builds and wiring assumptions.
+
+---
+
 ## Filament states
 
 Each lane tracks filament position inferred from its two sensors.

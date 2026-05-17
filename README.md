@@ -5,6 +5,33 @@ dual-lane filament control on ERB v2.0 (RP2040). It can run without a host
 plugin and handles lane switching, buffer-driven feed, and TMC2209 configuration
 and diagnostics over USB serial.
 
+## Naming
+
+**FLARE** names the firmware control layer, not the whole physical MMU module.
+The hardware may be a NightOwl-style dual-lane setup, a QuattroSync-buffered
+reload system, or another compatible ERB v2.0 build; FLARE is the logic that
+drives lanes, watches sensors, coordinates swaps, and keeps buffer motion
+bounded.
+
+The acronym is:
+
+```text
+Filament Lane Automation and Reload Engine
+```
+
+- **Filament**: the controlled medium and safety boundary.
+- **Lane**: lane selection, preload, unload, and toolchange handoff.
+- **Automation**: sensor-triggered preload, sync start/stop, cutter sequencing,
+  guarded moves, and command completion events.
+- **Reload**: autonomous runout/failover behavior where a standby lane can join
+  and follow a disconnected tail.
+- **Engine**: firmware and host tooling, not a mechanical product name.
+
+The project is still in active development, so the FLARE namespace may make
+breaking changes. Scripts, marker names, sidecar suffixes, state directories,
+and Klipper examples use FLARE names directly instead of preserving pre-rebrand
+aliases.
+
 ## Tested Configuration
 - **Motors**: [FYSETC G36HSY4405-6D-1200](https://github.com/FYSETC/FYSETC-MOTORS/blob/main/G36HSY4405-6D-1200/G36HSY4405-6D-1200.pdf) (included in Fysetc NightOwl kits)
 - **Buffer**: [QuattroSync](https://github.com/Batalhoti/QuattroSync) (spring-managed dual-lane buffer with more consistent RELOAD behavior than gravity-based TurtleNeck-style designs)
@@ -108,8 +135,8 @@ python3 scripts/flare_cmd.py "SV:"
 
 ## Helper Scripts
 
-Helper script filenames still use the original `flare_*` names for compatibility
-with existing Klipper configs and calibration state.
+Helper script filenames use the FLARE namespace because the firmware has not
+shipped as a stable external interface yet.
 
 - `scripts/flare_cmd.py`: Serial helper — send commands and dump live config
 - `scripts/flare_logger.py`: Deprecated. Use `flare_live_tuner.py --csv-out` instead.
