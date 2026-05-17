@@ -2,12 +2,12 @@
 
 - [ ] 1.1 Replace `sync_disable(true)` with `sync_fault_hold()` at advance-dwell stop (`firmware/src/sync.c:1303`); change `cmd_event("SYNC", "ADV_DWELL_STOP")` → `cmd_event("SYNC", "FAULT_HOLD")`; keep `extruder_est_last_update_ms` / `sync_apply_to_active()` / `return`
 - [ ] 1.2 Replace `sync_disable(true)` with `sync_fault_hold()` at hard-wall critical (`firmware/src/sync.c:1353`); change `cmd_event("SYNC", "AUTO_STOP")` → `cmd_event("SYNC", "FAULT_HOLD")`; keep trailing lines
-- [ ] 1.3 Verify recovery path (`sync.c:1018`) now reachable: FAULT_HOLD → SYNC_OFF after `CONF_SYNC_FAULT_HOLD_RECOVERY_MS`, emits `FAULT_HOLD_RECOVERY`, estimator preserved through re-arm
+- [ ] 1.3 Verify recovery path (`sync.c:1018`) now reachable: FAULT_HOLD → SYNC_OFF after `CONF_SYNC_FAULT_HOLD_RECOVERY_MS` (keep shipped 5000; add `// VERIFY: retune from FAULT_HOLD/FAULT_HOLD_RECOVERY event logs`), single shared interval for both advance-dwell and hard-wall (no split), emits `FAULT_HOLD_RECOVERY`, estimator preserved through re-arm
 - [ ] 1.4 Confirm `sync_fault_hold()` does not reset estimator/drift/sigma (non-destructive); no full-bias / collapse-ramp code touched
 
 ## 2. Phase 1 — Effort counters (firmware)
 
-- [ ] 2.1 Add `CONF_SYNC_CANNOT_REFILL_MM` / `CONF_SYNC_CANNOT_RELIEVE_MM` to `config.ini.example` + `scripts/gen_config.py` (conservative defaults from bucket/run data)
+- [ ] 2.1 Add `CONF_SYNC_CANNOT_REFILL_MM = 50.0` and `CONF_SYNC_CANNOT_RELIEVE_MM = 50.0` (locked values, symmetric) to `config.ini.example` + `scripts/gen_config.py`
 - [ ] 2.2 In `buf_sensor_tick`, capture the per-tick `g_sync_mmu_total_mm` delta; add to `g_sync_refill_effort_mm` when buffer in ADVANCE, `g_sync_relieve_effort_mm` when in TRAILING
 - [ ] 2.3 Emit warn-only `SYNC cannot_refill` / `SYNC cannot_relieve` once per episode on threshold cross while still ADVANCE/TRAILING, using existing latch flags; assert no control reads the counters
 - [ ] 2.4 Expose `SYNC_REFILL_MM` / `SYNC_RELIEVE_MM` in `protocol.c` status line and GET param
@@ -16,7 +16,7 @@
 ## 3. Phase 2 — Deterministic analyzer path (host)
 
 - [ ] 3.1 Add explicit two-profile mode to `scripts/flare_analyze.py` (e.g. `--profile-fast`, `--profile-slow`, `--emit-baseline`)
-- [ ] 3.2 Implement deterministic reducer: stable bucket ordering, `n`-only weighting, no wall-clock recency term, fixed rounding; reuse existing `BIAS_SAFE_MIN/MAX` clamps
+- [ ] 3.2 Implement deterministic reducer: stable bucket ordering, `n`-only weighting, no wall-clock recency term, fixed rounding; MUST apply the existing `BIAS_SAFE_MIN/MAX` clamps (locked decision — same guard as recency path)
 - [ ] 3.3 Leave existing recency-weighted config-patch path byte-unchanged; deterministic path additive and separately selected
 - [ ] 3.4 Add determinism test in `scripts/` (same two captures twice → byte-identical baseline; existing patch path output unchanged)
 

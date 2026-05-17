@@ -147,11 +147,26 @@ Rollback: revert per phase. Reverting Phase 1 restores destructive
 `sync_disable(true)` on the two paths (prior shipped behavior) without
 touching host tooling.
 
-## Open Questions
+## Resolved Decisions (locked — no implementer discretion)
 
-- `CONF_SYNC_CANNOT_REFILL_MM` / `CONF_SYNC_CANNOT_RELIEVE_MM` thresholds —
-  pick conservative defaults from existing bucket/run data during
-  implementation; expose as config tunables, not magic numbers.
-- Whether the deterministic baseline reducer should clamp to the
-  `BIAS_SAFE_MIN/MAX` style guards already in `flare_analyze.py` — default:
-  reuse the existing safety clamps for consistency.
+These were open; now fixed so implementation carries zero tuning judgement:
+
+- **Effort thresholds:** `CONF_SYNC_CANNOT_REFILL_MM = 50.0`,
+  `CONF_SYNC_CANNOT_RELIEVE_MM = 50.0` (symmetric). Rationale: counter is
+  commanded-MMU distance (flow-normalized); 50mm ≈ 31% of the ~160mm
+  nominal-flow terminal jam ≈ ~2s precursor lead, longer at slow flow.
+  Config tunables, not magic numbers.
+- **Deterministic reducer clamp:** reuse the existing `BIAS_SAFE_MIN/MAX`
+  guards from `flare_analyze.py`. Identical safety envelope to the recency
+  path; clamp is deterministic so purity is preserved. No new tunable.
+- **FAULT_HOLD recovery interval:** keep shipped
+  `CONF_SYNC_FAULT_HOLD_RECOVERY_MS = 5000`. No field data to retune; mark
+  with a `VERIFY:` comment to revisit using the now-emitted `FAULT_HOLD` /
+  `FAULT_HOLD_RECOVERY` event logs.
+- **Empty-side vs full-side recovery:** single shared
+  `CONF_SYNC_FAULT_HOLD_RECOVERY_MS` for both advance-dwell and hard-wall.
+  No split tunable. Revisit only if event logs show asymmetric re-fault
+  rates.
+
+R8 `flow-keyed-param-schedule` remains a separate follow-up, built after
+this change lands. No other open questions.
