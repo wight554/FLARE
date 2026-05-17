@@ -1,7 +1,7 @@
 # Toolchange Orchestration Specification
 
 ## Purpose
-Durable contract for NOSF toolchange (TC) and RELOAD orchestration, defining phase boundaries, timeouts, and state expectations.
+Durable contract for FLARE toolchange (TC) and RELOAD orchestration, defining phase boundaries, timeouts, and state expectations.
 
 ## Requirements
 

@@ -1,4 +1,4 @@
-# NOSF – USB Serial Command Reference
+# FLARE – USB Serial Command Reference
 
 All communication is over USB CDC serial at 115200 baud (line-buffered, `\n` terminated).
 
@@ -15,7 +15,7 @@ Unsolicited `EV:` traffic is best-effort. Firmware drops events when USB CDC is 
 
 ## Operating Modes
 
-NOSF behavior is controlled by two independent flags: **`AUTO_MODE`** (Flow Control) and **`RELOAD_MODE`** (Redundancy Control).
+FLARE behavior is controlled by two independent flags: **`AUTO_MODE`** (Flow Control) and **`RELOAD_MODE`** (Redundancy Control).
 
 ### 1. Flow Control (`AUTO_MODE`)
 Controls whether the MMU handles internal breakpoints automatically or waits for the host.
@@ -26,7 +26,7 @@ Controls whether the MMU handles internal breakpoints automatically or waits for
     - **Post-Load Sync**: Completing a `FL:` or `TC:` load automatically enables sync.
     - **Auto-Load**: If the MMU is empty, inserting filament triggers a full load to the toolhead.
 - **Host-Controlled Flow (`AUTO_MODE:0`)**:
-    - **Wait for Commands**: No unsolicited motion. NOSF only moves when it receives a serial command (`LO:`, `FL:`, `UL:`, `SM:1`, etc.).
+    - **Wait for Commands**: No unsolicited motion. FLARE only moves when it receives a serial command (`LO:`, `FL:`, `UL:`, `SM:1`, etc.).
     - **Status Only**: Emits runtime events (`EV:RUNOUT`, `EV:ACTIVE`, `EV:SYNC:...`, etc.) and waits for host instructions.
 
 ### 2. Redundancy Control (`RELOAD_MODE`)
@@ -258,7 +258,7 @@ For slow-extrusion soak workflows, use this SET sequence to converge the baselin
 Phase 2.10 tuning is a calibration-time workflow, not a normal-print service.
 The goal is to run several sidecar-tracked calibration prints, analyze the
 telemetry, review a patch, bake accepted values into `config.ini`, flash
-firmware, and then disconnect the host so NOSF runs standalone.
+firmware, and then disconnect the host so FLARE runs standalone.
 
 Before running the first 2.9.9 build, please back up your state file:
 ```bash

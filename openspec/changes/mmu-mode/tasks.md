@@ -38,7 +38,7 @@ Status legend: [ ] todo  [~] in progress  [x] done
 
 ## 5. Klipper integration
 - [ ] KLIPPER.md `change_lane` macro: extruder tip-form + unload from gears →
-      `TC:`; remove `NOSF_UNLOAD` from spool-change path
+      `TC:`; remove `FLARE_UNLOAD` from spool-change path
 - [ ] Document tip-forming vs sync tuning (POST_PRINT_STAB_DELAY_MS, BUF travel)
 
 ## 6. (Conditional) Sync HOLD command

@@ -1,16 +1,16 @@
 # Sync Refactor Specification
 
 ## Purpose
-Durable contract for NOSF sync, tuning, tracking, and analyzer behavioral requirements and historical rationale.
+Durable contract for FLARE sync, tuning, tracking, and analyzer behavioral requirements and historical rationale.
 
 ## Requirements
 
 ### Requirement: Standalone Sync
-NOSF SHALL run sync, toolchange, and RELOAD without host after calibration flash.
+FLARE SHALL run sync, toolchange, and RELOAD without host after calibration flash.
 
 #### Scenario: Host Detached
 - **WHEN** calibration reviewed + flashed
-- **THEN** NOSF runs from firmware/runtime ONLY
+- **THEN** FLARE runs from firmware/runtime ONLY
 - **AND** host tuner not required during print
 
 #### Scenario: Live Debug

@@ -1,4 +1,4 @@
-# NOSF — AI Assistance & MCP Setup
+# FLARE — AI Assistance & MCP Setup
 
 **Global-First** AI config. Skills and MCP servers at user level — consistent across `claude-code`, `gemini-cli`, `antigravity`, IDE Copilot.
 

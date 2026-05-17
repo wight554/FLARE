@@ -1,7 +1,7 @@
 # Motion Safety Specification
 
 ## Purpose
-Durable contract for NOSF motor, filament, and task safety limits, extracted from `firmware/src/motion.c` and `BEHAVIOR.md`.
+Durable contract for FLARE motor, filament, and task safety limits, extracted from `firmware/src/motion.c` and `BEHAVIOR.md`.
 
 ## Requirements
 

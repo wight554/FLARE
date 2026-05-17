@@ -1,4 +1,4 @@
-# NOSF — Agent Onboarding
+# FLARE — Agent Onboarding
 
 For AI agents (Claude, Gemini, Codex, Opus, Copilot, etc.). Read first, then
 read `openspec/README.md` and the relevant specs under `openspec/specs/`
@@ -22,7 +22,7 @@ Lets user verify context loaded before work begins.
 
 ## What This Project Is
 
-**NOSF** = standalone dual-lane MMU / RELOAD controller firmware for RP2040 on FYSETC ERB V2.0.
+**FLARE** = standalone dual-lane MMU / RELOAD controller firmware for RP2040 on FYSETC ERB V2.0.
 
 - Two TMC2209 stepper drivers, one per filament lane, over UART
 - Per-lane IN / OUT filament switches; optional Y-splitter switch; optional toolhead sensor (TS:)
@@ -38,7 +38,7 @@ Two modes via `RELOAD_MODE`:
 
 ## OpenSpec Workflow
 
-NOSF keeps durable design history and current behavioral contracts in
+FLARE keeps durable design history and current behavioral contracts in
 `openspec/`.
 
 - Current specs live under `openspec/specs/`.

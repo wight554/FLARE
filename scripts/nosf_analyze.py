@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""nosf_analyze.py - offline calibration analyzer for NOSF Phase 2.9.
+"""nosf_analyze.py - offline calibration analyzer for FLARE Phase 2.9.
 
 Reads one or more nosf_logger.py CSV captures, optionally combines them
 with nosf_live_tuner.py schema-2 bucket state, and writes a review-only
@@ -930,7 +930,7 @@ def run(args):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Analyze NOSF calibration CSVs")
+    ap = argparse.ArgumentParser(description="Analyze FLARE calibration CSVs")
     ap.add_argument("--in", dest="inputs", nargs="+", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--mode", choices=["safe", "aggressive"], default="safe")

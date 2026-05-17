@@ -1,4 +1,4 @@
-# NOSF – Behavioral Reference
+# FLARE – Behavioral Reference
 
 This document describes *what the firmware does and why* — state transitions,
 failure modes, interlocks, and recovery paths. For the command syntax see

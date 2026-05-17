@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-nosf_logger.py — captures NOSF status + M118 markers.
+nosf_logger.py — captures FLARE status + M118 markers.
 Usage: nosf_logger.py --port /dev/ttyACM0 --out ~/nosf-logs/run.csv --klipper-log ~/printer_data/logs/klippy.log
 """
 
@@ -111,7 +111,7 @@ def main():
 
     try:
         while True:
-            # 1. Read NOSF serial
+            # 1. Read FLARE serial
             while ser.in_waiting > 0:
                 line = ser.readline().decode('utf-8', errors='replace').strip()
                 if not line: break
@@ -141,7 +141,7 @@ def main():
                         sys.stdout.write(f"\n[Marker] {last_feature['feature']} V:{last_feature['vfil']}\n")
                         sys.stdout.flush()
 
-            # 3. Poll NOSF
+            # 3. Poll FLARE
             now = time.monotonic()
             if now >= next_poll:
                 ser.write(b'?:\n')

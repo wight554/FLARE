@@ -1,7 +1,7 @@
 #pragma once
 
 // =====================================================================
-// NOSF ERB V2.0 — Hardware/Board Configuration
+// FLARE ERB V2.0 — Hardware/Board Configuration
 // Parameters in this file are board-specific and usually fixed.
 // All user-tunable parameters are in config.ini (via tune.h).
 // =====================================================================
@@ -17,7 +17,7 @@
 #define NUM_LANES               2
 
 // ----- Firmware version -----
-#define CONF_FW_VERSION         "NOSF_0.2.0"
+#define CONF_FW_VERSION         "FLARE_0.2.0"
 
 // ----- Board Logic -----
 #define EN_ACTIVE_LOW           1

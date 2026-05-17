@@ -1,8 +1,9 @@
-# NOSF
+# FLARE
 
-NOSF is a standalone dual-lane filament controller for ERB v2.0 (RP2040).
-It can run without a host plugin and handles lane switching, buffer-driven feed,
-and TMC2209 configuration and diagnostics over USB serial.
+FLARE (Filament Lane Automation and Reload Engine) is standalone firmware for
+dual-lane filament control on ERB v2.0 (RP2040). It can run without a host
+plugin and handles lane switching, buffer-driven feed, and TMC2209 configuration
+and diagnostics over USB serial.
 
 ## Tested Configuration
 - **Motors**: [FYSETC G36HSY4405-6D-1200](https://github.com/FYSETC/FYSETC-MOTORS/blob/main/G36HSY4405-6D-1200/G36HSY4405-6D-1200.pdf) (included in Fysetc NightOwl kits)
@@ -106,6 +107,9 @@ python3 scripts/nosf_cmd.py "SV:"
 ```
 
 ## Helper Scripts
+
+Helper script filenames still use the original `nosf_*` names for compatibility
+with existing Klipper configs and calibration state.
 
 - `scripts/nosf_cmd.py`: Serial helper — send commands and dump live config
 - `scripts/nosf_logger.py`: Deprecated. Use `nosf_live_tuner.py --csv-out` instead.

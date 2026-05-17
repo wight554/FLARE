@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 include(pico_sdk_import.cmake)
 
-project(nosf_controller C CXX ASM)
+project(flare_controller C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -22,7 +22,7 @@ add_custom_command(
 )
 add_custom_target(motor_config DEPENDS ${TUNE_H})
 
-add_executable(nosf_controller
+add_executable(flare_controller
   src/main.c
   src/motion.c
   src/sync.c
@@ -34,22 +34,22 @@ add_executable(nosf_controller
   src/neopixel.c
 )
 
-target_include_directories(nosf_controller PRIVATE
+target_include_directories(flare_controller PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/include
 )
 
-target_compile_definitions(nosf_controller PRIVATE
+target_compile_definitions(flare_controller PRIVATE
   PICO_STDIO_USB_STDOUT_TIMEOUT_US=1000
 )
 
-pico_generate_pio_header(nosf_controller
+pico_generate_pio_header(flare_controller
   ${CMAKE_CURRENT_LIST_DIR}/third_party/ws2812.pio
   ${CMAKE_CURRENT_LIST_DIR}/src/tmc_uart.pio
 )
 
-add_dependencies(nosf_controller motor_config)
+add_dependencies(flare_controller motor_config)
 
-target_link_libraries(nosf_controller
+target_link_libraries(flare_controller
   pico_stdlib
   hardware_gpio
   hardware_irq
@@ -61,7 +61,7 @@ target_link_libraries(nosf_controller
   hardware_adc
 )
 
-pico_enable_stdio_usb(nosf_controller 1)
-pico_enable_stdio_uart(nosf_controller 0)
+pico_enable_stdio_usb(flare_controller 1)
+pico_enable_stdio_uart(flare_controller 0)
 
-pico_add_extra_outputs(nosf_controller)
+pico_add_extra_outputs(flare_controller)

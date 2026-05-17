@@ -1,4 +1,4 @@
-# NOSF config — copy to config.ini and fill in your values.
+# FLARE config — copy to config.ini and fill in your values.
 # After editing: python3 scripts/gen_config.py
 # This regenerates firmware/include/tune.h which is compiled into the firmware.
 #

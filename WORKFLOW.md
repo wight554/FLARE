@@ -1,4 +1,4 @@
-# NOSF – Git Workflow
+# FLARE – Git Workflow
 
 This repo drives real hardware. The workflow goals are simple:
 
@@ -107,7 +107,7 @@ Use annotated tags for firmware states verified on real hardware.
 Create a tag:
 
 ```bash
-git tag -a baseline_$(date +%Y%m%d)_v1 -m "Verified NOSF hardware baseline"
+git tag -a baseline_$(date +%Y%m%d)_v1 -m "Verified FLARE hardware baseline"
 git push --tags
 ```
 

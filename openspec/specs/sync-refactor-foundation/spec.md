@@ -10,7 +10,7 @@ without requiring agents to start from the historical phase plan.
 
 ### Requirement: Firmware sync shall remain standalone after calibration
 
-NOSF firmware SHALL run sync behavior from compiled configuration and runtime
+FLARE firmware SHALL run sync behavior from compiled configuration and runtime
 settings without requiring a Klipper plugin or host daemon during normal
 printing.
 

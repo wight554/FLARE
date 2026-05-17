@@ -35,8 +35,8 @@ cmake --build build_local
 
 Outputs:
 
-- `build_local/nosf_controller.elf`
-- `build_local/nosf_controller.uf2`
+- `build_local/flare_controller.elf`
+- `build_local/flare_controller.uf2`
 
 ## 3) Flash (Recommended)
 
@@ -63,6 +63,9 @@ It performs the flashing flow automatically (build, optional reboot to boot mode
 bash scripts/flash_nosf.sh
 ```
 
+The flash script keeps its original filename for compatibility, but now builds
+and flashes `flare_controller` artifacts.
+
 What it does:
 
 1. Builds firmware in `build_local/`
@@ -74,14 +77,14 @@ What it does:
 ## 4) Flash Manually with picotool
 
 ```bash
-picotool load build_local/nosf_controller.uf2 -f
+picotool load build_local/flare_controller.uf2 -f
 picotool reboot
 ```
 
 If UF2 is not available:
 
 ```bash
-picotool load build_local/nosf_controller.elf -f
+picotool load build_local/flare_controller.elf -f
 picotool reboot
 ```
 

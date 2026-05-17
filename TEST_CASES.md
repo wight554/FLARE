@@ -1,4 +1,4 @@
-# NOSF Test Cases
+# FLARE Test Cases
 
 Practical bring-up and regression checklist for real hardware.
 

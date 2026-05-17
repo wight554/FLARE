@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NOSF — G-code Metadata Marker (Lean)
+FLARE — G-code Metadata Marker (Lean)
 Injects markers for feature/speed/geometry and a final FINISH marker.
 Optimized to remove IDLE markers for cleaner G-code.
 """
@@ -338,7 +338,7 @@ def _write_sidecar_gcode(input_path, output_path):
         fout.write("M118 NT:START\n")
         for line in fin:
             fout.write(line)
-        fout.write("\n; --- NOSF TUNING FINISH ---\n")
+        fout.write("\n; --- FLARE TUNING FINISH ---\n")
         fout.write("M118 NOSF_TUNE:FINISH:0:0:0\n")
 
 
@@ -349,7 +349,7 @@ def process_gcode(input_path, output_path, filament_dia=1.75, every_layer=True,
         return False
 
     if emit == "sidecar":
-        print("[*] Processing file with NOSF sidecar metadata ...")
+        print("[*] Processing file with FLARE sidecar metadata ...")
         _write_sidecar_gcode(input_path, output_path)
         if sidecar_path is None:
             base, _ext = os.path.splitext(output_path)
@@ -442,7 +442,7 @@ def process_gcode(input_path, output_path, filament_dia=1.75, every_layer=True,
             fout.write(line)
 
         # Final finish marker
-        fout.write("\n; --- NOSF TUNING FINISH ---\n")
+        fout.write("\n; --- FLARE TUNING FINISH ---\n")
         for marker in marker_lines("NOSF_TUNE:FINISH:0:0:0", emit, shell_cmd):
             fout.write(marker)
 
@@ -459,7 +459,7 @@ def main():
     parser.add_argument("--every-layer", action="store_true", help="Deprecated. Layer markers are now on by default.")
     parser.add_argument("--no-layer-markers", action="store_false", dest="every_layer", help="Disable per-layer marker injection")
     parser.add_argument("--emit", choices=["m118", "mark", "file", "both", "sidecar"], default="sidecar",
-                        help="Marker output: M118 echo, direct NOSF MARK command, local marker file, M118+MARK, or sidecar JSON")
+                        help="Marker output: M118 echo, direct FLARE MARK command, local marker file, M118+MARK, or sidecar JSON")
     parser.add_argument("--shell-cmd", default="nosf",
                         help="Klipper gcode_shell_command name for --emit mark/both")
     parser.set_defaults(every_layer=True)

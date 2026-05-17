@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Append NOSF live-tuning marker tags to a local marker file.
+"""Append FLARE live-tuning marker tags to a local marker file.
 
 Used from Klipper gcode_shell_command so marker delivery does not open the
-NOSF USB serial port while nosf_live_tuner.py owns it.
+FLARE USB serial port while nosf_live_tuner.py owns it.
 """
 
 import argparse
@@ -16,7 +16,7 @@ def main():
         "Warning: nosf_marker.py is deprecated; prefer gcode_marker.py --emit sidecar with Klipper API motion tracking.",
         file=sys.stderr,
     )
-    ap = argparse.ArgumentParser(description="Append a NOSF marker to a local marker file.")
+    ap = argparse.ArgumentParser(description="Append a FLARE marker to a local marker file.")
     ap.add_argument("--file", default="/tmp/nosf-markers.log", help="Marker file path")
     ap.add_argument("tag", nargs=argparse.REMAINDER, help="Marker tag, e.g. NT:Outer_wall:V335")
     args = ap.parse_args()

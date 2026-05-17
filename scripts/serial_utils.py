@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serial-port helper utilities for NOSF scripts."""
+"""Serial-port helper utilities for FLARE scripts."""
 
 from __future__ import annotations
 

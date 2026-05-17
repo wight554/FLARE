@@ -7,7 +7,7 @@ Schematic: ERB V2.0 Release SCH.pdf (in FYSETC-ERB/V2.0/hardware/)
 ---
 
 ## Tested Hardware Configuration
-- **Motors**: [FYSETC G36HSY4405-6D-1200](https://github.com/FYSETC/FYSETC-MOTORS/blob/main/G36HSY4405-6D-1200/G36HSY4405-6D-1200.pdf). This motor is included in Fysetc NightOwl kits and has been verified to work well with the default NOSF feed and retract profiles.
+- **Motors**: [FYSETC G36HSY4405-6D-1200](https://github.com/FYSETC/FYSETC-MOTORS/blob/main/G36HSY4405-6D-1200/G36HSY4405-6D-1200.pdf). This motor is included in Fysetc NightOwl kits and has been verified to work well with the default FLARE feed and retract profiles.
 - **Buffer**: [QuattroSync](https://github.com/Batalhoti/QuattroSync). A dual-lane spring buffer that has produced more consistent RELOAD behavior than gravity-based designs such as TurtleNeck.
 
 Known working motor and TMC profiles are collected in [MOTOR_PARAMS.md](MOTOR_PARAMS.md).
@@ -62,7 +62,7 @@ Known working motor and TMC profiles are collected in [MOTOR_PARAMS.md](MOTOR_PA
 | STEP    | 16    | GPIO10 (X-STEP)     |                                         |
 | MS1_AD0 | 9     | X-MS1               | Sets UART address bit 0                 |
 | MS2_AD1 | 10    | X-MS2               | Sets UART address bit 1                 |
-| DIAG    | 11    | GPIO13 (X-DIAG)     | Wired on the board; not consumed by current NOSF firmware |
+| DIAG    | 11    | GPIO13 (X-DIAG)     | Wired on the board; not consumed by current FLARE firmware |
 | INDEX   | 12    | X-INDEX             |                                         |
 | SPREAD  | 7     | X-SPREAD            |                                         |
 | VREF    | 17    | X-VREF              |                                         |

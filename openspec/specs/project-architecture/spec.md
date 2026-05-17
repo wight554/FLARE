@@ -12,7 +12,7 @@ persistence.
 
 ### Requirement: Firmware shall remain cooperative and non-blocking
 
-NOSF firmware SHALL run as cooperative RP2040 firmware without an RTOS, with the
+FLARE firmware SHALL run as cooperative RP2040 firmware without an RTOS, with the
 main loop calling non-blocking module ticks.
 
 #### Scenario: A module adds runtime work

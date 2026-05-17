@@ -5,10 +5,10 @@ Draft — exploration captured, decisions converged, BUF travel numbers pending.
 
 ## Why
 We want a Klipper-driven multi-material flow where the printer owns toolhead-side
-moves (tip forming, unload from extruder gears) and NOSF owns only the
+moves (tip forming, unload from extruder gears) and FLARE owns only the
 spool/bowden side (cut, lane unload, swap, load). Today `TC:` does its own
 toolhead-side retraction by reversing the lane motor; a Klipper-driven flow needs
-NOSF to assume the hotend is already cleared by the extruder, follow the
+FLARE to assume the hotend is already cleared by the extruder, follow the
 extruder's retraction via existing negative sync, and then perform a clean
 cut + unload + swap + load on command.
 
@@ -54,12 +54,12 @@ macros. Net new firmware is small.
 ### TC: (toolchange)
 - Equivalent to: UL: (with cut per above) → set active lane → FL:.
 - Assumes Klipper already cleared the hotend (tip formed, filament out of gears).
-- NOSF does not perform toolhead-side extraction beyond clearing OUT/Y.
+- FLARE does not perform toolhead-side extraction beyond clearing OUT/Y.
 
 ## Tip-Forming / Sync Interaction (analysis, no code unless HOLD adopted)
 Buffer mechanical travel acts as a natural low-pass filter: tip-forming wiggle
 with amplitude << buffer half-travel is absorbed by the buffer arm without
-moving the MMU motor. NOSF anti-thrash machinery (positive-relaunch damping,
+moving the MMU motor. FLARE anti-thrash machinery (positive-relaunch damping,
 trailing collapse delay, `POST_PRINT_STAB_DELAY_MS` gate, reserve deadband)
 further suppresses chasing. Conflict is tunable, not architectural, provided
 ramming retract stays well under buffer half-travel and

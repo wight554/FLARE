@@ -4,7 +4,7 @@ schema: spec-driven
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
 context: |
-  Project: NOSF standalone dual-lane MMU / RELOAD controller firmware for
+  Project: FLARE standalone dual-lane MMU / RELOAD controller firmware for
     RP2040 on FYSETC ERB V2.0.
   Stack: C firmware built with Pico SDK/CMake/Ninja plus Python stdlib host
     tools under scripts/.

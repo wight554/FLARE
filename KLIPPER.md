@@ -1,17 +1,17 @@
-# NOSF — Klipper Integration
+# FLARE — Klipper Integration
 
-This document covers connecting Klipper to NOSF: serial setup, the shell
+This document covers connecting Klipper to FLARE: serial setup, the shell
 command helper, Klipper API motion tracking for calibration, toolhead sensor
 and toolchange macros, and buffer/sync tuning.
 
-For the NOSF command reference see `MANUAL.md`; for behavioral details see
+For the FLARE command reference see `MANUAL.md`; for behavioral details see
 `BEHAVIOR.md`.
 
 ---
 
 ## Serial port setup
 
-The NOSF appears as a USB CDC serial device on the Raspberry Pi
+A FLARE controller appears as a USB CDC serial device on the Raspberry Pi
 (`/dev/ttyACM0` or `/dev/ttyACM1`).
 
 Confirm the port:
@@ -31,13 +31,16 @@ sudo usermod -a -G dialout pi   # substitute your username if not 'pi'
 
 ## Shell command helper — nosf_cmd.py
 
-`scripts/nosf_cmd.py` sends a single NOSF command and blocks until the
+`scripts/nosf_cmd.py` sends a single FLARE command and blocks until the
 response arrives. Simple commands (SET:, GET:, T:, SM:, TS:, FD:, ST:,
 …) return on the first `OK:`/`ER:`. Long-running commands (`TC:`, `FL:`,
 `UL:`, `UM:`) wait for their completion event (`EV:TC:DONE`, `EV:LOADED`,
 `EV:UNLOADED`, …) or the corresponding error/timeout event. Exit code is 0 on
 success, 1 on error or timeout. All received lines are printed so Klipper's
 `VERBOSE` output shows them in the Mainsail / Fluidd console.
+
+The helper filename and sample `gcode_shell_command nosf` name are kept for
+backward compatibility with existing printer configs.
 
 Install the Klipper `gcode_shell_command` extension if not already present
 (available via KIAUH → Advanced, or copy `gcode_shell_command.py` to
@@ -46,7 +49,7 @@ Install the Klipper `gcode_shell_command` extension if not already present
 Add to `printer.cfg`:
 ```ini
 [gcode_shell_command nosf]
-command: python3 /home/pi/NOSF/scripts/nosf_cmd.py
+command: python3 /home/pi/FLARE/scripts/nosf_cmd.py
 timeout: 130.0
 verbose: True
 ```
@@ -60,7 +63,7 @@ RUN_SHELL_COMMAND CMD=nosf PARAMS="?:"
 
 ## Toolhead filament sensor — TS:
 
-NOSF needs to know when filament reaches or leaves the toolhead extruder.
+FLARE needs to know when filament reaches or leaves the toolhead extruder.
 This signal drives completion of `FL:`/`TC:` load phases and enables/disables
 buffer sync.
 
@@ -82,7 +85,7 @@ runout_gcode:
 ### Option B — Buffer fallback (no sensor)
 
 When filament presses against the extruder gears, the buffer arm holds TRAILING
-for `TS_BUF_MS` milliseconds and NOSF self-triggers the loaded state.
+for `TS_BUF_MS` milliseconds and FLARE self-triggers the loaded state.
 Tune to your bowden length:
 
 ```
@@ -92,7 +95,7 @@ SV:
 
 `TS:0` after unload is still required if you want sync to stop cleanly:
 ```ini
-[gcode_macro NOSF_TS_CLEAR]
+[gcode_macro FLARE_TS_CLEAR]
 gcode:
     RUN_SHELL_COMMAND CMD=nosf PARAMS="TS:0"
 ```
@@ -139,7 +142,7 @@ gcode:
     RUN_SHELL_COMMAND CMD=nosf PARAMS="TC:1"
     {% if printer['gcode_shell_command nosf'].return_code != 0 %}
         PAUSE
-        { action_respond_info("NOSF TC:1 failed") }
+        { action_respond_info("FLARE TC:1 failed") }
     {% endif %}
     RESTORE_GCODE_STATE NAME=_tc_state
 ```
@@ -149,32 +152,32 @@ gcode:
 ## Manual load / unload
 
 ```ini
-[gcode_macro NOSF_LOAD]
+[gcode_macro FLARE_LOAD]
 description: Full load active lane to toolhead
 gcode:
     RUN_SHELL_COMMAND CMD=nosf PARAMS="FL:"
 
-[gcode_macro NOSF_UNLOAD]
+[gcode_macro FLARE_UNLOAD]
 description: Unload from extruder (tip past OUT sensor)
 gcode:
     RUN_SHELL_COMMAND CMD=nosf PARAMS="UL:"
 
-[gcode_macro NOSF_PRELOAD]
+[gcode_macro FLARE_PRELOAD]
 description: Pre-load active lane to parked position (OUT sensor)
 gcode:
     RUN_SHELL_COMMAND CMD=nosf PARAMS="LO:"
 
-[gcode_macro NOSF_CUT]
+[gcode_macro FLARE_CUT]
 description: Perform full filament cut cycle
 gcode:
     RUN_SHELL_COMMAND CMD=nosf PARAMS="CU:"
 
-[gcode_macro NOSF_CUT_BARE]
+[gcode_macro FLARE_CUT_BARE]
 description: Perform cutter servo cycle without filament movement
 gcode:
     RUN_SHELL_COMMAND CMD=nosf PARAMS="CX:"
 
-[gcode_macro NOSF_CUT_TEST]
+[gcode_macro FLARE_CUT_TEST]
 description: Set cutter servo to a static pulse width (tuning)
 gcode:
     {% set US = params.US|default(950)|int %}
@@ -371,7 +374,7 @@ fallback:
 
 ```ini
 [gcode_shell_command nosf_marker]
-command: python3 /home/pi/NOSF/scripts/nosf_marker.py --file /tmp/nosf-markers-myprinter.log
+command: python3 /home/pi/FLARE/scripts/nosf_marker.py --file /tmp/nosf-markers-myprinter.log
 timeout: 2.0
 verbose: False
 ```
@@ -413,7 +416,7 @@ If the patch is applied to `config.ini` and flashed, update the watermark:
 python3 scripts/nosf_analyze.py --commit-watermark --state ~/nosf-state/buckets-myprinter.json
 ```
 
-`nosf_live_tuner.py` owns the NOSF USB TTY. Do not run
+`nosf_live_tuner.py` owns the FLARE USB TTY. Do not run
 multiple instances against the same `/dev/ttyACM*` at the same time.
 
 Debug-only live writes still exist for controlled experiments:
@@ -426,7 +429,7 @@ Debug-only live writes still exist for controlled experiments:
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | `nosf_cmd.py` exits "no serial port found" | Port not present | `ls /dev/ttyACM*`; check `dialout` group |
-| `TS:1` not reaching NOSF | Sensor wiring or config | Test: `RUN_SHELL_COMMAND CMD=nosf PARAMS="TS:1"` |
+| `TS:1` not reaching FLARE | Sensor wiring or config | Test: `RUN_SHELL_COMMAND CMD=nosf PARAMS="TS:1"` |
 | `TC:` times out | Bowden too long / jam | Increase `LOAD_MAX` / `UNLOAD_MAX` if travel is genuinely too short; otherwise tune `TC_TH_MS` / `TC_Y_MS` or fix the path |
 | Sync not enabling after load | No `TS:1` sent | Check sensor or enable `TS_BUF_MS` fallback |
 | RELOAD approach never detects contact | Buffer sensor never reaches `TRAILING` | Verify buffer wiring and travel; reduce `JOIN_RATE` if the path is too aggressive |

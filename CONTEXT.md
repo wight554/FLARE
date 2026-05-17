@@ -1,4 +1,4 @@
-# NOSF — Project Context
+# FLARE — Project Context
 
 Quick ref for firmware work. The validated architecture contract lives in
 `openspec/specs/project-architecture/spec.md`; this file remains a compact
@@ -18,7 +18,7 @@ Phase 2.14 differentiates acceptance-gate semantics into FAIL and WARN tiers, im
 
 ## Firmware Architecture
 
-NOSF = cooperative firmware for RP2040, no RTOS. Main loop calls non-blocking module ticks each iteration.
+FLARE = cooperative firmware for RP2040, no RTOS. Main loop calls non-blocking module ticks each iteration.
 
 ### Module ownership
 

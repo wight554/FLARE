@@ -53,7 +53,7 @@ behind OUT — this is why UL cutter-enabled spec is clear→cut→clear.
 5. **`TC:` ≡ UL+swap+FL.** TC unload phase reuses the new UL semantics so
    `TC:` and host `UL:`+`T:`+`FL:` are behaviorally equivalent.
 6. **Klipper owns toolhead.** `change_lane` macro: form tip + retract out of
-   gears via extruder (NOSF follows via negative sync while `sync_enabled`),
+   gears via extruder (FLARE follows via negative sync while `sync_enabled`),
    then `TC:`; nosf_cmd.py blocks until `EV:TC:DONE`/`EV:TC:ERROR`.
 7. **HOLD command deferred.** Adopt only if measured buffer half-travel cannot
    absorb tip-forming amplitude.
@@ -82,7 +82,7 @@ behind OUT — this is why UL cutter-enabled spec is clear→cut→clear.
 
 ### Docs
 - MANUAL.md (`UL:`/`UM:`/`UNLOAD_CUT`), KLIPPER.md (`change_lane` macro, remove
-  `NOSF_UNLOAD` from spool-change path), BEHAVIOR.md (unload state machine).
+  `FLARE_UNLOAD` from spool-change path), BEHAVIOR.md (unload state machine).
 
 ## Validation
 - `ninja -C build_local` green.

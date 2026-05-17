@@ -1,7 +1,7 @@
 # Motor Parameter Reference
 
 This file records known motor and TMC parameter sets that have been verified or
-used successfully with NOSF.
+used successfully with FLARE.
 
 Use these values as a starting point for `config.ini`, then tune from hardware
 behavior if needed.

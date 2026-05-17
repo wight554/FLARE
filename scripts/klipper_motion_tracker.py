@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Klipper API motion tracker helpers for NOSF Phase 2.10.
+"""Klipper API motion tracker helpers for FLARE Phase 2.10.
 
 Pure stdlib. The Klipper API server speaks JSON-RPC-ish objects over a
 Unix domain socket, with each JSON object terminated by ASCII ETX (0x03).

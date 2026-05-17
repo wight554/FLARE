@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""nosf_live_tuner.py - observe-only calibration tuner for NOSF Phase 2.9.
+"""nosf_live_tuner.py - observe-only calibration tuner for FLARE Phase 2.9.
 
 Pure stdlib plus pyserial. No numpy, scipy, sklearn, or pandas.
 
@@ -9,7 +9,7 @@ Usage examples:
         --machine-id myprinter --emit-config-patch /tmp/nosf-patch.ini
     python3 scripts/nosf_live_tuner.py --port /dev/ttyACM0 --reset-runtime
 
-The live loop reads NOSF status and marker lines, learns per
+The live loop reads FLARE status and marker lines, learns per
 (feature, v_fil_bin) buckets, and persists calibration state. Default
 mode is observe-only: no SET writes and no SAVE. Research/debug modes:
     --allow-bias-writes      allow guarded SET:TRAIL_BIAS_FRAC writes
@@ -1509,7 +1509,7 @@ def do_prune_stale(state_path: str, machine_id: str) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="Closed-loop live tuner for NOSF sync buckets.",
+        description="Closed-loop live tuner for FLARE sync buckets.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

@@ -1,4 +1,4 @@
-# NOSF OpenSpec
+# FLARE OpenSpec
 
 This directory is the project-owned place for current specs and future
 spec-driven changes.

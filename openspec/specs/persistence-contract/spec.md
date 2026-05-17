@@ -1,7 +1,7 @@
 # Persistence Contract Specification
 
 ## Purpose
-Durable contract for NOSF flash-backed runtime parameters and config generation, extracted from `firmware/src/settings_store.c` and `AGENTS.md`.
+Durable contract for FLARE flash-backed runtime parameters and config generation, extracted from `firmware/src/settings_store.c` and `AGENTS.md`.
 
 ## Requirements
 
