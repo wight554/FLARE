@@ -464,6 +464,7 @@ static bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events, b
     if (g_boot_stabilizing) return true;
     if (!buffer_stabilize_controller_idle()) return false;
     if (BUF_SENSOR_TYPE != 0) return false;
+    if (mode == BUFFER_SERVICE_NEG_SYNC && g_sync_hold) return true;
 
     buf_state_t buf_state = buf_state_raw();
     lane_t *stab_lane = NULL;
@@ -506,6 +507,11 @@ void boot_stabilize_start(uint32_t now_ms) {
 }
 
 void buffer_stabilize_tick(uint32_t now_ms) {
+    if (g_sync_hold && g_boot_stabilizing && g_buffer_service_mode == BUFFER_SERVICE_NEG_SYNC) {
+        boot_stabilize_stop();
+        return;
+    }
+
     if (!g_boot_stabilizing) {
         if (!buffer_stabilize_controller_idle()) {
             g_idle_trailing_since_ms = 0;
@@ -909,6 +915,7 @@ void buf_sensor_tick(uint32_t now_ms) {
 void sync_tick(uint32_t now_ms) {
     lane_t *A = lane_ptr(active_lane);
     if (!A || tc_state() != TC_IDLE || g_boot_stabilizing) return;
+    if (g_sync_hold) return;
 
     buf_state_t s = g_buf.state;
     bool auto_start_allowed = (A->task == TASK_IDLE || A->task == TASK_FEED);

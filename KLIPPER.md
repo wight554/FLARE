@@ -122,8 +122,10 @@ gcode:
     M400
     SAVE_GCODE_STATE NAME=_flare_change_state
     M83
+    RUN_SHELL_COMMAND CMD=flare PARAMS="HD:1"
     G1 E-{TIP_RETRACT} F1800
     G1 E{TIP_PUSH} F900
+    RUN_SHELL_COMMAND CMD=flare PARAMS="HD:0"
     G1 E-{GEAR_RETRACT} F7800
     RUN_SHELL_COMMAND CMD=flare PARAMS="TC:{LANE}"
     G1 E{PICKUP} F900
@@ -138,10 +140,11 @@ gcode:
     _FLARE_CHANGE_LANE LANE=2
 ```
 
-Keep the tip-forming wiggle section separate from the final `GEAR_RETRACT`.
-Small wiggles interact with the buffer travel (`BUF_HALF_TRAVEL`, measured
-7.8 mm on the reference build); the final gear retract is intentionally outside
-that wiggle regime so negative sync can follow it. With that split,
+Keep the tip-forming wiggle section inside `HD:1` / `HD:0` HOLD. Small wiggles
+interact with the buffer travel (`BUF_HALF_TRAVEL`, measured 7.8 mm on the
+reference build); HOLD suppresses sync and negative-sync following while leaving
+basic buffer stabilization available. The final `GEAR_RETRACT` is intentionally
+outside HOLD so negative sync can follow it. With that split,
 `POST_PRINT_STAB_DELAY_MS=0` is acceptable because the long retract should be
 followed immediately.
 

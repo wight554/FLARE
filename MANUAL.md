@@ -84,6 +84,7 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `?:` | Status | **Full Status** — returns all sensors, tasks, and rates. |
 | `VR:` | Version| **Version** — returns firmware version. |
 | `TS:<0\|1>`| OK | **Toolhead Sensor** — report toolhead filament status (sent by host). |
+| `HD:<0\|1>`| OK | **Sync Hold** — `HD:1` suppresses sync and negative-sync following during tip-forming wiggles; `HD:0` releases it. `TS:1`, `TC:`, and `UL:` auto-clear hold. |
 | `SM:<0\|1>`| OK | **Sync Mode** — manually toggle buffer sync. |
 | `BI:<0\|1>`| OK | **Buffer Invert** — invert buffer endstop logic. |
 | `MARK:<tag>` | `OK:MARK` | **Telemetry Marker** — stores a short host marker in firmware. Subsequent status replies expose it as `MK:<seq>:<tag>`. |
@@ -201,13 +202,20 @@ Runtime status `BL` is the learned control baseline. `GET:` / `SET:` / `SV:` / `
 | `SERVO_BLOCK` | `servo_block_us` | Servo block position used between cutter phases | 950 |
 | `CUT_FEED_RATE` | `cut_feed_rate` | Motor speed (mm/min) during cutter feed; ramped from zero — lower if motor stalls | 600 |
 
-### Diagnostic Status Fields (tail-appended)
+### Runtime-only Controls
+| Parameter | Description |
+|-----------|-------------|
+| `GET:HOLD` | Returns `HOLD:1` while `HD:1` sync hold is active, else `HOLD:0`. |
 
-These fields are appended after `SS:` in the `?:` response. They are additive and do not shift existing field positions.
+### Diagnostic Status Fields
+
+These fields are included in the `?:` response. Most diagnostics are appended
+after `SS:`; `HD` appears with the core sync fields near `SM`.
 
 | Field | Unit | Description |
 |-------|------|-------------|
 | `RT` | mm (signed) | Reserve target position. Negative = trailing side. Set by `SYNC_RESERVE_PCT`, `TRAIL_BIAS_FRAC`, and `BUF_HALF_TRAVEL`. |
+| `HD` | bool | Sync HOLD state from `HD:1` / `HD:0`. |
 | `TB` | % (int) | Trailing bias fraction × 100. |
 | `MC` | SPS | Mid-zone creep component added to target rate |
 | `VB` | % (int) | Variance blend distrust percentage |

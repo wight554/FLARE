@@ -150,6 +150,18 @@ TC_IDLE
 
 ---
 
+## Sync HOLD — `HD:<0|1>`
+
+`HD:1` suppresses normal `sync_tick` behavior and blocks the
+`BUFFER_SERVICE_NEG_SYNC` post-print negative-sync service. Basic
+`BUFFER_SERVICE_STABILIZE` remains available so the buffer can re-center during
+tip-forming wiggles without velocity-following them.
+
+`HD:0` releases HOLD. `TS:1`, `TC:`, and `UL:` also clear HOLD so the
+controller cannot stay held through real load/unload phases.
+
+---
+
 ## Motor acceleration ramp
 
 All lane tasks start at `RAMP_STEP_RATE` (default 17 mm/min) and increment by
