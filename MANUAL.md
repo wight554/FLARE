@@ -128,7 +128,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `PRESS_RATE` | `press_rate` | RELOAD: Slow follow-sync speed | 1200 |
 | `GLOBAL_MAX_RATE` | `global_max_rate` | Absolute ceiling applied to every commanded motor rate; `SYNC_MAX_RATE` remains the sync-only soft cap under it | 4000 |
 | `SYNC_MAX_RATE` | `sync_max_rate` | Max speed allowed during sync | 4000 |
-| `BASELINE_RATE` | `baseline_rate` | Sync bootstrap and conservative baseline speed | 1600 |
+| `BASELINE_RATE` | `baseline_rate` | Sync bootstrap target and scalar fallback baseline when no flow schedule is configured | 1600 |
 
 ### Smarter Sync (Estimator)
 | Parameter | `config.ini` Key | Description | Default |
@@ -142,7 +142,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `EST_ALPHA_MIN`| `est_alpha_min` | Estimator responsiveness for slow drifts | 0.12 |
 | `EST_ALPHA_MAX`| `est_alpha_max` | Estimator responsiveness for sharp jumps | 0.65 |
 | `SYNC_RESERVE_PCT` | `sync_reserve_pct` | Normal-sync reserve target as % of `BUF_HALF_TRAVEL` toward trailing | 35 |
-| `TRAIL_BIAS_FRAC` | `sync_trailing_bias_frac` | Additional trailing-side setpoint shift (0.0 to 0.7) | 0.0 |
+| `TRAIL_BIAS_FRAC` | `sync_trailing_bias_frac` | Scalar fallback trailing-side setpoint shift when no flow schedule is configured (0.0 to 0.7) | 0.0 |
 | `MID_CREEP_TIMEOUT_MS` | `mid_creep_timeout_ms` | Mid-dwell wait before creep activates | 0 |
 | `MID_CREEP_RATE` | `mid_creep_rate_sps_per_s` | Creep ramp slope (SPS/s) | 0 |
 | `MID_CREEP_CAP` | `mid_creep_cap_frac` | Hard cap on creep as % of extruder_est_sps | 10 |
@@ -189,9 +189,26 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `RELOAD_JOIN_MS` | `reload_join_delay_ms` | Extra RELOAD-only settling delay after tail and Y clear before `RELOAD:JOINING` starts | 10000 |
 | `STEALTHCHOP` | `stealthchop_threshold` | Velocity threshold (mm/min) for StealthChop. 0 = always SpreadCycle. | 500 |
 
+`BASELINE_RATE` and `TRAIL_BIAS_FRAC` remain persistent scalar controls. If
+`config.ini` has no `[flow_schedule.v1]` table, `scripts/gen_config.py`
+synthesizes an exact one-point schedule from those scalar values. If a schedule
+table is present, sync evaluates it at the live `extruder_est_sps` to obtain the
+active baseline and trailing bias; `SET:BASELINE_*` or `SET:TRAIL_BIAS_FRAC`
+returns runtime behavior to the scalar one-point schedule until settings are
+reloaded or firmware is reflashed.
+
+Config-only schedule keys:
+
+| `config.ini` Key | Description | Default |
+|------------------|-------------|---------|
+| `flow_schedule_cap` | Maximum generated schedule breakpoints, 1..16 | 8 |
+| `[flow_schedule.v1] pointN` | Optional schedule rows: `flow_sps, baseline_sps, trailing_bias_frac` (or bias milli 0..700). Breakpoints are sorted by flow and interpolated without extrapolation. | absent |
+
 `BASELINE_RATE` remains a persistent bootstrap target. AUTO sync no longer rewrites it during startup.
 
-Runtime status `BL` is the learned control baseline. `GET:` / `SET:` / `SV:` / `LD:` for `BASELINE_RATE` operate on the configured bootstrap target.
+Runtime status `BL` is the active control baseline after flow-schedule lookup
+and any ephemeral live segment ratchet. `GET:` / `SET:` / `SV:` / `LD:` for
+`BASELINE_RATE` operate on the configured bootstrap target.
 
 `BUF_TRAVEL` remains accepted as a backward-compatible alias for `BUF_HALF_TRAVEL`.
 
@@ -214,9 +231,9 @@ after `SS:`; `HD` appears with the core sync fields near `SM`.
 
 | Field | Unit | Description |
 |-------|------|-------------|
-| `RT` | mm (signed) | Reserve target position. Negative = trailing side. Set by `SYNC_RESERVE_PCT`, `TRAIL_BIAS_FRAC`, and `BUF_HALF_TRAVEL`. |
+| `RT` | mm (signed) | Reserve target position. Negative = trailing side. Set by `SYNC_RESERVE_PCT`, active flow-schedule bias (or scalar `TRAIL_BIAS_FRAC` fallback), and `BUF_HALF_TRAVEL`. |
 | `HD` | bool | Sync HOLD state from `HD:1` / `HD:0`. |
-| `TB` | % (int) | Trailing bias fraction × 100. |
+| `TB` | % (int) | Active trailing bias fraction × 100 after flow-schedule lookup. |
 | `MC` | SPS | Mid-zone creep component added to target rate |
 | `VB` | % (int) | Variance blend distrust percentage |
 | `BPV`| mm × 100 | Post-blend effective position used by control loops |
@@ -329,6 +346,17 @@ cp ~/flare-state/buckets-<id>.json ~/flare-state/buckets-<id>.json.schema2.bak
    work where you accept pre-lock estimates.
 5. Review `config.patch.ini`. It is commented review text only; copy chosen
    values into `config.ini` by hand.
+   For a deterministic flow-keyed schedule from two bracket profiles, run:
+   ```bash
+   python3 scripts/flare_analyze.py \
+       --profile-fast ~/flare-runs/fast.csv \
+       --profile-slow ~/flare-runs/slow.csv \
+       --emit-flow-schedule \
+       --out flow-schedule.ini
+   ```
+   Copy the reviewed `flow_schedule_cap` and `[flow_schedule.v1]` block into
+   `config.ini`. Sparse inputs emit a one-point schedule equivalent to the
+   scalar `baseline_rate` / `sync_trailing_bias_frac` fallback.
 6. Regenerate and flash:
    ```bash
    python3 scripts/gen_config.py

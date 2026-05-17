@@ -134,6 +134,7 @@ static void status_dump(void) {
         target_tp = 12000000 / ((uint32_t)TMC_STEALTHCHOP_SPS[idx] * scale);
         if (target_tp > 0xFFFFF) target_tp = 0xFFFFF;
     }
+    flow_param_t active_flow_param = flow_param((int)extruder_est_sps);
 
     char b[512];
     int blen = snprintf(b, sizeof(b),
@@ -152,7 +153,7 @@ static void status_dump(void) {
         on_al(&g_y_split) ? 1 : 0,
         buf_state_name(g_buf.state),
         (double)sps_to_mm_per_min(sync_current_sps),
-        (double)sps_to_mm_per_min(g_baseline_sps),
+        (double)sps_to_mm_per_min(active_flow_param.baseline_sps),
         (double)g_buf_pos,
         sync_enabled ? 1 : 0,
         g_sync_hold ? 1 : 0,
@@ -212,7 +213,7 @@ static void status_dump(void) {
             sync_bp_drift_samples(),
             sync_adv_pin_window_count(now_ms),
             rdc,
-            (int)(SYNC_TRAILING_BIAS_FRAC * 100.0f),
+            (active_flow_param.bias_milli + 5) / 10,
             sync_mid_creep_sps(),
             (int)(BUF_VARIANCE_BLEND_FRAC * 100.0f),
             (int)(g_buf_pos * 100.0f),

@@ -32,6 +32,10 @@
 
 ## 4. Closeout
 
-- [ ] 4.1 `openspec validate flow-keyed-param-schedule --strict`
-- [ ] 4.2 Update BEHAVIOR.md / MANUAL.md / workflow docs: schedule is the deterministic output of the same two-profile procedure; scalar keys = degenerate 1-point
-- [ ] 4.3 Full regression + local build green; working tree clean
+- [x] 4.1 `openspec validate flow-keyed-param-schedule --strict`
+- [x] 4.2 Update BEHAVIOR.md / MANUAL.md / workflow docs: schedule is the deterministic output of the same two-profile procedure; scalar keys = degenerate 1-point
+- [x] 4.3 Full regression + local build green; working tree clean
+      Validation 2026-05-18: `openspec validate flow-keyed-param-schedule --strict`;
+      `ninja -C build_local`; `python3 -m py_compile scripts/*.py`;
+      `scripts/validate_regression.sh`. Only pre-existing untracked local file:
+      `scripts/test_stream.log`.

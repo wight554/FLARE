@@ -140,7 +140,7 @@ shipped as a stable external interface yet.
 
 - `scripts/flare_cmd.py`: Serial helper — send commands and dump live config
 - `scripts/flare_logger.py`: Deprecated. Use `flare_live_tuner.py --csv-out` instead.
-- `scripts/flare_analyze.py`: Offline calibration analyzer with LOCKED-bucket floor, contributor diagnostics, seven-tunable review patch, and recommendation-parity acceptance gate
+- `scripts/flare_analyze.py`: Offline calibration analyzer with LOCKED-bucket floor, contributor diagnostics, seven-tunable review patch, deterministic flow-schedule emission, and recommendation-parity acceptance gate
 - `scripts/flare_live_tuner.py`: Observe-only calibration bucket learner; emits reviewable patches, with live writes reserved for explicit debug flags
   and residual-aware lock hysteresis so noisy buckets stay isolated instead of chattering
 - `scripts/gcode_marker.py`: G-code metadata injector and sidecar generator for Klipper API motion tracking

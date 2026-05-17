@@ -435,6 +435,24 @@ python3 scripts/flare_analyze.py \
     --acceptance-gate
 ```
 
+For the deterministic flow-keyed schedule, capture a slow profile and a fast
+profile from the same calibrated setup, then emit the table that belongs in
+`config.ini`:
+
+```bash
+python3 scripts/flare_analyze.py \
+    --profile-fast ~/flare-runs/fast.csv \
+    --profile-slow ~/flare-runs/slow.csv \
+    --emit-flow-schedule \
+    --out flow-schedule.ini
+```
+
+Review and copy the `flow_schedule_cap` plus `[flow_schedule.v1]` block into
+`config.ini`. If the input is too sparse, the analyzer emits a one-point
+schedule equivalent to the scalar `baseline_rate` / `sync_trailing_bias_frac`
+fallback. The older scalar two-profile output remains available with
+`--emit-baseline`.
+
 If the patch is applied to `config.ini` and flashed, update the watermark:
 ```bash
 python3 scripts/flare_analyze.py --commit-watermark --state ~/flare-state/buckets-myprinter.json
