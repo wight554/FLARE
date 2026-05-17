@@ -7,8 +7,10 @@
 
 ## 2. Workflow conventions
 
-- [ ] 2.1 Add the AI-Assisted Commit Attribution convention to `AGENTS.md` (Claude `Co-Authored-By` retained; add `Generated-By: <tool> (<model>)` in addition; multi-tool = one line each)
-- [ ] 2.2 Add the Tasks File Completion Hygiene rule to `AGENTS.md` (never empty `tasks.md`; mark `[x]` + append dated validation notes)
+- [x] 2.1 Add the AI-Assisted Commit Attribution convention to `AGENTS.md` (Claude `Co-Authored-By` retained; add `Generated-By: <tool> (<model>)` in addition; multi-tool = one line each)
+- [x] 2.2 Add the Tasks File Completion Hygiene rule to `AGENTS.md` (never empty `tasks.md`; mark `[x]` + append dated validation notes)
+      Validation 2026-05-18: doc/process wording only; reviewed against
+      `openspec/changes/tuning-followups-and-notes/specs/task-workflow/spec.md`.
 
 ## 3. Hardware validation backlog
 

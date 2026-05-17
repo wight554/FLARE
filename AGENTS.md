@@ -132,6 +132,7 @@ Skip for doc-only edits, script changes, or build/config work — save context b
 10. **MANDATORY: Analyze regression impact for new features** — Unless user asks to change current behavior, every new feature needs code-level impact review of affected flows (preload, load, unload, toolchange, sync, RELOAD, persistence, protocol, docs) and validation those flows stay intact.
 11. **MANDATORY: Prefer Git MCP for git operations when available and applicable.** Use Git MCP for `status`, `diff`, `add`, `commit`, `log`, `show`, `branch`, and `checkout`. Fall back to non-interactive shell git when Git MCP is unavailable, lacks the needed operation, fails, or when pushing/remotes require shell git.
 12. **MANDATORY: Do NOT commit local AI config** — Never commit `.agents/`, `.claude/`, or `skills-lock.json`. All AI config stays global per `AI.md`.
+13. **MANDATORY: Preserve AI-assisted attribution** — If Claude produced or substantially assisted a commit, keep its `Co-Authored-By` trailer. If another AI tool generated or substantially assisted the commit, add `Generated-By: <tool> (<model>)` in addition to any Claude trailer, not instead of it. If multiple tools contributed, add one `Generated-By:` line per tool/model.
 
 ## Commit Format
 
@@ -161,6 +162,7 @@ Rules:
 - Subject: lowercase, imperative, no period, ≤ 72 chars
 - Body: explain *why*, not just what
 - **Always include model in `Generated-By`:** `Generated-By: <Agent Name> (<Model>)`. Examples: `GitHub Copilot (Claude Haiku 4.5)`, `Gemini 3.1 Pro (High)`. Creates audit trail.
+- If Claude produced or substantially assisted the commit, retain the Claude `Co-Authored-By:` trailer. Other AI tool attribution uses `Generated-By:` lines in addition to the Claude trailer. Multi-tool commits get one `Generated-By:` line per tool/model.
 - Push immediately after every commit: `git push`
 - Use Git MCP first for add / commit when available; use shell git as fallback. Use shell git for `git push` unless a reliable push-capable MCP is explicitly available.
 
@@ -201,6 +203,11 @@ everything mid-task. **Write first in OpenSpec artifacts.**
    For new features, explicitly note which existing flows could regress and how to validate they stay correct.
 
 4. **Never hold more than one file's worth of changes in memory** before committing. Small commits safe; large in-memory plans not.
+
+5. **Preserve `tasks.md` history** — Never empty, truncate, or delete the task
+   list for an active change. When completing work, mark the existing task lines
+   `[x]` and append dated validation notes beneath them. Task history must
+   remain reconstructable at archive time.
 
 Protects against most common failure: agent hits context limit between planning and implementation, next session has no idea what was intended.
 
