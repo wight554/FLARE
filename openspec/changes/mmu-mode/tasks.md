@@ -46,9 +46,12 @@ Status legend: [ ] todo  [~] in progress  [x] done
 - [ ] Gate top of `sync_tick` on held (no sync mode/estimator/auto-start)
 - [ ] In `buffer_stabilize_start_internal`: when held, refuse
       `BUFFER_SERVICE_NEG_SYNC`, still permit `BUFFER_SERVICE_STABILIZE`
-- [ ] Command surface: `SM:` HOLD value (or new `HD:`) SET + GET + ?: dump
-- [ ] Auto-clear on `TS:1` and on `TC:`/`UL:` start (never stuck held)
-- [ ] `change_lane` macro: set HOLD → tip form → clear HOLD → `TC:`
+- [ ] Command surface: explicit `HD:1` enable / `HD:0` disable (dedicated,
+      not overloading `SM:`) + `GET:HOLD` + `?:` dump field
+- [ ] Safety auto-clear on `TS:1` and on `TC:`/`UL:` start (never stuck held);
+      explicit `HD:0` is the primary path
+- [ ] `change_lane` macro 6 steps: `HD:1` → tip form → `HD:0` → full retract
+      (neg-sync follows, no hold) → `TC:` → pickup/`TS:1`
 - [ ] Regression: held must not block hard-brake during actual feed; stab
       still re-centers buffer while held
 - [ ] Build + commit + push

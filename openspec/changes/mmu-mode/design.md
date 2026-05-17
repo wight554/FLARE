@@ -52,9 +52,23 @@ behind OUT — this is why UL cutter-enabled spec is clear→cut→clear.
    (cut included) + extend reverse to clear IN. OUT clear at entry → no cut.
 5. **`TC:` ≡ UL+swap+FL.** TC unload phase reuses the new UL semantics so
    `TC:` and host `UL:`+`T:`+`FL:` are behaviorally equivalent.
-6. **Klipper owns toolhead.** `change_lane` macro: form tip + retract out of
-   gears via extruder (FLARE follows via negative sync while `sync_enabled`),
-   then `TC:`; flare_cmd.py blocks until `EV:TC:DONE`/`EV:TC:ERROR`.
+6. **Klipper owns toolhead — `change_lane` 6-step sequence:**
+   1. `HD:1` — enable HOLD (explicit).
+   2. tip forming (pause-retract, push, cooldown×N, dip). HOLD active:
+      sync+neg-sync off, basic stab keeps buffer centered.
+   3. `HD:0` — disable HOLD (explicit).
+   4. full retract from toolhead, ~20-30 mm hotend→extruder gears, via
+      extruder. **Outside HOLD by design**: this is the NEG_SYNC follow
+      window — the lane must reverse-follow or the path binds and the
+      buffer is destroyed against the TRAILING rail. No new code; existing
+      neg-sync engages because HOLD is off.
+   5. `TC:<lane>` — unload(+cut)+swap+load; flare_cmd.py blocks until
+      `EV:TC:DONE`/`EV:TC:ERROR`.
+   6. pickup: filament enters toolhead, prime, `TS:1`.
+
+   `POST_PRINT_STAB_DELAY_MS`=0 is now correct, not a hazard: HOLD owns the
+   small-wiggle regime (step 2), so instant neg-sync at step 4 is desired.
+   HOLD cleanly partitions the two regimes; no delay tuning required.
 7. **HOLD primitive REQUIRED — partial, not full freeze.** Buffer half-travel
    7.8 mm; LH-Stinger cooldown retract 5 mm reliably flips `BUF_TRAILING`;
    `POST_PRINT_STAB_DELAY_MS`=0 ⇒ instant neg-sync. `buffer_stabilize_tick`
