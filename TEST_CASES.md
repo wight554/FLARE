@@ -502,6 +502,92 @@ python3 scripts/flare_cmd.py "VR:" "?:"
 
 ---
 
+## Pending Manual Hardware Validation
+
+These cases are tracked because they require a real MMU, buffer, and printer
+motion path. They are **pending-manual-hardware** until an operator records the
+firmware commit, setup, commands, and observed status/events.
+
+### pending-manual-hardware: FAULT_HOLD Entry And Auto-Recovery
+
+#### Goal
+
+Confirm sync enters non-destructive `FAULT_HOLD` from both hard-wall critical
+and advance-dwell paths, then recovers automatically.
+
+#### Steps
+
+1. Start from a loaded lane with sync active and capture repeated `?:` output.
+2. For the advance-dwell path, hold the buffer in `ADVANCE` longer than
+   `SYNC_ADV_STOP_MS`.
+3. For the hard-wall path, force a trailing hard-wall critical condition during
+   active sync with enough net push velocity to cross the configured hard-wall
+   thresholds.
+4. Continue monitoring until after `CONF_SYNC_FAULT_HOLD_RECOVERY_MS`.
+
+#### Expected Result
+
+- Each path emits `EV:SYNC:FAULT_HOLD`.
+- Status shows `ST` in the fault-hold state and motion stopped safely.
+- The estimator is not destructively reset by entry into `FAULT_HOLD`.
+- After the recovery interval, firmware emits `EV:SYNC:FAULT_HOLD_RECOVERY`
+  and sync can re-arm without reboot.
+
+### pending-manual-hardware: Cannot-Refill / Cannot-Relieve Effort Events
+
+#### Goal
+
+Confirm the warn-only effort counters emit once per episode when sustained
+sync effort exceeds 50 mm.
+
+#### Steps
+
+1. Configure the default thresholds:
+   `sync_cannot_refill_mm: 50.0` and `sync_cannot_relieve_mm: 50.0`.
+2. Start sync and create a sustained `BUF_ADVANCE` episode where the MMU is
+   trying to refill the buffer.
+3. Observe `SYNC_REFILL_MM` in status until it exceeds 50.
+4. Return to a neutral state, then create a sustained `BUF_TRAILING` episode
+   where the MMU is trying to relieve/pull down excess buffer.
+5. Observe `SYNC_RELIEVE_MM` until it exceeds 50.
+
+#### Expected Result
+
+- `EV:SYNC:cannot_refill` emits once during the ADVANCE episode after the
+  refill effort crosses 50 mm.
+- `EV:SYNC:cannot_relieve` emits once during the TRAILING episode after the
+  relieve effort crosses 50 mm.
+- Counters reset on sync state/episode changes and do not spam repeated events.
+- The events are warn-only; they do not directly change the control target.
+
+### pending-manual-hardware: Flow-Schedule Scalar Parity Sweep
+
+#### Goal
+
+Confirm the length-1 flow schedule preserves scalar behavior over live flow on
+hardware.
+
+#### Steps
+
+1. Flash a scalar-only config with no `[flow_schedule.v1]` table and record a
+   sync flow sweep across low, mid, and high print demand.
+2. Confirm `scripts/gen_config.py` synthesized `CONF_FLOW_SCHED_LEN 1`.
+3. Capture status fields including `EST`, `BL`, `TB`, `RT`, `BP`, `SPS`, and
+   any `SYNC`/`BUF` events.
+4. Compare against the previous scalar build or a known-good scalar replay for
+   the same hardware motion pattern.
+
+#### Expected Result
+
+- `BL` stays equal to the scalar baseline plus any expected ephemeral live
+  learner lift.
+- `TB` stays equal to the scalar trailing bias at integer-milli resolution.
+- Reserve target/control output is identical for milli-aligned bias configs
+  and within 0.0005 absolute bias otherwise.
+- No new sync, toolchange, or RELOAD fault appears during the sweep.
+
+---
+
 ## Expected Status Snapshots
 
 These are reference patterns, not byte-for-byte golden outputs. Exact rates,

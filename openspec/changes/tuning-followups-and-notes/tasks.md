@@ -14,7 +14,9 @@
 
 ## 3. Hardware validation backlog
 
-- [ ] 3.1 Add `TEST_CASES.md` entries marked pending-manual-hardware: FAULT_HOLD entry (hard-wall + advance-dwell) and auto-recovery; `cannot_refill`/`cannot_relieve` effort events at 50mm; flow-schedule live flow-sweep parity vs scalar config
+- [x] 3.1 Add `TEST_CASES.md` entries marked pending-manual-hardware: FAULT_HOLD entry (hard-wall + advance-dwell) and auto-recovery; `cannot_refill`/`cannot_relieve` effort events at 50mm; flow-schedule live flow-sweep parity vs scalar config
+      Validation 2026-05-18: manual-hardware backlog entries added; not run
+      locally because no MMU hardware is available in this environment.
 
 ## 4. Repo cleanup
 
