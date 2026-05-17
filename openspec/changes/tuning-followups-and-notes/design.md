@@ -67,3 +67,52 @@ belt-and-suspenders.
 - Commit a fixture vs temp-dir generation for the recommender test —
   default temp-dir self-cleanup; revisit only if the stream needs to be a
   stable golden.
+
+## Implementation Notes (2026-05-18)
+
+### Current source findings
+- `flow-keyed-param-schedule` still says the length-1 path is
+  "byte-for-byte" identical even though the generated schedule stores bias as
+  integer milli. Baseline SPS is exact; bias is exact only for milli-aligned
+  values and otherwise bounded by half a milli.
+- `AGENTS.md` already requires `Generated-By:` footers but does not mention
+  retaining Claude `Co-Authored-By` trailers or multiple AI tools.
+- `AGENTS.md` requires OpenSpec task updates but does not explicitly forbid
+  emptying a `tasks.md` file or require dated validation notes.
+- `TEST_CASES.md` has static gates and core hardware flows, but no pending
+  manual entries for the recently deferred FAULT_HOLD, effort-event, or
+  flow-schedule parity checks.
+- `scripts/test_flare_baseline_recommender.py` writes `test_stream.log` in the
+  process working directory and removes it only on success; a prior run left
+  `scripts/test_stream.log` untracked.
+- `.gitignore` does not ignore `scripts/test_stream.log`.
+- `scripts/flare_analyze.py` uses Python 3 `round()` in the deterministic
+  reducer without a comment explaining that banker's rounding is intentional.
+
+### File-level plan
+
+#### `openspec/changes/flow-keyed-param-schedule/*`
+- Replace byte-identical scalar wording with milli-resolution bounded wording.
+- Preserve byte-identical wording only for analyzer schedule output where it
+  still describes file determinism.
+- Mark tasks 1.1-1.3 complete after strict validation.
+
+#### `AGENTS.md`
+- Add an explicit AI-assisted commit attribution convention under commit rules:
+  keep Claude `Co-Authored-By`; add one `Generated-By:` line per contributing
+  non-Claude tool/model.
+- Add a task-file hygiene convention in the OpenSpec workflow section:
+  preserve task text, mark `[x]`, and append dated validation notes.
+
+#### `TEST_CASES.md`
+- Add a pending manual hardware validation section for FAULT_HOLD
+  entry/recovery, effort events, and flow-schedule scalar parity.
+
+#### `scripts/test_flare_baseline_recommender.py` + `.gitignore`
+- Move the replay fixture into a `tempfile.TemporaryDirectory()` and use
+  absolute paths so successful and failing runs do not leave repo-local logs.
+- Add `scripts/test_stream.log` to `.gitignore` as a safety net.
+
+#### `scripts/flare_analyze.py`
+- Add a local comment near deterministic reducer rounding to document Python 3
+  banker's rounding as intentional and determinism-preserving.

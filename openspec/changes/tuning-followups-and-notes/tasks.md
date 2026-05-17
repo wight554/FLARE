@@ -1,8 +1,9 @@
 ## 1. Spec/design wording fix (unshipped change, edit in place)
 
-- [ ] 1.1 In `openspec/changes/flow-keyed-param-schedule/specs/flow-keyed-schedule/spec.md`, change the degenerate-equivalence wording from "byte-for-byte" to milli-resolution bounded (exact for milli-aligned configs; ≤0.0005 abs bias delta off the milli grid)
-- [ ] 1.2 In `openspec/changes/flow-keyed-param-schedule/design.md` D2/risks, align the equivalence claim with 1.1; note it is a contract-wording fix, no code change
-- [ ] 1.3 `openspec validate flow-keyed-param-schedule --strict` still passes
+- [x] 1.1 In `openspec/changes/flow-keyed-param-schedule/specs/flow-keyed-schedule/spec.md`, change the degenerate-equivalence wording from "byte-for-byte" to milli-resolution bounded (exact for milli-aligned configs; ≤0.0005 abs bias delta off the milli grid)
+- [x] 1.2 In `openspec/changes/flow-keyed-param-schedule/design.md` D2/risks, align the equivalence claim with 1.1; note it is a contract-wording fix, no code change
+- [x] 1.3 `openspec validate flow-keyed-param-schedule --strict` still passes
+      Validation 2026-05-18: `openspec validate flow-keyed-param-schedule --strict`.
 
 ## 2. Workflow conventions
 

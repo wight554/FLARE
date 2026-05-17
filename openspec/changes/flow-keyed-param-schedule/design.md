@@ -55,9 +55,12 @@ regime points.
 If the config has no schedule table, `gen_config.py` synthesizes a
 length-1 schedule from the existing scalar `baseline_sps` /
 `trailing_bias_frac` keys. Firmware interpolation with `LEN == 1` MUST
-return exactly those scalars for all flow values (clamp-to-only-point).
-This makes "no schedule" and "today" bit-identical and is the regression
-gate. Alternative (separate scalar code path kept alive) rejected:
+return the scalar baseline exactly and the bias at integer-milli
+resolution for all flow values (clamp-to-only-point). This makes
+"no schedule" and "today" exact for milli-aligned configs; off the milli
+grid, bias is bounded to <= 0.0005 absolute delta by quantization. This is
+a contract-wording fix only; the implementation already stores bias as
+integer milli. Alternative (separate scalar code path kept alive) rejected:
 two code paths diverge over time; one interpolator with a 1-point table
 is simpler and self-proves equivalence.
 
@@ -99,7 +102,7 @@ exists to remove.
 
 - [Degenerate path subtly diverges from today] → LEN==1 interpolation is
   the regression gate; host test asserts a scalar-only config generates a
-  LEN==1 table and a parity test asserts identical commanded output vs
+  LEN==1 table and a parity test asserts milli-resolution bounded output vs
   pre-change for a flow sweep.
 - [Schedule reduction non-deterministic across runs] → Fixed,
   data-only reduction rule (endpoints + lowest-curvature drop, deterministic
@@ -118,8 +121,8 @@ exists to remove.
 Built after `sync-tuning-and-relief-finish`. Phased:
 1. Format + degenerate: define versioned schedule table in
    `config.ini`/`gen_config.py`; synthesize LEN==1 from scalar keys;
-   firmware interpolator with LEN==1 ≡ scalar (parity test, no behavior
-   change shipped).
+   firmware interpolator with LEN==1 ≡ scalar at milli-resolution
+   (parity test, no behavior change shipped).
 2. Analyzer: emit multi-point schedule (D4) behind explicit flag; tests
    for determinism + degenerate-equivalence.
 3. Firmware: switch baseline/bias reads to `flow_param()`; scope live

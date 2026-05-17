@@ -23,21 +23,25 @@ breakpoint count. The format SHALL be additive: existing scalar
 ### Requirement: Degenerate single-point equivalence
 
 A length-1 schedule SHALL produce, for every flow value, exactly the
-scalar `baseline_sps` and `trailing_bias_frac` it was synthesized from.
-Firmware behavior with a length-1 schedule SHALL be byte-for-byte
-identical to the pre-change scalar behavior (zero regression).
+scalar `baseline_sps` and the milli-resolution `trailing_bias_frac` it
+was synthesized from. Bias fractions that are already aligned to integer
+milli SHALL be exact; other bias fractions SHALL differ by no more than
+0.0005 absolute bias after milli quantization. Firmware behavior with a
+length-1 schedule SHALL match pre-change scalar behavior within that
+milli-resolution bound.
 
 #### Scenario: One-point schedule is flat
 
 - **WHEN** the firmware evaluates a length-1 schedule at any
   `extruder_est_sps`
-- **THEN** it returns the single point's baseline and bias unchanged
+- **THEN** it returns the single point's baseline and milli-resolution bias unchanged
 
 #### Scenario: Flow-sweep parity with scalar build
 
 - **WHEN** a scalar-only config is run through a flow sweep on the new
   build and compared to the pre-change build
-- **THEN** commanded sync output is byte-for-byte identical
+- **THEN** commanded sync output is identical for milli-aligned bias
+  configs and differs by no more than 0.0005 absolute bias otherwise
 
 ### Requirement: Firmware interpolates baseline and bias on live flow
 
