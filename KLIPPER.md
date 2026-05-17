@@ -67,9 +67,9 @@ RUN_SHELL_COMMAND CMD=flare PARAMS="?:"
 
 ## Toolhead filament sensor — TS:
 
-FLARE needs to know when filament reaches or leaves the toolhead extruder.
-This signal drives completion of `FL:`/`TC:` load phases and enables/disables
-buffer sync.
+FLARE can use a toolhead filament sensor, but `TC:` does not require one.
+`TASK_LOAD_FULL` also completes from sane buffer geometry after OUT, so `TS:1`
+and `TS_BUF_MS` are accelerators rather than hard gates.
 
 ### Option A — Physical sensor (recommended)
 
@@ -86,7 +86,7 @@ runout_gcode:
     RUN_SHELL_COMMAND CMD=flare PARAMS="TS:0"
 ```
 
-### Option B — Buffer fallback (no sensor)
+### Option B — Buffer fallback / geometry-only load
 
 When filament presses against the extruder gears, the buffer arm holds TRAILING
 for `TS_BUF_MS` milliseconds and FLARE self-triggers the loaded state.
@@ -97,37 +97,53 @@ SET:TS_BUF_MS:2000    ; default 2000 ms
 SV:
 ```
 
-`TS:0` after unload is still required if you want sync to stop cleanly:
-```ini
-[gcode_macro FLARE_TS_CLEAR]
-gcode:
-    RUN_SHELL_COMMAND CMD=flare PARAMS="TS:0"
-```
+Even with `TS_BUF_MS=0`, `TC:` can complete from the distance-checked buffer
+ADVANCE/TRAILING geometry path. Unload commands clear toolhead state
+internally, so change macros do not need `TS:0` or `SM:` commands.
 
 ---
 
 ## Toolchange macros — TC:
 
 `TC:<lane>` unloads the current lane (cuts when `UNLOAD_CUT=1` and the cutter
-is enabled), swaps, loads the new lane, and waits for `TS:1`.
+is enabled), swaps, loads the new lane, and completes when the lane load task
+reports loaded (`TS:1`, `TS_BUF_MS`, or sane buffer geometry).
 `flare_cmd.py` blocks until `EV:TC:DONE` or
 `EV:TC:ERROR`, so Klipper naturally pauses printing during the change.
 
 ```ini
+[gcode_macro _FLARE_CHANGE_LANE]
+gcode:
+    {% set LANE = params.LANE|int %}
+    {% set TIP_RETRACT = params.TIP_RETRACT|default(1.0)|float %}
+    {% set TIP_PUSH = params.TIP_PUSH|default(0.5)|float %}
+    {% set GEAR_RETRACT = params.GEAR_RETRACT|default(30.0)|float %}
+    {% set PICKUP = params.PICKUP|default(20.0)|float %}
+    M400
+    SAVE_GCODE_STATE NAME=_flare_change_state
+    M83
+    G1 E-{TIP_RETRACT} F1800
+    G1 E{TIP_PUSH} F900
+    G1 E-{GEAR_RETRACT} F7800
+    RUN_SHELL_COMMAND CMD=flare PARAMS="TC:{LANE}"
+    G1 E{PICKUP} F900
+    RESTORE_GCODE_STATE NAME=_flare_change_state
+
 [gcode_macro T1]
 gcode:
-    M400
-    SAVE_GCODE_STATE NAME=_tc_state
-    RUN_SHELL_COMMAND CMD=flare PARAMS="TC:1"
-    RESTORE_GCODE_STATE NAME=_tc_state
+    _FLARE_CHANGE_LANE LANE=1
 
 [gcode_macro T2]
 gcode:
-    M400
-    SAVE_GCODE_STATE NAME=_tc_state
-    RUN_SHELL_COMMAND CMD=flare PARAMS="TC:2"
-    RESTORE_GCODE_STATE NAME=_tc_state
+    _FLARE_CHANGE_LANE LANE=2
 ```
+
+Keep the tip-forming wiggle section separate from the final `GEAR_RETRACT`.
+Small wiggles interact with the buffer travel (`BUF_HALF_TRAVEL`, measured
+7.8 mm on the reference build); the final gear retract is intentionally outside
+that wiggle regime so negative sync can follow it. With that split,
+`POST_PRINT_STAB_DELAY_MS=0` is acceptable because the long retract should be
+followed immediately.
 
 > **Temperature management:** `gcode_shell_command` holds the Klipper scheduler
 > while the shell process runs — heaters stay regulated, but no additional G-code
@@ -193,8 +209,8 @@ gcode:
 
 ## Sync mode
 
-Buffer sync enables automatically when `TS:1` is received and disables when
-unload starts. No explicit `SM:` calls are normally needed.
+Buffer sync enables automatically when the load task reports loaded and disables
+when unload starts. No explicit `SM:` calls are normally needed.
 
 For manual override, for example before tip-shaping retraction moves:
 ```ini
@@ -435,8 +451,8 @@ Debug-only live writes still exist for controlled experiments:
 |---------|--------------|-----|
 | `flare_cmd.py` exits "no serial port found" | Port not present | `ls /dev/ttyACM*`; check `dialout` group |
 | `TS:1` not reaching FLARE | Sensor wiring or config | Test: `RUN_SHELL_COMMAND CMD=flare PARAMS="TS:1"` |
-| `TC:` times out | Bowden too long / jam | Increase `LOAD_MAX` / `UNLOAD_MAX` if travel is genuinely too short; otherwise tune `TC_TH_MS` / `TC_Y_MS` or fix the path |
-| Sync not enabling after load | No `TS:1` sent | Check sensor or enable `TS_BUF_MS` fallback |
+| `TC:` times out | Bowden too long / jam | Increase `LOAD_MAX` / `UNLOAD_MAX` if travel is genuinely too short; otherwise tune `TC_Y_MS` or fix the path |
+| Sync not enabling after load | Load task never reached a loaded condition | Check buffer travel/sensor state; optional sensor can be tested with `TS:1` |
 | RELOAD approach never detects contact | Buffer sensor never reaches `TRAILING` | Verify buffer wiring and travel; reduce `JOIN_RATE` if the path is too aggressive |
 | RELOAD approach exits too early | Buffer sensor chatter or preload already trailing | Verify hysteresis/sensor state and make sure the standby path starts with real slack |
 | RELOAD follow times out mid-bowden | Drag too high or follow speed too low | Check PTFE routing; reduce `PRESS_RATE` or increase `FOLLOW_TIMEOUT_MS` |

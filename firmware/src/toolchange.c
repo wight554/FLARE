@@ -257,7 +257,7 @@ void tc_tick(uint32_t now_ms) {
 
         case TC_LOAD_WAIT_TH:
             if (A->task == TASK_IDLE) {
-                if (toolhead_has_filament) {
+                if (A->load_completed) {
                     g_tc_ctx.state = TC_LOAD_DONE;
                 } else {
                     tc_enter_error("LOAD_TIMEOUT");

@@ -79,8 +79,9 @@ Runs `TASK_AUTOLOAD` at `AUTO_RATE` until OUT triggers, then retracts by
 
 ### `FL:` — Full load to toolhead
 
-Runs `TASK_LOAD_FULL` at `FEED_RATE` continuously until the host sends `TS:1`
-(toolhead sensor triggered). OUT sensor is a non-stopping checkpoint.
+Runs `TASK_LOAD_FULL` at `FEED_RATE` continuously until `TS:1`, the
+`TS_BUF_MS` sustained-TRAILING fallback, or distance-checked buffer geometry
+reports the lane loaded. OUT sensor is a non-stopping checkpoint.
 
 **Interlocks checked before starting:**
 - Active lane must be set — `ER:NO_ACTIVE_LANE`.
@@ -95,6 +96,7 @@ Runs `TASK_LOAD_FULL` at `FEED_RATE` continuously until the host sends `TS:1`
 | IN goes low >1 s after start | 1.2x DIST_IN_OUT | `EV:RUNOUT:<lane>` (waits for transit) |
 | OUT never seen after 10 s | 10 s | `EV:RUNOUT:<lane>` |
 | Buffer holds TRAILING after OUT for `TS_BUF_MS` | `TS_BUF_MS` | `EV:LOADED:<lane>` (fallback) |
+| Buffer reaches sane ADVANCE/TRAILING geometry after OUT | distance-checked | `EV:LOADED:<lane>` |
 | Load task exceeds travel limit | `LOAD_MAX` distance | `EV:LOAD_TIMEOUT:<lane>` |
 
 ---
@@ -142,7 +144,7 @@ TC_IDLE
   → TC_SWAP             (set active_lane = target)
   → TC_LOAD_START       (check Y-splitter clear; start TASK_LOAD_FULL)
   → TC_LOAD_WAIT_OUT    (non-stopping checkpoint)
-  → TC_LOAD_WAIT_TH     (wait for TASK_LOAD_FULL to complete; lane task is bounded by `LOAD_MAX`)
+  → TC_LOAD_WAIT_TH     (wait for TASK_LOAD_FULL loaded result; lane task is bounded by `LOAD_MAX`)
   → TC_LOAD_DONE        → EV:TC:DONE:<lane>
 ```
 

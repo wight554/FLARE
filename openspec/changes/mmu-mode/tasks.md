@@ -45,15 +45,17 @@ Status legend: [ ] todo  [~] in progress  [x] done
       `ninja -C build_local`; `python3 -m py_compile scripts/*.py`.
 
 ## 5. Klipper integration
-- [ ] KLIPPER.md `change_lane` macro: extruder tip-form + unload from gears →
+- [x] KLIPPER.md `change_lane` macro: extruder tip-form + unload from gears →
       `TC:`; remove `FLARE_UNLOAD` from spool-change path
-- [ ] Document tip-forming vs sync tuning (POST_PRINT_STAB_DELAY_MS, BUF travel)
-- [ ] Command-light: macro sends NO `TS:1`/`TS:0`/`SM:`; `TS_BUF_MS`/sensor
+- [x] Document tip-forming vs sync tuning (POST_PRINT_STAB_DELAY_MS, BUF travel)
+- [x] Command-light: macro sends NO `TS:1`/`TS:0`/`SM:`; `TS_BUF_MS`/sensor
       documented as optional accelerator (not a gate)
-- [ ] Validate: `TC:` (UL+swap+FL) self-completes via `buf_advance_sane`
+- [x] Validate: `TC:` (UL+swap+FL) self-completes via `buf_advance_sane`
       geometry + `AUTO_MODE` sync-on-LOADED, no host command
-- [ ] Drop/align `TC_LOAD_WAIT_TH` hard `toolhead_has_filament` gate to the
+- [x] Drop/align `TC_LOAD_WAIT_TH` hard `toolhead_has_filament` gate to the
       FL `loaded` OR-condition (task 4 overlap)
+      Validation 2026-05-17: `ninja -C build_local`;
+      `python3 -m py_compile scripts/*.py`.
 
 ## 6. Sync HOLD primitive (REQUIRED — partial, keeps basic stab)
 - [ ] Add `g_sync_hold` flag (runtime-only)

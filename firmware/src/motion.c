@@ -174,6 +174,7 @@ void lane_setup(lane_t *L, uint pin_in, uint pin_out, motor_t m, int lane_id, tm
     L->prev_in = false;
     L->unload_to_in = false;
     L->suppress_unloaded_event = false;
+    L->load_completed = false;
 }
 
 void lane_stop(lane_t *L) {
@@ -203,6 +204,7 @@ void lane_start(lane_t *L, task_t t, int sps, bool forward, uint32_t now_ms, flo
     L->retract_deadline_ms = 0;
     L->dist_at_in_clear_mm = 0.0f;
     L->suppress_unloaded_event = false;
+    L->load_completed = false;
 
     L->task_limit_mm = limit_mm;
 
@@ -384,6 +386,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
         bool loaded = toolhead_has_filament || buf_advance_sane || buf_trailing_sane;
 
         if (loaded) {
+            L->load_completed = true;
             lane_stop(L);
             cmd_event("LOADED", lane_s);
             if (AUTO_MODE) {
