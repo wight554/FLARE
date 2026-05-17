@@ -139,9 +139,9 @@ static void status_dump(void) {
     int blen = snprintf(b, sizeof(b),
         "LN:%d,TC:%s,L1T:%s,L2T:%s,"
         "I1:%d,O1:%d,I2:%d,O2:%d,"
-        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BL:%.1f,BP:%.2f,SM:%d,HD:%d,BI:%d,AP:%d,CU:%d,RELOAD:%d,"
+        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BL:%.1f,BP:%.2f,SM:%d,HD:%d,ST:%d,BI:%d,AP:%d,CU:%d,RELOAD:%d,"
         "EST:%.1f,RE:%.2f,DP:%d,PR:%d,AV:%.2f,SC:%.1f,SA:%d,GC:0x%X,TP:%u,TS:%u,PW:0x%X,"
-        "RS:%d%d%d%d%d,SS:%d",
+        "RS:%d%d%d%d%d,SS:%d,REF:%.1f,REL:%.1f",
         active_lane, tc_state_name(g_tc_ctx.state),
         task_name(g_lane_l1.task), task_name(g_lane_l2.task),
         lane_in_present(&g_lane_l1) ? 1 : 0,
@@ -156,6 +156,7 @@ static void status_dump(void) {
         (double)g_buf_pos,
         sync_enabled ? 1 : 0,
         g_sync_hold ? 1 : 0,
+        (int)g_sync_state,
         BUF_INVERT ? 1 : 0,
         AUTO_PRELOAD ? 1 : 0,
         ENABLE_CUTTER ? 1 : 0,
@@ -319,7 +320,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
                 cmd_reply("ER", "NO_ACTIVE_LANE");
                 return;
             }
-            g_sync_hold = false;
+            sync_set_state(SYNC_OFF);
             tc_start(ln, now_ms);
             cmd_reply("OK", NULL);
         } else {
@@ -336,14 +337,14 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
     } else if (!strcmp(cmd, "LO")) {
         lane_t *A = get_active_lane_and_clear_error();
         if (!A) return;
-        g_sync_hold = false;
+        sync_set_state(SYNC_OFF);
         lane_start(A, TASK_AUTOLOAD, AUTO_SPS, true, now_ms, (float)AUTOLOAD_MAX_MM);
         cmd_reply("OK", NULL);
     } else if (!strcmp(cmd, "UL")) {
         lane_t *A = get_active_lane_and_clear_error();
         if (!A) return;
         if (!lane_out_present(A)) { cmd_reply("ER", "NOT_LOADED"); return; }
-        g_sync_hold = false;
+        sync_set_state(SYNC_OFF);
         sync_disable(false);
         set_toolhead_filament(false);
         if (ENABLE_CUTTER && UNLOAD_CUT) {
@@ -360,7 +361,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         lane_t *A = get_active_lane_and_clear_error();
         if (!A) return;
         if (!lane_in_present(A)) { cmd_reply("ER", "NOT_LOADED"); return; }
-        g_sync_hold = false;
+        sync_set_state(SYNC_OFF);
         sync_disable(false);
         set_toolhead_filament(false);
         bool out_present_at_entry = lane_out_present(A);
@@ -383,7 +384,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             cmd_reply("ER", "OTHER_LANE_ACTIVE");
             return;
         }
-        g_sync_hold = false;
+        sync_set_state(SYNC_OFF);
         set_toolhead_filament(false);
         lane_start(A, TASK_LOAD_FULL, FEED_SPS, true, now_ms, (float)LOAD_MAX_MM);
         cmd_reply("OK", NULL);
@@ -396,13 +397,13 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             cmd_reply("ER", "OTHER_LANE_ACTIVE");
             return;
         }
-        g_sync_hold = false;
+        sync_set_state(SYNC_OFF);
         tc_manual_reload(now_ms);
         cmd_reply("OK", NULL);
     } else if (!strcmp(cmd, "FD")) {
         lane_t *A = get_active_lane_and_clear_error();
         if (!A) return;
-        g_sync_hold = false;
+        sync_set_state(SYNC_OFF);
         lane_start(A, TASK_FEED, FEED_SPS, true, now_ms, 0);
         cmd_reply("OK", NULL);
     } else if (!strcmp(cmd, "CU")) {
@@ -467,7 +468,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             cmd_reply("ER", "ARG");
             return;
         }
-        g_sync_hold = false;
+        sync_set_state(SYNC_OFF);
         sync_disable(false);
         lane_start(A, TASK_MOVE, sps, forward, now_ms, limit);
         cmd_reply("OK", NULL);
@@ -475,7 +476,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         tc_abort();
         cutter_abort();
         manual_unload_reset();
-        g_sync_hold = false;
+        sync_set_state(SYNC_OFF);
         sync_disable(false);
         stop_all();
         set_toolhead_filament(false);
@@ -493,7 +494,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
     } else if (!strcmp(cmd, "TS")) {
         int v = atoi(p);
         if (v == 0 || v == 1) {
-            if (v == 1) g_sync_hold = false;
+            if (v == 1) sync_set_state(SYNC_OFF);
             set_toolhead_filament(v == 1);
             cmd_reply("OK", NULL);
         } else {
@@ -502,8 +503,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
     } else if (!strcmp(cmd, "HD")) {
         int v = atoi(p);
         if (v == 0 || v == 1) {
-            g_sync_hold = (v == 1);
-            if (g_sync_hold) sync_disable(false);
+            if (v == 1) sync_set_state(SYNC_HOLD); else sync_set_state(SYNC_OFF);
             cmd_reply("OK", NULL);
         } else {
             cmd_reply("ER", "ARG");
@@ -511,7 +511,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
     } else if (!strcmp(cmd, "SM")) {
         int v = atoi(p);
         if (v == 0 || v == 1) {
-            sync_enabled = (v == 1);
+            if (v == 1) sync_set_state(SYNC_ACTIVE); else sync_disable(false);
             sync_auto_started = false;
             sync_tail_assist_active = false;
             if (v == 0) sync_current_sps = 0;
@@ -786,6 +786,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "BUF_PREDICT_THR_MS")) snprintf(out, sizeof(out), "BUF_PREDICT_THR_MS:%d", BUF_PREDICT_THR_MS);
         else if (!strcmp(param, "AUTO_PRELOAD")) snprintf(out, sizeof(out), "AUTO_PRELOAD:%d", AUTO_PRELOAD ? 1 : 0);
         else if (!strcmp(param, "HOLD")) snprintf(out, sizeof(out), "HOLD:%d", g_sync_hold ? 1 : 0);
+        else if (!strcmp(param, "SYNC_STATE")) snprintf(out, sizeof(out), "SYNC_STATE:%d", (int)g_sync_state);
         else if (!strcmp(param, "RETRACT_MM")) snprintf(out, sizeof(out), "RETRACT_MM:%d", AUTOLOAD_RETRACT_MM);
         else if (!strcmp(param, "CUTTER")) snprintf(out, sizeof(out), "CUTTER:%d", ENABLE_CUTTER ? 1 : 0);
         else if (!strcmp(param, "AUTO_MODE")) snprintf(out, sizeof(out), "AUTO_MODE:%d", AUTO_MODE);

@@ -31,7 +31,7 @@
 #define SYNC_POSITIVE_RELAUNCH_DAMP_NUM 1
 #define SYNC_POSITIVE_RELAUNCH_DAMP_DEN 4
 
-bool sync_enabled = false;
+sync_state_t g_sync_state = SYNC_OFF;
 bool sync_auto_started = false;
 bool sync_tail_assist_active = false;
 uint32_t sync_idle_since_ms = 0;
@@ -55,6 +55,11 @@ static uint32_t g_buf_adv_dwell_warn_emit_ms = 0;
 static int g_mid_creep_sps = 0;
 static uint32_t g_mid_creep_last_advance_ms = 0;
 static bool g_buf_est_fallback_emitted = false;
+
+float g_sync_refill_effort_mm = 0.0f;
+float g_sync_relieve_effort_mm = 0.0f;
+static bool g_sync_cannot_refill_warned = false;
+static bool g_sync_cannot_relieve_warned = false;
 
 /* Phase 2.6: residual drift observer */
 #define ADV_PIN_WINDOW_LEN 16
@@ -257,7 +262,7 @@ float sync_trailing_wall_time_ms(lane_t *L) {
 }
 
 static void mid_creep_update(buf_state_t s, lane_t *A, uint32_t now_ms) {
-    if (MID_CREEP_TIMEOUT_MS == 0 || MID_CREEP_RATE_SPS_PER_S == 0) {
+    if (g_sync_state != SYNC_ACTIVE || MID_CREEP_TIMEOUT_MS == 0 || MID_CREEP_RATE_SPS_PER_S == 0) {
         g_mid_creep_sps = 0;
         return;
     }
@@ -677,6 +682,16 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     g_buf_pos_sigma_accum_mm = 0.0f;
     g_buf_sigma_mm = 0.0f;
     g_buf_est_fallback_emitted = false;
+    
+    g_sync_refill_effort_mm = 0.0f;
+    g_sync_relieve_effort_mm = 0.0f;
+    g_sync_cannot_refill_warned = false;
+    g_sync_cannot_relieve_warned = false;
+    
+    if (new_state == BUF_ADVANCE && g_sync_state == SYNC_RELIEF_PAUSE) {
+        sync_set_state(SYNC_ACTIVE);
+    }
+    
     buf_anchor_virtual_position(old, new_state);
 
     g_buf.lane_idx_at_entry = (active_lane == 2) ? 1 : 0;
@@ -685,9 +700,63 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     g_buf.mmu_sps_dwell_samples = 0;
 }
 
-static void baseline_update_on_settle(uint32_t mid_dwell_ms) {
-    if (mid_dwell_ms > 500) {
-        g_baseline_sps = (int)(g_baseline_alpha * (float)sync_current_sps + (1.0f - g_baseline_alpha) * (float)g_baseline_sps);
+static int g_settle_history[16];
+static uint8_t g_settle_history_count = 0;
+static uint32_t g_last_baseline_update_ms = 0;
+static float g_last_baseline_update_mm = 0.0f;
+float g_sync_mmu_total_mm = 0.0f;
+
+static void baseline_update_on_settle(uint32_t mid_dwell_ms, uint32_t now_ms) {
+    if (mid_dwell_ms <= 500) {
+        g_settle_history_count = 0;
+        return;
+    }
+
+    uint8_t n = CONF_BASELINE_SETTLE_COUNT;
+    if (n > 16) n = 16;
+    if (n < 1) n = 1;
+
+    for (int i = 15; i > 0; i--) {
+        g_settle_history[i] = g_settle_history[i - 1];
+    }
+    g_settle_history[0] = sync_current_sps;
+
+    if (g_settle_history_count < n) {
+        g_settle_history_count++;
+    }
+
+    if (g_settle_history_count >= n) {
+        int min_sps = g_settle_history[0];
+        int max_sps = g_settle_history[0];
+        int sum_sps = 0;
+        for (int i = 0; i < n; i++) {
+            if (g_settle_history[i] < min_sps) min_sps = g_settle_history[i];
+            if (g_settle_history[i] > max_sps) max_sps = g_settle_history[i];
+            sum_sps += g_settle_history[i];
+        }
+
+        float mean_sps = (float)sum_sps / (float)n;
+        float variance_frac = (mean_sps > 0.1f) ? ((float)(max_sps - min_sps) / mean_sps) : 0.0f;
+
+        if (variance_frac <= CONF_BASELINE_VARIANCE_REJECT_FRAC) {
+            uint32_t elapsed_ms = now_ms - g_last_baseline_update_ms;
+            float elapsed_mm = g_sync_mmu_total_mm - g_last_baseline_update_mm;
+
+            if (g_last_baseline_update_ms == 0 ||
+                (elapsed_ms >= CONF_BASELINE_COOLDOWN_MS && elapsed_mm >= CONF_BASELINE_COOLDOWN_MM)) {
+                
+                int new_baseline = (int)(CONF_BASELINE_ALPHA * (float)sync_current_sps + (1.0f - CONF_BASELINE_ALPHA) * (float)g_baseline_sps);
+                if (new_baseline > g_baseline_sps) {
+                    g_baseline_sps = new_baseline;
+                }
+                
+                g_last_baseline_update_ms = now_ms;
+                g_last_baseline_update_mm = g_sync_mmu_total_mm;
+                g_settle_history_count = 0;
+            }
+        } else {
+            g_settle_history_count = 0;
+        }
     }
 }
 
@@ -699,8 +768,30 @@ int sync_clamp_max_sps(int requested_sps) {
     return motion_clamp_rate_sps(requested_sps);
 }
 
+void sync_set_state(sync_state_t new_state) {
+    if (g_sync_state == new_state) return;
+    g_sync_state = new_state;
+    g_sync_refill_effort_mm = 0.0f;
+    g_sync_relieve_effort_mm = 0.0f;
+    g_sync_cannot_refill_warned = false;
+    g_sync_cannot_relieve_warned = false;
+}
+
+void sync_relief_pause(void) {
+    sync_set_state(SYNC_RELIEF_PAUSE);
+    sync_current_sps = 0;
+}
+
+static uint32_t g_sync_fault_hold_entry_ms = 0;
+
+void sync_fault_hold(void) {
+    sync_set_state(SYNC_FAULT_HOLD);
+    sync_current_sps = 0;
+    g_sync_fault_hold_entry_ms = g_now_ms;
+}
+
 void sync_disable(bool reset_estimator) {
-    sync_enabled = false;
+    sync_set_state(SYNC_OFF);
     sync_auto_started = false;
     sync_tail_assist_active = false;
     sync_current_sps = 0;
@@ -832,8 +923,10 @@ static void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t
         }
     }
 
-    if (prev != BUF_MID && now_state == BUF_MID && sync_enabled) {
-        baseline_update_on_settle(g_buf.dwell_ms);
+    bool fast_brake_active = sync_fast_brake_until_ms != 0 && (int32_t)(sync_fast_brake_until_ms - now_ms) > 0;
+    if (prev != BUF_MID && now_state == BUF_MID && sync_enabled &&
+        !fast_brake_active && !sync_trailing_recovery_active && !g_sync_hold) {
+        baseline_update_on_settle(g_buf.dwell_ms, now_ms);
     }
 }
 
@@ -856,6 +949,12 @@ void buf_sensor_tick(uint32_t now_ms) {
     }
 
     if (do_pos) {
+        lane_t *A = lane_ptr(active_lane);
+        if (A) {
+            uint8_t idx = (active_lane == 2) ? 1 : 0;
+            g_sync_mmu_total_mm += (float)lane_motion_sps(A) * ((float)elapsed_ms / 1000.0f) * MM_PER_STEP[idx];
+        }
+
         float half = buf_physical_half_travel_mm();
         buf_source_kind_t kind;
         float norm;
@@ -915,7 +1014,16 @@ void buf_sensor_tick(uint32_t now_ms) {
 void sync_tick(uint32_t now_ms) {
     lane_t *A = lane_ptr(active_lane);
     if (!A || tc_state() != TC_IDLE || g_boot_stabilizing) return;
-    if (g_sync_hold) return;
+    if (g_sync_state == SYNC_FAULT_HOLD) {
+        if (now_ms - g_sync_fault_hold_entry_ms >= CONF_SYNC_FAULT_HOLD_RECOVERY_MS) {
+            sync_set_state(SYNC_OFF);
+            cmd_event("SYNC", "FAULT_HOLD_RECOVERY");
+        } else {
+            return;
+        }
+    } else if (g_sync_state == SYNC_HOLD || g_sync_state == SYNC_RELIEF_PAUSE) {
+        return;
+    }
 
     buf_state_t s = g_buf.state;
     bool auto_start_allowed = (A->task == TASK_IDLE || A->task == TASK_FEED);
@@ -924,7 +1032,7 @@ void sync_tick(uint32_t now_ms) {
         bool tail_assist = !lane_in_present(A) && lane_out_present(A);
         int startup_sps = sync_bootstrap_sps();
         sync_current_sps = startup_sps;
-        sync_enabled = true;
+        sync_set_state(SYNC_ACTIVE);
         sync_auto_started = true;
         sync_tail_assist_active = tail_assist;
         sync_idle_since_ms = 0;
@@ -1292,10 +1400,10 @@ void sync_tick(uint32_t now_ms) {
 
             if (floor_timeout_ms > 0 && trailing_dwell_ms > floor_timeout_ms) {
                 if (sync_current_sps <= effective_floor_sps) {
-                    sync_disable(true);
+                    sync_relief_pause();
                     extruder_est_last_update_ms = now_ms;
                     sync_apply_to_active();
-                    cmd_event("SYNC", "AUTO_STOP");
+                    cmd_event("SYNC", "RELIEF_PAUSE");
                     return;
                 }
             }
@@ -1404,3 +1512,4 @@ float sync_bp_drift_correction_applied_mm(void) {
 int sync_mid_creep_sps(void) {
     return g_mid_creep_sps;
 }
+

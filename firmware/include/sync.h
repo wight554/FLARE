@@ -3,6 +3,24 @@
 #include "buf_signal.h"
 #include "controller_shared.h"
 
+typedef enum {
+    SYNC_OFF = 0,
+    SYNC_ACTIVE,
+    SYNC_HOLD,
+    SYNC_RELIEF_PAUSE,
+    SYNC_FAULT_HOLD
+} sync_state_t;
+
+extern sync_state_t g_sync_state;
+extern bool sync_auto_started;
+
+#define sync_enabled (g_sync_state == SYNC_ACTIVE)
+#define g_sync_hold (g_sync_state == SYNC_HOLD || g_sync_state == SYNC_FAULT_HOLD)
+
+void sync_set_state(sync_state_t new_state);
+void sync_relief_pause(void);
+void sync_fault_hold(void);
+
 const char *buf_state_name(buf_state_t s);
 buf_state_t buf_state_raw(void);
 bool buffer_stabilize_request(uint32_t now_ms);
@@ -29,3 +47,6 @@ float sync_bp_drift_ewma_mm(void);
 int   sync_bp_drift_samples(void);
 int   sync_adv_pin_window_count(uint32_t now_ms);
 float sync_bp_drift_correction_applied_mm(void);
+
+extern float g_sync_refill_effort_mm;
+extern float g_sync_relieve_effort_mm;

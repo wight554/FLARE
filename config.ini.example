@@ -52,6 +52,11 @@ run_current:
 # sync_tick_ms: 20
 # baseline_rate: 1600        # starting sync speed (mm/min); set to your print feed rate
 # baseline_alpha: 0.02
+# baseline_settle_count: 3
+# baseline_variance_reject_frac: 0.15
+# baseline_cooldown_ms: 2000
+# baseline_cooldown_mm: 5.0
+# sync_fault_hold_recovery_ms: 5000
 # buf_predict_thr_ms: 250
 # global_max_rate: 4000         # absolute ceiling for every commanded motor rate (mm/min)
 # sync_kp_rate: 900

@@ -390,7 +390,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
             lane_stop(L);
             cmd_event("LOADED", lane_s);
             if (AUTO_MODE) {
-                sync_enabled = true;
+                sync_set_state(SYNC_ACTIVE);
                 sync_auto_started = true;
                 sync_idle_since_ms = 0;
             }

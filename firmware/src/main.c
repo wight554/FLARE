@@ -143,7 +143,6 @@ bool AUTO_PRELOAD = true;
 int AUTOLOAD_RETRACT_MM = 10;
 bool ENABLE_CUTTER = CONF_ENABLE_CUTTER;
 bool UNLOAD_CUT = CONF_UNLOAD_CUT;
-bool g_sync_hold = false;
 
 int DIST_IN_OUT = CONF_DIST_IN_OUT;
 int DIST_OUT_Y  = CONF_DIST_OUT_Y;
@@ -250,7 +249,7 @@ bool prev_lane2_in_present = false;
 void set_toolhead_filament(bool present) {
     toolhead_has_filament = present;
     if (!AUTO_MODE) {
-        sync_enabled = present;
+        if (present) sync_set_state(SYNC_ACTIVE); else sync_disable(false);
         if (!present) {
             sync_current_sps = 0;
             sync_auto_started = false;
