@@ -34,6 +34,11 @@
 
 ## 4. Accuracy pass + closeout
 
-- [ ] 4.1 Re-run every command/flag in TUNING.md against the scripts' `--help`; fix any mismatch in the doc (not the scripts); list residual gaps as open questions
-- [ ] 4.2 Grep TUNING.md for "Phase" — zero internal phase labels
-- [ ] 4.3 `openspec validate tuning-operator-guide --strict`; `scripts/validate_regression.sh`; confirm no `scripts/*` or firmware diff in this change; `git status` clean
+- [x] 4.1 Re-run every command/flag in TUNING.md against the scripts' `--help`; fix any mismatch in the doc (not the scripts); list residual gaps as open questions
+- [x] 4.2 Grep TUNING.md for "Phase" — zero internal phase labels
+- [x] 4.3 `openspec validate tuning-operator-guide --strict`; `scripts/validate_regression.sh`; confirm no `scripts/*` or firmware diff in this change; `git status` clean
+      Validation 2026-05-18: re-ran `--help` for analyzer, live tuner,
+      marker, and recommender; `rg -n "Phase" TUNING.md` returned no matches;
+      `openspec validate tuning-operator-guide --strict`;
+      `scripts/validate_regression.sh`; `git status` clean before closeout
+      task update. No `scripts/*` or firmware files changed in this docs pass.
