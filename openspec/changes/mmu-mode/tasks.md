@@ -75,6 +75,7 @@ Status legend: [ ] todo  [~] in progress  [x] done
       `ninja -C build_local`; `python3 -m py_compile scripts/*.py`.
 
 ## 7. Close-out
-- [ ] Full regression review per design.md Validation
-- [ ] Update `openspec/specs/toolchange-orchestration` + `klipper-integration`
+- [x] Full regression review per design.md Validation
+      Validation 2026-05-17: `bash scripts/validate_regression.sh` passed.
+- [x] Update `openspec/specs/toolchange-orchestration` + `klipper-integration`
 - [ ] Archive change
