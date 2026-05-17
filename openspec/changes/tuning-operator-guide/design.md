@@ -87,3 +87,43 @@ state-machine detail — that lives in `BEHAVIOR.md`, cross-linked.
 - Whether the slicer "fastest/slowest cubic-flow profile" can be given as
   concrete numbers or only as relative guidance — default: relative +
   one worked example; revisit if a canonical profile pair is defined.
+
+## Implementation Notes (2026-05-18)
+
+### Script surface verified
+- `scripts/flare_analyze.py --help`: supports `--in`, `--out`,
+  `--mode {safe,aggressive}`, `--state`, `--machine-id`, `--config`,
+  `--profile-fast`, `--profile-slow`, `--emit-baseline`,
+  `--emit-flow-schedule`, `--flow-schedule-cap`, `--acceptance-gate`,
+  `--commit-watermark`, `--keys`, `--include-stale`, and `--force`.
+- `scripts/flare_live_tuner.py --help`: supports `--port`, `--baud`,
+  `--state`, `--machine-id`, `--csv-out`, `--observe-daemon`,
+  `--commit-on-idle`, `--commit-on-finish`, `--klipper-uds`,
+  `--klipper-mode {auto,on,off}`, `--sidecar`, `--marker-file`,
+  `--keep-marker-file`, debug progress flags, and explicit experimental write
+  flags.
+- `scripts/gcode_marker.py --help`: supports `input`, `--output`,
+  `--sidecar`, `--dia`, `--no-layer-markers`, `--emit
+  {m118,mark,file,both,sidecar}`, and `--shell-cmd`.
+- `scripts/flare_baseline_recommender.py --help`: supports only `--port`,
+  `--baud`, and `--file`.
+- `scripts/gen_config.py` has no argparse help/options; operator guide should
+  use the default no-argument command `python3 scripts/gen_config.py`. Source
+  also accepts optional positional config/output paths for tests.
+- `scripts/flash_flare.sh` supports default clang build/flash and optional
+  `--gcc`; guide should use `bash scripts/flash_flare.sh`.
+- `scripts/flare_cmd.py --help` cannot print without pyserial installed because
+  it imports serial before argparse; guide must list `python3 -m pip install
+  pyserial` before any `flare_cmd.py` command.
+
+### Config keys verified
+- Scalar fallback keys in `config.ini.example`: `baseline_rate` and
+  `sync_trailing_bias_frac`.
+- Flow schedule keys in `config.ini.example`: `flow_schedule_cap` and optional
+  `[flow_schedule.v1]` rows `pointN: flow_sps, baseline_sps,
+  trailing_bias_frac`.
+
+### Operator-friendly gaps
+- `flare_baseline_recommender.py` has no `--machine-id` and no explicit
+  end-of-print/stop option; it reads a serial stream until Ctrl-C, or reads a
+  replay file to EOF. This guide documents that behavior as-is.

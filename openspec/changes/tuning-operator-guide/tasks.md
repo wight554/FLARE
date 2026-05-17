@@ -1,7 +1,11 @@
 ## 1. Verify script surface (accuracy gate, do first)
 
-- [ ] 1.1 Capture exact flags from `--help` for `flare_analyze.py`, `flare_live_tuner.py`, `gcode_marker.py`, `flare_baseline_recommender.py`; note `gen_config.py` takes no args; record any operator-friendly gaps (recommender has no machine-id / no end-of-print stop)
-- [ ] 1.2 Confirm the `config.ini` keys for both paths from `config.ini.example`: `flow_schedule_cap` + `[flow_schedule.v1]`, and scalar `baseline_rate` / `sync_trailing_bias_frac`
+- [x] 1.1 Capture exact flags from `--help` for `flare_analyze.py`, `flare_live_tuner.py`, `gcode_marker.py`, `flare_baseline_recommender.py`; note `gen_config.py` takes no args; record any operator-friendly gaps (recommender has no machine-id / no end-of-print stop)
+- [x] 1.2 Confirm the `config.ini` keys for both paths from `config.ini.example`: `flow_schedule_cap` + `[flow_schedule.v1]`, and scalar `baseline_rate` / `sync_trailing_bias_frac`
+      Validation 2026-05-18: captured `--help` for analyzer, live tuner,
+      marker, and recommender; inspected `gen_config.py` and
+      `flash_flare.sh`; grepped `config.ini.example` for scalar and schedule
+      keys. Recommender gaps recorded in `design.md`.
 
 ## 2. Write TUNING.md
 
