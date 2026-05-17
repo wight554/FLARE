@@ -55,15 +55,34 @@ behind OUT — this is why UL cutter-enabled spec is clear→cut→clear.
 6. **Klipper owns toolhead.** `change_lane` macro: form tip + retract out of
    gears via extruder (FLARE follows via negative sync while `sync_enabled`),
    then `TC:`; nosf_cmd.py blocks until `EV:TC:DONE`/`EV:TC:ERROR`.
-7. **HOLD primitive REQUIRED.** Buffer half-travel 7.8 mm; LH-Stinger
-   cooldown retract 5 mm reliably flips `BUF_TRAILING`;
+7. **HOLD primitive REQUIRED — partial, not full freeze.** Buffer half-travel
+   7.8 mm; LH-Stinger cooldown retract 5 mm reliably flips `BUF_TRAILING`;
    `POST_PRINT_STAB_DELAY_MS`=0 ⇒ instant neg-sync. `buffer_stabilize_tick`
    runs every loop and neg-syncs whenever `!sync_enabled` + idle lanes, so
-   `TS:0` does not suppress it (`sync_tick` does the chasing under `TS:1`,
-   neg-sync under `TS:0`). Add `g_sync_hold` flag short-circuiting the top of
-   `sync_tick` and the neg-sync branch of `buffer_stabilize_tick`; no lane
-   motion while held. Klipper sets HOLD before tip forming, clears it before
-   Park extraction / `TC:`.
+   `TS:0` does not suppress it (`sync_tick` chases under `TS:1`, neg-sync
+   under `TS:0`).
+
+   HOLD scope (`g_sync_hold` flag):
+   - **Suppress** `sync_tick` entirely (no sync mode, no estimator, no
+     auto-start, no extruder-velocity following).
+   - **Suppress** the `BUFFER_SERVICE_NEG_SYNC` service mode (this is the one
+     that reverses the lane to follow extruder retraction = the tip-forming
+     conflict).
+   - **Keep** `BUFFER_SERVICE_STABILIZE` (gentle bounded re-center toward MID
+     at `BUF_STAB_SPS`). Keeps the buffer off the hard rails during repeated
+     5 mm cooldown excursions without velocity-locking to the wiggle.
+
+   Implementation: gate top of `sync_tick` on `g_sync_hold`; in
+   `buffer_stabilize_start_internal`, when held, refuse
+   `BUFFER_SERVICE_NEG_SYNC` but still permit `BUFFER_SERVICE_STABILIZE`.
+   Stab never sets `sync_enabled`, so it cannot escalate into sync mode.
+   Klipper sets HOLD before tip forming, clears it before Park extraction /
+   `TC:`.
+
+   Residual: basic stab still moves the lane motor during tip forming, but
+   bounded (goal = MID, fixed `BUF_STAB_SPS`, not velocity-matched). If even
+   that fights tip forming on some filament, lower `BUF_STAB_SPS` — tuning,
+   not architecture.
 
 ## Implementation Plan (per file, when approved)
 
