@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""nosf_live_tuner.py - observe-only calibration tuner for FLARE Phase 2.9.
+"""flare_live_tuner.py - observe-only calibration tuner for FLARE Phase 2.9.
 
 Pure stdlib plus pyserial. No numpy, scipy, sklearn, or pandas.
 
 Usage examples:
-    python3 scripts/nosf_live_tuner.py --port /dev/ttyACM0 --machine-id myprinter
-    python3 scripts/nosf_live_tuner.py --state ~/nosf-state/buckets-myprinter.json \
-        --machine-id myprinter --emit-config-patch /tmp/nosf-patch.ini
-    python3 scripts/nosf_live_tuner.py --port /dev/ttyACM0 --reset-runtime
+    python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --machine-id myprinter
+    python3 scripts/flare_live_tuner.py --state ~/flare-state/buckets-myprinter.json \
+        --machine-id myprinter --emit-config-patch /tmp/flare-patch.ini
+    python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --reset-runtime
 
 The live loop reads FLARE status and marker lines, learns per
 (feature, v_fil_bin) buckets, and persists calibration state. Default
@@ -116,7 +116,7 @@ MIN_LOCK_DWELL = 20  # locked samples before moderate unlock channels
 M_DRIFT_DWELL = 30  # locked samples before drift channel
 P_UNLOCK_RESET = 400.0  # reset P after unlock without cold-starting bucket
 SCHEMA_VERSION = 4
-DEFAULT_STATE_DIR = os.path.expanduser("~/nosf-state")
+DEFAULT_STATE_DIR = os.path.expanduser("~/flare-state")
 PATCH_KEYS = [
     "baseline_rate",
     "sync_trailing_bias_frac",
@@ -131,10 +131,10 @@ STATUS_FIELD_RE = re.compile(r"(?P<key>[A-Z0-9]+):(?P<val>-?\d+(?:\.\d+)?|[A-Z_]
 EVENT_RE = re.compile(r"^EV:([A-Z_]+),([A-Z_]+)")
 MARK_RE = re.compile(r"MK:(?P<seq>\d+):(?P<tag>[^,]*)")
 M118_RE = re.compile(
-    r"NOSF_TUNE:(?P<feature>[^:]+):V(?P<vfil>[^:]+):W(?P<w>[^:]+):H(?P<h>[^:\s]+)"
+    r"FLARE_TUNE:(?P<feature>[^:]+):V(?P<vfil>[^:]+):W(?P<w>[^:]+):H(?P<h>[^:\s]+)"
 )
 COMPACT_MARK_RE = re.compile(r"NT:(?P<feature>[^:]+):V(?P<vfil>[^:\s]+)")
-LAYER_MARK_RE = re.compile(r"(?:NT:LAYER:|NOSF_TUNE:LAYER:)(?P<layer>\d+)")
+LAYER_MARK_RE = re.compile(r"(?:NT:LAYER:|FLARE_TUNE:LAYER:)(?P<layer>\d+)")
 
 
 @dataclass
@@ -526,7 +526,7 @@ class Tuner:
             if self.debug:
                 print(f"[tuner] marker LAYER {layer.group('layer')}", file=sys.stderr)
             return
-        if raw.strip() == "FINISH" or "NOSF_TUNE:FINISH" in raw:
+        if raw.strip() == "FINISH" or "FLARE_TUNE:FINISH" in raw:
             self.seen_print_activity = True
             self.finish_seen = True
             self.last_marker_t = self.now_fn()
@@ -1140,7 +1140,7 @@ def emit_patch(state_path: str, machine_id: str, out_path: str) -> None:
         "baseline_rate": (
             f"{int(round(baseline))}",
             "LOW",
-            "single-source tuner estimate; verify with nosf_analyze.py",
+            "single-source tuner estimate; verify with flare_analyze.py",
         ),
         "sync_trailing_bias_frac": (
             f"{bias:.3f}",
@@ -1149,7 +1149,7 @@ def emit_patch(state_path: str, machine_id: str, out_path: str) -> None:
         ),
     }
     with open(out_path, "w") as fh:
-        fh.write("# nosf_live_tuner.py emitted patch\n")
+        fh.write("# flare_live_tuner.py emitted patch\n")
         fh.write(f"# Source: tuner state, {sum(int(v.get('n', 0)) for v in locked.values())} samples, {len(locked)} LOCKED buckets\n")
         fh.write("# Acceptance gate: NOT RUN\n")
         fh.write("# WARNING: do not blindly apply; review against config.ini first.\n")
@@ -1160,23 +1160,23 @@ def emit_patch(state_path: str, machine_id: str, out_path: str) -> None:
                 f"bias={float(raw.get('bias', 0.4)):.3f} "
                 f"n={int(raw.get('n', 0))} weight={weights[label]:.1f}\n"
             )
-        fh.write("\n[nosf_review]\n")
+        fh.write("\n[flare_review]\n")
         fh.write("# Each line: current_value -> suggested_value (confidence)\n")
         for key in PATCH_KEYS:
             suggested, conf, detail = suggestions.get(
                 key,
-                ("no-suggestion", "DEFAULT", "requires multi-run nosf_analyze.py"),
+                ("no-suggestion", "DEFAULT", "requires multi-run flare_analyze.py"),
             )
             fh.write(f"# {key:<28} {'review':>7} -> {suggested:<13} ({conf}, {detail})\n")
         fh.write("\n")
         fh.write("# To apply, copy reviewed values into config.ini, then run:\n")
         fh.write("#   python3 scripts/gen_config.py\n")
         fh.write("#   ninja -C build_local\n")
-        fh.write("#   bash scripts/flash_nosf.sh\n")
+        fh.write("#   bash scripts/flash_flare.sh\n")
     print(f"[tuner] wrote patch: {out_path}", file=sys.stderr)
 
 
-def finish_commit(tuner: Tuner, args, out_path: str = "/tmp/nosf-patch.ini") -> None:
+def finish_commit(tuner: Tuner, args, out_path: str = "/tmp/flare-patch.ini") -> None:
     tuner._persist()
     if tuner.locked_bucket_count() == 0:
         print("[tuner] FINISH seen, but no LOCKED buckets yet; persisted tracking state without SV", file=sys.stderr)
@@ -1209,12 +1209,12 @@ def unlock_bucket(state_path: str, machine_id: str, feature: str) -> None:
 
 def open_serial(port: str, baud: int):
     if not PY_SERIAL_AVAILABLE:
-        print("nosf_live_tuner: 'pyserial' not installed. Run: pip install pyserial", file=sys.stderr)
+        print("flare_live_tuner: 'pyserial' not installed. Run: pip install pyserial", file=sys.stderr)
         sys.exit(1)
     try:
         return serial.Serial(port, baud, timeout=0.05)
     except serial.SerialException as exc:
-        print(f"nosf_live_tuner: could not open {port}: {exc}", file=sys.stderr)
+        print(f"flare_live_tuner: could not open {port}: {exc}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -1224,7 +1224,7 @@ def setup_klipper_motion(args):
     if KlipperApiClient is None or SegmentMatcher is None:
         msg = "Klipper motion tracker module is unavailable"
         if args.klipper_mode == "on":
-            print(f"nosf_live_tuner: {msg}", file=sys.stderr)
+            print(f"flare_live_tuner: {msg}", file=sys.stderr)
             sys.exit(1)
         print(f"[tuner] warning: {msg}; falling back to marker input", file=sys.stderr)
         return None, None, {}, False
@@ -1233,7 +1233,7 @@ def setup_klipper_motion(args):
         matcher = SegmentMatcher(getattr(args, "sidecar", None))
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         if args.klipper_mode == "on":
-            print(f"nosf_live_tuner: sidecar refused: {exc}", file=sys.stderr)
+            print(f"flare_live_tuner: sidecar refused: {exc}", file=sys.stderr)
             sys.exit(1)
         print(f"[tuner] warning: sidecar refused: {exc}; falling back to marker input", file=sys.stderr)
         return None, None, {}, False
@@ -1244,7 +1244,7 @@ def setup_klipper_motion(args):
     except Exception as exc:
         client.close()
         if args.klipper_mode == "on":
-            print(f"nosf_live_tuner: Klipper API required but unavailable at {args.klipper_uds}: {exc}", file=sys.stderr)
+            print(f"flare_live_tuner: Klipper API required but unavailable at {args.klipper_uds}: {exc}", file=sys.stderr)
             sys.exit(1)
         print(f"[tuner] warning: Klipper API unavailable at {args.klipper_uds}: {exc}; falling back to marker input", file=sys.stderr)
         return None, None, {}, False
@@ -1329,12 +1329,12 @@ def run_loop(args) -> None:
                     klipper_client.close()
                     klipper_client = None
                     if args.klipper_mode == "on":
-                        print(f"nosf_live_tuner: Klipper API lost: {exc}", file=sys.stderr)
+                        print(f"flare_live_tuner: Klipper API lost: {exc}", file=sys.stderr)
                         sys.exit(2)
                     print(f"[tuner] warning: Klipper API lost: {exc}; continuing with marker fallback", file=sys.stderr)
             if klipper_log:
                 for log_line in klipper_log.readlines():
-                    if "NOSF_TUNE:" in log_line:
+                    if "FLARE_TUNE:" in log_line:
                         tuner.on_m118(log_line)
             if marker_file and not marker_file_suppressed_by_uds:
                 for marker_line in marker_file.readlines():
@@ -1358,7 +1358,7 @@ def run_loop(args) -> None:
                 lines = queue.Queue(maxsize=1024)
                 threading.Thread(target=reader, args=(tuner.ser, lines), daemon=True).start()
                 continue
-            if "NOSF_TUNE:" in line:
+            if "FLARE_TUNE:" in line:
                 tuner.on_m118(line)
             elif EVENT_RE.match(line):
                 tuner.on_event(line)
@@ -1515,7 +1515,7 @@ def main() -> None:
     )
     ap.add_argument("--port", help="Serial port, e.g. /dev/ttyACM0")
     ap.add_argument("--baud", type=int, default=115200)
-    ap.add_argument("--state", help="State JSON path; default is ~/nosf-state/buckets-<machine-id>.json")
+    ap.add_argument("--state", help="State JSON path; default is ~/flare-state/buckets-<machine-id>.json")
     ap.add_argument("--machine-id", default="default")
     ap.add_argument("--poll-hz", type=float, default=10.0)
     ap.add_argument("--emit-config-patch", metavar="PATH", help="Emit config.ini patch from locked state and exit")
@@ -1529,9 +1529,9 @@ def main() -> None:
     ap.add_argument("--prune-stale", action="store_true", help="Remove buckets not seen in >60 days from state file")
     ap.add_argument("--observe-daemon", action="store_true", help="Persist and continue on FINISH instead of exiting")
     ap.add_argument("--reset-runtime", action="store_true", help="Send LIVE_TUNE_LOCK:0 and LD:, then exit")
-    ap.add_argument("--commit-on-idle", action="store_true", help="On print idle, emit /tmp/nosf-patch.ini and exit")
+    ap.add_argument("--commit-on-idle", action="store_true", help="On print idle, emit /tmp/flare-patch.ini and exit")
     ap.add_argument("--commit-on-finish", action="store_true", help="Exit immediately on FINISH marker (no idle wait); implies commit if locked buckets exist")
-    ap.add_argument("--klipper-log", help="Tail klippy.log for NOSF_TUNE marker echoes while tuning")
+    ap.add_argument("--klipper-log", help="Tail klippy.log for FLARE_TUNE marker echoes while tuning")
     ap.add_argument("--klipper-uds", default=DEFAULT_UDS_PATH, help="Klipper API Unix socket path")
     ap.add_argument(
         "--klipper-mode",
@@ -1540,7 +1540,7 @@ def main() -> None:
         help="auto tries Klipper API then falls back; on requires it; off forces marker fallback",
     )
     ap.add_argument("--sidecar", metavar="PATH", help="Sidecar JSON generated by gcode_marker.py --emit sidecar")
-    ap.add_argument("--marker-file", help="Tail local marker file written by scripts/nosf_marker.py")
+    ap.add_argument("--marker-file", help="Tail local marker file written by scripts/flare_marker.py")
     ap.add_argument(
         "--keep-marker-file",
         action="store_true",
@@ -1590,7 +1590,7 @@ def main() -> None:
         return
     if args.reset_runtime:
         if not args.port:
-            print("nosf_live_tuner: --port is required for --reset-runtime", file=sys.stderr)
+            print("flare_live_tuner: --port is required for --reset-runtime", file=sys.stderr)
             sys.exit(1)
         ser = open_serial(args.port, args.baud)
         ser.write(b"SET:LIVE_TUNE_LOCK:0\n")
@@ -1599,7 +1599,7 @@ def main() -> None:
         ser.close()
         return
     if not args.port:
-        print("nosf_live_tuner: --port is required for live tuning", file=sys.stderr)
+        print("flare_live_tuner: --port is required for live tuning", file=sys.stderr)
         sys.exit(1)
     run_loop(args)
 

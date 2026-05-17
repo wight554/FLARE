@@ -41,7 +41,7 @@ cmake --build build_local
 4. Flash firmware (auto-detect serial, trigger BOOTSEL when possible):
 
 ```bash
-bash scripts/flash_nosf.sh
+bash scripts/flash_flare.sh
 ```
 
 ## Configuration Model
@@ -95,29 +95,29 @@ Other runtime state:
 Examples:
 
 ```bash
-python3 scripts/nosf_cmd.py "SET:AUTO_PRELOAD:1" "GET:AUTO_PRELOAD"
-python3 scripts/nosf_cmd.py "SET:SM:1" "GET:SM"
-python3 scripts/nosf_cmd.py "SET:BI:0" "GET:BI"
+python3 scripts/flare_cmd.py "SET:AUTO_PRELOAD:1" "GET:AUTO_PRELOAD"
+python3 scripts/flare_cmd.py "SET:SM:1" "GET:SM"
+python3 scripts/flare_cmd.py "SET:BI:0" "GET:BI"
 ```
 
 Persist runtime values to flash:
 
 ```bash
-python3 scripts/nosf_cmd.py "SV:"
+python3 scripts/flare_cmd.py "SV:"
 ```
 
 ## Helper Scripts
 
-Helper script filenames still use the original `nosf_*` names for compatibility
+Helper script filenames still use the original `flare_*` names for compatibility
 with existing Klipper configs and calibration state.
 
-- `scripts/nosf_cmd.py`: Serial helper — send commands and dump live config
-- `scripts/nosf_logger.py`: Deprecated. Use `nosf_live_tuner.py --csv-out` instead.
-- `scripts/nosf_analyze.py`: Offline calibration analyzer with LOCKED-bucket floor, contributor diagnostics, seven-tunable review patch, and recommendation-parity acceptance gate
-- `scripts/nosf_live_tuner.py`: Observe-only calibration bucket learner; emits reviewable patches, with live writes reserved for explicit debug flags
+- `scripts/flare_cmd.py`: Serial helper — send commands and dump live config
+- `scripts/flare_logger.py`: Deprecated. Use `flare_live_tuner.py --csv-out` instead.
+- `scripts/flare_analyze.py`: Offline calibration analyzer with LOCKED-bucket floor, contributor diagnostics, seven-tunable review patch, and recommendation-parity acceptance gate
+- `scripts/flare_live_tuner.py`: Observe-only calibration bucket learner; emits reviewable patches, with live writes reserved for explicit debug flags
   and residual-aware lock hysteresis so noisy buckets stay isolated instead of chattering
 - `scripts/gcode_marker.py`: G-code metadata injector and sidecar generator for Klipper API motion tracking
-- `scripts/nosf_marker.py`: Legacy Klipper marker-file bridge used by `gcode_marker.py --emit file`
+- `scripts/flare_marker.py`: Legacy Klipper marker-file bridge used by `gcode_marker.py --emit file`
 - `scripts/gen_config.py`: Generate `tune.h` from `config.ini`
 - `scripts/validate_regression.sh`: One-command static regression gate before flashing hardware
 
@@ -127,14 +127,14 @@ Examples:
 
 ```bash
 # Send commands
-python3 scripts/nosf_cmd.py "VR:" "?:"
-python3 scripts/nosf_cmd.py "SET:JOIN_RATE:1600" "SV:"
+python3 scripts/flare_cmd.py "VR:" "?:"
+python3 scripts/flare_cmd.py "SET:JOIN_RATE:1600" "SV:"
 
 # Read a full live settings snapshot as config-style key/value output
-python3 scripts/nosf_cmd.py --dump
+python3 scripts/flare_cmd.py --dump
 
 # Terse key: value dump
-python3 scripts/nosf_cmd.py --dump --raw
+python3 scripts/flare_cmd.py --dump --raw
 
 # Static regression gate before hardware testing
 bash scripts/validate_regression.sh

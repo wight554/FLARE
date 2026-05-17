@@ -18,7 +18,7 @@ setup, command sequence, and expected result.
 Recommended temporary low-speed setup for first validation:
 
 ```bash
-python3 scripts/nosf_cmd.py \
+python3 scripts/flare_cmd.py \
   "SET:FEED_RATE:600" \
   "SET:REV_RATE:600" \
   "SET:AUTO_RATE:400" \
@@ -33,7 +33,7 @@ python3 scripts/nosf_cmd.py \
 - Firmware builds successfully.
 - `config.ini` matches the target hardware.
 - Board flashes and enumerates over USB CDC.
-- `python3 scripts/nosf_cmd.py "VR:" "?:"` returns valid replies.
+- `python3 scripts/flare_cmd.py "VR:" "?:"` returns valid replies.
 - IN / OUT sensors, optional Y sensor, and optional toolhead reporting path are wired as expected.
 
 If this is a new setup, run the build and flash flow in `BUILD_FLASH.md` first.
@@ -249,8 +249,8 @@ Confirm the host tools, firmware image, USB CDC interface, and base protocol are
 ```bash
 python3 scripts/gen_config.py
 cmake --build build_local
-python3 scripts/nosf_cmd.py "VR:" "?:"
-python3 scripts/nosf_cmd.py --dump --raw
+python3 scripts/flare_cmd.py "VR:" "?:"
+python3 scripts/flare_cmd.py --dump --raw
 ```
 
 ### Expected Result
@@ -271,11 +271,11 @@ Confirm each discrete sensor reports correctly before motion tests.
 
 ### Steps
 
-1. With no filament inserted, run `python3 scripts/nosf_cmd.py "?:"`.
+1. With no filament inserted, run `python3 scripts/flare_cmd.py "?:"`.
 2. Manually trigger each lane IN sensor and verify the corresponding `I1` or `I2` state changes.
 3. Manually trigger each lane OUT sensor and verify `O1` or `O2`.
 4. If fitted, trigger the Y-splitter sensor and verify `YS`.
-5. If the host reports toolhead state, send `python3 scripts/nosf_cmd.py "TS:1" "?:"` and then `python3 scripts/nosf_cmd.py "TS:0" "?:"`.
+5. If the host reports toolhead state, send `python3 scripts/flare_cmd.py "TS:1" "?:"` and then `python3 scripts/flare_cmd.py "TS:0" "?:"`.
 
 ### Expected Result
 
@@ -294,8 +294,8 @@ Verify manual lane selection and active-lane reporting.
 ### Steps
 
 ```bash
-python3 scripts/nosf_cmd.py "T:1" "?:"
-python3 scripts/nosf_cmd.py "T:2" "?:"
+python3 scripts/flare_cmd.py "T:1" "?:"
+python3 scripts/flare_cmd.py "T:2" "?:"
 ```
 
 ### Expected Result
@@ -317,9 +317,9 @@ Validate the basic lane motion primitives without involving the toolhead.
 Run this sequence once for lane 1 and once for lane 2.
 
 ```bash
-python3 scripts/nosf_cmd.py "T:1" "LO:" "?:"
-python3 scripts/nosf_cmd.py "UL:" "?:"
-python3 scripts/nosf_cmd.py "UM:" "?:"
+python3 scripts/flare_cmd.py "T:1" "LO:" "?:"
+python3 scripts/flare_cmd.py "UL:" "?:"
+python3 scripts/flare_cmd.py "UM:" "?:"
 ```
 
 Repeat with `T:2`.
@@ -346,19 +346,19 @@ Confirm the full-load path, including toolhead sensor handoff.
 2. Start a full load:
 
 ```bash
-python3 scripts/nosf_cmd.py "T:1" "FL:"
+python3 scripts/flare_cmd.py "T:1" "FL:"
 ```
 
 3. When filament reaches the extruder entry, have the host or test operator report toolhead presence:
 
 ```bash
-python3 scripts/nosf_cmd.py "TS:1" "?:"
+python3 scripts/flare_cmd.py "TS:1" "?:"
 ```
 
 4. Clear the simulated toolhead state afterward:
 
 ```bash
-python3 scripts/nosf_cmd.py "TS:0"
+python3 scripts/flare_cmd.py "TS:0"
 ```
 
 ### Expected Result
@@ -381,14 +381,14 @@ Verify unload, lane swap, and load sequencing in MMU mode.
 2. Disable autonomous RELOAD for this test:
 
 ```bash
-python3 scripts/nosf_cmd.py "SET:RELOAD_MODE:0"
+python3 scripts/flare_cmd.py "SET:RELOAD_MODE:0"
 ```
 
 3. Trigger a toolchange:
 
 ```bash
-python3 scripts/nosf_cmd.py "T:1" "TC:2"
-python3 scripts/nosf_cmd.py "?:"
+python3 scripts/flare_cmd.py "T:1" "TC:2"
+python3 scripts/flare_cmd.py "?:"
 ```
 
 ### Expected Result
@@ -411,7 +411,7 @@ Confirm the buffer-driven sync controller starts, follows demand, and stops corr
 1. Enable automatic flow and sync:
 
 ```bash
-python3 scripts/nosf_cmd.py "SET:AUTO_MODE:1" "SM:1"
+python3 scripts/flare_cmd.py "SET:AUTO_MODE:1" "SM:1"
 ```
 
 2. Put the active lane in a loaded state where the downstream path can pull filament.
@@ -439,7 +439,7 @@ Validate autonomous lane switching on runout using the buffer-driven RELOAD path
 2. Enable RELOAD:
 
 ```bash
-python3 scripts/nosf_cmd.py "SET:RELOAD_MODE:1" "SET:AUTO_MODE:1"
+python3 scripts/flare_cmd.py "SET:RELOAD_MODE:1" "SET:AUTO_MODE:1"
 ```
 
 3. Cause a runout on the active lane.
@@ -466,7 +466,7 @@ Confirm flash-backed settings commands are blocked during unsafe activity and al
 2. While motion is active, send:
 
 ```bash
-python3 scripts/nosf_cmd.py "SV:" "LD:" "RS:"
+python3 scripts/flare_cmd.py "SV:" "LD:" "RS:"
 ```
 
 3. Stop motion with `ST:`.
@@ -489,9 +489,9 @@ Confirm the board can re-enter BOOTSEL from firmware and return to a working ser
 ### Steps
 
 ```bash
-python3 scripts/nosf_cmd.py "BOOT:"
-bash scripts/flash_nosf.sh
-python3 scripts/nosf_cmd.py "VR:" "?:"
+python3 scripts/flare_cmd.py "BOOT:"
+bash scripts/flash_flare.sh
+python3 scripts/flare_cmd.py "VR:" "?:"
 ```
 
 ### Expected Result

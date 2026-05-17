@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""nosf_analyze.py - offline calibration analyzer for FLARE Phase 2.9.
+"""flare_analyze.py - offline calibration analyzer for FLARE Phase 2.9.
 
-Reads one or more nosf_logger.py CSV captures, optionally combines them
-with nosf_live_tuner.py schema-2 bucket state, and writes a review-only
+Reads one or more flare_logger.py CSV captures, optionally combines them
+with flare_live_tuner.py schema-2 bucket state, and writes a review-only
 config patch. Pure stdlib only.
 """
 
@@ -18,7 +18,7 @@ import sys
 from collections import defaultdict
 
 try:
-    from nosf_live_tuner import migrate_state_data
+    from flare_live_tuner import migrate_state_data
 except ImportError:
     migrate_state_data = None
 
@@ -131,7 +131,7 @@ def read_csv_runs(paths):
             
         normalized = []
         for row in rows:
-            # Map nosf_logger.py (Phase 2.7) OR nosf_live_tuner.py CsvEmitter (Phase 2.9/2.11)
+            # Map flare_logger.py (Phase 2.7) OR flare_live_tuner.py CsvEmitter (Phase 2.9/2.11)
             norm = {
                 "_run": idx,
                 "_path": path,
@@ -742,7 +742,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
     with open(path, "w") as fh:
         if banner:
             fh.write(f"{banner}\n")
-        fh.write("# nosf_analyze.py emitted patch\n")
+        fh.write("# flare_analyze.py emitted patch\n")
         fh.write(f"# Source: {len(runs)} runs, {len(rows)} samples, {len(locked)} LOCKED buckets\n")
         if gate:
             fh.write(f"# Acceptance gate: {'PASS' if gate['pass'] else 'FAIL'}\n")
@@ -797,7 +797,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
         else:
             fh.write("# Acceptance gate: NOT RUN\n")
         fh.write("# WARNING: do not blindly apply; review against config.ini first.\n\n")
-        fh.write("[nosf_review]\n")
+        fh.write("[flare_review]\n")
         fh.write("# Each line: current_value -> suggested_value (confidence)\n")
         for key in DEFAULTS:
             suggested, conf, detail = recommendations[key]
@@ -807,7 +807,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
                 f"{format_value(key, suggested):<7} ({line_conf}, {detail})\n"
             )
         if contributors:
-            fh.write("\n[nosf_contributors]\n")
+            fh.write("\n[flare_contributors]\n")
             for key in DEFAULTS:
                 _suggested, conf, _detail = recommendations[key]
                 if conf == "DEFAULT":
@@ -828,7 +828,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
         fh.write("# To apply, copy reviewed values into config.ini, then run:\n")
         fh.write("#   python3 scripts/gen_config.py\n")
         fh.write("#   ninja -C build_local\n")
-        fh.write("#   bash scripts/flash_nosf.sh\n")
+        fh.write("#   bash scripts/flash_flare.sh\n")
 
 
 def run(args):
@@ -934,7 +934,7 @@ def main():
     ap.add_argument("--in", dest="inputs", nargs="+", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--mode", choices=["safe", "aggressive"], default="safe")
-    ap.add_argument("--state", help="Optional nosf_live_tuner.py bucket state JSON")
+    ap.add_argument("--state", help="Optional flare_live_tuner.py bucket state JSON")
     ap.add_argument("--machine-id", default="default", help="Machine ID for state file (default: default)")
     ap.add_argument("--config", default="config.ini", help="Current config.ini for current-value display")
     ap.add_argument("--acceptance-gate", action="store_true", help="Exit non-zero unless Phase 2.9 acceptance checks pass")

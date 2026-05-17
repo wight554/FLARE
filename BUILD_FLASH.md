@@ -60,7 +60,7 @@ After first-time bring-up, the recommended flashing path is the repo script belo
 It performs the flashing flow automatically (build, optional reboot to boot mode, flash, verify):
 
 ```bash
-bash scripts/flash_nosf.sh
+bash scripts/flash_flare.sh
 ```
 
 The flash script keeps its original filename for compatibility, but now builds
@@ -90,7 +90,7 @@ picotool reboot
 
 ## 5) Tuning and Validation Helpers
 
-Please see `README.md` for the full list of tuning and validation helper scripts (for example `scripts/nosf_cmd.py` and `scripts/gen_config.py`).
+Please see `README.md` for the full list of tuning and validation helper scripts (for example `scripts/flare_cmd.py` and `scripts/gen_config.py`).
 
 For post-flash bring-up and regression validation on real hardware, use `TEST_CASES.md`.
 For pre-flash static validation, run `bash scripts/validate_regression.sh`.
@@ -106,14 +106,14 @@ Set `-DPICO_SDK_PATH=/abs/path/to/pico-sdk` on first configure.
 Install `picotool` or set environment variable:
 
 ```bash
-PICOTOOL=/path/to/picotool bash scripts/flash_nosf.sh
+PICOTOOL=/path/to/picotool bash scripts/flash_flare.sh
 ```
 
 ### Device does not show as serial after flash
 
 1. Replug USB cable.
 2. Ensure firmware built with USB stdio enabled.
-3. Run `python3 scripts/nosf_cmd.py --port <port> "VR:"`.
+3. Run `python3 scripts/flare_cmd.py --port <port> "VR:"`.
 
 ### BOOTSEL trigger fails
 

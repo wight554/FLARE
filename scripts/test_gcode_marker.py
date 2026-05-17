@@ -32,7 +32,7 @@ def sha256(path):
 
 def test_sidecar_orca_sample():
     with tempfile.TemporaryDirectory() as td:
-        sidecar_path = os.path.join(td, "orca_sample.nosf.json")
+        sidecar_path = os.path.join(td, "orca_sample.flare.json")
         data = gcode_marker.build_sidecar(ORCA_FIXTURE, sidecar_path, 1.75)
         assert os.path.exists(sidecar_path), sidecar_path
         assert data["_schema"] == 1, data
@@ -63,7 +63,7 @@ G1 X30 Y0 E0.75 F1800
 """
     with tempfile.TemporaryDirectory() as td:
         path = os.path.join(td, "relative.gcode")
-        sidecar = os.path.join(td, "relative.nosf.json")
+        sidecar = os.path.join(td, "relative.flare.json")
         with open(path, "w") as fh:
             fh.write(gcode)
         data = gcode_marker.build_sidecar(path, sidecar, 1.75)
@@ -113,7 +113,7 @@ G1 X30 Y0 E1.5 F1800
         path = os.path.join(td, "arc.gcode")
         with open(path, "w") as fh:
             fh.write(gcode)
-        data = gcode_marker.build_sidecar(path, os.path.join(td, "arc.nosf.json"), 1.75)
+        data = gcode_marker.build_sidecar(path, os.path.join(td, "arc.flare.json"), 1.75)
         assert len(data["segments"]) == 3, data["segments"]
         arc = data["segments"][1]
         assert arc["feature"] == "Bridge", arc
@@ -124,8 +124,8 @@ G1 X30 Y0 E1.5 F1800
 
 def test_emit_sidecar_no_shell_commands():
     with tempfile.TemporaryDirectory() as td:
-        out_gcode = os.path.join(td, "orca_sample.nosf.gcode")
-        sidecar = os.path.join(td, "orca_sample.nosf.json")
+        out_gcode = os.path.join(td, "orca_sample.flare.gcode")
+        sidecar = os.path.join(td, "orca_sample.flare.json")
         ok = gcode_marker.process_gcode(
             ORCA_FIXTURE,
             out_gcode,
@@ -139,7 +139,7 @@ def test_emit_sidecar_no_shell_commands():
             text = fh.read()
         assert "RUN_SHELL_COMMAND" not in text, text
         assert text.startswith("M118 NT:START\n"), text[:80]
-        assert "M118 NOSF_TUNE:FINISH:0:0:0" in text, text[-120:]
+        assert "M118 FLARE_TUNE:FINISH:0:0:0" in text, text[-120:]
         data = read_json(sidecar)
         assert data["source_sha256"] == sha256(out_gcode), data
         return "--emit sidecar writes JSON and M118 bookends without shell calls"
@@ -148,7 +148,7 @@ def test_emit_sidecar_no_shell_commands():
 def test_cli_default_emit_sidecar():
     with tempfile.TemporaryDirectory() as td:
         src = os.path.join(td, "orca_sample.gcode")
-        out_gcode = os.path.join(td, "orca_sample.nosf.gcode")
+        out_gcode = os.path.join(td, "orca_sample.flare.gcode")
         with open(ORCA_FIXTURE, "rb") as fin, open(src, "wb") as fout:
             fout.write(fin.read())
         proc = subprocess.run(
@@ -159,7 +159,7 @@ def test_cli_default_emit_sidecar():
             text=True,
         )
         assert proc.returncode == 0, proc.stderr
-        sidecar = os.path.splitext(out_gcode)[0] + ".nosf.json"
+        sidecar = os.path.splitext(out_gcode)[0] + ".flare.json"
         assert os.path.exists(sidecar), proc.stderr
         with open(out_gcode) as fh:
             text = fh.read()
@@ -190,7 +190,7 @@ def test_cli_file_emit_warns_and_still_writes_shell_markers():
         assert "deprecated" in proc.stderr, proc.stderr
         with open(out_gcode) as fh:
             text = fh.read()
-        assert "RUN_SHELL_COMMAND CMD=nosf_marker" in text, text[:400]
+        assert "RUN_SHELL_COMMAND CMD=flare_marker" in text, text[:400]
         return "--emit file warns but preserves shell-marker fallback"
 
 

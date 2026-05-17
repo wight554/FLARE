@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stdlib regression fixture for nosf_analyze.py."""
+"""Stdlib regression fixture for flare_analyze.py."""
 
 import csv
 import json
@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-import nosf_analyze as analyze
+import flare_analyze as analyze
 
 
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
@@ -513,7 +513,7 @@ def test_contributors_block_emitted():
         assert rc == 0, rc
         with open(out) as fh:
             text = fh.read()
-        assert "[nosf_contributors]" in text, text
+        assert "[flare_contributors]" in text, text
         assert "# baseline_rate" in text and "total n=" in text, text
         assert "sigma/x=" in text and "w=" in text, text
         return "patch includes contributors block with bucket weights"

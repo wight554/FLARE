@@ -29,9 +29,9 @@ sudo usermod -a -G dialout pi   # substitute your username if not 'pi'
 
 ---
 
-## Shell command helper — nosf_cmd.py
+## Shell command helper — flare_cmd.py
 
-`scripts/nosf_cmd.py` sends a single FLARE command and blocks until the
+`scripts/flare_cmd.py` sends a single FLARE command and blocks until the
 response arrives. Simple commands (SET:, GET:, T:, SM:, TS:, FD:, ST:,
 …) return on the first `OK:`/`ER:`. Long-running commands (`TC:`, `FL:`,
 `UL:`, `UM:`) wait for their completion event (`EV:TC:DONE`, `EV:LOADED`,
@@ -39,7 +39,7 @@ response arrives. Simple commands (SET:, GET:, T:, SM:, TS:, FD:, ST:,
 success, 1 on error or timeout. All received lines are printed so Klipper's
 `VERBOSE` output shows them in the Mainsail / Fluidd console.
 
-The helper filename and sample `gcode_shell_command nosf` name are kept for
+The helper filename and sample `gcode_shell_command flare` name are kept for
 backward compatibility with existing printer configs.
 
 Install the Klipper `gcode_shell_command` extension if not already present
@@ -48,15 +48,15 @@ Install the Klipper `gcode_shell_command` extension if not already present
 
 Add to `printer.cfg`:
 ```ini
-[gcode_shell_command nosf]
-command: python3 /home/pi/FLARE/scripts/nosf_cmd.py
+[gcode_shell_command flare]
+command: python3 /home/pi/FLARE/scripts/flare_cmd.py
 timeout: 130.0
 verbose: True
 ```
 
 Adjust the path to match your Pi home directory. Test it with:
 ```
-RUN_SHELL_COMMAND CMD=nosf PARAMS="?:"
+RUN_SHELL_COMMAND CMD=flare PARAMS="?:"
 ```
 
 ---
@@ -77,9 +77,9 @@ Wire a microswitch or optical sensor to a free GPIO on the printer MCU. Add to
 switch_pin: ^!toolhead:PA0   ; adjust pin and MCU name
 pause_on_runout: False
 insert_gcode:
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="TS:1"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="TS:1"
 runout_gcode:
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="TS:0"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="TS:0"
 ```
 
 ### Option B — Buffer fallback (no sensor)
@@ -97,7 +97,7 @@ SV:
 ```ini
 [gcode_macro FLARE_TS_CLEAR]
 gcode:
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="TS:0"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="TS:0"
 ```
 
 ---
@@ -105,7 +105,7 @@ gcode:
 ## Toolchange macros — TC:
 
 `TC:<lane>` unloads the current lane (optionally cuts), swaps, loads the new
-lane, and waits for `TS:1`. `nosf_cmd.py` blocks until `EV:TC:DONE` or
+lane, and waits for `TS:1`. `flare_cmd.py` blocks until `EV:TC:DONE` or
 `EV:TC:ERROR`, so Klipper naturally pauses printing during the change.
 
 ```ini
@@ -113,14 +113,14 @@ lane, and waits for `TS:1`. `nosf_cmd.py` blocks until `EV:TC:DONE` or
 gcode:
     M400
     SAVE_GCODE_STATE NAME=_tc_state
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="TC:1"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="TC:1"
     RESTORE_GCODE_STATE NAME=_tc_state
 
 [gcode_macro T2]
 gcode:
     M400
     SAVE_GCODE_STATE NAME=_tc_state
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="TC:2"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="TC:2"
     RESTORE_GCODE_STATE NAME=_tc_state
 ```
 
@@ -130,7 +130,7 @@ gcode:
 > conservative enough that a jam cannot hold Klipper indefinitely, and tune
 > `TC_TH_MS` / `TC_Y_MS` only for the host-facing wait phases.
 
-If `TC:` returns an error, `nosf_cmd.py` exits with code 1.
+If `TC:` returns an error, `flare_cmd.py` exits with code 1.
 `gcode_shell_command` logs the failure; add a PAUSE if you want automatic
 handling:
 
@@ -139,8 +139,8 @@ handling:
 gcode:
     M400
     SAVE_GCODE_STATE NAME=_tc_state
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="TC:1"
-    {% if printer['gcode_shell_command nosf'].return_code != 0 %}
+    RUN_SHELL_COMMAND CMD=flare PARAMS="TC:1"
+    {% if printer['gcode_shell_command flare'].return_code != 0 %}
         PAUSE
         { action_respond_info("FLARE TC:1 failed") }
     {% endif %}
@@ -155,33 +155,33 @@ gcode:
 [gcode_macro FLARE_LOAD]
 description: Full load active lane to toolhead
 gcode:
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="FL:"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="FL:"
 
 [gcode_macro FLARE_UNLOAD]
 description: Unload from extruder (tip past OUT sensor)
 gcode:
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="UL:"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="UL:"
 
 [gcode_macro FLARE_PRELOAD]
 description: Pre-load active lane to parked position (OUT sensor)
 gcode:
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="LO:"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="LO:"
 
 [gcode_macro FLARE_CUT]
 description: Perform full filament cut cycle
 gcode:
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="CU:"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="CU:"
 
 [gcode_macro FLARE_CUT_BARE]
 description: Perform cutter servo cycle without filament movement
 gcode:
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="CX:"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="CX:"
 
 [gcode_macro FLARE_CUT_TEST]
 description: Set cutter servo to a static pulse width (tuning)
 gcode:
     {% set US = params.US|default(950)|int %}
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="CP:{US}"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="CP:{US}"
 ```
 
 ---
@@ -195,11 +195,11 @@ For manual override, for example before tip-shaping retraction moves:
 ```ini
 [gcode_macro SYNC_OFF]
 gcode:
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="SM:0"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="SM:0"
 
 [gcode_macro SYNC_ON]
 gcode:
-    RUN_SHELL_COMMAND CMD=nosf PARAMS="SM:1"
+    RUN_SHELL_COMMAND CMD=flare PARAMS="SM:1"
 ```
 
 ---
@@ -216,7 +216,7 @@ MID.
 Monitor buffer state during a print:
 ```bash
 # EV:BS lines print every 500 ms: zone, sync speed, normalised arm position
-python3 scripts/nosf_cmd.py "?:"
+python3 scripts/flare_cmd.py "?:"
 ```
 
 A healthy steady-state print:
@@ -229,7 +229,7 @@ EV:BS:MID,2250.0,0.11        ← settling back
 
 **If the arm stays at ADVANCE during steady extrusion:** first raise `BASELINE_RATE`, then increase `SYNC_KP_RATE` only if recovery is still too weak:
 ```bash
-python3 scripts/nosf_cmd.py "SET:BASELINE_RATE:2300" "SET:SYNC_KP_RATE:1200"
+python3 scripts/flare_cmd.py "SET:BASELINE_RATE:2300" "SET:SYNC_KP_RATE:1200"
 ```
 
 **If speed oscillates MID ↔ ADVANCE ↔ MID rapidly:** decrease `SYNC_KP_RATE` or lower `BASELINE_RATE` if the whole controller is biased too fast.
@@ -253,20 +253,20 @@ oscillates.
 
 ---
 
-## Telemetry and Tuning — nosf_live_tuner.py
+## Telemetry and Tuning — flare_live_tuner.py
 
-Phase 2.7 adds high-speed diagnostic capture. Use `scripts/nosf_live_tuner.py --csv-out` to
+Phase 2.7 adds high-speed diagnostic capture. Use `scripts/flare_live_tuner.py --csv-out` to
 stream internal state to a CSV file for offline analysis.
 
 1. Start the tuner on the Pi:
    ```bash
-   python3 scripts/nosf_live_tuner.py --port /dev/ttyACM0 --csv-out run1.csv --observe-daemon
+   python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --csv-out run1.csv --observe-daemon
    ```
 2. Run your print.
 3. Stop the tuner (Ctrl+C) or leave it running across prints.
-4. Analyze the results with `scripts/nosf_analyze.py`:
+4. Analyze the results with `scripts/flare_analyze.py`:
    ```bash
-   python3 scripts/nosf_analyze.py --in run1.csv --out patch.ini
+   python3 scripts/flare_analyze.py --in run1.csv --out patch.ini
    ```
 
 ## Calibration Prints
@@ -279,7 +279,7 @@ detach the host.
 
 Before running the first 2.9.9 build, please back up your state file:
 ```bash
-cp ~/nosf-state/buckets-<id>.json ~/nosf-state/buckets-<id>.json.schema2.bak
+cp ~/flare-state/buckets-<id>.json ~/flare-state/buckets-<id>.json.schema2.bak
 ```
 
 Confirm the Klipper API socket path on the Pi:
@@ -295,22 +295,22 @@ Use the `-a` argument from that command. Common modern installs use
 Generate a sidecar next to the calibration G-code:
 
 ```bash
-python3 scripts/gcode_marker.py input.gcode --output input.nosf.gcode \
+python3 scripts/gcode_marker.py input.gcode --output input.flare.gcode \
     --emit sidecar
 ```
 
 By default, layer changes are recognized (both `;LAYER:<n>` and OrcaSlicer
 `;LAYER_CHANGE` comments). Use `--no-layer-markers` to disable.
 
-Upload/print the generated `input.nosf.gcode`, and run the observe-only tuner:
+Upload/print the generated `input.flare.gcode`, and run the observe-only tuner:
 
 ```bash
-python3 scripts/nosf_live_tuner.py --port /dev/ttyACM0 \
+python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 \
     --machine-id myprinter \
     --observe-daemon \
-    --csv-out ~/nosf-runs/run1.csv \
+    --csv-out ~/flare-runs/run1.csv \
     --klipper-uds /home/pi/printer_data/comms/klippy.sock \
-    --sidecar /home/pi/printer_data/gcodes/input.nosf.json &
+    --sidecar /home/pi/printer_data/gcodes/input.flare.json &
 ```
 
 `--klipper-mode auto` is the default: the tuner tries the Klipper UDS first and
@@ -339,11 +339,11 @@ thresholds.
 
 ### Why Analyzer Refuses To Emit
 
-`nosf_analyze.py --mode safe` refuses learned values when the state file has
+`flare_analyze.py --mode safe` refuses learned values when the state file has
 zero `LOCKED` buckets because pre-lock bucket centroids can move hundreds of
 steps/s between runs. `--mode aggressive` writes a warning banner and LOW
 confidence estimates for bootstrap review. `--force` bypasses the floor only
-when you explicitly accept pre-lock estimates. Read `[nosf_contributors]` in
+when you explicitly accept pre-lock estimates. Read `[flare_contributors]` in
 the patch to see which buckets carried each tunable: high `w` means high
 precision weight, and `[marginal]` means the bucket is noisier than the normal
 ratio gate.
@@ -373,8 +373,8 @@ setups. Add the legacy marker command to `printer.cfg` only when using this
 fallback:
 
 ```ini
-[gcode_shell_command nosf_marker]
-command: python3 /home/pi/FLARE/scripts/nosf_marker.py --file /tmp/nosf-markers-myprinter.log
+[gcode_shell_command flare_marker]
+command: python3 /home/pi/FLARE/scripts/flare_marker.py --file /tmp/flare-markers-myprinter.log
 timeout: 2.0
 verbose: False
 ```
@@ -382,19 +382,19 @@ verbose: False
 Then generate a shell-marker G-code file and force marker fallback in the tuner:
 
 ```bash
-python3 scripts/gcode_marker.py input.gcode --output input.nosf.gcode \
+python3 scripts/gcode_marker.py input.gcode --output input.flare.gcode \
     --emit file
 
-python3 scripts/nosf_live_tuner.py --port /dev/ttyACM0 \
+python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 \
     --machine-id myprinter \
     --observe-daemon \
-    --csv-out ~/nosf-runs/run1.csv \
+    --csv-out ~/flare-runs/run1.csv \
     --klipper-mode off \
-    --marker-file /tmp/nosf-markers-myprinter.log &
+    --marker-file /tmp/flare-markers-myprinter.log &
 ```
 
-`--emit file` inserts `RUN_SHELL_COMMAND CMD=nosf_marker PARAMS="..."` lines.
-`nosf_marker.py` appends each marker to `/tmp/nosf-markers-myprinter.log`, and
+`--emit file` inserts `RUN_SHELL_COMMAND CMD=flare_marker PARAMS="..."` lines.
+`flare_marker.py` appends each marker to `/tmp/flare-markers-myprinter.log`, and
 the tuner tails that file while it remains the only process owning
 `/dev/ttyACM0`.
 The tuner truncates `--marker-file` when it starts, so each calibration run
@@ -404,19 +404,19 @@ a print that is already in progress.
 Recommended analyzer pass after three or more runs:
 
 ```bash
-python3 scripts/nosf_analyze.py \
-    --in ~/nosf-runs/run1.csv ~/nosf-runs/run2.csv ~/nosf-runs/run3.csv \
-    --state ~/nosf-state/buckets-myprinter.json \
+python3 scripts/flare_analyze.py \
+    --in ~/flare-runs/run1.csv ~/flare-runs/run2.csv ~/flare-runs/run3.csv \
+    --state ~/flare-state/buckets-myprinter.json \
     --out config.patch.ini \
     --acceptance-gate
 ```
 
 If the patch is applied to `config.ini` and flashed, update the watermark:
 ```bash
-python3 scripts/nosf_analyze.py --commit-watermark --state ~/nosf-state/buckets-myprinter.json
+python3 scripts/flare_analyze.py --commit-watermark --state ~/flare-state/buckets-myprinter.json
 ```
 
-`nosf_live_tuner.py` owns the FLARE USB TTY. Do not run
+`flare_live_tuner.py` owns the FLARE USB TTY. Do not run
 multiple instances against the same `/dev/ttyACM*` at the same time.
 
 Debug-only live writes still exist for controlled experiments:
@@ -428,8 +428,8 @@ Debug-only live writes still exist for controlled experiments:
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `nosf_cmd.py` exits "no serial port found" | Port not present | `ls /dev/ttyACM*`; check `dialout` group |
-| `TS:1` not reaching FLARE | Sensor wiring or config | Test: `RUN_SHELL_COMMAND CMD=nosf PARAMS="TS:1"` |
+| `flare_cmd.py` exits "no serial port found" | Port not present | `ls /dev/ttyACM*`; check `dialout` group |
+| `TS:1` not reaching FLARE | Sensor wiring or config | Test: `RUN_SHELL_COMMAND CMD=flare PARAMS="TS:1"` |
 | `TC:` times out | Bowden too long / jam | Increase `LOAD_MAX` / `UNLOAD_MAX` if travel is genuinely too short; otherwise tune `TC_TH_MS` / `TC_Y_MS` or fix the path |
 | Sync not enabling after load | No `TS:1` sent | Check sensor or enable `TS_BUF_MS` fallback |
 | RELOAD approach never detects contact | Buffer sensor never reaches `TRAILING` | Verify buffer wiring and travel; reduce `JOIN_RATE` if the path is too aggressive |

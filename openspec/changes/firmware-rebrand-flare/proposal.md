@@ -2,7 +2,7 @@
 
 ## Summary
 
-Rename the user-facing firmware brand from NOSF to FLARE:
+Complete the firmware rebrand to FLARE:
 **Filament Lane Automation and Reload Engine**.
 
 ## Motivation
@@ -15,11 +15,10 @@ automation, sync, and RELOAD behavior without implying a full mechanical system.
 
 - Update firmware-facing documentation titles and descriptions to FLARE.
 - Update compiled firmware version prefix and build artifact name to FLARE.
-- Keep legacy host-tool and protocol surfaces compatible unless explicitly
-  changed later.
+- Rename helper files, marker namespaces, sidecar suffixes, state paths, and
+  Klipper examples so no previous brand references remain.
 
 ## Non-goals
 
 - Do not rename serial commands, events, or status fields.
-- Do not rename Python helper files in this change.
-- Do not change `NOSF_TUNE` marker semantics or state directory names.
+- Do not change motion behavior, persistence layout, or runtime tunables.

@@ -3,24 +3,24 @@
 ## Findings
 
 Read `README.md`, `MANUAL.md`, `BEHAVIOR.md`, `KLIPPER.md`, `HARDWARE.md`,
-`CONTEXT.md`, `openspec/config.yaml`, and current specs. The old NOSF name is
-used both as firmware brand and as stable integration surface:
+`CONTEXT.md`, `openspec/config.yaml`, and current specs. The previous brand was
+used both as firmware brand and as integration surface:
 
 - Firmware brand text appears in docs, OpenSpec context, and `CONF_FW_VERSION`.
-- Firmware build output is `nosf_controller`.
+- Firmware build output already moved to `flare_controller`.
 - Host helper filenames, Klipper examples, state paths, and marker protocol
-  use `nosf_*` and `NOSF_TUNE`.
+  need to use `flare_*` and `FLARE_TUNE`.
 
-## Compatibility Boundary
+## Rebrand Boundary
 
-Treat FLARE as the firmware brand and artifact identity. Keep integration names
-that users may already have in Klipper configs and calibration state:
+Treat FLARE as the firmware brand, artifact identity, and host-tool namespace:
 
-- Keep Python script filenames (`nosf_cmd.py`, `nosf_live_tuner.py`, etc.).
-- Keep Klipper shell command examples using `CMD=nosf`.
-- Keep marker protocol strings (`NOSF_TUNE`) and sidecar suffixes (`.nosf.*`).
-- Keep analysis patch sections such as `[nosf_review]` and
-  `[nosf_contributors]`.
+- Rename Python script filenames (`flare_cmd.py`, `flare_live_tuner.py`, etc.).
+- Rename Klipper shell command examples to `CMD=flare`.
+- Rename marker protocol strings to `FLARE_TUNE` and sidecar suffixes to
+  `.flare.*`.
+- Rename analysis patch sections to `[flare_review]` and
+  `[flare_contributors]`.
 
 ## File Plan
 
@@ -28,10 +28,8 @@ that users may already have in Klipper configs and calibration state:
 
 - `firmware/include/config.h`: change `CONF_FW_VERSION` to `FLARE_0.2.0` and
   update the board config comment.
-- `firmware/CMakeLists.txt`: rename project/target from `nosf_controller` to
-  `flare_controller`.
-- `scripts/flash_nosf.sh`: prefer `flare_controller` artifacts and fall back to
-  old `nosf_controller` artifacts so older build trees still flash.
+- `firmware/CMakeLists.txt`: use the `flare_controller` project/target.
+- `scripts/flash_flare.sh`: use only `flare_controller` artifacts.
 - `BUILD_FLASH.md`: document new artifact names.
 
 Risk: target rename can break flash workflow if script is not updated. Validate
@@ -39,21 +37,20 @@ with local build.
 
 ### Operator docs
 
-- Update headings and prose where NOSF means firmware brand.
-- Preserve helper filenames and protocol tokens.
-- Add short compatibility notes so old `nosf_*` tool names do not look wrong.
+- Update headings and prose where FLARE means firmware brand.
+- Rename helper filenames, protocol markers, sidecar suffixes, state dirs, and
+  Klipper examples.
 
-Risk: blind replacement could rewrite stable protocol names. Check remaining
-`NOSF` hits after edits and classify intentional legacy surfaces.
+Risk: broad replacement can create stale prose. Check for any old-brand hits
+after edits and read the surrounding docs.
 
 ### OpenSpec docs
 
-- Update durable specs where NOSF means firmware brand.
-- Leave active implementation details and stable helper names intact where they
-  refer to current scripts or marker strings.
+- Update durable specs where FLARE means firmware brand.
+- Update active implementation details to current script and marker names.
 
 Risk: active `mmu-mode` change references may become confusing. Update prose to
-  FLARE while keeping command/script identifiers unchanged.
+  FLARE with current command/script identifiers.
 
 ## Regression Impact
 

@@ -14,7 +14,7 @@ settings unless the operator passes explicit write flags.
 
 #### Scenario: Tuner starts with default flags
 
-- **WHEN** the operator starts `scripts/nosf_live_tuner.py` for calibration
+- **WHEN** the operator starts `scripts/flare_live_tuner.py` for calibration
 - **THEN** the tuner records state and optional CSV telemetry
 - **AND** it does not send firmware setting writes
 - **AND** it does not save firmware settings at print finish
@@ -45,7 +45,7 @@ samples, runs, layers, stability, and motion time.
 
 ### Requirement: Analyzer patches shall be review-only outputs
 
-`scripts/nosf_analyze.py` SHALL emit review patches that preserve current values
+`scripts/flare_analyze.py` SHALL emit review patches that preserve current values
 for unavailable recommendations and label recommendation confidence.
 
 #### Scenario: Evidence is insufficient for a tunable

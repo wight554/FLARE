@@ -54,7 +54,7 @@ behind OUT — this is why UL cutter-enabled spec is clear→cut→clear.
    `TC:` and host `UL:`+`T:`+`FL:` are behaviorally equivalent.
 6. **Klipper owns toolhead.** `change_lane` macro: form tip + retract out of
    gears via extruder (FLARE follows via negative sync while `sync_enabled`),
-   then `TC:`; nosf_cmd.py blocks until `EV:TC:DONE`/`EV:TC:ERROR`.
+   then `TC:`; flare_cmd.py blocks until `EV:TC:DONE`/`EV:TC:ERROR`.
 7. **HOLD primitive REQUIRED — partial, not full freeze.** Buffer half-travel
    7.8 mm; LH-Stinger cooldown retract 5 mm reliably flips `BUF_TRAILING`;
    `POST_PRINT_STAB_DELAY_MS`=0 ⇒ instant neg-sync. `buffer_stabilize_tick`
@@ -94,7 +94,7 @@ behind OUT — this is why UL cutter-enabled spec is clear→cut→clear.
 - Rename SET/GET token `TC_AUTO_CUT` → `UNLOAD_CUT`.
 - Risk: `UL:`/`UM:` are currently fire-and-forget; cut sequencing makes them
   multi-phase — must emit `EV:UNLOADED` only after final clear, keep
-  nosf_cmd.py blocking contract intact.
+  flare_cmd.py blocking contract intact.
 
 ### firmware/src/toolchange.c
 - Gate cut on `UNLOAD_CUT` (renamed). Confirm TC unload phase matches new UL
@@ -114,4 +114,4 @@ behind OUT — this is why UL cutter-enabled spec is clear→cut→clear.
 - `ninja -C build_local` green.
 - `python3 -m py_compile scripts/*.py`.
 - Regression review: preload, autoload, RELOAD unload (no cut), TC:, manual
-  UL:/UM: both flows, nosf_cmd.py blocking contract, persistence migration.
+  UL:/UM: both flows, flare_cmd.py blocking contract, persistence migration.

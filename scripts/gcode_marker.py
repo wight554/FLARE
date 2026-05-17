@@ -36,27 +36,27 @@ def compact_feature(name, max_len=18):
     return (slug or "Unknown")[:max_len]
 
 
-def marker_lines(tag, emit="m118", shell_cmd="nosf"):
+def marker_lines(tag, emit="m118", shell_cmd="flare"):
     lines = []
     if emit in ("m118", "both"):
         lines.append(f"M118 {tag}\n")
     if emit in ("mark", "both", "file"):
-        if tag.startswith("NOSF_TUNE:FINISH"):
+        if tag.startswith("FLARE_TUNE:FINISH"):
             mark_tag = "FINISH"
         elif tag == "NT:START":
             mark_tag = "NT:START"
-        elif tag.startswith("NOSF_TUNE:LAYER:"):
+        elif tag.startswith("FLARE_TUNE:LAYER:"):
             parts = tag.split(":")
             if len(parts) < 3:
                 return lines
             mark_tag = f"NT:LAYER:{parts[2]}"
         else:
-            m = re.match(r"NOSF_TUNE:(?P<feature>[^:]+):V(?P<vfil>[^:]+):", tag)
+            m = re.match(r"FLARE_TUNE:(?P<feature>[^:]+):V(?P<vfil>[^:]+):", tag)
             if not m:
                 return lines
             mark_tag = f"NT:{compact_feature(m.group('feature'))}:V{float(m.group('vfil')):.0f}"
         if emit == "file":
-            cmd = "nosf_marker" if shell_cmd == "nosf" else shell_cmd
+            cmd = "flare_marker" if shell_cmd == "flare" else shell_cmd
             lines.append(f"RUN_SHELL_COMMAND CMD={cmd} PARAMS=\"{mark_tag}\"\n")
         else:
             lines.append(f"RUN_SHELL_COMMAND CMD={shell_cmd} PARAMS=\"MARK:{mark_tag}\"\n")
@@ -128,7 +128,7 @@ def _empty_segment(
 
 
 def build_sidecar(input_path, sidecar_path, dia):
-    """Build `<basename>.nosf.json` metadata for Klipper motion tracking."""
+    """Build `<basename>.flare.json` metadata for Klipper motion tracking."""
     if not os.path.exists(input_path):
         raise FileNotFoundError(input_path)
 
@@ -339,11 +339,11 @@ def _write_sidecar_gcode(input_path, output_path):
         for line in fin:
             fout.write(line)
         fout.write("\n; --- FLARE TUNING FINISH ---\n")
-        fout.write("M118 NOSF_TUNE:FINISH:0:0:0\n")
+        fout.write("M118 FLARE_TUNE:FINISH:0:0:0\n")
 
 
 def process_gcode(input_path, output_path, filament_dia=1.75, every_layer=True,
-                  emit="m118", shell_cmd="nosf", sidecar_path=None):
+                  emit="m118", shell_cmd="flare", sidecar_path=None):
     if not os.path.exists(input_path):
         print(f"Error: Input file {input_path} not found.")
         return False
@@ -353,7 +353,7 @@ def process_gcode(input_path, output_path, filament_dia=1.75, every_layer=True,
         _write_sidecar_gcode(input_path, output_path)
         if sidecar_path is None:
             base, _ext = os.path.splitext(output_path)
-            sidecar_path = base + ".nosf.json"
+            sidecar_path = base + ".flare.json"
         sidecar = build_sidecar(output_path, sidecar_path, filament_dia)
         print(
             f"[*] Done. Wrote {len(sidecar['segments'])} sidecar segments to {sidecar_path}.",
@@ -395,7 +395,7 @@ def process_gcode(input_path, output_path, filament_dia=1.75, every_layer=True,
                 else:
                     layer_n = None
                 if layer_n is not None and layer_n != last_layer_n:
-                    for marker in marker_lines(f"NOSF_TUNE:LAYER:{layer_n}:0:0", emit, shell_cmd):
+                    for marker in marker_lines(f"FLARE_TUNE:LAYER:{layer_n}:0:0", emit, shell_cmd):
                         fout.write(marker)
                     last_layer_n = layer_n
                     injected_count += 1
@@ -431,7 +431,7 @@ def process_gcode(input_path, output_path, filament_dia=1.75, every_layer=True,
                     if (abs(v_fil - last_reported_v_fil) > (last_reported_v_fil * 0.05) or
                         current_w != last_reported_w or current_h != last_reported_h):
 
-                        tag = f"NOSF_TUNE:{current_feature}:V{v_fil:.1f}:W{current_w:.2f}:H{current_h:.2f}"
+                        tag = f"FLARE_TUNE:{current_feature}:V{v_fil:.1f}:W{current_w:.2f}:H{current_h:.2f}"
                         for marker in marker_lines(tag, emit, shell_cmd):
                             fout.write(marker)
                         last_reported_v_fil = v_fil
@@ -443,7 +443,7 @@ def process_gcode(input_path, output_path, filament_dia=1.75, every_layer=True,
 
         # Final finish marker
         fout.write("\n; --- FLARE TUNING FINISH ---\n")
-        for marker in marker_lines("NOSF_TUNE:FINISH:0:0:0", emit, shell_cmd):
+        for marker in marker_lines("FLARE_TUNE:FINISH:0:0:0", emit, shell_cmd):
             fout.write(marker)
 
     print(f"[*] Done. Injected {injected_count} lean sync markers.")
@@ -460,7 +460,7 @@ def main():
     parser.add_argument("--no-layer-markers", action="store_false", dest="every_layer", help="Disable per-layer marker injection")
     parser.add_argument("--emit", choices=["m118", "mark", "file", "both", "sidecar"], default="sidecar",
                         help="Marker output: M118 echo, direct FLARE MARK command, local marker file, M118+MARK, or sidecar JSON")
-    parser.add_argument("--shell-cmd", default="nosf",
+    parser.add_argument("--shell-cmd", default="flare",
                         help="Klipper gcode_shell_command name for --emit mark/both")
     parser.set_defaults(every_layer=True)
 
@@ -469,7 +469,7 @@ def main():
         print("Warning: --every-layer is deprecated. Layer markers are now injected by default.", file=sys.stderr)
     if args.emit in ("file", "mark", "both"):
         print(
-            "Warning: shell-marker emit modes are deprecated; prefer --emit sidecar with nosf_live_tuner.py --klipper-uds.",
+            "Warning: shell-marker emit modes are deprecated; prefer --emit sidecar with flare_live_tuner.py --klipper-uds.",
             file=sys.stderr,
         )
 
@@ -484,7 +484,7 @@ def main():
     sidecar_arg = args.sidecar
     if in_place and args.emit == "sidecar" and sidecar_arg is None:
         base, _ext = os.path.splitext(args.input)
-        sidecar_arg = base + ".nosf.json"
+        sidecar_arg = base + ".flare.json"
 
     ok = process_gcode(
         args.input,
@@ -501,7 +501,7 @@ def main():
             sidecar_path = sidecar_arg
             if sidecar_path is None:
                 base, _ext = os.path.splitext(args.input)
-                sidecar_path = base + ".nosf.json"
+                sidecar_path = base + ".flare.json"
             build_sidecar(args.input, sidecar_path, args.dia)
     elif not ok and in_place and os.path.exists(tmp_path):
         os.unlink(tmp_path)

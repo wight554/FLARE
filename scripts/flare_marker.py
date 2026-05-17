@@ -2,7 +2,7 @@
 """Append FLARE live-tuning marker tags to a local marker file.
 
 Used from Klipper gcode_shell_command so marker delivery does not open the
-FLARE USB serial port while nosf_live_tuner.py owns it.
+FLARE USB serial port while flare_live_tuner.py owns it.
 """
 
 import argparse
@@ -13,17 +13,17 @@ import time
 
 def main():
     print(
-        "Warning: nosf_marker.py is deprecated; prefer gcode_marker.py --emit sidecar with Klipper API motion tracking.",
+        "Warning: flare_marker.py is deprecated; prefer gcode_marker.py --emit sidecar with Klipper API motion tracking.",
         file=sys.stderr,
     )
     ap = argparse.ArgumentParser(description="Append a FLARE marker to a local marker file.")
-    ap.add_argument("--file", default="/tmp/nosf-markers.log", help="Marker file path")
+    ap.add_argument("--file", default="/tmp/flare-markers.log", help="Marker file path")
     ap.add_argument("tag", nargs=argparse.REMAINDER, help="Marker tag, e.g. NT:Outer_wall:V335")
     args = ap.parse_args()
 
     tag = " ".join(args.tag).strip()
     if not tag:
-        print("nosf_marker: missing tag", file=sys.stderr)
+        print("flare_marker: missing tag", file=sys.stderr)
         return 1
 
     parent = os.path.dirname(os.path.abspath(args.file))

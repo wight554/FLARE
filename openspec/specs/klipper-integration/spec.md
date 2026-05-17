@@ -1,7 +1,7 @@
 # Klipper Integration Specification
 
 ## Purpose
-Durable contract for FLARE Klipper integration (`nosf_cmd.py`), extracted from `KLIPPER.md` and script sources.
+Durable contract for FLARE Klipper integration (`flare_cmd.py`), extracted from `KLIPPER.md` and script sources.
 
 ## Requirements
 
@@ -9,7 +9,7 @@ Durable contract for FLARE Klipper integration (`nosf_cmd.py`), extracted from `
 The Klipper host MUST interact with FLARE via single-command CDC serial transactions.
 
 #### Scenario: Script Invocation
-- **WHEN** a Klipper macro calls `nosf_cmd.py`
+- **WHEN** a Klipper macro calls `flare_cmd.py`
 - **THEN** the script opens the serial port, sends the formatted command
 - **AND** blocks until an `OK:` or `ER:` response is received
 - **AND** returns the result to Klipper via stdout
@@ -19,7 +19,7 @@ The sidecar (`--uds`) SHALL track Klipper's print state and forward speed events
 
 #### Scenario: UDS Stream
 - **WHEN** Klipper's Unix Domain Socket emits toolhead or print_stats changes
-- **THEN** the sidecar translates them into `NOSF_TUNE` events and `BASELINE_SPS` updates
+- **THEN** the sidecar translates them into `FLARE_TUNE` events and `BASELINE_SPS` updates
 - **AND** sends them over serial without blocking normal macro commands
 
 ### Requirement: Macro Orchestration
@@ -27,4 +27,4 @@ Toolchange macros (`_FLARE_TC`) SHALL coordinate the extruder, MMU, and toolhead
 
 #### Scenario: Full TC Macro
 - **WHEN** a toolchange is triggered
-- **THEN** Klipper shapes the tip, calls `nosf_cmd.py TC:lane`, waits for `DONE`, and loads the new filament into the extruder
+- **THEN** Klipper shapes the tip, calls `flare_cmd.py TC:lane`, waits for `DONE`, and loads the new filament into the extruder

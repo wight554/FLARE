@@ -20,7 +20,7 @@ Status legend: [ ] todo  [~] in progress  [x] done
 ## 2. UL: cut-on-unload
 - [ ] protocol.c `UL:` multi-phase: clear OUT → CU → clear OUT (cutter enabled)
 - [ ] Preserve single-retract path when `!ENABLE_CUTTER || !UNLOAD_CUT`
-- [ ] Emit `EV:UNLOADED` only after final clear (nosf_cmd.py blocking intact)
+- [ ] Emit `EV:UNLOADED` only after final clear (flare_cmd.py blocking intact)
 - [ ] Regression: RELOAD `TASK_UNLOAD` path must NOT cut
 - [ ] Build + commit + push
 

@@ -53,7 +53,7 @@ The generated patch MUST include a contributor evidence block for learned values
 
 #### Scenario: Recommendation Emitted
 - **WHEN** learned recommendation is included in patch
-- **THEN** `[nosf_contributors]` lists contributor count, samples, and weights
+- **THEN** `[flare_contributors]` lists contributor count, samples, and weights
 - **AND** top buckets are identified with marginal status where applicable
 
 ## Historical Rationale and Constants

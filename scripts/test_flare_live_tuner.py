@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stdlib regression fixture for nosf_live_tuner.py."""
+"""Stdlib regression fixture for flare_live_tuner.py."""
 
 import json
 import math
@@ -13,7 +13,7 @@ from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-import nosf_live_tuner as tuner_mod
+import flare_live_tuner as tuner_mod
 import gcode_marker
 
 
@@ -53,7 +53,7 @@ def status(est=1820, cf=0.90, apx=0, zone="MID", tc="IDLE", bp=-3.0, rt=-2.8):
 def make_tuner(state_path, clock):
     fake = FakeSerial()
     t = tuner_mod.Tuner(fake, state_path, "test", now_fn=clock.now, wall_fn=clock.now)
-    t.on_m118("echo: NOSF_TUNE:PERIMETER:V40:W0.45:H0.20")
+    t.on_m118("echo: FLARE_TUNE:PERIMETER:V40:W0.45:H0.20")
     return t, fake
 
 
@@ -874,7 +874,7 @@ def test_start_and_layer_markers_increment_counters():
         clock = Clock()
         t = tuner_mod.Tuner(FakeSerial(), os.path.join(td, "state.json"), "test", now_fn=clock.now, wall_fn=clock.now)
         t.on_m118("NT:START")
-        t.on_m118("echo: NOSF_TUNE:PERIMETER:V40:W0.45:H0.20")
+        t.on_m118("echo: FLARE_TUNE:PERIMETER:V40:W0.45:H0.20")
         clock.step(1.0)
         t.on_status(status(est=1800))
         b = t.buckets["PERIMETER_v50"]
@@ -894,7 +894,7 @@ def test_bucket_sample_credits_current_layer_once():
         t = tuner_mod.Tuner(FakeSerial(), os.path.join(td, "state.json"), "test", now_fn=clock.now, wall_fn=clock.now)
         t.on_m118("NT:START")
         t.on_m118("NT:LAYER:0")
-        t.on_m118("echo: NOSF_TUNE:PERIMETER:V40:W0.45:H0.20")
+        t.on_m118("echo: FLARE_TUNE:PERIMETER:V40:W0.45:H0.20")
         clock.step(1.0)
         t.on_status(status(est=1800))
         b = t.buckets["PERIMETER_v50"]
@@ -905,7 +905,7 @@ def test_bucket_sample_credits_current_layer_once():
 
         t.on_m118("NT:LAYER:1")
         assert b.layers_seen == 2, b.layers_seen
-        t.on_m118("echo: NOSF_TUNE:Sparse_infill:V40:W0.45:H0.20")
+        t.on_m118("echo: FLARE_TUNE:Sparse_infill:V40:W0.45:H0.20")
         clock.step(1.0)
         t.on_status(status(est=1700))
         s = t.buckets["Sparse_infill_v50"]
@@ -975,13 +975,13 @@ def test_commit_idle_requires_activity():
             clock.step(1.0)
             t.on_status(status(est=1800))
         assert not t.print_idle_ready(), "idle should not commit before marker activity"
-        t.on_m118("echo: NOSF_TUNE:PERIMETER:V40:W0.45:H0.20")
+        t.on_m118("echo: FLARE_TUNE:PERIMETER:V40:W0.45:H0.20")
         clock.step(1.0)
         t.on_status(status(est=1800))
         clock.step(31.0)
         t.on_status(status(est=1800))
         assert not t.print_idle_ready(), "idle should wait for FINISH marker"
-        t.on_m118("echo: NOSF_TUNE:FINISH:0:0:0")
+        t.on_m118("echo: FLARE_TUNE:FINISH:0:0:0")
         clock.step(1.0)
         t.on_status(status(est=1800))
         clock.step(31.0)
@@ -1121,7 +1121,7 @@ def test_either_path_no_double_count():
 
 def _sidecar_fixture(td):
     gcode_path = os.path.join(td, "orca_sample.gcode")
-    sidecar_path = os.path.join(td, "orca_sample.nosf.json")
+    sidecar_path = os.path.join(td, "orca_sample.flare.json")
     shutil.copyfile(ORCA_FIXTURE, gcode_path)
     data = gcode_marker.build_sidecar(gcode_path, sidecar_path, 1.75)
     return gcode_path, sidecar_path, data
@@ -1225,7 +1225,7 @@ def _run_phase_2_11_chatter_repro_fixture():
         t = tuner_mod.Tuner(fake, state_path, "test", now_fn=clock.now, wall_fn=clock.now)
         t.on_m118("NT:START")
         t.on_m118(
-            f"echo: NOSF_TUNE:{control['feature']}:V{control['v_fil']:.1f}:W0.45:H0.20"
+            f"echo: FLARE_TUNE:{control['feature']}:V{control['v_fil']:.1f}:W0.45:H0.20"
         )
         b = tuner_mod.Bucket(
             label=control["label"],

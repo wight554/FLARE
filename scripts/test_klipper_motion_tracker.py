@@ -164,7 +164,7 @@ def test_status_merge_accepts_initial_and_async_shapes():
 def build_fixture_sidecar():
     td = tempfile.TemporaryDirectory()
     gcode_path = os.path.join(td.name, "orca_sample.gcode")
-    sidecar_path = os.path.join(td.name, "orca_sample.nosf.json")
+    sidecar_path = os.path.join(td.name, "orca_sample.flare.json")
     shutil.copyfile(ORCA_FIXTURE, gcode_path)
     data = gcode_marker.build_sidecar(gcode_path, sidecar_path, 1.75)
     return td, gcode_path, sidecar_path, data
@@ -187,17 +187,17 @@ def state_for(seg, gcode_path, eventtime=1.0, print_state="printing", v_extrude=
 def test_layer_transition_emits_event():
     td, gcode_path, _sidecar_path, data = build_fixture_sidecar()
     try:
-        matcher = tracker.SegmentMatcher(os.path.join(td.name, "orca_sample.nosf.json"))
+        matcher = tracker.SegmentMatcher(os.path.join(td.name, "orca_sample.flare.json"))
         events = matcher.update(state_for(data["segments"][0], gcode_path))
         assert events[0] == "NT:START", events
         assert "NT:LAYER:0" in events, events
-        assert any(e.startswith("NOSF_TUNE:Outer_wall:") for e in events), events
+        assert any(e.startswith("FLARE_TUNE:Outer_wall:") for e in events), events
         return "printing + first segment emits START, LAYER, feature"
     finally:
         td.cleanup()
 
 
-def test_feature_change_emits_nosf_tune():
+def test_feature_change_emits_flare_tune():
     td, gcode_path, sidecar_path, data = build_fixture_sidecar()
     try:
         matcher = tracker.SegmentMatcher(sidecar_path)
@@ -205,8 +205,8 @@ def test_feature_change_emits_nosf_tune():
         next_feature = next(seg for seg in data["segments"] if seg["feature"] != first["feature"] and not seg.get("skip"))
         matcher.update(state_for(first, gcode_path, eventtime=1.0))
         events = matcher.update(state_for(next_feature, gcode_path, eventtime=2.0))
-        assert any(e.startswith(f"NOSF_TUNE:{next_feature['feature']}:") for e in events), events
-        return "feature transition emits NOSF_TUNE marker"
+        assert any(e.startswith(f"FLARE_TUNE:{next_feature['feature']}:") for e in events), events
+        return "feature transition emits FLARE_TUNE marker"
     finally:
         td.cleanup()
 
@@ -245,7 +245,7 @@ def test_pause_resume_segment_state_survives():
         matcher.update(state_for(first, gcode_path, eventtime=1.0))
         assert matcher.update({"filename": gcode_path, "print_state": "paused", "eventtime": 2.0}) == []
         events = matcher.update(state_for(second, gcode_path, eventtime=3.0))
-        assert any(e.startswith(f"NOSF_TUNE:{second['feature']}:") for e in events), events
+        assert any(e.startswith(f"FLARE_TUNE:{second['feature']}:") for e in events), events
         return "pause emits no marker and resume keeps matcher state"
     finally:
         td.cleanup()
@@ -273,7 +273,7 @@ def main():
         ("disconnect", test_garbage_disconnect),
         ("status-merge", test_status_merge_accepts_initial_and_async_shapes),
         ("layer-event", test_layer_transition_emits_event),
-        ("feature", test_feature_change_emits_nosf_tune),
+        ("feature", test_feature_change_emits_flare_tune),
         ("dedupe", test_v_fil_bin_unchanged_no_event),
         ("retract", test_retract_no_event),
         ("pause", test_pause_resume_segment_state_survives),

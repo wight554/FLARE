@@ -14,7 +14,7 @@ FLARE SHALL run sync, toolchange, and RELOAD without host after calibration flas
 - **AND** host tuner not required during print
 
 #### Scenario: Live Debug
-- **WHEN** `nosf_live_tuner.py` runs without writes
+- **WHEN** `flare_live_tuner.py` runs without writes
 - **THEN** tuner observes and persists state
 - **AND** NO `SET`/`SV` commands sent to firmware
 
@@ -27,7 +27,7 @@ The system SHALL collect markers, buckets, and patches without mutation unless e
 - **AND** NO firmware writes occur
 
 #### Scenario: Review Patch
-- **WHEN** `nosf_analyze.py` emits a patch
+- **WHEN** `flare_analyze.py` emits a patch
 - **THEN** patch is for review only
 - **AND** operator MUST copy accepted values to `config.ini`
 
@@ -36,7 +36,7 @@ The system SHALL prefer sidecar JSON + Klipper UDS over shell markers when avail
 
 #### Scenario: Sidecar Active
 - **WHEN** sidecar + UDS provided
-- **THEN** tuner synthesizes `NOSF_TUNE` events
+- **THEN** tuner synthesizes `FLARE_TUNE` events
 - **AND** `on_m118` contract remains stable
 
 #### Scenario: Fallback

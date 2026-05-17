@@ -262,7 +262,7 @@ firmware, and then disconnect the host so FLARE runs standalone.
 
 Before running the first 2.9.9 build, please back up your state file:
 ```bash
-cp ~/nosf-state/buckets-<id>.json ~/nosf-state/buckets-<id>.json.schema2.bak
+cp ~/flare-state/buckets-<id>.json ~/flare-state/buckets-<id>.json.schema2.bak
 ```
 
 1. Find the Klipper API socket path on the Pi:
@@ -273,18 +273,18 @@ cp ~/nosf-state/buckets-<id>.json ~/nosf-state/buckets-<id>.json.schema2.bak
    `/home/pi/printer_data/comms/klippy.sock`.
 2. Postprocess calibration G-code with a sidecar:
    ```bash
-   python3 scripts/gcode_marker.py input.gcode --output input.nosf.gcode \
+   python3 scripts/gcode_marker.py input.gcode --output input.flare.gcode \
        --emit sidecar
    ```
    By default, layer changes are recognized (both `;LAYER:<n>` and OrcaSlicer
    `;LAYER_CHANGE` comments). Use `--no-layer-markers` to disable.
 3. Capture data using the observe-only tuner in daemon mode, emitting CSV:
    ```bash
-   python3 scripts/nosf_live_tuner.py --port /dev/ttyACM0 \
+   python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 \
        --machine-id myprinter \
        --klipper-uds /home/pi/printer_data/comms/klippy.sock \
-       --sidecar /home/pi/printer_data/gcodes/input.nosf.json \
-       --csv-out ~/nosf-runs/run1.csv \
+       --sidecar /home/pi/printer_data/gcodes/input.flare.json \
+       --csv-out ~/flare-runs/run1.csv \
        --observe-daemon &
    ```
    `--klipper-mode auto` is the default. It tries UDS first and falls back to
@@ -293,9 +293,9 @@ cp ~/nosf-state/buckets-<id>.json ~/nosf-state/buckets-<id>.json.schema2.bak
 4. After at least three calibration runs, analyze the CSV corpus and tuner
    state:
    ```bash
-   python3 scripts/nosf_analyze.py \
-       --in ~/nosf-runs/run1.csv ~/nosf-runs/run2.csv ~/nosf-runs/run3.csv \
-       --state ~/nosf-state/buckets-myprinter.json \
+   python3 scripts/flare_analyze.py \
+       --in ~/flare-runs/run1.csv ~/flare-runs/run2.csv ~/flare-runs/run3.csv \
+       --state ~/flare-state/buckets-myprinter.json \
        --out config.patch.ini \
        --acceptance-gate
    ```
@@ -309,11 +309,11 @@ cp ~/nosf-state/buckets-<id>.json ~/nosf-state/buckets-<id>.json.schema2.bak
    ```bash
    python3 scripts/gen_config.py
    ninja -C build_local
-   bash scripts/flash_nosf.sh
+   bash scripts/flash_flare.sh
    ```
 7. Update the watermark in your state file so drift tracking works:
    ```bash
-   python3 scripts/nosf_analyze.py --commit-watermark --state ~/nosf-state/buckets-myprinter.json
+   python3 scripts/flare_analyze.py --commit-watermark --state ~/flare-state/buckets-myprinter.json
    ```
 
 The acceptance gate differentiates between hardware/math failures (**FAIL**) and
@@ -335,7 +335,7 @@ analyzer still writes a patch with `Acceptance gate: FAIL` and prints explicit
 reasons to stderr.
 
 ### Live Tuner Modes
-`scripts/nosf_live_tuner.py` now defaults to observe-only. It reads status and
+`scripts/flare_live_tuner.py` now defaults to observe-only. It reads status and
 marker tags from the Klipper API sidecar path or shell-marker fallback, updates
 bucket Kalman state, persists JSON, and emits a review patch at
 `--commit-on-idle` or `--commit-on-finish`. It does not send `SET:`,
@@ -358,9 +358,9 @@ Mode flags:
 Inspect state with:
 
 ```bash
-python3 scripts/nosf_live_tuner.py --machine-id myprinter --state-info --include-stale
-python3 scripts/nosf_live_tuner.py --machine-id myprinter --state-info --csv
-python3 scripts/nosf_live_tuner.py --machine-id myprinter --state-info --verbose
+python3 scripts/flare_live_tuner.py --machine-id myprinter --state-info --include-stale
+python3 scripts/flare_live_tuner.py --machine-id myprinter --state-info --csv
+python3 scripts/flare_live_tuner.py --machine-id myprinter --state-info --verbose
 ```
 
 Bucket lock is cumulative across calibration runs: samples, run count, layer

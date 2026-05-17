@@ -14,20 +14,20 @@ import klipper_motion_tracker as tracker
 
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 ORCA_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "orca_sample.gcode")
-M118_RE = re.compile(r"M118 (NT:LAYER:\d+|NOSF_TUNE:[^\n]+)")
+M118_RE = re.compile(r"M118 (NT:LAYER:\d+|FLARE_TUNE:[^\n]+)")
 
 
 def normalize_event(raw):
     raw = raw.strip()
-    if raw == "NT:START" or raw.startswith("NOSF_TUNE:FINISH"):
+    if raw == "NT:START" or raw.startswith("FLARE_TUNE:FINISH"):
         return None
     if raw.startswith("NT:LAYER:"):
         return raw
-    if raw.startswith("NOSF_TUNE:LAYER:"):
+    if raw.startswith("FLARE_TUNE:LAYER:"):
         parts = raw.split(":")
         if len(parts) >= 3:
             return f"NT:LAYER:{parts[2]}"
-    if raw.startswith("NOSF_TUNE:"):
+    if raw.startswith("FLARE_TUNE:"):
         parts = raw.split(":")
         if len(parts) >= 3 and parts[1] != "FINISH":
             feature = parts[1]
@@ -58,7 +58,7 @@ def legacy_events(gcode_path):
 def matcher_events(gcode_path):
     with tempfile.TemporaryDirectory() as td:
         src = os.path.join(td, "orca_sample.gcode")
-        sidecar = os.path.join(td, "orca_sample.nosf.json")
+        sidecar = os.path.join(td, "orca_sample.flare.json")
         with open(gcode_path, "rb") as fin, open(src, "wb") as fout:
             fout.write(fin.read())
         data = gcode_marker.build_sidecar(src, sidecar, 1.75)

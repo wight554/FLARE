@@ -17,8 +17,6 @@ else
 fi
 UF2_PATH="$BUILD_DIR/flare_controller.uf2"
 ELF_PATH="$BUILD_DIR/flare_controller.elf"
-LEGACY_UF2_PATH="$BUILD_DIR/nosf_controller.uf2"
-LEGACY_ELF_PATH="$BUILD_DIR/nosf_controller.elf"
 
 find_pico_sdk_path() {
     local candidates=()
@@ -236,7 +234,7 @@ if [[ ! -f "$BUILD_DIR/build.ninja" ]]; then
     if [[ -z "$SDK_PATH" ]]; then
         echo "Error: Pico SDK not found."
         echo "Set PICO_SDK_PATH and rerun, for example:"
-        echo "  PICO_SDK_PATH=\$HOME/pico-sdk bash scripts/flash_nosf.sh"
+        echo "  PICO_SDK_PATH=\$HOME/pico-sdk bash scripts/flash_flare.sh"
         echo "or clone pico-sdk into one of:"
         echo "  $REPO/pico-sdk"
         echo "  $HOME/pico-sdk"
@@ -269,12 +267,6 @@ IMAGE_PATH="$UF2_PATH"
 if [[ ! -f "$IMAGE_PATH" ]]; then
     IMAGE_PATH="$ELF_PATH"
 fi
-if [[ ! -f "$IMAGE_PATH" && -f "$LEGACY_UF2_PATH" ]]; then
-    IMAGE_PATH="$LEGACY_UF2_PATH"
-fi
-if [[ ! -f "$IMAGE_PATH" && -f "$LEGACY_ELF_PATH" ]]; then
-    IMAGE_PATH="$LEGACY_ELF_PATH"
-fi
 if [[ ! -f "$IMAGE_PATH" ]]; then
     echo "Error: build output not found ($UF2_PATH or $ELF_PATH)"
     exit 1
@@ -285,9 +277,6 @@ if picotool_supports_load "$PICOTOOL_BIN"; then
     "$PICOTOOL_BIN" reboot
 else
     echo "Warning: picotool has no USB load support; falling back to UF2 mass-storage copy."
-    if [[ ! -f "$UF2_PATH" && -f "$LEGACY_UF2_PATH" ]]; then
-        UF2_PATH="$LEGACY_UF2_PATH"
-    fi
     if [[ ! -f "$UF2_PATH" ]]; then
         echo "Error: UF2 image not found at $UF2_PATH (required for mass-storage flashing)."
         exit 1

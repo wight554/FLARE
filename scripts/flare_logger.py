@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-nosf_logger.py — captures FLARE status + M118 markers.
-Usage: nosf_logger.py --port /dev/ttyACM0 --out ~/nosf-logs/run.csv --klipper-log ~/printer_data/logs/klippy.log
+flare_logger.py — captures FLARE status + M118 markers.
+Usage: flare_logger.py --port /dev/ttyACM0 --out ~/flare-logs/run.csv --klipper-log ~/printer_data/logs/klippy.log
 """
 
 import argparse
@@ -14,7 +14,7 @@ import serial
 
 STATUS_RE = re.compile(r'(?P<key>[A-Z1-2]+):(?P<val>-?\d+(?:\.\d+)?|[A-Z_]+|[^,]*)')
 MARK_RE   = re.compile(r'MK:(?P<seq>\d+):(?P<tag>[^,]*)')
-M118_RE   = re.compile(r'NOSF_TUNE:(?P<feature>[^:]+):V(?P<vfil>[^:]+):W(?P<w>[^:]+):H(?P<h>[^:]+)')
+M118_RE   = re.compile(r'FLARE_TUNE:(?P<feature>[^:]+):V(?P<vfil>[^:]+):W(?P<w>[^:]+):H(?P<h>[^:]+)')
 
 CSV_FIELDS = [
     'ts_ms', 'lane', 'zone', 'bp_mm', 'sigma_mm', 'est_sps', 'current_sps',
@@ -68,7 +68,7 @@ def build_row(m, last_f):
     return row
 
 def main():
-    print("Warning: nosf_logger.py is deprecated. Use nosf_live_tuner.py --csv-out instead.", file=sys.stderr)
+    print("Warning: flare_logger.py is deprecated. Use flare_live_tuner.py --csv-out instead.", file=sys.stderr)
     ap = argparse.ArgumentParser()
     ap.add_argument('--port', required=True)
     ap.add_argument('--baud', type=int, default=115200)

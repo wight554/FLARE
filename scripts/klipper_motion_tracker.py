@@ -245,10 +245,10 @@ class SegmentMatcher:
         if not filename:
             return None
         base, _ext = os.path.splitext(filename)
-        candidates = [base + ".nosf.json"]
+        candidates = [base + ".flare.json"]
         if not os.path.isabs(filename):
             candidates.extend(
-                os.path.join(root, base + ".nosf.json")
+                os.path.join(root, base + ".flare.json")
                 for root in (
                     "/home/pi/printer_data/gcodes",
                     os.path.expanduser("~/printer_data/gcodes"),
@@ -298,7 +298,7 @@ class SegmentMatcher:
 
     def _terminal_event(self, events: List[str]) -> None:
         if not self.finished:
-            events.append("NOSF_TUNE:FINISH:0:0:0")
+            events.append("FLARE_TUNE:FINISH:0:0:0")
             self.finished = True
         self.started = False
         self.last_segment = None
@@ -365,7 +365,7 @@ class SegmentMatcher:
                 extrude_factor = 1.0
             v_fil = float(seg["v_fil_mm3_per_s"]) * speed_factor * extrude_factor
             events.append(
-                f"NOSF_TUNE:{seg['feature']}:V{v_fil:.1f}:"
+                f"FLARE_TUNE:{seg['feature']}:V{v_fil:.1f}:"
                 f"W{float(seg['width_mm']):.2f}:H{float(seg['height_mm']):.2f}"
             )
 
