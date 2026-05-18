@@ -339,6 +339,11 @@ def main():
 
     args = parser.parse_args()
 
+    for _a in ("input", "output", "sidecar"):
+        _v = getattr(args, _a, None)
+        if _v:
+            setattr(args, _a, os.path.expanduser(_v))
+
     in_place = args.output is None
     if in_place:
         tmp_fd, tmp_path = tempfile.mkstemp(suffix=".gcode", dir=os.path.dirname(os.path.abspath(args.input)))

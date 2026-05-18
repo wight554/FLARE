@@ -6,6 +6,7 @@ and suggests a persistent baseline_sps at end-of-print. Pure stdlib only.
 """
 
 import argparse
+import os
 import re
 import sys
 import time
@@ -79,6 +80,9 @@ def main():
     ap.add_argument("--baud", type=int, default=115200, help="Baud rate (default: 115200)")
     ap.add_argument("--file", help="Replay from a recorded stream file")
     args = ap.parse_args()
+
+    if args.file:
+        args.file = os.path.expanduser(args.file)
 
     rec = Recommender()
     

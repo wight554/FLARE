@@ -1529,6 +1529,10 @@ def main() -> None:
     )
     ap.add_argument("--debug", action="store_true", help="Print marker and commit diagnostics to stderr")
     args = ap.parse_args()
+    for _a in ("state", "csv_out", "klipper_log", "klipper_uds", "sidecar", "marker_file"):
+        _v = getattr(args, _a, None)
+        if _v:
+            setattr(args, _a, os.path.expanduser(_v))
     if args.state is None:
         args.state = default_state_path(args.machine_id)
 

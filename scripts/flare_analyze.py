@@ -989,6 +989,12 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
 
 
 def run(args):
+    for _a in ("out", "state", "config", "profile_fast", "profile_slow"):
+        _v = getattr(args, _a, None)
+        if _v:
+            setattr(args, _a, os.path.expanduser(_v))
+    if getattr(args, "inputs", None):
+        args.inputs = [os.path.expanduser(p) for p in args.inputs]
     if getattr(args, "emit_baseline", False) or getattr(args, "emit_flow_schedule", False):
         if getattr(args, "emit_baseline", False) and getattr(args, "emit_flow_schedule", False):
             print("Error: choose only one emit mode", file=sys.stderr)
