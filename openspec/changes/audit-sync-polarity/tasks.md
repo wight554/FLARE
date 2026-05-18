@@ -17,9 +17,11 @@
 
 ## 2. Fixes
 
-- [ ] 2.1 Each `⚠ inverted` site: one isolated, justified commit citing
-  the finding
-- [ ] 2.2 `❓ needs-hardware`: document + gate on analog rig (no blind fix)
+- [ ] 2.1 Each relay `⚠ inverted` site: one isolated, justified commit
+  citing the finding; retested on the Pi
+- [ ] 2.2 Analog/PSF (no rig): per site, either model on Happy Hare
+  `mmu_sync_controller.py3` (a) or basic-spec-only `pending-analog-rig`
+  (b). No blind analog fix
 
 ## 3. Validation
 

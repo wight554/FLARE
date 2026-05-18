@@ -41,10 +41,11 @@ unreviewable; reviewer of this change asks only "is the rename faithful".
 
 - Enum + derived C identifiers (~78 enum refs, ~50 derived): compiler
   proves completeness after the enum rename.
-- String tokens (wire/protocol, ~9) and config keys (≥6 incl. `mid_creep_*`)
-  and scripts: NOT compiler-checked. An exhaustive grep inventory of
-  `advance|trailing|ADVANCE|TRAILING` and state-`mid` is a required Phase 1
-  deliverable; CI/grep must return zero matches at the end.
+- String tokens (wire/protocol, ~9), short field keys (`AD`,`TD`,`APX`,…),
+  config keys (≥6 incl. `mid_creep_*`) and scripts: NOT compiler-checked.
+  An exhaustive grep inventory of `advance|trailing|ADVANCE|TRAILING` plus
+  buffer-state-derived `mid` (NOT bare arithmetic `mid`/`midpoint`) is a
+  required Phase 1 deliverable; zero matches in that scoped set at the end.
 - `PIN_BUF_ADVANCE → PIN_BUF_TENSION`: pin→state decode is the historical
   bug site; rename only here, correctness verified in `audit-sync-polarity`.
 
@@ -53,6 +54,19 @@ unreviewable; reviewer of this change asks only "is the rename faithful".
 Host build green + a captured status-line + event-token semantics snapshot
 identical pre/post (same numeric behavior, only token spellings differ).
 Any numeric/behavioral delta = stop, it is not a faithful rename.
+
+### D5b — Resolved forks (interactive)
+
+- **Legacy config keys: ignore, no hard error.** Renaming the keys is the
+  whole change; the existing unknown-key handling already ignores stale
+  keys and uses defaults. No new validation/error path is added. Migration
+  map documented in `MANUAL.md`. (User decision.)
+- **Field keys renamed too.** `AD`/`TD`/`APX` and any other
+  old-state-derived short status keys are renamed — zero survivors; all
+  parsers updated in lockstep. (User decision.)
+- **`mid` scope = state-derived only.** Bare arithmetic `mid`/`middle`/
+  `midpoint` unrelated to `BUF_NEUTRAL` is left as-is to avoid semantic
+  damage. The grep gate is scoped accordingly. (User decision.)
 
 ### D5 — Specs/docs
 

@@ -48,8 +48,17 @@ table lives in this change as the durable audit artifact.
 
 Unlike the rename (byte-identical), these change behavior. One commit per
 inversion (or tight group), each with the contradiction it resolves quoted
-from the audit table. Relay fixes retestable on the Pi; analog `❓` items
-gated on an analog rig and may ship behind that confirmation.
+from the audit table. Relay fixes retestable on the Pi.
+
+### D4 — Analog/PSF: no rig (resolved fork)
+
+No analog hardware exists. Analog findings are handled per site as either
+(a) **Happy-Hare-modelled** — implement the analog polarity to match
+moggieuk/Happy-Hare `extras/mmu/mmu_sync_controller.py3` (the reference
+2-/analog buffer controller) where it gives a clear analogue, or (b)
+**basic spec only** — document expected analog behavior in the findings
+table + `TEST_CASES.md` as `pending-analog-rig`, ship no code. Never
+blind-fix analog from guesswork. Relay remains the verified path.
 
 ## Risks / Trade-offs
 
@@ -71,5 +80,5 @@ Rollback: per-fix revert (each is isolated and justified).
 
 ## Open Questions
 
-- Is there an analog/PSF test rig available, or do `❓` analog inversions
-  ship documented-but-unverified until one exists?
+- Resolved: no analog rig — see D4 (Happy-Hare-modelled or basic-spec-only,
+  never blind). Re-open only if an analog rig appears.

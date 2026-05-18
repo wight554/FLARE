@@ -11,10 +11,14 @@
   `*trailing*→*compression*`, state `*mid*→*neutral*` (incl.
   `mid_creep_*`, `sync_overshoot_mid_extend`, `SYNC_RELAY_MID_FRAC`,
   `sync_mid_anti_advance_*`, `PIN_BUF_ADVANCE`)
-- [ ] 2.3 Rename wire tokens + config keys + update parsing scripts
-  (`flare_cmd.py`, `gen_config.py`, analyzers/tuner) in lockstep
-- [ ] 2.4 Grep inventory: `ADVANCE|TRAILING|\bMID\b|advance|trailing`
-  returns zero matches in firmware/scripts (deliverable)
+- [ ] 2.3 Rename wire tokens + old-state-derived short field keys
+  (`AD`,`TD`,`APX`,…) + config keys + update parsing scripts
+  (`flare_cmd.py`, `gen_config.py`, analyzers/tuner) in lockstep. Legacy
+  config keys left to be ignored by existing unknown-key handling (no new
+  error path)
+- [ ] 2.4 Grep inventory: `ADVANCE|TRAILING|advance|trailing` and
+  buffer-state-derived `mid` return zero matches in firmware/scripts;
+  unrelated arithmetic `mid`/`midpoint` explicitly excluded (deliverable)
 
 ## 3. P2 — protocol/docs lockstep
 

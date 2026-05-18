@@ -28,15 +28,24 @@ diff stays reviewable as "faithful rename only".
   state-derived `*mid* → *neutral*` (incl. `mid_creep_*`,
   `sync_overshoot_mid_extend`, `SYNC_RELAY_MID_FRAC`,
   `sync_mid_anti_advance_*`). `PIN_BUF_ADVANCE → PIN_BUF_TENSION`.
-- Rename wire/telemetry tokens: `BUF:ADVANCE|MID|TRAILING →
-  BUF:TENSION|NEUTRAL|COMPRESSION`, `EV:BS:*`, `EV:SYNC:ADV_RISK_HIGH →
-  EV:SYNC:TENSION_RISK_HIGH`, and any other state strings.
+- Rename wire/telemetry tokens **and short field keys** (zero survivors,
+  decision): `BUF:ADVANCE|MID|TRAILING → BUF:TENSION|NEUTRAL|COMPRESSION`,
+  `EV:BS:*`, `EV:SYNC:ADV_RISK_HIGH → EV:SYNC:TENSION_RISK_HIGH`, and the
+  old-state-derived status field keys `AD` (advance dwell), `TD` (trailing
+  dwell), `APX` (advance-pin count) and any other such keys.
 - Rename config keys: `sync_advance_dwell_stop_ms →
   sync_tension_dwell_stop_ms`, `sync_advance_ramp_delay_ms →
   sync_tension_ramp_delay_ms`, `sync_trailing_bias_frac →
   sync_compression_bias_frac`, `trailing_rate → compression_rate`,
   `mid_creep_* → neutral_creep_*`, `sync_overshoot_mid_extend →
-  sync_overshoot_neutral_extend`.
+  sync_overshoot_neutral_extend`. **Legacy keys are simply ignored by the
+  existing unknown-key handling (no new hard-error logic); a stale
+  `config.ini` silently falls back to defaults for renamed keys.** A key
+  migration map is documented in `MANUAL.md` (decision).
+- `mid → neutral` applies to **buffer-state-derived `mid` only**
+  (`BUF_MID`, `mid_creep_*`, `sync_overshoot_mid_extend`,
+  `SYNC_RELAY_MID_FRAC`, `sync_mid_anti_advance_*`). Unrelated arithmetic
+  `mid`/`middle`/`midpoint` is left untouched (decision).
 - Update token-parsing scripts in lockstep (`scripts/flare_cmd.py`,
   `scripts/gen_config.py`, and any analyzer/tuner that parses `BUF:`/
   `EV:`/config keys).
@@ -44,9 +53,10 @@ diff stays reviewable as "faithful rename only".
   `sync-state-model`, `sync-refactor`, `toolchange-orchestration`,
   `motion-safety`, `live-tuner`; docs `BEHAVIOR.md`, `HARDWARE.md`,
   `CONTEXT.md`, `MANUAL.md`, `KLIPPER.md`, `TEST_CASES.md`.
-- **No back-compat, no aliases, zero `advance`/`trailing`/state-`mid`
-  survivors anywhere.** Archived OpenSpec changes are historical records
-  and are left as-is (not referenced as a live contract).
+- **No back-compat, no aliases, zero `advance`/`trailing` survivors and
+  zero buffer-state `mid` survivors anywhere** (arithmetic `mid` exempt
+  per the scope decision above). Archived OpenSpec changes are historical
+  records and are left as-is (not referenced as a live contract).
 - Both control paths stay supported (relay 2-endstop = current focus, PSF
   analog = supported) — the full surface is renamed, nothing deleted.
 

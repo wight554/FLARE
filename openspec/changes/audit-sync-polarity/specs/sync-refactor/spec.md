@@ -20,6 +20,14 @@ relationship.
 - **THEN** every site in the audit list is classified correct, fixed, or
   documented as needing hardware confirmation
 
+#### Scenario: Analog handled without a rig
+
+- **WHEN** an analog/PSF site is found inverted and no analog hardware
+  exists
+- **THEN** it is either implemented to match the Happy Hare reference
+  controller or recorded as basic-spec-only `pending-analog-rig`, and is
+  never blind-fixed from guesswork
+
 ### Requirement: Pin-to-state decode is verified non-inverted
 
 The buffer-sensor decode SHALL map a pressed tension switch to

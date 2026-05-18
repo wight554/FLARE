@@ -25,9 +25,15 @@ the audit reads the corrected vocabulary, not the misleading old names.
   `compression_floor`, `compression_recovery`/collapse,
   `neutral_anti_tension` floor, estimator-at-crossing sign, fast-brake on
   TENSION→COMPRESSION, AUTO_START gate state, `RE`/`BPV` sign).
-- Ship the inversion fixes. Each fix is behavior-changing and committed
-  separately with its own justification (NOT mixed with the rename, NOT
-  bundled with unrelated fixes).
+- Ship the **relay** inversion fixes (hardware-verifiable). Each is
+  behavior-changing and committed separately with its own justification
+  (NOT mixed with the rename, NOT bundled).
+- **Analog/PSF: no hardware rig exists (decision).** Analog findings are
+  either (a) modelled on Happy Hare's analog sync controller as the
+  reference implementation, or (b) left as a *basic spec only* (expected
+  behavior documented, no code shipped). Analog fixes are NOT shipped
+  blind/unverified. Implementer picks (a) or (b) per site; default (b)
+  when Happy Hare gives no clear analogue.
 - Record the findings table in this change as the audit artifact.
 
 ## Capabilities
