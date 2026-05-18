@@ -4,29 +4,35 @@
 
 In standalone two-switch mode (`BUF_SENSOR_TYPE == 0`) the controller SHALL
 drive the active-lane feed as a hysteretic relay on the buffer switch
-state, not a continuous PI loop on a dead-reckoned position. The relay
-SHALL command a catch-up rate while the TRAILING switch is engaged, a
-back-off rate while the ADVANCE switch is engaged, and a trailing-biased
-hold rate (strictly below the catch-up/MID-neutral baseline) while in MID,
-each derived from the baseline control floor. The existing ramp, rate
-clamp, trailing floor, fast-brake and relief logic MUST still apply.
-
-#### Scenario: TRAILING switch engaged
-
-- **WHEN** the buffer is in `BUF_TRAILING` in two-switch standalone mode
-- **THEN** feed targets the catch-up rate so the buffer refills
+state, not a continuous PI loop on a dead-reckoned position. Per FLARE polarity (negative reserve target, REFILL effort in ADVANCE,
+RELIEVE in TRAILING), `BUF_ADVANCE` is the empty/starved side and
+`BUF_TRAILING` is the full reserve side. The relay SHALL command a
+catch-up rate while ADVANCE is engaged (empty -> refill), a back-off rate
+while TRAILING is engaged (full -> let the extruder draw it down), and a
+gentle overfeed hold rate (above neutral) while in MID, each derived from
+the baseline control floor. The existing ramp, rate clamp, fast-brake and
+relief logic MUST still apply; the legacy trailing floor MUST be skipped
+in relay mode (it assumes trailing = empty).
 
 #### Scenario: ADVANCE switch engaged
 
-- **WHEN** the buffer is in `BUF_ADVANCE` in two-switch standalone mode
-- **THEN** feed targets the back-off rate so the extruder drains the buffer
+- **WHEN** the buffer is in `BUF_ADVANCE` (empty) in two-switch standalone
+  mode
+- **THEN** feed targets the catch-up rate so the buffer refills
 
-#### Scenario: MID band leans trailing
+#### Scenario: TRAILING switch engaged
+
+- **WHEN** the buffer is in `BUF_TRAILING` (full reserve) in two-switch
+  standalone mode
+- **THEN** feed targets the back-off rate so the extruder draws the
+  buffer down
+
+#### Scenario: MID band leans to the full reserve side
 
 - **WHEN** the buffer is in `BUF_MID` in two-switch standalone mode
-- **THEN** feed targets a hold rate below neutral so the equilibrium
-  drifts gently toward TRAILING (never-ADVANCE lean), producing a slow
-  shallow limit cycle
+- **THEN** feed targets a hold rate above neutral so the equilibrium
+  drifts gently toward the full/TRAILING reserve side and never reaches
+  ADVANCE (never starve), producing a slow shallow limit cycle
 
 #### Scenario: Analog mode unchanged
 

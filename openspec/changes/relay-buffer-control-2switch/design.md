@@ -32,9 +32,14 @@ cycle entirely (a 2-switch buffer inherently cycles — make it benign).
 ### D1 — relay override, keep ramp/clamp/relief
 
 In `BUF_SENSOR_TYPE == 0`, immediately before the existing ramp/clamp,
-override `target_sps`:
-`TRAILING → base*CATCHUP(1.45)`, `ADVANCE → base*BACKOFF(0.35)`,
-`MID → base*MID(0.97)`, where `base = baseline_control_floor_sps()`.
+override `target_sps`. FLARE polarity: `BUF_ADVANCE` = empty/starved,
+`BUF_TRAILING` = full reserve (negative `RT`, REFILL in ADVANCE, RELIEVE
+in TRAILING).
+`ADVANCE → base*CATCHUP(1.45)`, `TRAILING → base*BACKOFF(0.35)`,
+`MID → base*MID(1.05, gentle overfeed toward the full reserve side)`,
+where `base = baseline_control_floor_sps()`. The legacy `trailing_floor`
+(assumes trailing = empty) is skipped in relay mode so back-off is not
+defeated.
 Placed after all est/reserve assembly so it discards the dead-reckon
 controller while the slow ramp (`SYNC_RAMP_UP/DN`), `[SYNC_MIN,max]`
 clamp, `trailing_floor`, fast-brake and relief logic still apply and damp

@@ -25,3 +25,14 @@
 - [x] 4.1 Commit + push to main
 - [ ] 4.2 On-Pi A/B: tune `SYNC_RELAY_*_FRAC` for a slow, shallow,
   never-ADVANCE, never-faulting cycle (pending hardware)
+
+## 5. Polarity fix (post-retest)
+
+- [x] 5.1 Hardware showed inverted polarity (ADVANCE=empty,
+  TRAILING=full per FLARE convention). Swap: ADVANCE→catch-up,
+  TRAILING→back-off
+- [x] 5.2 MID lean flipped to overfeed (`MID_FRAC` 0.97 → 1.05) toward
+  the full/TRAILING reserve side (never starve)
+- [x] 5.3 Skip legacy `trailing_floor` in relay mode (it force-raised
+  feed in TRAILING, defeating back-off)
+- [x] 5.4 `cmake --build build_local`; `py_compile`; `openspec validate`

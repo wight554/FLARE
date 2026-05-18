@@ -41,16 +41,17 @@
  * ADVANCE microswitches: no analog position, no extruder feedback. A
  * continuous PI controller on a dead-reckoned position limit-cycles by
  * construction (no feedback between crossings). The correct controller for
- * a 2-switch buffer is a hysteretic relay matched to the switches: feed
- * fast while the TRAILING switch is pressed (buffer empty -> refill), slow
- * while ADVANCE is pressed (buffer full -> let extruder drain it), and a
- * gentle trailing-biased hold in MID so the limit cycle is slow, shallow,
- * and never-ADVANCE-leaning. The existing ramp + trailing_floor damp it.
- * These three fracs (x baseline control floor) are the primary on-hardware
- * relay tuning knobs. */
+ * a 2-switch buffer is a hysteretic relay matched to the switches.
+ * FLARE polarity (per the rest of the system: RT is negative/trailing,
+ * REFILL effort fires in ADVANCE, RELIEVE in TRAILING): ADVANCE = buffer
+ * EMPTY (starved) -> feed fast to refill; TRAILING = buffer FULL (reserve)
+ * -> feed slow so the extruder draws it down; MID -> gently overfeed so
+ * the buffer leans to the full/TRAILING reserve side and never reaches
+ * ADVANCE (never starve). These three fracs (x baseline control floor)
+ * are the primary on-hardware relay tuning knobs. */
 #define SYNC_RELAY_CATCHUP_FRAC 1.45f
 #define SYNC_RELAY_BACKOFF_FRAC 0.35f
-#define SYNC_RELAY_MID_FRAC     0.97f
+#define SYNC_RELAY_MID_FRAC     1.05f
 #define ENDSTOP_PER_UNIT_SIGMA_MM 0.025f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_START_MM_MIN 1000.0f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_FULL_MM_MIN 1400.0f
@@ -1612,11 +1613,11 @@ void sync_tick(uint32_t now_ms) {
      * intent; the slow ramp keeps the cycle shallow. */
     if (BUF_SENSOR_TYPE == 0) {
         int relay_base = baseline_control_floor_sps();
-        if (s == BUF_TRAILING)
+        if (s == BUF_ADVANCE)        /* empty / starved -> refill fast */
             target_sps = (int)((float)relay_base * SYNC_RELAY_CATCHUP_FRAC);
-        else if (s == BUF_ADVANCE)
+        else if (s == BUF_TRAILING)  /* full / reserve  -> back off    */
             target_sps = (int)((float)relay_base * SYNC_RELAY_BACKOFF_FRAC);
-        else
+        else                          /* MID -> gentle overfeed lean    */
             target_sps = (int)((float)relay_base * SYNC_RELAY_MID_FRAC);
     }
 
@@ -1636,7 +1637,10 @@ void sync_tick(uint32_t now_ms) {
     else if (sync_current_sps > target_sps) sync_current_sps -= ramp_dn_sps;
     else if (sync_current_sps < target_sps) sync_current_sps += SYNC_RAMP_UP_SPS;
 
-    if (!fast_brake_active && s == BUF_TRAILING) {
+    /* RELAY: trailing_floor force-raises feed in TRAILING under the legacy
+     * "trailing = empty" assumption. In relay mode TRAILING = full reserve
+     * and must be allowed to back off, so skip it. */
+    if (!fast_brake_active && s == BUF_TRAILING && BUF_SENSOR_TYPE != 0) {
         int trailing_floor_sps = sync_trailing_floor_sps();
         if (sync_current_sps < trailing_floor_sps) sync_current_sps = trailing_floor_sps;
     }
