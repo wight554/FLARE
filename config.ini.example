@@ -36,7 +36,7 @@ run_current:
 # rev_rate: 3000
 # auto_rate: 3000
 # buf_stab_rate: 600         # stabilization speed (boot + UL advance recovery)
-# sync_max_rate: 4000
+# sync_max_rate: 2200
 # sync_min_rate: 100
 # pre_ramp_rate: 90
 
@@ -48,7 +48,7 @@ run_current:
 # ─── Buffer Sync ─────────────────────────────────────────────────────────────
 # buf_hyst_ms: 30
 # sync_ramp_up_rate: 40
-# sync_ramp_dn_rate: 12
+# sync_ramp_dn_rate: 80
 # sync_tick_ms: 20
 # baseline_rate: 1600        # starting sync speed (mm/min); set to your print feed rate
 # baseline_alpha: 0.02
@@ -74,7 +74,7 @@ run_current:
 # buf_predict_thr_ms: 250
 # global_max_rate: 4000         # absolute ceiling for every commanded motor rate (mm/min)
 # sync_kp_rate: 900
-# sync_overshoot_pct: 25         # Trailing-side trim as % of sync correction (0..200)
+# sync_overshoot_pct: 150        # Trailing-side trim as % of sync correction (0..200)
 # sync_reserve_pct: 35           # Reserve target as % of BUF_HALF_TRAVEL toward trailing
 # sync_auto_stop_ms: 5000          # Auto-mode only: tail-assist timeout in TRAILING,
                                    # or normal sync timeout only after TRAILING
@@ -83,10 +83,10 @@ run_current:
                                    # 0 = start immediately when idle+TRAILING.
 # sync_advance_dwell_stop_ms: 6000 # Hard stop if continuously pinned at advance endstop
                                    # for this many ms. 0 = disable.
-# sync_advance_ramp_delay_ms: 400  # Grace window before refill-assist forces target to
-                                   # SYNC_MAX regardless of estimator.
-# sync_overshoot_mid_extend: 0     # Feature flag: extend trailing overshoot trim into
-                                   # BUF_MID when reserve is below deadband. 0=off.
+# sync_advance_ramp_delay_ms: 0    # Disable estimator-bypass refill ramp; ADV_STOP
+                                   # remains the hard guard for real advance pins.
+# sync_overshoot_mid_extend: 1     # Extend trailing overshoot trim into BUF_MID when
+                                   # reserve is below deadband.
 
 # ─── Integral Centering + Estimator Confidence ───────────────────────────
 # sync_reserve_integral_gain: 0.0  # I-gain (mm of target bias per mm·s of reserve error).

@@ -127,7 +127,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `JOIN_RATE` | `join_rate` | RELOAD: Fast approach speed | 1600 |
 | `PRESS_RATE` | `press_rate` | RELOAD: Slow follow-sync speed | 1200 |
 | `GLOBAL_MAX_RATE` | `global_max_rate` | Absolute ceiling applied to every commanded motor rate; `SYNC_MAX_RATE` remains the sync-only soft cap under it | 4000 |
-| `SYNC_MAX_RATE` | `sync_max_rate` | Max speed allowed during sync | 4000 |
+| `SYNC_MAX_RATE` | `sync_max_rate` | Max speed allowed during sync | 2200 |
 | `BASELINE_RATE` | `baseline_rate` | Sync bootstrap target and scalar fallback baseline when no flow schedule is configured | 1600 |
 
 ### Smarter Sync (Estimator)
@@ -135,7 +135,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 |-----------|------------------|-------------|---------|
 | `SYNC_TICK_MS` | `sync_tick_ms` | Period between sync-controller updates | 20 |
 | `SYNC_UP_RATE` | `sync_ramp_up_rate` | Max sync-speed increase applied each control tick | 40 |
-| `SYNC_DN_RATE` | `sync_ramp_dn_rate` | Max sync-speed decrease applied each control tick | 12 |
+| `SYNC_DN_RATE` | `sync_ramp_dn_rate` | Max sync-speed decrease applied each control tick | 80 |
 | `BASELINE_ALPHA` | `baseline_alpha` | Settled-MID baseline adaptation factor | 0.02 |
 | `BUF_PREDICT_THR_MS` | `buf_predict_thr_ms` | MID-dwell threshold used by advance prediction | 250 |
 | `SYNC_KP_RATE` | `sync_kp_rate` | Proportional reserve-correction window around the virtual buffer target | 900 |
@@ -166,11 +166,11 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `AUTO_PRELOAD`| `auto_preload` | Enable parking preload on insertion | 1 |
 | `RELOAD_MODE`| `reload_mode` | Enable autonomous RELOAD behavior (Auto-Swap) | 1 |
 | `RUNOUT_COOLDOWN_MS` | `runout_cooldown_ms` | Cooldown before another runout can be reported on the same lane | 12000 |
-| `SYNC_OVERSHOOT_PCT` | `sync_overshoot_pct` | Extra trailing-side trim as percent of sync correction after reserve overshoots full (0..200) | 25 |
-| `SYNC_OVERSHOOT_MID_EXT` | `sync_overshoot_mid_extend` | Feature flag: extend trailing overshoot trim into `BUF_MID` when virtual position is below the deadband. Default OFF; only enable after A/B evidence from long-run logs. | 0 |
+| `SYNC_OVERSHOOT_PCT` | `sync_overshoot_pct` | Extra trailing-side trim as percent of sync correction after reserve overshoots full (0..200) | 150 |
+| `SYNC_OVERSHOOT_MID_EXT` | `sync_overshoot_mid_extend` | Extend trailing overshoot trim into `BUF_MID` when virtual position is below the deadband. | 1 |
 | `SYNC_AUTO_STOP` | `sync_auto_stop_ms` | Auto-mode only: tail-assist stop after sustained `TRAILING`; in normal print sync, stops if continuous `TRAILING` dwell exceeds the timeout and recovery speed has collapsed to the minimum sync floor. | 5000 |
 | `SYNC_ADV_STOP_MS` | `sync_advance_dwell_stop_ms` | Hard stop if continuously pinned at advance endstop for this many ms. 0 = disable. | 6000 |
-| `SYNC_ADV_RAMP_MS` | `sync_advance_ramp_delay_ms` | Grace window before refill-assist overrides target to `SYNC_MAX_RATE`, bypassing the estimator ceiling. 0 = disable. | 400 |
+| `SYNC_ADV_RAMP_MS` | `sync_advance_ramp_delay_ms` | Grace window before refill-assist overrides target to `SYNC_MAX_RATE`, bypassing the estimator ceiling. 0 = disable. | 0 |
 | `SYNC_INT_GAIN` | `sync_reserve_integral_gain` | Integral reserve-centering gain (mm of target bias per mm·s of reserve error). **0.0 = disabled** by default. Enable with a small value (e.g. 0.005) after reviewing long-run soak logs. | 0.0 |
 | `SYNC_INT_CLAMP` | `sync_reserve_integral_clamp_mm` | Maximum integral correction magnitude in mm. The integral cannot shift the effective reserve target by more than this amount. | 0.6 |
 | `SYNC_INT_DECAY_MS` | `sync_reserve_integral_decay_ms` | Reserved for future integral decay rate. 0 = hold integral value when frozen. | 0 |

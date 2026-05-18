@@ -277,8 +277,9 @@ the buffer without hard-coding a deep hidden-margin target into firmware.
 - If the virtual position is fuller than the target, sync removes speed and can
   apply extra trailing-side trim.
 - The total bias is capped by `ZONE_BIAS_MAX`.
-- `SYNC_OVERSHOOT_PCT` adds extra braking only after reserve overshoots into
-  the full/trailing side.
+- `SYNC_OVERSHOOT_PCT` adds extra braking after reserve overshoots into the
+  full/trailing side, and `SYNC_OVERSHOOT_MID_EXT` extends that trim into
+  `BUF_MID` while reserve is below the deadband.
 
 This bias keeps the arm near the desired reserve target when the estimator is
 slightly wrong, while the estimator remains the dominant term.
@@ -330,10 +331,11 @@ state.
 #### Advance-dwell guard
 
 If the buffer arm is continuously pinned at the advance endstop for longer
-than `SYNC_ADV_RAMP_MS` (default 400 ms), the sync controller bypasses the
-estimator ceiling and forces the target speed toward `SYNC_MAX_RATE`. This
-prevents the circular estimator ceiling that could otherwise stall refill
-when the extruder is outpacing the MMU.
+than `SYNC_ADV_RAMP_MS`, the sync controller bypasses the estimator ceiling and
+forces the target speed toward `SYNC_MAX_RATE`. The default is `0`, so this
+estimator-bypass refill ramp is disabled; normal reserve control and the hard
+advance stop remain active. Operators can re-enable the ramp as a runtime
+escape hatch if hardware evidence supports it.
 
 If the arm remains pinned for longer than `SYNC_ADV_STOP_MS` (default 6000
 ms), sync enters a non-destructive fault hold with `EV:SYNC,FAULT_HOLD`. This
