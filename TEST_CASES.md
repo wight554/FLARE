@@ -814,6 +814,45 @@ For major refactors, run the full list.
 
 ---
 
+## Pending Analog Rig
+
+These tests require `BUF_SENSOR_TYPE=1` with a real analog / PSF buffer rig.
+They are documented as `pending-analog-rig` until that hardware exists.
+
+### Analog compression floor polarity
+
+Status: `pending-analog-rig`
+
+Goal: confirm that the analog `COMPRESSION` floor behaves as a safe low
+coasting floor and does not invert the required full-buffer backoff behavior.
+
+What to check:
+
+- With `BUF:COMPRESSION`, commanded feed backs off toward `COMPRESSION_RATE`
+  or the configured minimum sync floor.
+- With `BUF:TENSION`, commanded feed increases enough to refill the buffer.
+- `BPV` remains negative on the compression side and positive on the tension
+  side.
+
+### Analog compression recovery and collapse
+
+Status: `pending-analog-rig`
+
+Goal: confirm analog recovery caps and collapse behavior reduce feed while
+the buffer stays full and do not starve refill when the arm returns to
+`BUF_NEUTRAL`.
+
+What to check:
+
+- Sustained `BUF:COMPRESSION` tightens the speed cap and ramps down rather
+  than raising feed.
+- Returning to `BUF:NEUTRAL` clears compression recovery and allows normal
+  refill authority.
+- `AUTO_STOP` / `RELIEF_PAUSE` only fire after the configured compression
+  dwell and floor conditions are met.
+
+---
+
 ## Record Keeping
 
 When a test fails, capture:

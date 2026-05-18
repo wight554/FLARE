@@ -78,6 +78,28 @@ blind-fix analog from guesswork. Relay remains the verified path.
 
 Rollback: per-fix revert (each is isolated and justified).
 
+## Findings — 2026-05-18
+
+| # | Site | Classification | Evidence |
+|---|------|----------------|----------|
+| 1 | Pin→state decode | ✅ correct | `buf_state_raw()` maps `g_buf_tension_din` to `BUF_TENSION`, `g_buf_compression_din` to `BUF_COMPRESSION`, and swaps only under `BUF_INVERT`; analog maps `g_buf_pos > BUF_THR` to `BUF_TENSION` and `< -BUF_THR` to `BUF_COMPRESSION`. |
+| 2 | Relay block | ✅ correct | Relay override in `sync_tick()` uses `BUF_TENSION → relay_base * SYNC_RELAY_CATCHUP_FRAC`, `BUF_COMPRESSION → SYNC_MIN_SPS`, and `BUF_NEUTRAL → min(extruder_est_sps * SYNC_RELAY_NEUTRAL_FRAC, relay_base)`. This preserves `8f54bff` and `1d9ebe5` in the new vocabulary. |
+| 3 | `buf_target_reserve_mm()` / `RT` sign | ✅ correct | Target starts negative (`-(threshold * pct)`) and bias subtracts more negative distance, so reserve target remains on the `BUF_COMPRESSION` side as required. |
+| 4 | `RE = bp - target` | ✅ correct | `sync_reserve_error_mm()` returns `g_buf_pos - buf_target_reserve_mm()`. With compression-side target negative, positive error means too tension-side/empty and increases feed; negative error means too compression-side/full and backs off. |
+| 5 | Fast brake | ✅ correct | `sync_on_transition()` arms `sync_fast_brake_until_ms` only for `BUF_TENSION → BUF_COMPRESSION`, then `sync_tick()` forces `target_sps = 0` while active. Empty-to-full transition brakes feed. |
+| 6 | `compression_floor` | ❓ pending-analog-rig | Relay mode correctly skips the floor in `BUF_COMPRESSION`. Analog/PSF mode still enforces `max(sync_current_sps, compression_floor)` in `BUF_COMPRESSION`; this may be a low coasting floor rather than inversion, but needs analog hardware to confirm physical behavior. No blind fix shipped. |
+| 7 | `compression_recovery` / collapse | ❓ pending-analog-rig | Recovery caps target while in `BUF_COMPRESSION`, tightens ramp-down after dwell, and auto-stops only after collapsed-to-floor dwell. Relay behavior is correct; analog dynamic response needs a PSF/analog rig before changing behavior. |
+| 8 | `neutral_anti_tension` floor | ✅ correct | Floor applies only in `BUF_NEUTRAL`, active feed task, and non-positive reserve error (at/near compression-side target). It raises a baseline-derived feed floor to prevent drift to `BUF_TENSION` and is not active in `BUF_COMPRESSION`. |
+| 9 | Estimator at crossing | ✅ correct | `travel_mm` is positive for NEUTRAL→TENSION / COMPRESSION→TENSION and negative for NEUTRAL→COMPRESSION / TENSION→COMPRESSION; `extruder_mm_s = mmu_mm_s + arm_vel_mm_s` matches positive arm velocity as printer pulling faster. |
+| 10 | REFILL / RELIEVE effort | ✅ correct | `g_sync_refill_effort_mm` accumulates only in `BUF_TENSION`; `g_sync_relieve_effort_mm` accumulates only in `BUF_COMPRESSION`, matching empty/refill and full/relieve semantics. |
+| 11 | AUTO_START gate | ✅ correct | Auto-start requires `s == BUF_TENSION`, so sync arms when the buffer is empty/starved and needs refill. Tail-assist auto-stop still waits for sustained `BUF_COMPRESSION`. |
+| 12 | `BP` / `BPV` / `RE` telemetry sign | ✅ correct | `buf_signal.pos_norm` documents `-1 = full compression`, `+1 = full tension`; status `BPV` emits `g_buf_pos * 100`, `RT` emits the negative compression-side target, and `RE` emits `bp - target`. |
+| 13 | Audit text/comments | ✅ corrected | Two post-rename comments still described TENSION/COMPRESSION backwards around tension dwell and compression-wall critical handling; comments were corrected with no behavior change. |
+
+Relay result: no active relay inversion found after the prerequisite rename.
+Analog result: no code change shipped without rig; sites #6 and #7 are
+recorded as `pending-analog-rig` in `TEST_CASES.md`.
+
 ## Open Questions
 
 - Resolved: no analog rig — see D4 (Happy-Hare-modelled or basic-spec-only,

@@ -1522,9 +1522,9 @@ void sync_tick(uint32_t now_ms) {
 
     if (s == BUF_TENSION && sync_tension_pin_since_ms != 0) {
         uint32_t tension_dwell_ms = now_ms - sync_tension_pin_since_ms;
-        /* RELAY: TENSION switch contact is the normal "buffer full, back
-         * off" signal, not a fault. Only fault-hold on tension dwell in
-         * analog mode; the relay back-off drains it in 2-switch mode. */
+        /* RELAY: TENSION switch contact is the normal "buffer empty, refill"
+         * signal, not a fault. Only fault-hold on tension dwell in analog
+         * mode; the relay catch-up path refills it in 2-switch mode. */
         if (BUF_SENSOR_TYPE != 0 &&
             SYNC_TENSION_DWELL_STOP_MS > 0 &&
             tension_dwell_ms >= (uint32_t)SYNC_TENSION_DWELL_STOP_MS) {
@@ -1590,11 +1590,11 @@ void sync_tick(uint32_t now_ms) {
     bool compression_wall_critical = g_buf_signal.kind == BUF_SRC_VIRTUAL_ENDSTOP && s == BUF_COMPRESSION &&
                                  compression_push_mm_s > SYNC_COMPRESSION_HARD_PUSH_MM_S &&
                                  compression_wall_ms < SYNC_COMPRESSION_HARD_WALL_MS;
-    /* RELAY: hitting the COMPRESSION switch is the normal "buffer empty,
-     * refill" control signal, not a jam. This critical-fault only ever
+    /* RELAY: hitting the COMPRESSION switch is the normal "buffer full,
+     * back off" control signal, not a jam. This critical-fault only ever
      * fired in 2-switch mode and was manufacturing the FAULT_HOLD ->
-     * recovery-slam cycle. Suppress it in relay mode; the relay catch-up
-     * + compression_floor handle an empty buffer. */
+     * recovery-slam cycle. Suppress it in relay mode; the relay stop state
+     * drains the full buffer off the compression wall. */
     if (compression_wall_critical && BUF_SENSOR_TYPE != 0) {
         sync_fault_hold();
         extruder_est_last_update_ms = now_ms;
