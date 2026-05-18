@@ -7,7 +7,10 @@ assume firmware knowledge.
 ## TL;DR: Simplest Path
 
 Use this when the defaults already print without scary behavior and you just
-want a first real tuning pass.
+want a first real tuning pass. If behavior **is** scary (repeated
+`FAULT_HOLD`, `cannot_refill`/`cannot_relieve`, jams, stalls, or the buffer
+stuck pinned), do **not** start here — go to
+[If Behavior Is Scary](#if-behavior-is-scary-do-this-first) first.
 
 ```bash
 python3 -m pip install pyserial
@@ -83,6 +86,13 @@ printer pulls material at changing speeds.
 - `sync_trailing_bias_frac` shifts the target slightly toward the trailing side
   so the buffer keeps useful reserve.
 - `[flow_schedule.v1]` lets those two values change with live estimated flow.
+- `flow_schedule_cap` is the maximum number of points (`pointN` rows) the
+  schedule may have. It is a fixed firmware table-size limit: valid 1 to 16,
+  default 8. More points = a finer flow curve; the limit keeps the math light
+  on the controller. The analyzer always reduces its output to at most this
+  many points (the same inputs always reduce the same way). `flow_schedule_cap:
+  1` is just the scalar `baseline_rate` / `sync_trailing_bias_frac` expressed
+  as a one-point schedule.
 
 Good tuning looks boring: the buffer moves, status fields change smoothly, sync
 does not pin at the advance side for long, and prints do not show repeated
@@ -91,6 +101,44 @@ runout-looking sync faults.
 Bad tuning is noisy or one-sided: the buffer stays pinned, `FAULT_HOLD` appears
 often, `cannot_refill` or `cannot_relieve` repeats, or different prints produce
 wildly different recommendations.
+
+## If Behavior Is Scary (Do This First)
+
+Scary means: repeated `FAULT_HOLD`, repeated `cannot_refill` or
+`cannot_relieve`, filament jams, extruder stalls, or the buffer stuck pinned to
+one side. **Do not capture or tune in this state.** Tuning data from a
+misbehaving setup is garbage, the analyzer will reject it (FAIL), and these
+events almost always mean a *physical* problem, not a number to change.
+
+1. **Stop and revert to the known-safe scalar config.** In `config.ini` remove
+   any `[flow_schedule.v1]` block and set the shipped defaults:
+
+   ```ini
+   baseline_rate: 1600
+   sync_trailing_bias_frac: 0.4
+   flow_schedule_cap: 8
+   ```
+
+   (These are the `config.ini.example` defaults. With no schedule block they
+   act as a safe one-point schedule.) Then rebuild and flash:
+
+   ```bash
+   python3 scripts/gen_config.py
+   ninja -C build_local
+   bash scripts/flash_flare.sh
+   ```
+
+2. **Confirm boring behavior** with a short normal print and the status check
+   from [Verify After Flash](#verify-after-flash). The buffer should move and
+   settle; `FAULT_HOLD` / `cannot_*` should not repeat.
+
+3. **If it is still scary, it is mechanical, not tuning.** Check, in order:
+   filament path and spool drag, the buffer switch and arm, the cutter, and the
+   extruder for a jam or under-extrusion. `cannot_refill` points to the supply
+   side (cannot feed in); `cannot_relieve` points to the buffer staying
+   over-full (cannot push out). Fix the hardware, then re-run step 2.
+
+4. **Only once behavior is boring**, continue with the two-profile pass below.
 
 ## Prerequisites
 

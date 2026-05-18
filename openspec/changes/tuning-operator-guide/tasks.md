@@ -32,6 +32,15 @@
       Validation 2026-05-18: README links `TUNING.md`; MANUAL quickstart is
       now a redirect; TUNING links `WORKFLOW.md` without copying workflow text.
 
+- [x] 2.12 Add "If Behavior Is Scary (Do This First)" recovery section
+      (revert to shipped scalar defaults → reflash → verify → mechanical
+      checklist) reachable from the TL;DR; explain `flow_schedule_cap` in
+      "What Tuning Does"
+      Validation 2026-05-18: review feedback gap fix; `rg -n "Phase"
+      TUNING.md` still 0; `openspec validate tuning-operator-guide
+      --strict`; `scripts/validate_regression.sh`. Added matching spec
+      requirement "Recovery path for misbehaving setups".
+
 ## 4. Accuracy pass + closeout
 
 - [x] 4.1 Re-run every command/flag in TUNING.md against the scripts' `--help`; fix any mismatch in the doc (not the scripts); list residual gaps as open questions

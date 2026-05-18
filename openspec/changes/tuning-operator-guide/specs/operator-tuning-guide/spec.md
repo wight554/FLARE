@@ -43,6 +43,24 @@ recorded as an open question rather than changing code.
 - **THEN** the guide documents the script's actual behavior and the gap is
   listed as an open question, with no script change
 
+### Requirement: Recovery path for misbehaving setups
+
+`TUNING.md` MUST provide a "scary behavior" recovery path, reachable from
+the TL;DR, that is followed BEFORE any capture/tuning when the setup
+misbehaves (repeated `FAULT_HOLD`, repeated `cannot_refill`/
+`cannot_relieve`, jams, stalls, or a pinned buffer). It MUST instruct the
+user to revert to the shipped scalar defaults and reflash, verify boring
+behavior, and treat persistent faults as mechanical (with concrete checks)
+rather than a tuning value, and MUST state that tuning on a misbehaving
+setup is rejected by the analyzer.
+
+#### Scenario: Scary behavior routes away from capture
+
+- **WHEN** a user observes repeated sync faults or jams and consults
+  `TUNING.md`
+- **THEN** the guide routes them to revert-to-safe-defaults and a
+  mechanical checklist before any capture or analyze step
+
 ### Requirement: Both capture paths are first-class
 
 `TUNING.md` MUST document both the Klipper sidecar capture path and the
