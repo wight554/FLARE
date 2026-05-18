@@ -2,9 +2,7 @@
 
 ## Purpose
 Durable contract for FLARE sync, tuning, tracking, and analyzer behavioral requirements and historical rationale.
-
 ## Requirements
-
 ### Requirement: Standalone Sync
 FLARE SHALL run sync, toolchange, and RELOAD without host after calibration flash.
 
@@ -230,6 +228,127 @@ live segment delta SHALL be lost.
 - **WHEN** the device reboots or reloads settings
 - **THEN** the schedule is restored from config and any live segment
   ratchet is discarded
+
+### Requirement: Buffer states use tension/compression/neutral vocabulary
+
+The buffer state vocabulary SHALL be `BUF_TENSION` (filament tensioned,
+buffer empty, printer pulling faster than the MMU pushes), `BUF_COMPRESSION`
+(filament compressed, buffer full, MMU pushing faster than the printer
+pulls), `BUF_NEUTRAL` (neutral band), and `BUF_FAULT`. The legacy names
+`BUF_ADVANCE`, `BUF_TRAILING`, and the buffer-state `BUF_MID`/state-derived
+`mid` MUST NOT appear anywhere in firmware, scripts, live specs, or docs,
+and no back-compat alias SHALL exist. Arithmetic `mid`/`midpoint`
+unrelated to the buffer state is out of scope and MAY remain.
+
+#### Scenario: No legacy state token survives
+
+- **WHEN** the repository is searched for `ADVANCE`/`TRAILING` and
+  buffer-state-derived `mid`
+- **THEN** zero matches exist in firmware, scripts, live specs, and docs
+  (unrelated arithmetic `mid` excluded)
+
+#### Scenario: Names match the physics
+
+- **WHEN** the buffer is empty because the printer pulls faster than the
+  MMU feeds
+- **THEN** the state is `BUF_TENSION`; when the buffer is full because the
+  MMU feeds faster than the printer pulls, the state is `BUF_COMPRESSION`
+
+### Requirement: Serial protocol tokens and field keys are renamed
+
+The serial protocol SHALL emit `BUF:TENSION|NEUTRAL|COMPRESSION`, the
+corresponding `EV:BS:*` tokens, `EV:SYNC:TENSION_RISK_HIGH`, and renamed
+short status field keys for any old-state-derived key (`AD`, `TD`, `APX`,
+and similar) in place of the legacy spellings. In-repo parsing scripts
+MUST be updated in the same change so they remain consistent.
+
+#### Scenario: Status, events, and field keys use new tokens
+
+- **WHEN** a status line or buffer/sync event is emitted
+- **THEN** state tokens and old-state-derived field keys use the new
+  vocabulary with no legacy survivor, and `scripts/flare_cmd.py` parses
+  them
+
+### Requirement: Config keys are renamed to the new vocabulary
+
+Configuration keys that named the legacy states SHALL be renamed
+(`sync_tension_dwell_stop_ms`, `sync_tension_ramp_delay_ms`,
+`sync_compression_bias_frac`, `compression_rate`, `neutral_creep_*`,
+`sync_overshoot_neutral_extend`). Legacy keys SHALL be ignored by the
+existing unknown-key handling (no new hard-error path is added); a stale
+`config.ini` falls back to defaults for the renamed keys. No migration
+guide is produced (active development — renames are safe).
+
+#### Scenario: Legacy config key ignored
+
+- **WHEN** a config uses a legacy key such as `sync_trailing_bias_frac`
+- **THEN** it is silently ignored (default used, existing behavior) with
+  no migration documentation required
+
+### Requirement: The rename does not change control behavior
+
+This rename SHALL be behavior-preserving. A status-line and event
+semantics snapshot captured before and after MUST be numerically identical
+(only token spellings differ); any behavioral delta is out of scope and
+belongs to `audit-sync-polarity`.
+
+#### Scenario: Pre/post snapshot identical
+
+- **WHEN** the same scenario is run before and after the rename
+- **THEN** all numeric fields and control outputs are identical and only
+  state token spellings differ
+
+### Requirement: Sync control polarity matches the state contract
+
+Sync control SHALL feed faster when the buffer is `BUF_TENSION` (empty,
+printer pulling faster than the MMU) and back off when the buffer is
+`BUF_COMPRESSION` (full, MMU pushing faster than the printer), in both the
+relay and PSF control paths. No control site SHALL invert this
+relationship.
+
+#### Scenario: Tension feeds, compression backs off
+
+- **WHEN** the buffer is `BUF_TENSION`
+- **THEN** commanded feed increases (refill); **WHEN** `BUF_COMPRESSION`,
+  commanded feed backs off — in both relay and PSF paths
+
+#### Scenario: Audited sites classified
+
+- **WHEN** the polarity audit completes
+- **THEN** every site in the audit list is classified correct, fixed, or
+  documented as needing hardware confirmation
+
+#### Scenario: Analog handled without a rig
+
+- **WHEN** an analog/PSF site is found inverted and no analog hardware
+  exists
+- **THEN** it is either implemented to match the Happy Hare reference
+  controller or recorded as basic-spec-only `pending-analog-rig`, and is
+  never blind-fixed from guesswork
+
+### Requirement: Pin-to-state decode is verified non-inverted
+
+The buffer-sensor decode SHALL map a pressed tension switch to
+`BUF_TENSION` and a pressed compression switch to `BUF_COMPRESSION`. This
+decode MUST be explicitly verified, as it is the origin of the historical
+misnaming.
+
+#### Scenario: Tension switch pressed
+
+- **WHEN** the physical tension switch is engaged (buffer empty)
+- **THEN** the firmware state is `BUF_TENSION`, not `BUF_COMPRESSION`
+
+### Requirement: Polarity fixes are isolated from the rename
+
+Behavior-changing polarity fixes SHALL be committed separately from the
+prerequisite rename and from each other, each justified by the specific
+contradiction it resolves. The rename change MUST remain behavior-preserving.
+
+#### Scenario: Reviewable history
+
+- **WHEN** a polarity fix is reviewed
+- **THEN** it is a standalone commit citing the audit finding, with no
+  rename churn mixed in
 
 ## Historical Design Decisions (Traceability)
 - **D1 (PSF)**: Generic adapter until hardware land.
