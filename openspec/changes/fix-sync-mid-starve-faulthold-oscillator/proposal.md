@@ -45,6 +45,21 @@ target `RT≈-6.24mm` (≈80% toward the `-7.80` trailing wall):
 - **F2b — bootstrap cannot slam ADVANCE.** Cap `sync_bootstrap_sps()` at
   `baseline_control_floor_sps()` so a post-recovery start ramps from the
   learned baseline instead of overshooting into ADVANCE.
+- **G1 — FAULT_HOLD recovery resumes ACTIVE directly.** Hardware retest
+  showed F2a reseeds `g_buf_pos` but not `g_buf.state`, so `AUTO_START`
+  still fired on the stale latched `BUF_ADVANCE`. Recovery now reseeds the
+  model to the reserve target (pos + `g_buf.state=BUF_MID`) and re-enters
+  `SYNC_ACTIVE` directly at the F2b-capped bootstrap — no dependence on any
+  ADVANCE event, eliminating both the fake-advance slam and the mid-print
+  starve-deadlock of waiting for an ADVANCE that never comes.
+- **G2 — stalled-trailing estimator bleed targets the baseline floor.**
+  While the model is pinned at the trailing wall in MID, the firmware bled
+  the estimator only toward `lane_motion + 6 sps`; `lane_motion` while
+  pinned ≈ the collapsed rate, so the feedforward self-cancelled and the
+  buffer never climbed off the wall. It now bleeds toward at least
+  `baseline_control_floor_sps()`. The branch only runs while pinned, so it
+  self-terminates the instant the buffer leaves the wall — no ADVANCE
+  overshoot.
 - No change to: reserve target depth (intentional, never-ADVANCE intent),
   the B+C floors, full `BUF_TRAILING` braking/fault-hold, schedule format,
   the 5-state model.

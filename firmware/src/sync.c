@@ -1165,12 +1165,23 @@ void sync_tick(uint32_t now_ms) {
     if (g_sync_state == SYNC_FAULT_HOLD) {
         // VERIFY: retune from FAULT_HOLD/FAULT_HOLD_RECOVERY event logs
         if (now_ms - g_sync_fault_hold_entry_ms >= CONF_SYNC_FAULT_HOLD_RECOVERY_MS) {
-            /* F2a: discard the fictional ADVANCE the dead-reckoned model
-             * accumulates with feed=0 during hold, so AUTO_START re-arms
-             * only on a genuine advance, not a drifted one. */
+            /* G1: direct resume to ACTIVE. The dead-reckoned model
+             * accumulates a fictional ADVANCE with feed=0 during hold;
+             * waiting for an ADVANCE event to re-arm either slams (fake
+             * advance) or deadlocks mid-print (sync off + extruder pulling
+             * drains to TRAILING, never ADVANCE). Reseed the model to the
+             * reserve target and re-enter ACTIVE directly, bootstrapped at
+             * the baseline floor (F2b) so there is no overshoot. */
             if (BUF_SENSOR_TYPE == 0) g_buf_pos = buf_target_reserve_mm();
-            sync_set_state(SYNC_OFF);
+            g_buf.state = BUF_MID;
+            g_buf.entered_ms = now_ms;
+            sync_current_sps = sync_bootstrap_sps();
+            sync_set_state(SYNC_ACTIVE);
+            sync_auto_started = true;
+            sync_tail_assist_active = !lane_in_present(A) && lane_out_present(A);
+            sync_idle_since_ms = 0;
             cmd_event("SYNC", "FAULT_HOLD_RECOVERY");
+            cmd_event("SYNC", "AUTO_START");
         } else {
             return;
         }
@@ -1334,8 +1345,18 @@ void sync_tick(uint32_t now_ms) {
             /* Model thinks we are full, but we are physically in MID.
              * Extruder MUST be faster than current MMU rate.
              * Bleed EST up aggressively to "pull" the model out of the wall. */
+            /* G2: lane_motion while pinned ≈ the collapsed rate, so the
+             * old feed+6 target self-cancels the feedforward and leaves
+             * only ~150mm/min headroom — too weak to climb the reserve
+             * deficit before the next disturbance re-pins the wall.
+             * Target at least the learned baseline floor: the historically
+             * healthy feed. This branch only runs while pinned, so it
+             * self-terminates the instant the buffer leaves the trailing
+             * wall — no ADVANCE overshoot. */
             float margin = 6.0f; // ~150mm/min optimism
             float target_rate = (float)lane_motion_sps(A) + margin;
+            float baseline_floor = (float)baseline_control_floor_sps();
+            if (target_rate < baseline_floor) target_rate = baseline_floor;
             if (extruder_est_sps < target_rate) {
                 extruder_est_sps += 0.05f * (target_rate - extruder_est_sps);
                 extruder_est_last_update_ms = now_ms;

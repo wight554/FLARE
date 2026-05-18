@@ -66,3 +66,41 @@ rather than slamming ADVANCE.
 - **WHEN** `sync_bootstrap_sps()` computes a start rate after recovery
 - **THEN** the result does not exceed the baseline control floor, so the
   control law raises feed only as the real buffer demands
+
+### Requirement: FAULT_HOLD recovery resumes active sync without an ADVANCE event
+
+On `FAULT_HOLD_RECOVERY` the controller SHALL reseed both the virtual
+buffer position and `g_buf.state` to a MID state at the reserve target and
+re-enter `SYNC_ACTIVE` directly at the bootstrap rate, without waiting for
+any ADVANCE event. Recovery MUST NOT depend on a buffer-state classification
+that survived the hold, so it can neither slam from a fictional ADVANCE nor
+deadlock when a real ADVANCE never occurs mid-print.
+
+#### Scenario: Recovery mid-print with extruder pulling
+
+- **WHEN** the controller exits `SYNC_FAULT_HOLD` while the extruder is
+  consuming and the buffer would otherwise never reach ADVANCE
+- **THEN** sync resumes in `SYNC_ACTIVE` at the baseline-capped bootstrap
+  with the model reseeded to the reserve target, not stalled OFF
+
+### Requirement: MID stalled-trailing estimator recovery targets the baseline floor
+
+The MID stalled-trailing estimator recovery SHALL bleed the estimator
+toward at least the baseline control floor while the dead-reckoned model is
+pinned at the trailing wall, not merely toward current lane motion plus a
+small margin. The bleed MUST remain gated to the pinned condition so it
+self-terminates the instant the buffer leaves the trailing wall, preventing
+ADVANCE overshoot.
+
+#### Scenario: Pinned at trailing wall with collapsed lane motion
+
+- **WHEN** the model is pinned at the trailing wall in MID and current lane
+  motion is at or below the collapsed estimate
+- **THEN** the estimator is bled toward the baseline control floor so the
+  commanded feed exceeds real demand and the buffer climbs off the wall
+
+#### Scenario: Buffer leaves the wall
+
+- **WHEN** the buffer position rises off the trailing wall
+- **THEN** the stalled-trailing bleed no longer applies and normal reserve
+  control resumes without overshoot

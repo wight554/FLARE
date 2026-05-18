@@ -39,6 +39,27 @@
   standalone print must not enter `MID→TRAILING→FAULT_HOLD→ADVANCE` loop;
   MID feed ≥ baseline floor below target; recovery does not slam ADVANCE
 
+## 7. G1 — recovery resumes ACTIVE directly (post-retest)
+
+- [x] 7.1 FAULT_HOLD recovery branch: reseed `g_buf_pos`=RT,
+  `g_buf.state=BUF_MID`, `g_buf.entered_ms=now`, `sync_current_sps =
+  sync_bootstrap_sps()`, `sync_set_state(SYNC_ACTIVE)`,
+  `sync_auto_started=true`, tail-assist + `sync_idle_since_ms=0`; emit
+  `FAULT_HOLD_RECOVERY` + `AUTO_START`
+- [x] 7.2 No dependence on `s==BUF_ADVANCE` to re-arm
+
+## 8. G2 — stalled-trailing bleed targets baseline floor (post-retest)
+
+- [x] 8.1 `model_stalled_trailing` branch: `target_rate = max(lane_motion +
+  margin, baseline_control_floor_sps())`
+- [x] 8.2 Branch still gated to the pinned condition (self-terminating)
+
+## 9. Re-validation
+
+- [x] 9.1 `cmake --build build_local`
+- [x] 9.2 `python3 -m py_compile scripts/*.py`
+- [x] 9.3 `openspec validate fix-sync-mid-starve-faulthold-oscillator --strict`
+
 ## 6. Closeout
 
 - [x] 6.1 Commit to main (firmware + OpenSpec + TEST_CASES.md)

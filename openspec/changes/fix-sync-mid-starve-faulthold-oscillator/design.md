@@ -73,6 +73,29 @@ With a fresh strong estimator and buffer above target, F1a adds no floor
 already below baseline; F2a/F2b act solely on the recovery/bootstrap path.
 Single-point schedule + healthy estimator behavior is unchanged.
 
+### G1 — recovery resumes ACTIVE directly (post-retest)
+
+Hardware retest of F1–F2 showed F2a reseeds `g_buf_pos` but not
+`g_buf.state`; `AUTO_START` (gated `s==BUF_ADVANCE`) still fired on the
+stale latched state. Reseeding state to MID and *waiting* for a real
+ADVANCE would deadlock mid-print (sync OFF + extruder pulling drains to
+TRAILING, never ADVANCE). Decision (user: "direct resume"): on
+`FAULT_HOLD_RECOVERY` reseed pos+state to MID at RT and re-enter
+`SYNC_ACTIVE` directly at the F2b-capped bootstrap. No ADVANCE-event
+dependence — eliminates both the fake-advance slam and the starve
+deadlock.
+
+### G2 — stalled-trailing bleed targets the baseline floor (post-retest)
+
+`sync.c` model-stalled-trailing recovery bled the estimator only toward
+`lane_motion + 6 sps`. While pinned, `lane_motion ≈` the collapsed rate,
+so the feedforward self-cancelled (~150 mm/min net) and the buffer never
+climbed the reserve deficit before the next disturbance — the dominant
+"MID never refills" cause behind F1a being insufficient. Decision: bleed
+toward at least `baseline_control_floor_sps()` (the historically healthy
+feed). The branch is gated to the pinned condition, so it self-terminates
+the instant the buffer leaves the wall — no ADVANCE overshoot.
+
 ## Risks / Trade-offs
 
 - [F1a/F1b hold more feed in MID near the trailing wall] → Intended; the
