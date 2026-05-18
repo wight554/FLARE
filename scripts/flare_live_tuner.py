@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""flare_live_tuner.py - observe-only calibration tuner for FLARE Phase 2.9.
+"""flare_live_tuner.py - observe-only calibration tuner for FLARE.
 
 Pure stdlib plus pyserial. No numpy, scipy, sklearn, or pandas.
 
@@ -1219,24 +1219,12 @@ def open_serial(port: str, baud: int):
 
 
 def setup_klipper_motion(args):
-    if getattr(args, "klipper_mode", "auto") == "off":
-        print(
-            "Warning: shell-marker input is deprecated (blocks Klipper's gcode queue; prefer --klipper-mode auto/on with UDS).",
-            file=sys.stderr,
-        )
-        return None, None, {}, False
     if KlipperApiClient is None or SegmentMatcher is None:
         msg = "Klipper motion tracker module is unavailable"
         if args.klipper_mode == "on":
             print(f"flare_live_tuner: {msg}", file=sys.stderr)
             sys.exit(1)
-        if getattr(args, "marker_file", None):
-            print(
-                "Warning: shell-marker input is deprecated (blocks Klipper's gcode queue; prefer --klipper-mode auto/on with UDS).",
-                file=sys.stderr,
-            )
-        else:
-            print(f"[tuner] warning: {msg}; falling back to marker input", file=sys.stderr)
+        print(f"[tuner] warning: {msg}; falling back to serial-only (no feature markers)", file=sys.stderr)
         return None, None, {}, False
 
     try:
@@ -1245,13 +1233,7 @@ def setup_klipper_motion(args):
         if args.klipper_mode == "on":
             print(f"flare_live_tuner: sidecar refused: {exc}", file=sys.stderr)
             sys.exit(1)
-        if getattr(args, "marker_file", None):
-            print(
-                "Warning: shell-marker input is deprecated (blocks Klipper's gcode queue; prefer --klipper-mode auto/on with UDS).",
-                file=sys.stderr,
-            )
-        else:
-            print(f"[tuner] warning: sidecar refused: {exc}; falling back to marker input", file=sys.stderr)
+        print(f"[tuner] warning: sidecar refused: {exc}; falling back to serial-only (no feature markers)", file=sys.stderr)
         return None, None, {}, False
     client = KlipperApiClient(args.klipper_uds)
     try:
@@ -1262,13 +1244,7 @@ def setup_klipper_motion(args):
         if args.klipper_mode == "on":
             print(f"flare_live_tuner: Klipper API required but unavailable at {args.klipper_uds}: {exc}", file=sys.stderr)
             sys.exit(1)
-        if getattr(args, "marker_file", None):
-            print(
-                "Warning: shell-marker input is deprecated (blocks Klipper's gcode queue; prefer --klipper-mode auto/on with UDS).",
-                file=sys.stderr,
-            )
-        else:
-            print(f"[tuner] warning: Klipper API unavailable at {args.klipper_uds}: {exc}; falling back to marker input", file=sys.stderr)
+        print(f"[tuner] warning: Klipper API unavailable at {args.klipper_uds}: {exc}; falling back to serial-only (no feature markers)", file=sys.stderr)
         return None, None, {}, False
 
     print(f"[tuner] Klipper API connected: {args.klipper_uds}", file=sys.stderr)
@@ -1303,8 +1279,6 @@ def run_loop(args) -> None:
     klipper_client = None
     klipper_matcher = None
     klipper_status = {}
-    marker_file_suppressed_by_uds = False
-    marker_file = None
     tuner = None
     try:
         if args.klipper_log:
@@ -1315,16 +1289,6 @@ def run_loop(args) -> None:
             except OSError as exc:
                 print(f"[tuner] could not open Klipper log: {exc}", file=sys.stderr)
                 sys.exit(1)
-        if args.marker_file:
-            parent = os.path.dirname(os.path.abspath(args.marker_file))
-            os.makedirs(parent, exist_ok=True)
-            if not args.keep_marker_file:
-                with open(args.marker_file, "w"):
-                    pass
-            marker_file = open(args.marker_file, "r")
-            marker_file.seek(0, os.SEEK_END)
-            action = "tailing existing marker file" if args.keep_marker_file else "reset and tailing marker file"
-            print(f"[tuner] {action}: {args.marker_file}", file=sys.stderr)
         ser = open_serial(args.port, args.baud)
         lines: queue.Queue = queue.Queue(maxsize=1024)
         threading.Thread(target=reader, args=(ser, lines), daemon=True).start()
@@ -1335,7 +1299,7 @@ def run_loop(args) -> None:
         tuner.progress_interval = max(0.0, args.progress_interval)
         if hasattr(args, "csv_out") and args.csv_out:
             tuner.csv_emitter = CsvEmitter(args.csv_out)
-        klipper_client, klipper_matcher, klipper_status, marker_file_suppressed_by_uds = setup_klipper_motion(args)
+        klipper_client, klipper_matcher, klipper_status, _unused = setup_klipper_motion(args)
         poll_interval = 1.0 / args.poll_hz
         next_poll = time.monotonic()
         while True:
@@ -1346,7 +1310,6 @@ def run_loop(args) -> None:
             if klipper_client and klipper_matcher:
                 try:
                     pump_klipper_motion(tuner, klipper_client, klipper_matcher, klipper_status)
-                    marker_file_suppressed_by_uds = marker_file_suppressed_by_uds or klipper_matcher.attached
                 except (BrokenPipeError, ConnectionResetError, ConnectionError, OSError, ValueError) as exc:
                     klipper_client.close()
                     klipper_client = None
@@ -1358,18 +1321,6 @@ def run_loop(args) -> None:
                 for log_line in klipper_log.readlines():
                     if "FLARE_TUNE:" in log_line:
                         tuner.on_m118(log_line)
-            if marker_file and not marker_file_suppressed_by_uds:
-                for marker_line in marker_file.readlines():
-                    parts = marker_line.strip().split(" ", 1)
-                    if len(parts) == 2:
-                        tuner.on_m118(parts[1])
-                    elif parts:
-                        tuner.on_m118(parts[0])
-                if tuner.start_seen:
-                    marker_file.seek(0, os.SEEK_END)
-                    tuner.start_seen = False
-                    if tuner.debug:
-                        print("[tuner] marker file rewound to EOF on START", file=sys.stderr)
             try:
                 line = lines.get(timeout=0.05)
             except queue.Empty:
@@ -1415,8 +1366,6 @@ def run_loop(args) -> None:
             klipper_client.close()
         if klipper_log:
             klipper_log.close()
-        if marker_file:
-            marker_file.close()
         release_state_lock(lock_path)
 
 
@@ -1557,17 +1506,11 @@ def main() -> None:
     ap.add_argument("--klipper-uds", default=DEFAULT_UDS_PATH, help="Klipper API Unix socket path")
     ap.add_argument(
         "--klipper-mode",
-        choices=("auto", "on", "off"),
+        choices=("auto", "on"),
         default="auto",
-        help="auto tries Klipper API then falls back; on requires it; off forces marker fallback",
+        help="auto tries Klipper API then falls back; on requires it",
     )
-    ap.add_argument("--sidecar", metavar="PATH", help="Sidecar JSON generated by gcode_marker.py --emit sidecar")
-    ap.add_argument("--marker-file", help="Tail local marker file written by scripts/flare_marker.py")
-    ap.add_argument(
-        "--keep-marker-file",
-        action="store_true",
-        help="Do not truncate --marker-file on startup; useful only when attaching mid-print",
-    )
+    ap.add_argument("--sidecar", metavar="PATH", help="Sidecar JSON generated by gcode_marker.py")
     ap.add_argument(
         "--progress-interval",
         type=float,

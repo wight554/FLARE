@@ -1,7 +1,8 @@
 # Acceptance Gate Semantics Specification
 
 ## Purpose
-Phase 2.14 gate semantics and reliability decision logic behavioral requirements.
+Capture the OpenSpec-native contract for analyzer acceptance-gate
+semantics and reliability decision logic behavioral requirements.
 
 ## Requirements
 

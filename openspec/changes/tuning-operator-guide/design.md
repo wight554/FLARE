@@ -75,11 +75,9 @@ state-machine detail — that lives in `BEHAVIOR.md`, cross-linked.
 - [Two docs (TUNING vs MANUAL) diverge] → TUNING owns the path, MANUAL the
   reference; explicit cross-links, no duplicated commands beyond the
   canonical operator path.
-- [Klipper-less users informed] → Both capture paths documented; sidecar
-  is the supported/recommended path; shell-marker is a deprecated fallback
-  due to print-lag.
-  Amendment 2026-05-18: Capture Path B (shell-marker) demoted to
-  deprecated; sidecar is the single supported/recommended path.
+- [Klipper-less users informed] → Sidecar is the supported/recommended path.
+  Amendment 2026-05-18: Capture Path B (shell-marker) removed entirely;
+  sidecar is the single supported/recommended path.
 
 ## Open Questions
 

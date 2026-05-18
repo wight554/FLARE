@@ -88,10 +88,10 @@ run_current:
 # sync_overshoot_mid_extend: 0     # Feature flag: extend trailing overshoot trim into
                                    # BUF_MID when reserve is below deadband. 0=off.
 
-# ─── Phase 2.5 — Integral Centering + Estimator Confidence ───────────────────
+# ─── Integral Centering + Estimator Confidence ───────────────────────────
 # sync_reserve_integral_gain: 0.0  # I-gain (mm of target bias per mm·s of reserve error).
-                                   # 0.0 = feature disabled (default, behavior-identical to
-                                   # Phase 2). Enable with a small value (e.g. 0.005) after
+                                   # 0.0 = feature disabled (default). Enable with
+                                   # a small value (e.g. 0.005) after
                                    # reviewing soak-run data.
 # sync_reserve_integral_clamp_mm: 0.6  # Hard clamp on the integral correction in mm.
                                        # Cannot exceed buf_virtual_deadband_mm() in practice.
@@ -101,7 +101,7 @@ run_current:
 # est_low_cf_warn_threshold: 0.5       # EV:BUF,EST_LOW_CF fires when confidence < this.
 # est_fallback_cf_threshold: 0.2       # Integral freezes when confidence < this.
 
-# ─── Phase 2.6 — Drift Observer & ADVANCE-Risk Telemetry ─────────────────────
+# ─── Drift Observer & ADVANCE-Risk Telemetry ─────────────────────────────────
 # buf_drift_ewma_tau_ms: 60000        # EWMA time constant for per-transition residual drift (ms).
 #                                     # Longer = more stable estimate; shorter = faster adaptation.
 # buf_drift_min_samples: 3            # Samples before full correction; enabled correction ramps in earlier.
@@ -112,7 +112,7 @@ run_current:
 # adv_risk_window_ms: 60000           # Rolling window for ADVANCE-pin density warning (runtime-only).
 # adv_risk_threshold: 4               # EV:SYNC,ADV_RISK_HIGH fires when pin count >= this (runtime-only).
 
-# ─── Phase 2.7 — Trailing-Bias Setpoint Shift & Adaptive Sync ─────────────────
+# ─── Trailing-Bias Setpoint Shift & Adaptive Sync ───────────────────────────
 # sync_trailing_bias_frac: 0.4   # additional setpoint shift toward trailing.
                                  # 0.0 = legacy behavior (SYNC_RESERVE_PCT only).
                                  # 0.4 typical for slow-extrusion soak; 0.7 max.

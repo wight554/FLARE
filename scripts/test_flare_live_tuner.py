@@ -19,7 +19,7 @@ import gcode_marker
 
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 ORCA_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "orca_sample.gcode")
-CHATTER_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "phase_2_11_chatter.json")
+CHATTER_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "chatter.json")
 
 
 class FakeSerial:
@@ -628,7 +628,7 @@ def test_noise_gate_below_min_x_uses_floor():
         return "noise ratio uses minimum x floor near low-flow edge"
 
 
-def test_phase_2_12_field_repro_inner_wall_v1400():
+def test_scatter_field_repro():
     with tempfile.TemporaryDirectory() as td:
         clock = Clock()
         t = _blank_tuner(td, clock)
@@ -1161,7 +1161,7 @@ def test_auto_fallback_when_uds_missing():
         assert matcher is None, matcher
         assert status_cache == {}, status_cache
         assert not suppress
-        assert "falling back to marker input" in err.getvalue(), err.getvalue()
+        assert "falling back to serial-only" in err.getvalue(), err.getvalue()
         return "auto mode falls back when UDS is missing"
 
 
@@ -1213,7 +1213,7 @@ def test_observe_only_no_set_writes_via_klipper_path():
         return "Klipper path remains observe-only by default"
 
 
-def _run_phase_2_11_chatter_repro_fixture():
+def _run_chatter_repro():
     with tempfile.TemporaryDirectory() as td:
         with open(CHATTER_FIXTURE) as fh:
             trace = json.load(fh)
@@ -1270,8 +1270,8 @@ def _run_phase_2_11_chatter_repro_fixture():
         return f"chatter fixture stayed locked with {unlock_count} unlocks"
 
 
-def test_phase_2_11_chatter_repro_fixture():
-    return _run_phase_2_11_chatter_repro_fixture()
+def test_chatter_repro():
+    return _run_chatter_repro()
 
 
 def main():
@@ -1300,7 +1300,7 @@ def main():
         ("noise-ratio-block", test_noise_gate_relative_blocks_high_ratio),
         ("noise-warmup", test_noise_gate_below_warmup_passes),
         ("noise-min-x", test_noise_gate_below_min_x_uses_floor),
-        ("phase212-field", test_phase_2_12_field_repro_inner_wall_v1400),
+        ("scatter-field", test_scatter_field_repro),
         ("lock-dwell", test_lock_dwell_blocks_immediate_unlock),
         ("relock-noise", test_unlock_then_relock_does_not_chatter),
         ("warm-resid", test_resid_var_ewma_warm_start_does_not_unlock),
@@ -1327,7 +1327,7 @@ def main():
         ("klipper-auto", test_auto_fallback_when_uds_missing),
         ("klipper-events", test_klipper_events_drive_buckets),
         ("klipper-observe", test_observe_only_no_set_writes_via_klipper_path),
-        ("phase211-chat", test_phase_2_11_chatter_repro_fixture),
+        ("chatter-repro", test_chatter_repro),
     ]
     print(f"{'case':<14} result")
     print(f"{'-' * 14} {'-' * 40}")

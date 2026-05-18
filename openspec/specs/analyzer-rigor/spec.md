@@ -66,4 +66,4 @@ Precision weighting (`n/sigma²`) and 5/95 tail trimming replaced the "dominant 
 - **Sigma Footer**: `[0.1, 5.0]` mm physical range.
 - **Weight Cap**: Capped at `5 * median(weights)` to prevent single-bucket dominance.
 - **Safe Fallback**: Safe mode is for re-tunes. Aggressive mode is the bootstrap path.
-- **Legacy**: `SAFETY_K` is kept as a deprecated stub for compatibility.
+

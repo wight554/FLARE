@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline parity smoke test for Phase 2.10 marker replacement."""
+"""Offline parity smoke test for marker replacement."""
 
 import os
 import re

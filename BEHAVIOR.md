@@ -222,7 +222,7 @@ estimator sigma (uncertainty in mm) and confidence percentage. A large `EA:`
 value while the arm is in `BUF_MID` is normal; a large `EA:` while in `BUF_ADVANCE`
 may indicate the bleed path is the only update source.
 
-Phase 2.6 adds a residual drift observer. At every `MID → ADVANCE` zone
+FLARE includes a residual drift observer. At every `MID → ADVANCE` zone
 transition the virtual position (`g_buf_pos`) is measured
 against the known switch threshold *before* the position is snapped to that
 threshold. The difference `BPR = g_buf_pos − switch_pos_mm` is the literal
@@ -280,7 +280,7 @@ hard-coding a deep hidden-margin target into firmware.
 This bias keeps the arm near the desired reserve target when the estimator is
 slightly wrong, while the estimator remains the dominant term.
 
-Phase 2.7.1 adds **mid-zone creep** for active wall-seek. If the arm dwells in the `MID` zone longer than `MID_CREEP_TIMEOUT_MS`, a synthetic push velocity is gradually added (`MID_CREEP_RATE`) to gently force the arm back to the trailing wall to restore confidence. This creep is capped by `MID_CREEP_CAP` (% of the measured extruder rate) and resets immediately if the arm reaches an endstop.
+FLARE supports **mid-zone creep** for active wall-seek. If the arm dwells in the `MID` zone longer than `MID_CREEP_TIMEOUT_MS`, a synthetic push velocity is gradually added (`MID_CREEP_RATE`) to gently force the arm back to the trailing wall to restore confidence. This creep is capped by `MID_CREEP_CAP` (% of the measured extruder rate) and resets immediately if the arm reaches an endstop.
 
 The `RT:` and `RD:` fields in `?:` status expose the current reserve target
 and deadband in mm, so tuning of `SYNC_RESERVE_PCT`, `BUF_HALF_TRAVEL`, and
@@ -288,7 +288,7 @@ and deadband in mm, so tuning of `SYNC_RESERVE_PCT`, `BUF_HALF_TRAVEL`, and
 the arm has been continuously pinned at the advance or trailing endstop. `TW:`
 shows estimated time-to-trailing-wall in ms (99999 when not applicable).
 
-Phase 2.5 adds a low-gain integral centering term (`RI:`) to correct for slow
+A low-gain integral centering term (`RI:`) can correct for slow
 rate mismatches that could otherwise settle the arm near the advance side over
 long runs. This term is active only in `BUF_MID` when estimator confidence is
 high. It is capped by `SYNC_INT_CLAMP` and frozen during pin events, toolchanges,
@@ -297,7 +297,7 @@ or frozen). If the integral saturates toward the advance side,
 `EV:SYNC,ADV_DWELL_WARN` is emitted as an upstream warning before an advance
 pin occurs.
 
-Phase 2.6 adds a transition-residual drift correction layer (`RDC:`). When
+A transition-residual drift correction layer (`RDC:`) can also be enabled. When
 enabled (`BUF_DRIFT_THR_MM > 0`), the effective position seen by the control
 law is shifted by the signed EWMA of pre-snap residuals, ramping from the first
 sample to full strength at `BUF_DRIFT_MIN_SMP`. The correction fades near the
@@ -381,7 +381,7 @@ configured baseline with `BUF_STAB_RATE`.
 
 Each `buf_sensor_tick()` cycle produces a `buf_signal_t` snapshot in `g_buf_signal`. It carries normalized position (`pos_norm` in −1..+1), physical position in mm (`pos_mm`), a confidence score (0.0..1.0), the current zone, the source kind (`BUF_SRC_VIRTUAL_ENDSTOP` or `BUF_SRC_ANALOG`), and a fault flag.
 
-- **Virtual-endstop sources** (Phase 2.5): Confidence is derived from a physics-based sigma model. Uncertainty (`ES`) grows as the square root of integrated motion steps. Re-anchoring at a switch threshold resets uncertainty to a baseline (0.05 mm). Confidence (`EC`) decays as uncertainty approaches `EST_SIGMA_CAP`.
+- **Virtual-endstop sources**: Confidence is derived from a physics-based sigma model. Uncertainty (`ES`) grows as the square root of integrated motion steps. Re-anchoring at a switch threshold resets uncertainty to a baseline (0.05 mm). Confidence (`EC`) decays as uncertainty approaches `EST_SIGMA_CAP`.
 - **Analog sources**: Confidence drops to 0.5 if the signal saturates at a rail for more than 250 ms; it returns to 1.0 once the signal moves off the rail.
 
 The `SK:` field in `?:` status exposes the source kind. `CF:` exposes the current source confidence score, while `EC:` and `ES:` provide the internal estimator certainty.

@@ -50,7 +50,7 @@ static uint32_t sync_post_trailing_boost_until_ms = 0;
 static uint32_t sync_recent_negative_until_ms = 0;
 static uint32_t sync_advance_pin_since_ms = 0;
 
-/* Phase 2.5: integral centering and sigma confidence state */
+/* Integral centering and sigma confidence state */
 static float sync_reserve_integral_mm = 0.0f;
 static float g_buf_pos_sigma_accum_mm = 0.0f;
 static float g_buf_sigma_mm = 0.0f;
@@ -65,7 +65,7 @@ float g_sync_relieve_effort_mm = 0.0f;
 static bool g_sync_cannot_refill_warned = false;
 static bool g_sync_cannot_relieve_warned = false;
 
-/* Phase 2.6: residual drift observer */
+/* Residual drift observer */
 #define ADV_PIN_WINDOW_LEN 16
 static float g_bp_residual_last_mm = 0.0f;
 static float g_bp_drift_ewma_mm = 0.0f;
@@ -745,7 +745,7 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
         extruder_est_last_update_ms = now_ms;
     }
 
-    /* Phase 2.6: residual observer — measure pre-snap virtual/physical mismatch.
+    /* Residual observer — measure pre-snap virtual/physical mismatch.
      * Record on both endstops to capture both positive and negative drift correctly. */
     if (BUF_SENSOR_TYPE == 0 && old == BUF_MID && (new_state == BUF_ADVANCE || new_state == BUF_TRAILING)) {
         float switch_pos_mm = (new_state == BUF_ADVANCE) ? threshold : -threshold;
@@ -1195,7 +1195,7 @@ void sync_tick(uint32_t now_ms) {
     float reserve_deadband_mm = buf_virtual_deadband_mm();
 
     g_buf_pos_raw_status = g_buf_pos;
-    /* Phase 2.7.2: variance-aware position blend (default OFF) */
+    /* Variance-aware position blend (default OFF) */
     if (BUF_VARIANCE_BLEND_FRAC > 0.0f && g_buf_sigma_mm > 0.0f) {
         float sigma_ref = (BUF_VARIANCE_BLEND_REF_MM > 0.05f)
                           ? BUF_VARIANCE_BLEND_REF_MM : 1.0f;
@@ -1204,7 +1204,7 @@ void sync_tick(uint32_t now_ms) {
         g_buf_pos = (1.0f - blend) * g_buf_pos + blend * raw_target;
     }
 
-    /* Phase 2.6: effective buffer position with drift correction (default OFF) */
+    /* Effective buffer position with drift correction (default OFF) */
     float bp_eff = g_buf_pos;
     float drift_correction_mm = 0.0f;
     int drift_min_samples = BUF_DRIFT_MIN_SAMPLES;
@@ -1241,7 +1241,7 @@ void sync_tick(uint32_t now_ms) {
          * This creates a gentle "feed pressure" that ensures we don't under-feed
          * while the model is drifting open-loop. This shift disappears as soon as
          * we hit a switch and restore confidence.
-         * When 2.7.2 blend is active (BLEND_FRAC > 0), 2.6's confidence-bias is
+         * When blend is active (BLEND_FRAC > 0), confidence-bias is
          * redundant. Gate it off in that case. */
         if (BUF_VARIANCE_BLEND_FRAC <= 0.0f) {
             float uncertainty_shift_mm = (1.0f - g_buf_signal.confidence) * (thr * 0.8f);
@@ -1253,7 +1253,7 @@ void sync_tick(uint32_t now_ms) {
     }
     g_bp_drift_correction_applied_mm = drift_correction_mm;
 
-    /* Phase 2.5: integral reserve centering — active only in BUF_MID with adequate confidence */
+    /* Integral reserve centering — active only in BUF_MID with adequate confidence */
     bool integral_active = (s == BUF_MID)
         && (SYNC_RESERVE_INTEGRAL_GAIN > 0.0f)
         && (g_buf_signal.confidence >= 0.7f);
@@ -1428,7 +1428,7 @@ void sync_tick(uint32_t now_ms) {
         }
     }
 
-    /* Phase 2.6.2: ADVANCE-risk density warning (warn-only, default threshold=4) */
+    /* ADVANCE-risk density warning (warn-only, default threshold=4) */
     if (ADV_RISK_THRESHOLD > 0) {
         int apx = sync_adv_pin_window_count(now_ms);
         if (apx >= ADV_RISK_THRESHOLD) {

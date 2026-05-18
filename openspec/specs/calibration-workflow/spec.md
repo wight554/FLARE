@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Capture the OpenSpec-native contract for Phase 2.9 observe-only calibration.
+Capture the OpenSpec-native contract for observe-only calibration.
 Old planning prose is available through git history when needed.
 
 ## Requirements

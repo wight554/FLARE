@@ -3,7 +3,7 @@
 ## Purpose
 
 Capture the OpenSpec-native contract for the original sync refactor foundation.
-This spec preserves the durable behavior expected from Phases 0 through 2.7
+This spec preserves the durable behavior expected from the foundation
 without requiring agents to start from the historical phase plan.
 
 ## Requirements

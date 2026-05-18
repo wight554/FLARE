@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Capture the OpenSpec-native contract for Phase 2.11 smarter bucket lock/unlock
+Capture the OpenSpec-native contract for smarter bucket lock/unlock
 behavior. Old planning prose is available through git history when needed.
 
 ## Requirements
@@ -26,7 +26,7 @@ content and keep LOCKED buckets locked.
 
 #### Scenario: An operator loads an existing schema 3 database
 
-- **WHEN** the Phase 2.11 or later tuner loads the database
+- **WHEN** the tuner loads an older database schema
 - **THEN** schema 4 fields are added with safe defaults
 - **AND** learned estimates, evidence counts, state, and metadata remain intact
 

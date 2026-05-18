@@ -192,7 +192,7 @@ Only change slicer speed/flow settings. A practical example:
 The analyzer uses both captures to create one deterministic result. Same input
 files produce the same output.
 
-## Capture Live Data (Klipper Sidecar)
+## Capture Live Data
 
 This is the supported and recommended path for live capture. It injects
 nothing into the printed G-code and has zero print-time overhead.
@@ -230,56 +230,6 @@ Expected signs it is working:
 
 Run this once for the slow profile and once for the fast profile, using
 different CSV output names.
-
-## Standalone Shell-Marker Fallback (DEPRECATED)
-
-**Warning:** This capture path is deprecated because it injects per-layer
-`RUN_SHELL_COMMAND` / `M118` markers into the printed G-code, which blocks
-Klipper's G-code queue and causes visible print lag/stutter. The preferred
-[sidecar path](#capture-live-data-klipper-sidecar) injects nothing into the
-printed file and has zero print-time overhead.
-
-Use this only when the Klipper API sidecar path is unavailable. It does
-require a Klipper shell marker command.
-
-Add this to `printer.cfg`:
-
-```ini
-[gcode_shell_command flare_marker]
-command: python3 /home/pi/FLARE/scripts/flare_marker.py --file /tmp/flare-markers-myprinter.log
-timeout: 2.0
-verbose: False
-```
-
-Generate shell-marker G-code:
-
-```bash
-python3 scripts/gcode_marker.py input.gcode --output input.flare.gcode \
-  --emit file
-```
-
-Expected output includes a warning that shell-marker modes are deprecated, but
-the file is still written.
-
-Print `input.flare.gcode`, and run:
-
-```bash
-python3 scripts/flare_live_tuner.py --port "$FLARE_PORT" \
-  --machine-id "$MACHINE_ID" \
-  --observe-daemon \
-  --csv-out ~/flare-runs/run.csv \
-  --klipper-mode off \
-  --marker-file /tmp/flare-markers-myprinter.log
-```
-
-Expected signs it is working:
-
-- `/tmp/flare-markers-myprinter.log` receives marker lines during the print.
-- `~/flare-runs/run.csv` appears and grows.
-- The tuner updates `~/flare-state/buckets-${MACHINE_ID}.json`.
-
-The tuner truncates `--marker-file` on startup. Add `--keep-marker-file` only
-when attaching to a print already in progress.
 
 ## Analyze The Two Profiles
 

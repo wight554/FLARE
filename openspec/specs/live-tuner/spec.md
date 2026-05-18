@@ -1,7 +1,8 @@
 # Live Tuner Specification
 
 ## Purpose
-Tuner contract for Phase 2.8 and Phase 2.11 (chatter resistance) behavioral requirements.
+Capture the OpenSpec-native contract for the calibration tuner and
+chatter resistance behavioral requirements.
 
 ## Requirements
 
@@ -115,7 +116,7 @@ diagnostic only and MUST NOT alter control output.
 ### Live-Tune Lock
 `LIVE_TUNE_LOCK:1` prevents host-firmware races. LOCKED = accepts host writes; UNLOCKED = reverts to defaults.
 
-### Chatter Resistance (Phase 2.11)
+### Chatter Resistance
 - **Noise Gate (`sigma/x`)**: Relative residual noise threshold required to lock (default 0.25).
 - **3-Channel Unlock**:
     - **Catastrophic**: Residual exceeds 10.0 * sigma.

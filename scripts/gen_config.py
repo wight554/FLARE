@@ -77,7 +77,7 @@ DEFAULTS = {
     "est_sigma_hard_cap_mm": "1.5",
     "est_low_cf_warn_threshold": "0.5",
     "est_fallback_cf_threshold": "0.2",
-    # Phase 2.6
+    # Drift Observer
     "buf_drift_ewma_tau_ms": "60000",
     "buf_drift_min_samples": "3",
     "buf_drift_apply_thr_mm": "2.0",
@@ -85,7 +85,8 @@ DEFAULTS = {
     "buf_drift_apply_min_cf": "0.5",
     "adv_risk_window_ms": "60000",
     "adv_risk_threshold": "4",
-    # Phase 2.7
+
+    # Adaptive Sync
     "sync_trailing_bias_frac": "0.4",
     "mid_creep_timeout_ms": "4000",
     "mid_creep_rate_sps_per_s": "5",

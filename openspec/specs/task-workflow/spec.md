@@ -90,13 +90,3 @@ MUST remain reconstructable from `tasks.md` at archive time.
 - **THEN** this violates the convention and the task content must be
   restored before the change is archived
 
-## Historical Phase Ledger (Sync Refactor)
-- **Phase 0-1**: Sync Foundation and Adapter Logic.
-- **Phase 2.0-2.7**: PSF/Analog Adapter, Estimator, and Dwell Guards.
-- **Phase 2.8**: Live Tuner Foundation (Buckets, EWMA).
-- **Phase 2.9**: Calibration Workflow (Observe-only, patch emission).
-- **Phase 2.10**: Klipper Motion Tracking (Sidecar synthesis, UDS).
-- **Phase 2.11**: Bucket Locking (Hysteresis, 3-channel unlock).
-- **Phase 2.12**: Analyzer Rigor (Safe mode, precision-weighted recommendations).
-- **Phase 2.13**: Acceptance Gate Parity (Consistency reduction).
-- **Phase 2.14**: Gate Semantics (FAIL/WARN separation, denominator floor).

@@ -6,14 +6,6 @@ navigation guide for agents. Current durable behavior lives under
 `openspec/specs/`; migrated historical phase/task prose is intentionally not
 kept in-tree and can be recovered from git history when needed.
 
-Phase 2.8 adds host-side live tuner; firmware delta is the `LIVE_TUNE_LOCK` flag in `protocol.c`. No settings version change.
-Phase 2.9 makes calibration observe-only by default, matures `flare_analyze.py`, and keeps the final workflow host-detached after reviewed defaults are flashed.
-Phase 2.10 replaces per-marker `gcode_shell_command` calibration markers with sidecar JSON plus Klipper API `objects/subscribe` motion tracking; shell-marker mode remains a deprecated fallback.
-Phase 2.11 adds residual-aware live-tuner lock hysteresis: schema 4 stores per-bucket residual EWMA diagnostics, noisy buckets remain STABLE, and LOCKED buckets unlock only on catastrophic mismatch, sustained outlier streak, or sustained drift.
-Phase 2.12 makes the tuner noise gate relative (`sigma/x`) and hardens `flare_analyze.py` with LOCKED-bucket floors, precision-weighted bucket contributors, BP-derived variance reference, and safer mode semantics.
-Phase 2.13 makes the analyzer acceptance gate use the same recommendation path as patch emission, skips immature runs from consistency checks, gates coverage by contributor mass, and labels telemetry counters as pending parser work.
-Phase 2.14 differentiates acceptance-gate semantics into FAIL and WARN tiers, implements a 50-row bucket floor for mass calculations, and adds a hardware sigma ceiling (5.0 mm).
-
 ---
 
 ## Firmware Architecture
@@ -22,35 +14,44 @@ FLARE = cooperative firmware for RP2040, no RTOS. Main loop calls non-blocking m
 
 ### Module ownership
 
-- `firmware/src/main.c`
-  - hardware bring-up
-  - shared runtime globals
-  - autopreload edge detection
-  - LED state
-  - main-loop ordering
-- `firmware/src/motion.c`
-  - debounced IN / OUT sensors
-  - stepper PWM helpers
-  - per-lane task execution (`TASK_AUTOLOAD`, `TASK_UNLOAD`, `TASK_LOAD_FULL`, `TASK_MOVE`, `TASK_FEED`)
-- `firmware/src/sync.c`
-  - buffer sensing
-  - estimator-driven sync controller
-  - auto-start / auto-stop sync behavior
-  - boot-time buffer stabilization
-- `firmware/src/toolchange.c`
-  - cutter state machine
-  - toolchange state machine
-  - RELOAD approach / follow logic
-- `firmware/src/protocol.c`
-  - USB CDC parser
-  - `OK:` / `ER:` replies and best-effort `EV:` events
-  - `?:`, `SET:`, `GET:`, and advanced TMC access commands
-- `firmware/src/settings_store.c`
-  - flash-backed settings schema
-  - defaults/save/load/reset
-  - TMC re-apply after settings changes
+- `firmware/src/main.c`: Hardware bring-up, shared globals, autopreload detection, LED state, main-loop ordering.
+- `firmware/src/motion.c`: Debounced IN/OUT sensors, stepper PWM, per-lane task execution (`AUTOLOAD`, `UNLOAD`, `LOAD_FULL`, `MOVE`, `FEED`).
+- `firmware/src/sync.c`: Buffer sensing, estimator-driven sync controller, auto-start/stop, boot-time stabilization, drift/integral correction.
+- `firmware/src/toolchange.c`: Cutter state machine, toolchange state machine, RELOAD approach/follow logic.
+- `firmware/src/protocol.c`: USB CDC parser, `OK`/`ER` replies, `EV` events, `GET`/`SET` handling, driver access.
+- `firmware/src/settings_store.c`: Flash-backed settings schema, defaults/save/load/reset, TMC re-apply.
 
-Shared types, globals, cross-module helpers in `firmware/include/controller_shared.h`.
+### Host Tooling
+
+- `scripts/flare_cmd.py`: Serial helper for commands and live config dumps.
+- `scripts/flare_live_tuner.py`: Observe-only calibration bucket learner; emits reviewable patches.
+- `scripts/flare_analyze.py`: Offline calibration analyzer; emits deterministic schedules and review patches.
+- `scripts/flare_baseline_recommender.py`: Advisory print guidance; pure stdlib + pyserial.
+- `scripts/gcode_marker.py`: G-code metadata injector and sidecar JSON generator.
+- `scripts/gen_config.py`: Generates `tune.h` from `config.ini`.
+- `scripts/validate_regression.sh`: One-command static regression gate.
+
+---
+
+## Where to Look
+
+- **Capture:** `gcode_marker.py` (preparation) + `flare_live_tuner.py` (active print).
+- **Analyze:** `flare_analyze.py` (offline schedule/patch emission).
+- **Sync Control:** `firmware/src/sync.c` (estimator and control law) + `firmware/src/motion.c` (stepper drive).
+- **Buffer:** `firmware/src/sync.c` (zone logic and position integration).
+- **Toolchange:** `firmware/src/toolchange.c` (sequencing) + `firmware/src/cutter.c` (blade control).
+- **Config Generation:** `scripts/gen_config.py` + `firmware/include/tune.h`.
+- **Tests:** `scripts/test_*.py` (host logic) + `TEST_CASES.md` (hardware validation).
+
+---
+
+## Technical Contracts
+
+- **Validated Design:** `openspec/specs/project-architecture/spec.md`
+- **Tuning Workflow:** [TUNING.md](./TUNING.md)
+- **Detailed Behavior:** [BEHAVIOR.md](./BEHAVIOR.md)
+- **Command Reference:** [MANUAL.md](./MANUAL.md)
+- **Klipper Integration:** [KLIPPER.md](./KLIPPER.md)
 
 ---
 

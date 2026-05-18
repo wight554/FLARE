@@ -279,7 +279,7 @@ oscillates.
 
 ## Telemetry and Tuning — flare_live_tuner.py
 
-Phase 2.7 adds high-speed diagnostic capture. Use `scripts/flare_live_tuner.py --csv-out` to
+FLARE supports high-speed diagnostic capture. Use `scripts/flare_live_tuner.py --csv-out` to
 stream internal state to a CSV file for offline analysis.
 
 1. Start the tuner on the Pi:
@@ -295,16 +295,11 @@ stream internal state to a CSV file for offline analysis.
 
 ## Calibration Prints
 
-Phase 2.10 uses calibration prints to bake standalone defaults without pausing
+FLARE uses calibration prints to bake standalone defaults without pausing
 Klipper on every feature marker. The normal flow is observe-only: generate a
 sidecar, gather telemetry through the Klipper API socket, run the analyzer,
 review a patch, merge chosen values into `config.ini`, rebuild, flash, then
 detach the host.
-
-Before running the first 2.9.9 build, please back up your state file:
-```bash
-cp ~/flare-state/buckets-<id>.json ~/flare-state/buckets-<id>.json.schema2.bak
-```
 
 Confirm the Klipper API socket path on the Pi:
 
@@ -338,11 +333,9 @@ python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 \
 ```
 
 `--klipper-mode auto` is the default: the tuner tries the Klipper UDS first and
-falls back to marker input if it is unavailable. Use `--klipper-mode on` when
-you want a missing socket to fail fast, or `--klipper-mode off` for shell-marker
-fallback testing (**DEPRECATED**: shell-marker input causes print lag;
-prefer sidecar capture). When both UDS and `--marker-file` are configured,
-UDS wins after a sidecar is attached.
+fails if it is unavailable. Use `--klipper-mode on` when
+you want a missing socket to fail fast.
+
 The sidecar stores the source G-code SHA-256. If the G-code is re-sliced or
 edited without regenerating the sidecar, the tuner refuses to attach it and
 prints a loud warning.
@@ -352,7 +345,7 @@ commands and no `SV:`.
 
 ### Interpreting Noisy Buckets
 
-Phase 2.12 keeps noisy buckets in `STABLE` based on relative noise, not an
+FLARE keeps noisy buckets in `STABLE` based on relative noise, not an
 absolute scatter limit. In `--state-info`, `wait=noise sigma/x=...` means the
 bucket has enough samples but the residual scatter is still too high relative to
 its learned flow. Use `--state-info --verbose` to see `sigma2`, outlier
@@ -389,41 +382,6 @@ contains at least 50 MID rows for at least three contributing buckets.
   having fewer than 3 LOCKED buckets.
 
 A skipped run is not a failure by itself, but two comparable runs are required before baseline/bias consistency can be judged.
-
-### Legacy Shell-Marker Fallback
-
-Shell-marker mode is deprecated, but still available for debugging older
-setups. Add the legacy marker command to `printer.cfg` only when using this
-fallback:
-
-```ini
-[gcode_shell_command flare_marker]
-command: python3 /home/pi/FLARE/scripts/flare_marker.py --file /tmp/flare-markers-myprinter.log
-timeout: 2.0
-verbose: False
-```
-
-Then generate a shell-marker G-code file and force marker fallback in the tuner:
-
-```bash
-python3 scripts/gcode_marker.py input.gcode --output input.flare.gcode \
-    --emit file
-
-python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 \
-    --machine-id myprinter \
-    --observe-daemon \
-    --csv-out ~/flare-runs/run1.csv \
-    --klipper-mode off \
-    --marker-file /tmp/flare-markers-myprinter.log &
-```
-
-`--emit file` inserts `RUN_SHELL_COMMAND CMD=flare_marker PARAMS="..."` lines.
-`flare_marker.py` appends each marker to `/tmp/flare-markers-myprinter.log`, and
-the tuner tails that file while it remains the only process owning
-`/dev/ttyACM0`.
-The tuner truncates `--marker-file` when it starts, so each calibration run
-starts from fresh marker state. Add `--keep-marker-file` only when attaching to
-a print that is already in progress.
 
 Recommended analyzer pass after three or more runs:
 

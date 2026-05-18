@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""flare_analyze.py - offline calibration analyzer for FLARE Phase 2.9.
+"""flare_analyze.py - offline calibration analyzer for FLARE.
 
-Reads one or more flare_logger.py CSV captures, optionally combines them
-with flare_live_tuner.py schema-2 bucket state, and writes a review-only
-config patch. Pure stdlib only.
+Reads one or more CSV captures from flare_live_tuner.py, optionally
+combines them with bucket state, and writes a review-only config patch.
+Pure stdlib only.
 """
 
 import argparse
@@ -23,7 +23,6 @@ except ImportError:
     migrate_state_data = None
 
 
-SAFETY_K = {}  # Deprecated in Phase 2.12; kept one release for import compatibility.
 NOISE_RATIO_THR = 0.25
 V_NOISE_FLOOR = 100.0
 MIN_LEARN_EST_SPS = 100.0
@@ -132,7 +131,7 @@ def read_csv_runs(paths):
 
         normalized = []
         for row in rows:
-            # Map flare_logger.py (Phase 2.7) OR flare_live_tuner.py CsvEmitter (Phase 2.9/2.11)
+            # Map flare_live_tuner.py CsvEmitter output
             norm = {
                 "_run": idx,
                 "_path": path,
@@ -1158,7 +1157,7 @@ def main():
     ap.add_argument("--emit-baseline", action="store_true", help="Emit deterministic scalar baseline patch from two profiles")
     ap.add_argument("--emit-flow-schedule", action="store_true", help="Emit deterministic flow-keyed schedule from two profiles")
     ap.add_argument("--flow-schedule-cap", type=int, help="Maximum emitted schedule points (1..16)")
-    ap.add_argument("--acceptance-gate", action="store_true", help="Exit non-zero unless Phase 2.9 acceptance checks pass")
+    ap.add_argument("--acceptance-gate", action="store_true", help="Exit non-zero unless acceptance checks pass")
     ap.add_argument("--commit-watermark", action="store_true", help="Write analysis values to _meta watermark in state JSON")
     ap.add_argument("--keys", help="Comma-separated list of keys to update in watermark (defaults to all)")
     ap.add_argument("--include-stale", action="store_true", help="Include buckets not seen in >60 days")

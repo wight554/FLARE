@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stdlib regression tests for gcode_marker.py Phase 2.10 sidecars."""
+"""Stdlib regression tests for gcode_marker.py sidecars."""
 
 import hashlib
 import json
@@ -130,8 +130,6 @@ def test_emit_sidecar_no_shell_commands():
             ORCA_FIXTURE,
             out_gcode,
             filament_dia=1.75,
-            every_layer=True,
-            emit="sidecar",
             sidecar_path=sidecar,
         )
         assert ok
@@ -168,32 +166,6 @@ def test_cli_default_emit_sidecar():
         return "CLI default emits sidecar output"
 
 
-def test_cli_file_emit_warns_and_still_writes_shell_markers():
-    with tempfile.TemporaryDirectory() as td:
-        out_gcode = os.path.join(td, "orca_sample.legacy.gcode")
-        proc = subprocess.run(
-            [
-                sys.executable,
-                os.path.join(os.path.dirname(__file__), "gcode_marker.py"),
-                ORCA_FIXTURE,
-                "--output",
-                out_gcode,
-                "--emit",
-                "file",
-            ],
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        assert proc.returncode == 0, proc.stderr
-        assert "deprecated" in proc.stderr, proc.stderr
-        with open(out_gcode) as fh:
-            text = fh.read()
-        assert "RUN_SHELL_COMMAND CMD=flare_marker" in text, text[:400]
-        return "--emit file warns but preserves shell-marker fallback"
-
-
 def main():
     tests = [
         ("orca-sidecar", test_sidecar_orca_sample),
@@ -203,7 +175,6 @@ def main():
         ("arc", test_sidecar_arc_expansion),
         ("emit-sidecar", test_emit_sidecar_no_shell_commands),
         ("default-sidecar", test_cli_default_emit_sidecar),
-        ("file-warning", test_cli_file_emit_warns_and_still_writes_shell_markers),
     ]
     print(f"{'case':<14} result")
     print(f"{'-' * 14} {'-' * 40}")

@@ -16,18 +16,17 @@ import flare_analyze as analyze
 
 
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
-FIELD_CSV_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "phase_2_12_field_csv.csv")
-FIELD_STATE_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "phase_2_12_field_state.json")
-PHASE_2_13_STATE_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "phase_2_13_three_run_state.json")
-PHASE_2_13_RUN_FIXTURES = [
-    os.path.join(REPO_ROOT, "tests", "fixtures", "phase_2_13_run_a.csv"),
-    os.path.join(REPO_ROOT, "tests", "fixtures", "phase_2_13_run_b.csv"),
-    os.path.join(REPO_ROOT, "tests", "fixtures", "phase_2_13_run_c.csv"),
+FIELD_CSV_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "scatter_field_csv.csv")
+FIELD_STATE_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "scatter_field_state.json")
+CONSISTENCY_STATE_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "consistency_parity_state.json")
+CONSISTENCY_RUN_FIXTURES = [
+    os.path.join(REPO_ROOT, "tests", "fixtures", "consistency_run_a.csv"),
+    os.path.join(REPO_ROOT, "tests", "fixtures", "consistency_run_b.csv"),
+    os.path.join(REPO_ROOT, "tests", "fixtures", "consistency_run_c.csv"),
 ]
-
-PHASE_2_14_DILUTED_STATE = os.path.join(REPO_ROOT, "tests/fixtures/phase_2_14_diluted_state.json")
-PHASE_2_14_HIGH_SIGMA_A = os.path.join(REPO_ROOT, "tests/fixtures/phase_2_14_high_sigma_run_a.csv")
-PHASE_2_14_HIGH_SIGMA_B = os.path.join(REPO_ROOT, "tests/fixtures/phase_2_14_high_sigma_run_b.csv")
+DILUTED_MASS_STATE = os.path.join(REPO_ROOT, "tests/fixtures/diluted_mass_state.json")
+HIGH_SIGMA_A = os.path.join(REPO_ROOT, "tests/fixtures/high_sigma_run_a.csv")
+HIGH_SIGMA_B = os.path.join(REPO_ROOT, "tests/fixtures/high_sigma_run_b.csv")
 
 FIELDS = [
     "ts_ms", "zone", "bp_mm", "sigma_mm", "est_sps", "rt_mm", "cf",
@@ -196,14 +195,14 @@ def test_25_bin_alignment_with_tuner():
 
 def test_input_glob_expansion():
     with tempfile.TemporaryDirectory() as td:
-        first = os.path.join(td, "phase212-run1.csv")
-        second = os.path.join(td, "phase212-run2.csv")
+        first = os.path.join(td, "scatter-run1.csv")
+        second = os.path.join(td, "scatter-run2.csv")
         write_csv(first, [row(0, feature="LockedA", v_fil=1000)])
         write_csv(second, [row(0, feature="LockedA", v_fil=1000)])
-        runs, rows = analyze.read_csv_runs([os.path.join(td, "phase212-run*csv")])
+        runs, rows = analyze.read_csv_runs([os.path.join(td, "scatter-run*csv")])
         assert [os.path.basename(run["path"]) for run in runs] == [
-            "phase212-run1.csv",
-            "phase212-run2.csv",
+            "scatter-run1.csv",
+            "scatter-run2.csv",
         ], runs
         assert len(rows) == 2, rows
         return "input glob expands to sorted CSV run list"
@@ -519,11 +518,11 @@ def test_contributors_block_emitted():
         return "patch includes contributors block with bucket weights"
 
 
-def test_phase_2_13_field_repro_gate_should_pass():
-    state = analyze.load_state(PHASE_2_13_STATE_FIXTURE)
+def test_consistency_field_repro_gate_should_pass():
+    state = analyze.load_state(CONSISTENCY_STATE_FIXTURE)
     baselines = []
     biases = []
-    for path in PHASE_2_13_RUN_FIXTURES:
+    for path in CONSISTENCY_RUN_FIXTURES:
         runs, rows = analyze.read_csv_runs([path])
         recs = analyze.compute_recommendations(rows, runs, state, analyze.DEFAULTS.copy(), "safe")
         baselines.append(recs["baseline_rate"][0])
@@ -532,17 +531,17 @@ def test_phase_2_13_field_repro_gate_should_pass():
     assert max(baselines) - min(baselines) <= 50.0, baselines
     assert max(biases) - min(biases) <= 0.05, biases
 
-    runs, rows = analyze.read_csv_runs(PHASE_2_13_RUN_FIXTURES)
+    runs, rows = analyze.read_csv_runs(CONSISTENCY_RUN_FIXTURES)
     gate = analyze.acceptance_gate(rows, runs, state, analyze.DEFAULTS.copy())
     # This NOW fails because the field fixture has very few rows, thus 0 comparable runs.
     assert not gate["pass"], "Expected parity fixture to FAIL comparable check"
     assert any("comparable run count 0 < 2" in r for r in gate["reasons"]), gate["reasons"]
-    return "phase 2.13 fixture fails comparable check as expected"
+    return "consistency fixture fails comparable check as expected"
 
 
 def test_consistency_uses_recommendation_path():
-    state = analyze.load_state(PHASE_2_13_STATE_FIXTURE)
-    runs, _rows = analyze.read_csv_runs(PHASE_2_13_RUN_FIXTURES)
+    state = analyze.load_state(CONSISTENCY_STATE_FIXTURE)
+    runs, _rows = analyze.read_csv_runs(CONSISTENCY_RUN_FIXTURES)
     raw_baseline_delta, _raw_bias_delta = analyze.raw_consistency_by_run(runs)
     baseline_delta, bias_delta = analyze.consistency_by_run(runs, state, analyze.DEFAULTS.copy(), "safe")
     assert raw_baseline_delta >= 600.0, raw_baseline_delta
@@ -552,8 +551,8 @@ def test_consistency_uses_recommendation_path():
 
 
 def test_consistency_matches_standalone_recommendations():
-    state = analyze.load_state(PHASE_2_13_STATE_FIXTURE)
-    runs, _rows = analyze.read_csv_runs(PHASE_2_13_RUN_FIXTURES)
+    state = analyze.load_state(CONSISTENCY_STATE_FIXTURE)
+    runs, _rows = analyze.read_csv_runs(CONSISTENCY_RUN_FIXTURES)
     standalone_baselines = []
     standalone_biases = []
     for run in runs:
@@ -566,7 +565,7 @@ def test_consistency_matches_standalone_recommendations():
     return "consistency deltas match standalone per-run recommendations"
 
 
-def phase_2_13_state_records():
+def consistency_state_records():
     return {
         f"Locked{letter}_v1000": {
             "state": "LOCKED",
@@ -580,8 +579,8 @@ def phase_2_13_state_records():
     }
 
 
-def phase_2_13_state_with_nonlocked_mass(extra_count, extra_n):
-    records = phase_2_13_state_records()
+def consistency_state_with_nonlocked_mass(extra_count, extra_n):
+    records = consistency_state_records()
     for idx in range(extra_count):
         records[f"Stable{idx}_v1000"] = {
             "state": "STABLE",
@@ -594,7 +593,7 @@ def phase_2_13_state_with_nonlocked_mass(extra_count, extra_n):
     return records
 
 
-def phase_2_13_comparable_run(path, bp_delta=-0.756):
+def consistency_comparable_run(path, bp_delta=-0.756):
     rows = []
     for i in range(50):
         ts = int(i * (601000 / 49))
@@ -602,17 +601,17 @@ def phase_2_13_comparable_run(path, bp_delta=-0.756):
     return {"path": path, "rows": rows}
 
 
-def phase_2_13_three_comparable_runs():
+def consistency_three_comparable_runs():
     return [
-        phase_2_13_comparable_run("run-a.csv"),
-        phase_2_13_comparable_run("run-b.csv"),
-        phase_2_13_comparable_run("run-c.csv"),
+        consistency_comparable_run("run-a.csv"),
+        consistency_comparable_run("run-b.csv"),
+        consistency_comparable_run("run-c.csv"),
     ]
 
 
 def test_immature_run_skipped_with_reason():
-    state = analyze.load_state(PHASE_2_13_STATE_FIXTURE)
-    runs, _rows = analyze.read_csv_runs(PHASE_2_13_RUN_FIXTURES)
+    state = analyze.load_state(CONSISTENCY_STATE_FIXTURE)
+    runs, _rows = analyze.read_csv_runs(CONSISTENCY_RUN_FIXTURES)
     info = analyze.classify_run(runs[0], state, analyze.DEFAULTS.copy(), "safe", False, False)
     assert not info["comparable"], info
     assert "rows per contributing bucket" in info["reason"], info
@@ -620,8 +619,8 @@ def test_immature_run_skipped_with_reason():
 
 
 def test_only_one_comparable_run_skips_consistency_check():
-    state = phase_2_13_state_records()
-    comparable = phase_2_13_comparable_run("run-good.csv")
+    state = consistency_state_records()
+    comparable = consistency_comparable_run("run-good.csv")
     immature = {"path": "run-short.csv", "rows": [row(0, feature="LockedC", v_fil=1000, est=720)]}
     report = analyze.consistency_report_by_run(
         [comparable, immature],
@@ -635,11 +634,11 @@ def test_only_one_comparable_run_skips_consistency_check():
 
 
 def test_three_run_field_repro_passes_after_filter():
-    state = phase_2_13_state_records()
+    state = consistency_state_records()
     runs = [
-        phase_2_13_comparable_run("run-a.csv"),
-        phase_2_13_comparable_run("run-b.csv"),
-        phase_2_13_comparable_run("run-c.csv"),
+        consistency_comparable_run("run-a.csv"),
+        consistency_comparable_run("run-b.csv"),
+        consistency_comparable_run("run-c.csv"),
     ]
     rows = [r for run in runs for r in run["rows"]]
     gate = analyze.acceptance_gate(rows, runs, state, analyze.DEFAULTS.copy())
@@ -650,11 +649,11 @@ def test_three_run_field_repro_passes_after_filter():
 
 
 def test_true_disagreement_still_fails():
-    state = phase_2_13_state_records()
+    state = consistency_state_records()
     runs = [
-        phase_2_13_comparable_run("run-a.csv", bp_delta=-0.756),
-        phase_2_13_comparable_run("run-b.csv", bp_delta=0.0),
-        phase_2_13_comparable_run("run-c.csv", bp_delta=1.56),
+        consistency_comparable_run("run-a.csv", bp_delta=-0.756),
+        consistency_comparable_run("run-b.csv", bp_delta=0.0),
+        consistency_comparable_run("run-c.csv", bp_delta=1.56),
     ]
     rows = [r for run in runs for r in run["rows"]]
     gate = analyze.acceptance_gate(rows, runs, state, analyze.DEFAULTS.copy())
@@ -669,10 +668,10 @@ def test_rejected_patch_includes_per_run_estimates():
         csvs = []
         for idx, bp_delta in enumerate([-0.756, 0.0, 1.56], 1):
             path = os.path.join(td, f"run{idx}.csv")
-            write_csv(path, phase_2_13_comparable_run(path, bp_delta=bp_delta)["rows"])
+            write_csv(path, consistency_comparable_run(path, bp_delta=bp_delta)["rows"])
             csvs.append(path)
         state = os.path.join(td, "state.json")
-        write_state_records(state, phase_2_13_state_records())
+        write_state_records(state, consistency_state_records())
         config = os.path.join(td, "config.ini")
         write_config(config)
         out = os.path.join(td, "patch.ini")
@@ -692,8 +691,8 @@ def test_rejected_patch_includes_per_run_estimates():
 
 
 def test_contributor_mass_below_threshold_fails():
-    state = phase_2_13_state_with_nonlocked_mass(extra_count=5, extra_n=1000)
-    runs = phase_2_13_three_comparable_runs()
+    state = consistency_state_with_nonlocked_mass(extra_count=5, extra_n=1000)
+    runs = consistency_three_comparable_runs()
     rows = [r for run in runs for r in run["rows"]]
     gate = analyze.acceptance_gate(rows, runs, state, analyze.DEFAULTS.copy())
     assert not gate["pass"], gate
@@ -703,8 +702,8 @@ def test_contributor_mass_below_threshold_fails():
 
 
 def test_contributor_mass_warn_tier_passes():
-    state = phase_2_13_state_with_nonlocked_mass(extra_count=3, extra_n=500)
-    runs = phase_2_13_three_comparable_runs()
+    state = consistency_state_with_nonlocked_mass(extra_count=3, extra_n=500)
+    runs = consistency_three_comparable_runs()
     rows = [r for run in runs for r in run["rows"]]
     gate = analyze.acceptance_gate(rows, runs, state, analyze.DEFAULTS.copy())
     assert gate["pass"], gate
@@ -714,8 +713,8 @@ def test_contributor_mass_warn_tier_passes():
 
 
 def test_contributor_mass_gray_band_passes_with_warning():
-    state = phase_2_13_state_with_nonlocked_mass(extra_count=3, extra_n=1000)
-    runs = phase_2_13_three_comparable_runs()
+    state = consistency_state_with_nonlocked_mass(extra_count=3, extra_n=1000)
+    runs = consistency_three_comparable_runs()
     rows = [r for run in runs for r in run["rows"]]
     gate = analyze.acceptance_gate(rows, runs, state, analyze.DEFAULTS.copy())
     assert gate["pass"], gate
@@ -725,10 +724,10 @@ def test_contributor_mass_gray_band_passes_with_warning():
 
 
 def test_raw_coverage_below_80_does_not_fail_alone():
-    state = phase_2_13_state_records()
+    state = consistency_state_records()
     runs = []
     for idx in range(3):
-        run_rows = list(phase_2_13_comparable_run(f"run-{idx}.csv")["rows"])
+        run_rows = list(consistency_comparable_run(f"run-{idx}.csv")["rows"])
         run_rows.extend(
             row(i * 6000, feature="Unqualified", v_fil=1000, est=720)
             for i in range(100)
@@ -744,7 +743,7 @@ def test_raw_coverage_below_80_does_not_fail_alone():
 
 
 def test_acceptance_sigma_p95_uses_bp_derived_value():
-    state = phase_2_13_state_records()
+    state = consistency_state_records()
     runs = []
     for idx in range(3):
         rows = []
@@ -762,9 +761,9 @@ def test_acceptance_sigma_p95_uses_bp_derived_value():
     return "acceptance sigma p95 comes from BP scatter and warns but passes"
 
 
-def test_2_14_diluted_mass_fails_initially():
-    """Reproduce Phase 2.14 bug: sparse buckets dilute mass < 50%."""
-    state = analyze.load_state(PHASE_2_14_DILUTED_STATE)
+def test_diluted_mass_repro():
+    """Reproduce bug: sparse buckets dilute mass < 50%."""
+    state = analyze.load_state(DILUTED_MASS_STATE)
     runs = []
     for i in range(3):
         run_rows = []
@@ -782,10 +781,10 @@ def test_2_14_diluted_mass_fails_initially():
     return "diluted mass passes after floor implementation"
 
 
-def test_2_14_high_sigma_fails_initially():
-    """Reproduce Phase 2.14 bug: high sigma (2.0) fails when it should warn."""
-    state = analyze.load_state(PHASE_2_13_STATE_FIXTURE)
-    runs, rows = analyze.read_csv_runs([PHASE_2_14_HIGH_SIGMA_A, PHASE_2_14_HIGH_SIGMA_B, PHASE_2_13_RUN_FIXTURES[2]])
+def test_high_sigma_repro():
+    """Reproduce bug: high sigma (2.0) fails when it should warn."""
+    state = analyze.load_state(CONSISTENCY_STATE_FIXTURE)
+    runs, rows = analyze.read_csv_runs([HIGH_SIGMA_A, HIGH_SIGMA_B, CONSISTENCY_RUN_FIXTURES[2]])
     current = analyze.DEFAULTS.copy()
     current["buf_variance_blend_ref_mm"] = 1.0
     gate = analyze.acceptance_gate(rows, runs, state, current)
@@ -796,9 +795,9 @@ def test_2_14_high_sigma_fails_initially():
     return "high sigma warns and passes after split implementation"
 
 
-def test_2_14_two_runs_fails_initially():
-    """Reproduce Phase 2.14 bug: 2 runs fail even if consistent and mature."""
-    state = phase_2_13_state_records()
+def test_two_run_consistency_repro():
+    """Reproduce bug: 2 runs fail even if consistent and mature."""
+    state = consistency_state_records()
     runs = []
     for i in range(2):
         run_rows = []
@@ -956,7 +955,7 @@ def main():
         ("bp-sigma", test_buf_variance_blend_ref_mm_from_bp_not_bl),
         ("mid-timeout", test_mid_creep_timeout_default_when_insufficient_data),
         ("contributors", test_contributors_block_emitted),
-        ("gate-parity", test_phase_2_13_field_repro_gate_should_pass),
+        ("gate-parity", test_consistency_field_repro_gate_should_pass),
         ("gate-shared", test_consistency_uses_recommendation_path),
         ("gate-standalone", test_consistency_matches_standalone_recommendations),
         ("run-skip", test_immature_run_skipped_with_reason),
@@ -969,9 +968,9 @@ def main():
         ("mass-gray", test_contributor_mass_gray_band_passes_with_warning),
         ("raw-warn", test_raw_coverage_below_80_does_not_fail_alone),
         ("gate-bp-sigma", test_acceptance_sigma_p95_uses_bp_derived_value),
-        ("2.14-mass", test_2_14_diluted_mass_fails_initially),
-        ("2.14-sigma", test_2_14_high_sigma_fails_initially),
-        ("2.14-runs", test_2_14_two_runs_fails_initially),
+        ("mass-repro", test_diluted_mass_repro),
+        ("sigma-repro", test_high_sigma_repro),
+        ("runs-repro", test_two_run_consistency_repro),
         ("determ", test_deterministic_baseline),
         ("flow-sched", test_deterministic_flow_schedule),
         ("flow-sparse", test_sparse_flow_schedule_falls_back_to_one_point),

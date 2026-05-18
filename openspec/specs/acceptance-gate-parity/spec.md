@@ -18,7 +18,8 @@ The gate SHALL compare per-run recommendations from the same state-aware path as
 
 #### Scenario: Test Import
 - **WHEN** existing tests import and call `compute_recommendations`
-- **THEN** returned keys, tuples, and labels remain compatible with Phase 2.12
+- **THEN** returned keys, tuples, and labels remain compatible with legacy
+  integrations
 
 ### Requirement: Run Classification
 The system SHALL classify runs (comparable or skipped) before checking consistency deltas.

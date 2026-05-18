@@ -14,9 +14,9 @@
 - [x] 2.3 Prerequisites with exact commands: find serial port, find Klipper socket, install pyserial, back up state file
 - [x] 2.4 Two-profile bracket model up front: same model, fastest- vs slowest-cubic-flow slicer profile, concrete how-to-pick + one worked example
 - [x] 2.5 Capture — Klipper sidecar path: full `gcode_marker.py --emit sidecar` + `flare_live_tuner.py --observe-daemon --klipper-uds ... --sidecar ...` command lines + expected output
-- [x] 2.6 Capture — standalone shell-marker fallback: full command lines (`--klipper-mode off` / marker file) + expected output, presented as a deprecated fallback
-      Amendment 2026-05-18: shell-marker capture demoted from first-class to
-      deprecated (print-lag rationale) to match repository capture policy.
+- [x] 2.6 Capture — sidecar-only: full command lines + expected output.
+      Amendment 2026-05-18: shell-marker capture removed from the guide to
+      match repository cleanup policy. Sidecar is the only documented path.
 - [x] 2.7 Analyze: exact `flare_analyze.py --profile-fast --profile-slow --emit-flow-schedule [--flow-schedule-cap N] --out ...`; show sample output; explain sparse→one-point
 - [x] 2.8 Review/apply: which keys into `config.ini`; exact `gen_config.py`, `ninja -C build_local`, `flash_flare.sh`, watermark (`flare_analyze.py --commit-watermark --state ...`) commands
 - [x] 2.9 `flare_baseline_recommender.py`: exact `--port`/`--file` invocation, observe-only (no writes), how to read suggested baseline + drift summary, analyzer remains authority
