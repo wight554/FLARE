@@ -79,8 +79,8 @@ contract references them).
 
 - [Non-compiler-checked strings/config silently missed] → exhaustive grep
   inventory + zero-match gate; scripts updated in the same change.
-- [Breaking config keys for users] → accepted by decision (pre-stable);
-  document the key map in `MANUAL.md` migration note.
+- [Breaking config keys] → accepted (active dev, renames safe); legacy
+  keys silently ignored, no migration guide.
 - [Old logs read in old vocab] → accepted (dev); historical only.
 - [Rename accidentally changes behavior] → D4 snapshot gate.
 
