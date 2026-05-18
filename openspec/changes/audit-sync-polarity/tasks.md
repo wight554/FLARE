@@ -71,4 +71,6 @@
   2026-05-18: passed. `ninja -C build_local` also passed because
   `firmware/src/sync.c` changed.
 
-- [ ] 3.4 Commit + push to main
+- [x] 3.4 Commit + push to main
+
+  2026-05-18: audit commit pushed to main as `630b500`.
