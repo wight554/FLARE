@@ -47,14 +47,14 @@ Configuration keys that named the legacy states SHALL be renamed
 `sync_compression_bias_frac`, `compression_rate`, `neutral_creep_*`,
 `sync_overshoot_neutral_extend`). Legacy keys SHALL be ignored by the
 existing unknown-key handling (no new hard-error path is added); a stale
-`config.ini` falls back to defaults for the renamed keys. The key map
-MUST be documented as a migration note in `MANUAL.md`.
+`config.ini` falls back to defaults for the renamed keys. No migration
+guide is produced (active development — renames are safe).
 
 #### Scenario: Legacy config key ignored
 
 - **WHEN** a config uses a legacy key such as `sync_trailing_bias_frac`
-- **THEN** it is silently ignored (default used, existing behavior) and
-  `MANUAL.md` documents the new key name
+- **THEN** it is silently ignored (default used, existing behavior) with
+  no migration documentation required
 
 ### Requirement: The rename does not change control behavior
 

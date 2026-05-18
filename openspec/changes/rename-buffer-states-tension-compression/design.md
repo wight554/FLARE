@@ -59,8 +59,8 @@ Any numeric/behavioral delta = stop, it is not a faithful rename.
 
 - **Legacy config keys: ignore, no hard error.** Renaming the keys is the
   whole change; the existing unknown-key handling already ignores stale
-  keys and uses defaults. No new validation/error path is added. Migration
-  map documented in `MANUAL.md`. (User decision.)
+  keys and uses defaults. No new validation/error path is added. No
+  migration guide — active dev, renames are safe. (User decision.)
 - **Field keys renamed too.** `AD`/`TD`/`APX` and any other
   old-state-derived short status keys are renamed — zero survivors; all
   parsers updated in lockstep. (User decision.)

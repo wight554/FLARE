@@ -24,8 +24,8 @@
 
 - [ ] 3.1 `protocol.c` emit tokens renamed; `TEST_CASES.md` status
   snapshots updated to new tokens
-- [ ] 3.2 Docs reworded: `BEHAVIOR.md`, `HARDWARE.md`, `CONTEXT.md`,
-  `MANUAL.md`, `KLIPPER.md` (+ config key migration note in `MANUAL.md`)
+- [ ] 3.2 Docs reworded to new vocabulary: `BEHAVIOR.md`, `HARDWARE.md`,
+  `CONTEXT.md`, `MANUAL.md`, `KLIPPER.md` (no migration guide — active dev)
 
 ## 4. P3 — live specs
 

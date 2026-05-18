@@ -40,8 +40,8 @@ diff stays reviewable as "faithful rename only".
   `mid_creep_* → neutral_creep_*`, `sync_overshoot_mid_extend →
   sync_overshoot_neutral_extend`. **Legacy keys are simply ignored by the
   existing unknown-key handling (no new hard-error logic); a stale
-  `config.ini` silently falls back to defaults for renamed keys.** A key
-  migration map is documented in `MANUAL.md` (decision).
+  `config.ini` silently falls back to defaults for renamed keys.** No
+  migration guide — active dev, renames are safe; just zero old names.
 - `mid → neutral` applies to **buffer-state-derived `mid` only**
   (`BUF_MID`, `mid_creep_*`, `sync_overshoot_mid_extend`,
   `SYNC_RELAY_MID_FRAC`, `sync_mid_anti_advance_*`). Unrelated arithmetic
