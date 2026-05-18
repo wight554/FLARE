@@ -873,16 +873,16 @@ static int sync_mid_anti_advance_floor_sps(buf_state_t s, lane_t *A,
     if (g_sync_state != SYNC_ACTIVE || s != BUF_MID || !A) return 0;
     if (A->task != TASK_FEED || A->fault != FAULT_NONE) return 0;
     if (reserve_error_mm > reserve_deadband_mm) return 0;
+    (void)now_ms;
 
+    /* F1a: unconditional refill floor. The earlier estimator
+     * freshness/confidence gate disabled this exact case — a fresh,
+     * high-confidence but collapsed estimator — letting MID drain to the
+     * trailing wall. The floor is baseline-derived (not estimator-derived)
+     * so it can never itself drive the buffer toward ADVANCE. */
     int baseline_floor_sps = baseline_control_floor_sps();
     int assist_floor_sps = (int)((float)baseline_floor_sps * SYNC_MID_ANTI_ADVANCE_FLOOR_FRAC);
     if (assist_floor_sps <= SYNC_MIN_SPS) return 0;
-
-    bool est_stale = extruder_est_last_update_ms == 0 ||
-                     (now_ms - extruder_est_last_update_ms) >= SYNC_MID_ANTI_ADVANCE_STALE_MS;
-    bool low_confidence = g_buf_signal.confidence < SYNC_MID_ANTI_ADVANCE_CONF;
-    bool est_below_floor = extruder_est_sps < (float)assist_floor_sps;
-    if (!est_stale && !low_confidence && !est_below_floor) return 0;
 
     return assist_floor_sps;
 }
@@ -970,6 +970,15 @@ static int sync_bootstrap_sps(void) {
         res = clamp_i((int)extruder_est_sps, startup_floor_sps, max_sps);
     } else {
         res = clamp_i(startup_floor_sps, TRAILING_SPS, max_sps);
+    }
+
+    /* F2b: a post-recovery start ramps from the learned baseline, not a
+     * collapsed/high estimator, so bootstrap cannot slam ADVANCE. The
+     * startup_floor lower bound is still honored. */
+    if (baseline_floor_sps >= startup_floor_sps && res > baseline_floor_sps)
+        res = baseline_floor_sps;
+
+    if (!est_fresh) {
         extruder_est_sps = (float)res;
         extruder_est_prev_sps = (float)res;
     }
@@ -1156,6 +1165,10 @@ void sync_tick(uint32_t now_ms) {
     if (g_sync_state == SYNC_FAULT_HOLD) {
         // VERIFY: retune from FAULT_HOLD/FAULT_HOLD_RECOVERY event logs
         if (now_ms - g_sync_fault_hold_entry_ms >= CONF_SYNC_FAULT_HOLD_RECOVERY_MS) {
+            /* F2a: discard the fictional ADVANCE the dead-reckoned model
+             * accumulates with feed=0 during hold, so AUTO_START re-arms
+             * only on a genuine advance, not a drifted one. */
+            if (BUF_SENSOR_TYPE == 0) g_buf_pos = buf_target_reserve_mm();
             sync_set_state(SYNC_OFF);
             cmd_event("SYNC", "FAULT_HOLD_RECOVERY");
         } else {
@@ -1489,6 +1502,13 @@ void sync_tick(uint32_t now_ms) {
             recovery_cap -= extra_trim;
         }
         if (recovery_cap < trailing_floor_sps) recovery_cap = trailing_floor_sps;
+        /* F1b: collapse braking is for an over-advanced buffer draining
+         * through TRAILING; while still in MID it must not starve the
+         * refill below the learned baseline. */
+        if (s == BUF_MID) {
+            int mid_floor = baseline_control_floor_sps();
+            if (recovery_cap < mid_floor) recovery_cap = mid_floor;
+        }
         if (target_sps > recovery_cap) target_sps = recovery_cap;
     }
 

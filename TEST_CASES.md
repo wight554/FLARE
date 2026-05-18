@@ -617,6 +617,39 @@ ADVANCE recovery floor at startup and low flow.
 
 ---
 
+### pending-manual-hardware: MID Refill And FAULT_HOLD Anti-Oscillation
+
+#### Goal
+
+Confirm standalone sync does not collapse into the
+`MID(deep-trailing) → TRAILING → FAULT_HOLD → recovery → ADVANCE-pin →
+FAULT_HOLD` oscillator when the extruder estimate is fresh but collapses
+well below the learned baseline on a long same-flow print.
+
+#### Steps
+
+1. Flash firmware with the F1a/F1b/F2a/F2b changes.
+2. Run a long, steady same-flow standalone print (no analog buffer sensor,
+   `BUF_SENSOR_TYPE=0`).
+3. Capture status with `python3 scripts/flare_cmd.py "?:" --poll 500` and
+   watch `BUF`, `BP`, `RT`, `EST`, `AD`, `TD`, `APX`, `RDC`, and
+   `EV:SYNC:*`.
+
+#### Expected Result
+
+- While `BUF:MID` and `BP` at/below `RT`, feed holds at or above the
+  baseline floor; the buffer refills toward `RT` instead of pinning at the
+  `-7.80` trailing wall.
+- No repeating `FAULT_HOLD` / `FAULT_HOLD_RECOVERY` / `AUTO_START` cycle;
+  `ADV_RISK_HIGH` does not latch.
+- After any genuine `FAULT_HOLD_RECOVERY`, `BP` resets toward `RT` (not a
+  fictional ADVANCE) and `AUTO_START` does not slam `BUF:ADVANCE` with a
+  large `RE`/`AV`.
+- Full braking and fault-hold behavior still occur once actually in
+  `BUF_TRAILING`.
+
+---
+
 ## Expected Status Snapshots
 
 These are reference patterns, not byte-for-byte golden outputs. Exact rates,
