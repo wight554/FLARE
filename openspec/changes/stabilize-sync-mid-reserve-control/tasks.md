@@ -9,16 +9,22 @@
 
 ## 2. MID Reserve Control
 
-- [ ] 2.1 Add a MID-only stale-estimator anti-advance floor in `firmware/src/sync.c` after normal reserve target calculation and scaling.
-- [ ] 2.2 Gate the assist so it only applies in `SYNC_ACTIVE` / `BUF_MID` while the active lane is feeding without fault.
-- [ ] 2.3 Confirm `BUF_TRAILING` keeps existing braking, collapse ramp, fast brake, and fault-hold behavior.
+- [x] 2.1 Add a MID-only stale-estimator anti-advance floor in `firmware/src/sync.c` after normal reserve target calculation and scaling.
+  - 2026-05-18: Added `sync_mid_anti_advance_floor_sps()` after target calculation/scaling. The floor is based on the learned baseline floor rather than the potentially collapsed estimator.
+- [x] 2.2 Gate the assist so it only applies in `SYNC_ACTIVE` / `BUF_MID` while the active lane is feeding without fault.
+  - 2026-05-18: Gated by sync state, buffer state, active lane feed task, lane fault state, reserve side, estimator staleness/confidence, and estimator-vs-floor check.
+- [x] 2.3 Confirm `BUF_TRAILING` keeps existing braking, collapse ramp, fast brake, and fault-hold behavior.
+  - 2026-05-18: The anti-advance floor returns 0 unless `s == BUF_MID`, and the existing trailing recovery, trailing wall critical, fast-brake, clamp, and trailing-floor branches remain unchanged.
 
 ## 3. Validation
 
 - [x] 3.1 Run `python3 -m py_compile scripts/*.py`.
   - 2026-05-18: Passed.
+  - 2026-05-18: Passed after MID anti-advance floor change.
 - [x] 3.2 Run `cmake --build build_local`.
   - 2026-05-18: Passed.
+  - 2026-05-18: Passed after MID anti-advance floor change.
 - [x] 3.3 Run `openspec validate stabilize-sync-mid-reserve-control --strict`.
   - 2026-05-18: Passed.
+  - 2026-05-18: Passed after MID anti-advance floor change.
 - [ ] 3.4 Hardware test with `python3 scripts/flare_cmd.py "?:" --poll 500`; compare `BUF`, `MM`, `BP`, `EST`, `AD`, `TD`, `APX`, `RDC`, and `EV:SYNC:*` against prior logs.

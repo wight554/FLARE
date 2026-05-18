@@ -22,6 +22,9 @@
 #define SYNC_EST_FRESH_MS 20000u
 #define SYNC_MID_TRAILING_TAPER_FRAC 0.5f
 #define SYNC_MID_TRAILING_FLOOR_FRAC 0.45f
+#define SYNC_MID_ANTI_ADVANCE_STALE_MS 1500u
+#define SYNC_MID_ANTI_ADVANCE_FLOOR_FRAC 0.70f
+#define SYNC_MID_ANTI_ADVANCE_CONF 0.98f
 #define SYNC_RESERVE_CENTER_GUARD_FRAC 0.05f
 #define ENDSTOP_PER_UNIT_SIGMA_MM 0.025f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_START_MM_MIN 1000.0f
@@ -863,6 +866,27 @@ static int baseline_control_floor_sps(void) {
     return (fp.baseline_sps > g_baseline_target_sps) ? fp.baseline_sps : g_baseline_target_sps;
 }
 
+static int sync_mid_anti_advance_floor_sps(buf_state_t s, lane_t *A,
+                                           float reserve_error_mm,
+                                           float reserve_deadband_mm,
+                                           uint32_t now_ms) {
+    if (g_sync_state != SYNC_ACTIVE || s != BUF_MID || !A) return 0;
+    if (A->task != TASK_FEED || A->fault != FAULT_NONE) return 0;
+    if (reserve_error_mm > reserve_deadband_mm) return 0;
+
+    int baseline_floor_sps = baseline_control_floor_sps();
+    int assist_floor_sps = (int)((float)baseline_floor_sps * SYNC_MID_ANTI_ADVANCE_FLOOR_FRAC);
+    if (assist_floor_sps <= SYNC_MIN_SPS) return 0;
+
+    bool est_stale = extruder_est_last_update_ms == 0 ||
+                     (now_ms - extruder_est_last_update_ms) >= SYNC_MID_ANTI_ADVANCE_STALE_MS;
+    bool low_confidence = g_buf_signal.confidence < SYNC_MID_ANTI_ADVANCE_CONF;
+    bool est_below_floor = extruder_est_sps < (float)assist_floor_sps;
+    if (!est_stale && !low_confidence && !est_below_floor) return 0;
+
+    return assist_floor_sps;
+}
+
 int sync_clamp_max_sps(int requested_sps) {
     return motion_clamp_rate_sps(requested_sps);
 }
@@ -1445,6 +1469,12 @@ void sync_tick(uint32_t now_ms) {
     if (sync_post_trailing_boost_until_ms != 0) {
         if ((int32_t)(sync_post_trailing_boost_until_ms - now_ms) > 0) target_sps += PRE_RAMP_SPS;
         else sync_post_trailing_boost_until_ms = 0;
+    }
+
+    int mid_anti_advance_floor_sps = sync_mid_anti_advance_floor_sps(
+        s, A, reserve_error_mm, reserve_deadband_mm, now_ms);
+    if (mid_anti_advance_floor_sps > 0 && target_sps < mid_anti_advance_floor_sps) {
+        target_sps = mid_anti_advance_floor_sps;
     }
 
     if (sync_trailing_recovery_active) {

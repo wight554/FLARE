@@ -284,6 +284,14 @@ the buffer without hard-coding a deep hidden-margin target into firmware.
 This bias keeps the arm near the desired reserve target when the estimator is
 slightly wrong, while the estimator remains the dominant term.
 
+When normal sync is active and the arm is still physically in `BUF_MID`,
+firmware also applies a MID-only anti-advance floor if the estimator looks
+stale, low-confidence, or has collapsed below the learned baseline-derived
+floor while reserve is already near or deeper than the trailing-side target.
+This prevents long MID dwell from decaying command speed into the next
+advance hit. The floor is not active in `BUF_TRAILING`, so trailing braking,
+collapse recovery, fast brake, and fault-hold behavior keep full authority.
+
 FLARE supports **mid-zone creep** for active wall-seek. If the arm dwells in the `MID` zone longer than `MID_CREEP_TIMEOUT_MS`, a synthetic push velocity is gradually added (`MID_CREEP_RATE`) to gently force the arm back to the trailing wall to restore confidence. This creep is capped by `MID_CREEP_CAP` (% of the measured extruder rate) and resets immediately if the arm reaches an endstop.
 
 The `RT:` and `RD:` fields in `?:` status expose the current reserve target
