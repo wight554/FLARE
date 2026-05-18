@@ -617,6 +617,34 @@ ADVANCE recovery floor at startup and low flow.
 
 ---
 
+### pending-manual-hardware: 2-Switch Hysteretic Relay Control
+
+#### Goal
+
+Confirm that in standalone 2-switch mode (`BUF_SENSOR_TYPE=0`) the buffer
+follows a slow, shallow, never-ADVANCE-leaning limit cycle with no
+FAULT_HOLD on normal switch contact, during a real print.
+
+#### Steps
+
+1. Flash firmware with the relay change.
+2. Run a real print; capture `flare_cmd.py "?:" --poll 500`.
+3. Watch `BUF`, `BP`, `EV:BS:*`, `EV:SYNC:*`, cycle period/amplitude.
+
+#### Expected Result
+
+- Buffer cycles gently through MID; brief TRAILING/ADVANCE switch touches,
+  not multi-second pinning at ±7.8.
+- No `EV:SYNC:FAULT_HOLD` from normal TRAILING/ADVANCE contact; no
+  5 s pause → ADVANCE-slam pattern.
+- Cycle leans trailing (more time trailing side); no underextrusion.
+- Tune `SYNC_RELAY_CATCHUP_FRAC` (↑ if it starves), `BACKOFF_FRAC`
+  (↓ if it pins ADVANCE), `MID_FRAC` (↓ for more trailing lean) until the
+  cycle is slow and benign.
+- `BUF_SENSOR_TYPE != 0` (analog) behavior unchanged.
+
+---
+
 ### pending-manual-hardware: Holdable Reserve Target (No Wall-Riding)
 
 #### Goal

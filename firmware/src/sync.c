@@ -37,6 +37,20 @@
  * Tight cap (~150mm/min equiv) so it can never starve vs the reserve
  * P-authority; only applied MID and only on the advance side of target. */
 #define SYNC_TRAILING_FEED_TRIM_MAX_SPS 120
+/* RELAY CONTROL (2-switch standalone). The buffer has only TRAILING and
+ * ADVANCE microswitches: no analog position, no extruder feedback. A
+ * continuous PI controller on a dead-reckoned position limit-cycles by
+ * construction (no feedback between crossings). The correct controller for
+ * a 2-switch buffer is a hysteretic relay matched to the switches: feed
+ * fast while the TRAILING switch is pressed (buffer empty -> refill), slow
+ * while ADVANCE is pressed (buffer full -> let extruder drain it), and a
+ * gentle trailing-biased hold in MID so the limit cycle is slow, shallow,
+ * and never-ADVANCE-leaning. The existing ramp + trailing_floor damp it.
+ * These three fracs (x baseline control floor) are the primary on-hardware
+ * relay tuning knobs. */
+#define SYNC_RELAY_CATCHUP_FRAC 1.45f
+#define SYNC_RELAY_BACKOFF_FRAC 0.35f
+#define SYNC_RELAY_MID_FRAC     0.97f
 #define ENDSTOP_PER_UNIT_SIGMA_MM 0.025f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_START_MM_MIN 1000.0f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_FULL_MM_MIN 1400.0f
@@ -1504,7 +1518,11 @@ void sync_tick(uint32_t now_ms) {
 
     if (s == BUF_ADVANCE && sync_advance_pin_since_ms != 0) {
         uint32_t adv_dwell_ms = now_ms - sync_advance_pin_since_ms;
-        if (SYNC_ADVANCE_DWELL_STOP_MS > 0 &&
+        /* RELAY: ADVANCE switch contact is the normal "buffer full, back
+         * off" signal, not a fault. Only fault-hold on advance dwell in
+         * analog mode; the relay back-off drains it in 2-switch mode. */
+        if (BUF_SENSOR_TYPE != 0 &&
+            SYNC_ADVANCE_DWELL_STOP_MS > 0 &&
             adv_dwell_ms >= (uint32_t)SYNC_ADVANCE_DWELL_STOP_MS) {
             sync_fault_hold();
             extruder_est_last_update_ms = now_ms;
@@ -1568,7 +1586,12 @@ void sync_tick(uint32_t now_ms) {
     bool trailing_wall_critical = g_buf_signal.kind == BUF_SRC_VIRTUAL_ENDSTOP && s == BUF_TRAILING &&
                                  trailing_push_mm_s > SYNC_TRAILING_HARD_PUSH_MM_S &&
                                  trailing_wall_ms < SYNC_TRAILING_HARD_WALL_MS;
-    if (trailing_wall_critical) {
+    /* RELAY: hitting the TRAILING switch is the normal "buffer empty,
+     * refill" control signal, not a jam. This critical-fault only ever
+     * fired in 2-switch mode and was manufacturing the FAULT_HOLD ->
+     * recovery-slam cycle. Suppress it in relay mode; the relay catch-up
+     * + trailing_floor handle an empty buffer. */
+    if (trailing_wall_critical && BUF_SENSOR_TYPE != 0) {
         sync_fault_hold();
         extruder_est_last_update_ms = now_ms;
         sync_apply_to_active();
@@ -1579,6 +1602,23 @@ void sync_tick(uint32_t now_ms) {
     bool fast_brake_active = sync_fast_brake_until_ms != 0 && (int32_t)(sync_fast_brake_until_ms - now_ms) > 0;
     if (!fast_brake_active && sync_fast_brake_until_ms != 0 && (int32_t)(now_ms - sync_fast_brake_until_ms) >= 0)
         sync_fast_brake_until_ms = 0;
+
+    /* RELAY CONTROL (2-switch standalone). Override the est/reserve/PI
+     * target with a hysteretic relay matched to the switches. This
+     * discards the dead-reckon position controller (the limit-cycle
+     * source) but keeps the ramp, clamp, trailing_floor and relief logic
+     * below. Hysteresis is inherent: two physical switches + the MID band.
+     * Equilibrium leans trailing (MID frac < 1) for the never-ADVANCE
+     * intent; the slow ramp keeps the cycle shallow. */
+    if (BUF_SENSOR_TYPE == 0) {
+        int relay_base = baseline_control_floor_sps();
+        if (s == BUF_TRAILING)
+            target_sps = (int)((float)relay_base * SYNC_RELAY_CATCHUP_FRAC);
+        else if (s == BUF_ADVANCE)
+            target_sps = (int)((float)relay_base * SYNC_RELAY_BACKOFF_FRAC);
+        else
+            target_sps = (int)((float)relay_base * SYNC_RELAY_MID_FRAC);
+    }
 
     int max_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
     if (fast_brake_active) target_sps = 0;
