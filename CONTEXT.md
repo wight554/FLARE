@@ -80,7 +80,7 @@ Important fields:
 - `state`: `TC_IDLE` through `TC_ERROR`
 - `target_lane`, `from_lane`
 - `phase_start_ms`: current phase timing origin
-- `reload_tick_ms`, `reload_current_sps`, `last_trailing_ms`: RELOAD follow control state
+- `reload_tick_ms`, `reload_current_sps`, `last_compression_ms`: RELOAD follow control state
 
 ### `buf_tracker_t`
 
@@ -88,7 +88,7 @@ Buffer-zone transition history used by estimator.
 
 Important fields:
 
-- `state`: `BUF_MID`, `BUF_ADVANCE`, `BUF_TRAILING`, `BUF_FAULT`
+- `state`: `BUF_NEUTRAL`, `BUF_TENSION`, `BUF_COMPRESSION`, `BUF_FAULT`
 - `entered_ms`, `dwell_ms`
 - `arm_vel_mm_s`
 - `mmu_sps_at_entry`, `mmu_sps_dwell_sum`, `mmu_sps_dwell_samples`
@@ -122,7 +122,7 @@ Current `SETTINGS_VERSION`: `47` in `firmware/src/settings_store.c`.
 
 ### 2. RELOAD is buffer-driven now
 
-- `TC_RELOAD_APPROACH` waits for `BUF_TRAILING` contact.
+- `TC_RELOAD_APPROACH` waits for `BUF_COMPRESSION` contact.
 - `TC_RELOAD_FOLLOW` reuses estimator with `RELOAD_LEAN_FACTOR`.
 - No driver-load or DIAG-based stall handling in current firmware flow.
 

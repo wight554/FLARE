@@ -198,8 +198,8 @@ PIN_L2_IN   = 4    PIN_L2_OUT  = 5
 PIN_Y_SPLIT = 6
 
 // Buffer (adjacent pins on header)
-PIN_BUF_ADVANCE  = 18   // GPIO18: no named ERB net, accessible on header (row above GPIO12)
-PIN_BUF_TRAILING = 12   // GPIO12: PRE_GATE_0 connector
+PIN_BUF_TENSION  = 18   // GPIO18: no named ERB net, accessible on header (row above GPIO12)
+PIN_BUF_COMPRESSION = 12   // GPIO12: PRE_GATE_0 connector
 
 // Lane 1
 PIN_L1_EN   = 8    PIN_L1_DIR  = 9    PIN_L1_STEP = 10

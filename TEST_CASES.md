@@ -415,14 +415,14 @@ python3 scripts/flare_cmd.py "SET:AUTO_MODE:1" "SM:1"
 ```
 
 2. Put the active lane in a loaded state where the downstream path can pull filament.
-3. Pull the buffer into `ADVANCE` and monitor with repeated `?:` calls.
-4. Let the system settle, then hold the buffer in `TRAILING` long enough for sync to collapse to its minimum trailing-floor speed and remain there past `SYNC_AUTO_STOP`.
+3. Pull the buffer into `TENSION` and monitor with repeated `?:` calls.
+4. Let the system settle, then hold the buffer in `COMPRESSION` long enough for sync to collapse to its minimum compression-floor speed and remain there past `SYNC_AUTO_STOP`.
 
 ### Expected Result
 
-- `BUF_ADVANCE` can trigger `EV:SYNC:AUTO_START`.
+- `BUF_TENSION` can trigger `EV:SYNC:AUTO_START`.
 - Status shows sync active and `SPS` / `BL` / `BS` fields updating.
-- Sustained `TRAILING` only triggers `EV:SYNC:AUTO_STOP` after sync has already collapsed to its minimum trailing-floor speed.
+- Sustained `COMPRESSION` only triggers `EV:SYNC:AUTO_STOP` after sync has already collapsed to its minimum compression-floor speed.
 - Sync does not run during toolchange or RELOAD phases.
 
 ---
@@ -513,14 +513,14 @@ firmware commit, setup, commands, and observed status/events.
 #### Goal
 
 Confirm sync enters non-destructive `FAULT_HOLD` from both hard-wall critical
-and advance-dwell paths, then recovers automatically.
+and tension-dwell paths, then recovers automatically.
 
 #### Steps
 
 1. Start from a loaded lane with sync active and capture repeated `?:` output.
-2. For the advance-dwell path, hold the buffer in `ADVANCE` longer than
-   `SYNC_ADV_STOP_MS`.
-3. For the hard-wall path, force a trailing hard-wall critical condition during
+2. For the tension-dwell path, hold the buffer in `TENSION` longer than
+   `SYNC_TENSION_STOP_MS`.
+3. For the hard-wall path, force a compression hard-wall critical condition during
    active sync with enough net push velocity to cross the configured hard-wall
    thresholds.
 4. Continue monitoring until after `CONF_SYNC_FAULT_HOLD_RECOVERY_MS`.
@@ -544,18 +544,18 @@ sync effort exceeds 50 mm.
 
 1. Configure the default thresholds:
    `sync_cannot_refill_mm: 50.0` and `sync_cannot_relieve_mm: 50.0`.
-2. Start sync and create a sustained `BUF_ADVANCE` episode where the MMU is
+2. Start sync and create a sustained `BUF_TENSION` episode where the MMU is
    trying to refill the buffer.
 3. Observe `SYNC_REFILL_MM` in status until it exceeds 50.
-4. Return to a neutral state, then create a sustained `BUF_TRAILING` episode
+4. Return to a neutral state, then create a sustained `BUF_COMPRESSION` episode
    where the MMU is trying to relieve/pull down excess buffer.
 5. Observe `SYNC_RELIEVE_MM` until it exceeds 50.
 
 #### Expected Result
 
-- `EV:SYNC:cannot_refill` emits once during the ADVANCE episode after the
+- `EV:SYNC:cannot_refill` emits once during the TENSION episode after the
   refill effort crosses 50 mm.
-- `EV:SYNC:cannot_relieve` emits once during the TRAILING episode after the
+- `EV:SYNC:cannot_relieve` emits once during the COMPRESSION episode after the
   relieve effort crosses 50 mm.
 - Counters reset on sync state/episode changes and do not spam repeated events.
 - The events are warn-only; they do not directly change the control target.
@@ -570,9 +570,9 @@ hardware.
 #### Steps
 
 1. Flash a scalar-only config with no `[flow_schedule.v1]` table and record a
-   sync flow sweep across low, mid, and high print demand.
+   sync flow sweep across low, neutral, and high print demand.
 2. Confirm `scripts/gen_config.py` synthesized `CONF_FLOW_SCHED_LEN 1`.
-3. Capture status fields including `EST`, `BL`, `TB`, `RT`, `BP`, `SPS`, and
+3. Capture status fields including `EST`, `BL`, `CB`, `RT`, `BP`, `SPS`, and
    any `SYNC`/`BUF` events.
 4. Compare against the previous scalar build or a known-good scalar replay for
    the same hardware motion pattern.
@@ -581,7 +581,7 @@ hardware.
 
 - `BL` stays equal to the scalar baseline plus any expected ephemeral live
   learner lift.
-- `TB` stays equal to the scalar trailing bias at integer-milli resolution.
+- `CB` stays equal to the scalar compression bias at integer-milli resolution.
 - Reserve target/control output is identical for milli-aligned bias configs
   and within 0.0005 absolute bias otherwise.
 - No new sync, toolchange, or RELOAD fault appears during the sweep.
@@ -591,28 +591,28 @@ hardware.
 #### Goal
 
 Confirm multi-point flow schedules cannot weaken the reserve cushion or
-ADVANCE recovery floor at startup and low flow.
+TENSION recovery floor at startup and low flow.
 
 #### Steps
 
 1. Flash a config with `[flow_schedule.v1]` containing at least one low-flow
-   breakpoint whose bias is less than `TRAIL_BIAS_FRAC` and whose baseline is
+   breakpoint whose bias is less than `COMPRESSION_BIAS_FRAC` and whose baseline is
    less than `BASELINE_RATE`.
 2. Start a sync run from idle/startup and include low-flow perimeter or
    post-travel motion that clamps to that weak endpoint.
-3. Capture status fields including `BUF`, `RT`, `BP`, `BL`, `TB`, `AD`, `SPS`,
+3. Capture status fields including `BUF`, `RT`, `BP`, `BL`, `CB`, `TT`, `SPS`,
    and any `SYNC`/`BUF` events.
-4. Repeat with a breakpoint whose bias is greater than `TRAIL_BIAS_FRAC` to
+4. Repeat with a breakpoint whose bias is greater than `COMPRESSION_BIAS_FRAC` to
    confirm deeper reserve is still honored.
 
 #### Expected Result
 
 - At the weak endpoint, effective reserve depth is no shallower than the scalar
-  `TRAIL_BIAS_FRAC` cushion.
-- The baseline control floor stays at or above `BASELINE_RATE`, so ADVANCE
+  `COMPRESSION_BIAS_FRAC` cushion.
+- The baseline control floor stays at or above `BASELINE_RATE`, so TENSION
   recovery gain is not sluggish.
-- Startup and low-flow motion do not pin the buffer in `BUF_ADVANCE` for
-  seconds, and no underextrusion-causing ADVANCE dwell is observed.
+- Startup and low-flow motion do not pin the buffer in `BUF_TENSION` for
+  seconds, and no underextrusion-causing TENSION dwell is observed.
 - A stronger schedule bias still deepens reserve relative to the scalar.
 
 ---
@@ -622,7 +622,7 @@ ADVANCE recovery floor at startup and low flow.
 #### Goal
 
 Confirm that in standalone 2-switch mode (`BUF_SENSOR_TYPE=0`) the buffer
-follows a slow, shallow, never-ADVANCE-leaning limit cycle with no
+follows a slow, shallow, never-TENSION-leaning limit cycle with no
 FAULT_HOLD on normal switch contact, during a real print.
 
 #### Steps
@@ -633,13 +633,13 @@ FAULT_HOLD on normal switch contact, during a real print.
 
 #### Expected Result
 
-- Buffer cycles gently through MID; brief TRAILING/ADVANCE switch touches,
+- Buffer cycles gently through NEUTRAL; brief COMPRESSION/TENSION switch touches,
   not multi-second pinning at ±7.8.
-- No `EV:SYNC:FAULT_HOLD` from normal TRAILING/ADVANCE contact; no
-  5 s pause → ADVANCE-slam pattern.
-- Cycle leans trailing (more time trailing side); no underextrusion.
+- No `EV:SYNC:FAULT_HOLD` from normal COMPRESSION/TENSION contact; no
+  5 s pause → TENSION-slam pattern.
+- Cycle leans compression (more time compression side); no underextrusion.
 - Tune `SYNC_RELAY_CATCHUP_FRAC` (↑ if it starves), `BACKOFF_FRAC`
-  (↓ if it pins ADVANCE), `MID_FRAC` (↓ for more trailing lean) until the
+  (↓ if it pins TENSION), `NEUTRAL_FRAC` (↓ for more compression lean) until the
   cycle is slow and benign.
 - `BUF_SENSOR_TYPE != 0` (analog) behavior unchanged.
 
@@ -651,7 +651,7 @@ FAULT_HOLD on normal switch contact, during a real print.
 
 Confirm the buffer holds near a holdable reserve target with frequent
 switch crossings (estimator stays fresh) instead of parking on the
-trailing fault wall and FAULT_HOLD-cycling, during a real print.
+compression fault wall and FAULT_HOLD-cycling, during a real print.
 
 #### Steps
 
@@ -662,22 +662,22 @@ trailing fault wall and FAULT_HOLD-cycling, during a real print.
 #### Expected Result
 
 - `RT ≈ -3.9mm` (not `-6.24`); `BP` oscillates around `RT` with regular
-  MID↔TRAILING/ADVANCE crossings, not pinned at `-7.7…-7.8`.
+  NEUTRAL↔COMPRESSION/TENSION crossings, not pinned at `-7.7…-7.8`.
 - `EST` tracks demand and does not freeze for seconds at a hallucinated
   value.
 - No repeating `FAULT_HOLD`/`FAULT_HOLD_RECOVERY` cycle; no underextrusion.
-- Buffer stays trailing-biased (rarely ADVANCE) via the H2 feed trim, not
+- Buffer stays compression-biased (rarely TENSION) via the H2 feed trim, not
   by parking on the wall.
 - If still wall-riding, lower `SYNC_RESERVE_BIAS_POS_FRAC_CAP` and retest.
 
 ---
 
-### pending-manual-hardware: MID Refill And FAULT_HOLD Anti-Oscillation
+### pending-manual-hardware: NEUTRAL Refill And FAULT_HOLD Anti-Oscillation
 
 #### Goal
 
 Confirm standalone sync does not collapse into the
-`MID(deep-trailing) → TRAILING → FAULT_HOLD → recovery → ADVANCE-pin →
+`NEUTRAL(deep-compression) → COMPRESSION → FAULT_HOLD → recovery → TENSION-pin →
 FAULT_HOLD` oscillator when the extruder estimate is fresh but collapses
 well below the learned baseline on a long same-flow print.
 
@@ -687,21 +687,21 @@ well below the learned baseline on a long same-flow print.
 2. Run a long, steady same-flow standalone print (no analog buffer sensor,
    `BUF_SENSOR_TYPE=0`).
 3. Capture status with `python3 scripts/flare_cmd.py "?:" --poll 500` and
-   watch `BUF`, `BP`, `RT`, `EST`, `AD`, `TD`, `APX`, `RDC`, and
+   watch `BUF`, `BP`, `RT`, `EST`, `TT`, `CT`, `TPX`, `RDC`, and
    `EV:SYNC:*`.
 
 #### Expected Result
 
-- While `BUF:MID` and `BP` at/below `RT`, feed holds at or above the
+- While `BUF:NEUTRAL` and `BP` at/below `RT`, feed holds at or above the
   baseline floor; the buffer refills toward `RT` instead of pinning at the
-  `-7.80` trailing wall.
+  `-7.80` compression wall.
 - No repeating `FAULT_HOLD` / `FAULT_HOLD_RECOVERY` / `AUTO_START` cycle;
-  `ADV_RISK_HIGH` does not latch.
+  `TENSION_RISK_HIGH` does not latch.
 - After any genuine `FAULT_HOLD_RECOVERY`, `BP` resets toward `RT` (not a
-  fictional ADVANCE) and `AUTO_START` does not slam `BUF:ADVANCE` with a
+  fictional TENSION) and `AUTO_START` does not slam `BUF:TENSION` with a
   large `RE`/`AV`.
 - Full braking and fault-hold behavior still occur once actually in
-  `BUF_TRAILING`.
+  `BUF_COMPRESSION`.
 
 ---
 
@@ -763,7 +763,7 @@ What to check:
 ### Sync running normally
 
 ```text
-OK:LN:1,TC:IDLE,L1T:FEED,L2T:IDLE,...,SM:1,BUF:ADVANCE,SPS:...,BL:...,BP:...
+OK:LN:1,TC:IDLE,L1T:FEED,L2T:IDLE,...,SM:1,BUF:TENSION,SPS:...,BL:...,BP:...
 ```
 
 What to check:

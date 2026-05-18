@@ -43,10 +43,10 @@ class Clock:
         return self.t
 
 
-def status(est=1820, cf=0.90, apx=0, zone="MID", tc="IDLE", bp=-3.0, rt=-2.8):
+def status(est=1820, cf=0.90, tpx=0, zone="NEUTRAL", tc="IDLE", bp=-3.0, rt=-2.8):
     return (
         f"OK:LN:1,TC:{tc},BUF:{zone},BP:{bp:.2f},RT:{rt:.2f},"
-        f"EST:{est:.1f},CF:{cf:.2f},APX:{apx}"
+        f"EST:{est:.1f},CF:{cf:.2f},TPX:{tpx}"
     )
 
 
@@ -99,7 +99,7 @@ def test_locked_warm_start_zero_sets():
         return "locked warm-start emits zero SETs"
 
 
-def test_adv_risk_freeze_and_rollback():
+def test_tension_risk_freeze_and_rollback():
     with tempfile.TemporaryDirectory() as td:
         clock = Clock()
         t, fake = make_tuner(os.path.join(td, "state.json"), clock)
@@ -114,7 +114,7 @@ def test_adv_risk_freeze_and_rollback():
         )
         t.buckets[b.label] = b
         t.active_label = b.label
-        t.on_event("EV:SYNC,ADV_RISK_HIGH")
+        t.on_event("EV:SYNC,TENSION_RISK_HIGH")
         assert "SET:BASELINE_SPS:1850" in fake.writes, fake.writes
         before = len(fake.writes)
         for _ in range(20):
@@ -123,7 +123,7 @@ def test_adv_risk_freeze_and_rollback():
             t.on_status(status(est=b.x))
         assert len(fake.writes) == before, fake.writes
         assert t.frozen_until >= 30.0
-        return "ADV_RISK_HIGH rolls back and freezes writes"
+        return "TENSION_RISK_HIGH rolls back and freezes writes"
 
 
 def test_fault_hold_halts():
@@ -209,7 +209,7 @@ def test_allow_bias_writes_writes():
         clock.step(3.0)
         t._maybe_emit_set(b, clock.now())
         assert "SET:LIVE_TUNE_LOCK:1" in fake.writes, fake.writes
-        assert "SET:TRAIL_BIAS_FRAC:0.470" in fake.writes, fake.writes
+        assert "SET:COMPRESSION_BIAS_FRAC:0.470" in fake.writes, fake.writes
         return "explicit bias-write mode still emits guarded bias SETs"
 
 
@@ -270,7 +270,7 @@ def test_schema1_migration():
         assert b.rollback_count == 0, b.rollback_count
         assert b.runs_seen == 0, b.runs_seen
         assert b.layers_seen == 0, b.layers_seen
-        assert b.cumulative_mid_s == 0.0, b.cumulative_mid_s
+        assert b.cumulative_neutral_s == 0.0, b.cumulative_neutral_s
         t._persist()
         with open(state_path) as fh:
             migrated = json.load(fh)
@@ -298,7 +298,7 @@ def _schema2_state():
                 "last_set_bias": 0.420,
                 "runs_seen": 2,
                 "layers_seen": 5,
-                "cumulative_mid_s": 80.0,
+                "cumulative_neutral_s": 80.0,
                 "low_flow_skip_count": 1,
                 "rail_skip_count": 2,
                 "rollback_count": 3,
@@ -456,7 +456,7 @@ def test_existing_production_state_loads():
 
 def test_residual_stats_accumulate():
     b = tuner_mod.Bucket(label="PERIMETER_v40", x=100.0, P=100.0)
-    tuner_mod.kf_predict_update(b, 160.0, cf=1.0, apx=0, dt_s=1.0)
+    tuner_mod.kf_predict_update(b, 160.0, cf=1.0, tpx=0, dt_s=1.0)
     assert b.n == 1, b.n
     assert b.resid_abs_ewma > 0.0, b.resid_abs_ewma
     assert b.resid_var_ewma > tuner_mod.R_BASE, b.resid_var_ewma
@@ -474,7 +474,7 @@ def _locked_bucket(label="PERIMETER_v40", sigma=50.0):
         locked=True,
         runs_seen=2,
         layers_seen=5,
-        cumulative_mid_s=90.0,
+        cumulative_neutral_s=90.0,
         resid_var_ewma=sigma * sigma,
         locked_sample_count=tuner_mod.MIN_LOCK_DWELL,
     )
@@ -549,12 +549,12 @@ def test_noise_gate_relative_passes_low_ratio():
             bias=0.400,
             runs_seen=2,
             layers_seen=5,
-            cumulative_mid_s=90.0,
+            cumulative_neutral_s=90.0,
             state="STABLE",
             resid_var_ewma=14400.0,
         )
         t.buckets[b.label] = b
-        t.total_print_mid_s = 400.0
+        t.total_print_neutral_s = 400.0
         assert abs(tuner_mod.noise_ratio(b) - 0.12) < 0.001, tuner_mod.noise_ratio(b)
         assert tuner_mod.noise_ok(b), tuner_mod.noise_ratio(b)
         t._maybe_lock(b, clock.now())
@@ -575,12 +575,12 @@ def test_noise_gate_relative_blocks_high_ratio():
             bias=0.400,
             runs_seen=2,
             layers_seen=5,
-            cumulative_mid_s=90.0,
+            cumulative_neutral_s=90.0,
             state="STABLE",
             resid_var_ewma=14400.0,
         )
         t.buckets[b.label] = b
-        t.total_print_mid_s = 400.0
+        t.total_print_neutral_s = 400.0
         assert abs(tuner_mod.noise_ratio(b) - 0.60) < 0.001, tuner_mod.noise_ratio(b)
         assert not tuner_mod.noise_ok(b), tuner_mod.noise_ratio(b)
         t._maybe_lock(b, clock.now())
@@ -614,12 +614,12 @@ def test_noise_gate_below_min_x_uses_floor():
             bias=0.400,
             runs_seen=2,
             layers_seen=5,
-            cumulative_mid_s=90.0,
+            cumulative_neutral_s=90.0,
             state="STABLE",
             resid_var_ewma=625.0,
         )
         t.buckets[b.label] = b
-        t.total_print_mid_s = 400.0
+        t.total_print_neutral_s = 400.0
         assert abs(tuner_mod.noise_ratio(b) - 0.25) < 0.001, tuner_mod.noise_ratio(b)
         assert tuner_mod.noise_ok(b), tuner_mod.noise_ratio(b)
         t._maybe_lock(b, clock.now())
@@ -640,12 +640,12 @@ def test_scatter_field_repro():
             bias=0.358,
             runs_seen=1,
             layers_seen=98,
-            cumulative_mid_s=275.9,
+            cumulative_neutral_s=275.9,
             state="STABLE",
             resid_var_ewma=14620.0,
         )
         t.buckets[b.label] = b
-        t.total_print_mid_s = 400.0
+        t.total_print_neutral_s = 400.0
         assert tuner_mod.noise_ratio(b) < tuner_mod.NOISE_RATIO_THR, tuner_mod.noise_ratio(b)
         t._maybe_lock(b, clock.now())
         assert b.state == "LOCKED", b.state
@@ -677,7 +677,7 @@ def test_unlock_then_relock_does_not_chatter():
         b.state = "STABLE"
         b.locked = False
         b.resid_var_ewma = 90000.0
-        t.total_print_mid_s = 400.0
+        t.total_print_neutral_s = 400.0
         t._maybe_lock(b, clock.now())
         assert b.state == "STABLE", b.state
         assert not b.locked
@@ -750,7 +750,7 @@ def test_daemon_does_not_exit_on_finish():
                 t.finish_seen = False
                 t.seen_print_activity = False
                 t.idle_since = 0.0
-                t.total_print_mid_s = 0.0
+                t.total_print_neutral_s = 0.0
             else:
                 assert False, "Should not exit"
         
@@ -762,10 +762,10 @@ def test_daemon_resets_per_print_state():
     with tempfile.TemporaryDirectory() as td:
         clock = Clock()
         t, fake = make_tuner(os.path.join(td, "state.json"), clock)
-        t.total_print_mid_s = 500.0
+        t.total_print_neutral_s = 500.0
         t._run_seen_labels.add("PERIMETER_v40")
         t.on_m118("NT:START")
-        assert t.total_print_mid_s == 0.0, "START should reset total_print_mid_s"
+        assert t.total_print_neutral_s == 0.0, "START should reset total_print_neutral_s"
         assert len(t._run_seen_labels) == 0, "START should clear _run_seen_labels"
         return "daemon mode resets per-print state on NT:START"
 
@@ -791,7 +791,7 @@ def test_counter_increments():
         clock.step(3.0)
         t._maybe_emit_set(b, clock.now())
         assert b.rail_skip_count == 1, b.rail_skip_count
-        assert not [w for w in fake.writes if w.startswith("SET:TRAIL_BIAS_FRAC:")], fake.writes
+        assert not [w for w in fake.writes if w.startswith("SET:COMPRESSION_BIAS_FRAC:")], fake.writes
 
         t.active_label = label
         t.allow_baseline_writes = True
@@ -816,7 +816,7 @@ def test_short_print_no_lock():
             bias=0.400,
             runs_seen=1,
             layers_seen=3,
-            cumulative_mid_s=60.0,
+            cumulative_neutral_s=60.0,
             state="STABLE",
         )
         t._maybe_lock(b, clock.now())
@@ -838,7 +838,7 @@ def test_three_run_lock():
             bias=0.400,
             runs_seen=3,
             layers_seen=3,
-            cumulative_mid_s=90.0,
+            cumulative_neutral_s=90.0,
             state="STABLE",
         )
         t.buckets[b.label] = b
@@ -860,7 +860,7 @@ def test_layer_count_required():
             bias=0.400,
             runs_seen=3,
             layers_seen=2,
-            cumulative_mid_s=90.0,
+            cumulative_neutral_s=90.0,
             state="STABLE",
         )
         t._maybe_lock(b, clock.now())
@@ -944,7 +944,7 @@ def test_bias_rail_guard_blocks_set_and_lock():
         clock.step(3.0)
         t._maybe_emit_set(b, clock.now())
         t._maybe_lock(b, clock.now())
-        assert not [w for w in fake.writes if w.startswith("SET:TRAIL_BIAS_FRAC:")], fake.writes
+        assert not [w for w in fake.writes if w.startswith("SET:COMPRESSION_BIAS_FRAC:")], fake.writes
         assert b.state == "TRACKING", b.state
         return "rail-clamped bias is not written or locked"
 
@@ -1063,10 +1063,10 @@ def test_single_print_path_locks():
             bias=0.400,
             runs_seen=1,
             layers_seen=5,
-            cumulative_mid_s=60.0,
+            cumulative_neutral_s=60.0,
             state="STABLE",
         )
-        t.total_print_mid_s = 300.0
+        t.total_print_neutral_s = 300.0
         t._maybe_lock(b, clock.now())
         assert b.state == "LOCKED", b.state
         assert b.locked
@@ -1085,10 +1085,10 @@ def test_neither_path_no_lock():
             bias=0.400,
             runs_seen=1,
             layers_seen=4,
-            cumulative_mid_s=60.0,
+            cumulative_neutral_s=60.0,
             state="STABLE",
         )
-        t.total_print_mid_s = 200.0
+        t.total_print_neutral_s = 200.0
         t._maybe_lock(b, clock.now())
         assert b.state == "STABLE", b.state
         assert not b.locked
@@ -1107,10 +1107,10 @@ def test_either_path_no_double_count():
             bias=0.400,
             runs_seen=3,
             layers_seen=6,
-            cumulative_mid_s=120.0,
+            cumulative_neutral_s=120.0,
             state="STABLE",
         )
-        t.total_print_mid_s = 400.0
+        t.total_print_neutral_s = 400.0
         t._maybe_lock(b, clock.now())
         assert b.state == "LOCKED", b.state
         assert b.locked
@@ -1238,14 +1238,14 @@ def _run_chatter_repro():
             locked=True,
             runs_seen=int(control["runs_seen"]),
             layers_seen=int(control["layers_seen"]),
-            cumulative_mid_s=float(control["cumulative_mid_s"]),
+            cumulative_neutral_s=float(control["cumulative_neutral_s"]),
             first_seen=clock.now(),
             last_seen=clock.now(),
             resid_var_ewma=float(control.get("resid_var_ewma", tuner_mod.R_BASE)),
         )
         t.buckets[b.label] = b
         t.active_label = b.label
-        t.total_print_mid_s = max(300.0, b.cumulative_mid_s)
+        t.total_print_neutral_s = max(300.0, b.cumulative_neutral_s)
         t.last_status_t = clock.now()
         unlock_count = 0
         locked_throughout = True
@@ -1258,7 +1258,7 @@ def _run_chatter_repro():
                     bp=float(sample["bp"]),
                     rt=float(sample["rt"]),
                     cf=float(sample["cf"]),
-                    apx=int(sample["apx"]),
+                    tpx=int(sample["tpx"]),
                 )
             )
             is_locked = b.locked or b.state == "LOCKED"
@@ -1278,7 +1278,7 @@ def main():
     tests = [
         ("warm-up", test_cold_start_no_set),
         ("locked", test_locked_warm_start_zero_sets),
-        ("adv-risk", test_adv_risk_freeze_and_rollback),
+        ("tension-risk", test_tension_risk_freeze_and_rollback),
         ("halt", test_fault_hold_halts),
         ("rate-limit", test_rate_limit_three_sets_per_window),
         ("baseline-off", test_baseline_writes_disabled_by_default),

@@ -29,8 +29,8 @@
 #define PIN_L2_OUT       5
 #define PIN_Y_SPLIT      6
 
-#define PIN_BUF_ADVANCE  18
-#define PIN_BUF_TRAILING 12
+#define PIN_BUF_TENSION  18
+#define PIN_BUF_COMPRESSION 12
 #define PIN_BUF_ANALOG   26  // GP26 = ADC0; change to 27/28/29 if needed
 
 #define PIN_L1_EN        8

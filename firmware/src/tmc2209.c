@@ -90,7 +90,7 @@ static void tmc_uart_send_bytes(tmc_t *t, const uint8_t *buf, size_t len) {
     while (!pio_sm_is_tx_fifo_empty(t->pio, t->sm_tx) && time_us_64() < timeout_us) tight_loop_contents();
     
     // Wait for the state machine to stall at the 'pull' instruction (offset_tx).
-    // NOTE: the PC advances to 'pull' the moment it fetches the stop-bit instruction,
+    // NOTE: the PC moves to 'pull' the moment it fetches the stop-bit instruction,
     // before the 7-cycle [7] delay executes. So the SM stalls at pull ~21us BEFORE
     // the stop bit actually finishes on the wire. We add a mandatory 30us inter-frame
     // gap here so back-to-back calls never collide on the bus.
@@ -126,7 +126,7 @@ static int tmc_read_bytes(tmc_t *t, uint8_t reg, uint8_t *buf) {
 
     // Force-restart the RX SM so it is cleanly waiting for a start bit.
     // The RX SM runs permanently and may have been triggered by noise or
-    // DIAG glitches on the shared pin, leaving it stuck mid-frame in bitloop
+    // DIAG glitches on the shared pin, leaving it stuck neutral-frame in bitloop
     // or wait_high.  A simple FIFO clear doesn't fix a stuck PC.
     pio_sm_set_enabled(t->pio, t->sm_rx, false);
     pio_sm_clear_fifos(t->pio, t->sm_rx);

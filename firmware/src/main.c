@@ -45,7 +45,7 @@ int RELOAD_Y_TIMEOUT_MS = CONF_RELOAD_Y_TIMEOUT_MS;
 int RELOAD_JOIN_DELAY_MS = CONF_RELOAD_JOIN_DELAY_MS;
 int JOIN_SPS = CONF_JOIN_SPS;
 int PRESS_SPS = CONF_PRESS_SPS;
-int TRAILING_SPS = CONF_TRAILING_SPS;
+int COMPRESSION_SPS = CONF_COMPRESSION_SPS;
 int RELOAD_TOUCH_SETTLE_MS = CONF_RELOAD_TOUCH_SETTLE_MS;
 int RELOAD_TOUCH_BOOST_MS = CONF_RELOAD_TOUCH_BOOST_MS;
 int RELOAD_TOUCH_FLOOR_PCT = CONF_RELOAD_TOUCH_FLOOR_PCT;
@@ -76,7 +76,7 @@ int TMC_HEND[NUM_LANES] = {CONF_L1_HEND, CONF_L2_HEND};
 bool TMC_INTERPOLATE[NUM_LANES] = {CONF_L1_INTPOL, CONF_L2_INTPOL};
 
 int BUF_SENSOR_TYPE = CONF_BUF_SENSOR_TYPE;
-float BUF_NEUTRAL = CONF_BUF_NEUTRAL;
+float BUF_ANALOG_NEUTRAL = CONF_BUF_ANALOG_NEUTRAL;
 float BUF_RANGE = CONF_BUF_RANGE;
 float BUF_THR = CONF_BUF_THR;
 float BUF_ANALOG_ALPHA = CONF_BUF_ANALOG_ALPHA;
@@ -99,7 +99,7 @@ int CUT_TIMEOUT_FEED_MS = CONF_CUT_FEED_MS;
 int TC_TIMEOUT_CUT_MS = CONF_TC_TIMEOUT_CUT_MS;
 int LOAD_MAX_MM = CONF_LOAD_MAX_MM;
 int UNLOAD_MAX_MM = CONF_UNLOAD_MAX_MM;
-int UNLOAD_ADV_BLOCK_MS = CONF_UNLOAD_ADV_BLOCK_MS;
+int UNLOAD_TENSION_BLOCK_MS = CONF_UNLOAD_TENSION_BLOCK_MS;
 int TC_TIMEOUT_TH_MS = CONF_TC_TIMEOUT_TH_MS;
 int TC_TIMEOUT_Y_MS = CONF_TC_TIMEOUT_Y_MS;
 
@@ -114,13 +114,13 @@ int BUF_HYST_MS = CONF_BUF_HYST_MS;
 int BUF_PREDICT_THR_MS = CONF_BUF_PREDICT_THR_MS;
 float BUF_HALF_TRAVEL_MM = CONF_BUF_HALF_TRAVEL_MM;
 int SYNC_AUTO_STOP_MS = CONF_SYNC_AUTO_STOP_MS;
-int SYNC_ADVANCE_DWELL_STOP_MS = CONF_SYNC_ADVANCE_DWELL_STOP_MS;
-int SYNC_ADVANCE_RAMP_DELAY_MS = CONF_SYNC_ADVANCE_RAMP_DELAY_MS;
-int SYNC_OVERSHOOT_MID_EXTEND = CONF_SYNC_OVERSHOOT_MID_EXTEND;
-float SYNC_TRAILING_BIAS_FRAC = CONF_SYNC_TRAILING_BIAS_FRAC;
-int MID_CREEP_TIMEOUT_MS = CONF_MID_CREEP_TIMEOUT_MS;
-int MID_CREEP_RATE_SPS_PER_S = CONF_MID_CREEP_RATE_SPS_PER_S;
-int MID_CREEP_CAP_FRAC = CONF_MID_CREEP_CAP_FRAC;
+int SYNC_TENSION_DWELL_STOP_MS = CONF_SYNC_TENSION_DWELL_STOP_MS;
+int SYNC_TENSION_RAMP_DELAY_MS = CONF_SYNC_TENSION_RAMP_DELAY_MS;
+int SYNC_OVERSHOOT_NEUTRAL_EXTEND = CONF_SYNC_OVERSHOOT_NEUTRAL_EXTEND;
+float SYNC_COMPRESSION_BIAS_FRAC = CONF_SYNC_COMPRESSION_BIAS_FRAC;
+int NEUTRAL_CREEP_TIMEOUT_MS = CONF_NEUTRAL_CREEP_TIMEOUT_MS;
+int NEUTRAL_CREEP_RATE_SPS_PER_S = CONF_NEUTRAL_CREEP_RATE_SPS_PER_S;
+int NEUTRAL_CREEP_CAP_FRAC = CONF_NEUTRAL_CREEP_CAP_FRAC;
 float BUF_VARIANCE_BLEND_FRAC = CONF_BUF_VARIANCE_BLEND_FRAC;
 float BUF_VARIANCE_BLEND_REF_MM = CONF_BUF_VARIANCE_BLEND_REF_MM;
 float SYNC_RESERVE_INTEGRAL_GAIN = CONF_SYNC_RESERVE_INTEGRAL_GAIN;
@@ -134,8 +134,8 @@ int   BUF_DRIFT_MIN_SAMPLES = CONF_BUF_DRIFT_MIN_SAMPLES;
 float BUF_DRIFT_APPLY_THR_MM = CONF_BUF_DRIFT_APPLY_THR_MM;
 float BUF_DRIFT_CLAMP_MM = CONF_BUF_DRIFT_CLAMP_MM;
 float BUF_DRIFT_APPLY_MIN_CF = CONF_BUF_DRIFT_APPLY_MIN_CF;
-int   ADV_RISK_WINDOW_MS = CONF_ADV_RISK_WINDOW_MS;
-int   ADV_RISK_THRESHOLD = CONF_ADV_RISK_THRESHOLD;
+int   TENSION_RISK_WINDOW_MS = CONF_TENSION_RISK_WINDOW_MS;
+int   TENSION_RISK_THRESHOLD = CONF_TENSION_RISK_THRESHOLD;
 int AUTOLOAD_MAX_MM = CONF_AUTOLOAD_MAX_MM;
 bool BUF_INVERT = false;
 int AUTO_MODE = 1; // 1=Automated flow, 0=Host-controlled flow
@@ -228,8 +228,8 @@ lane_t g_lane_l1;
 lane_t g_lane_l2;
 din_t g_y_split;
 
-din_t g_buf_adv_din;
-din_t g_buf_trl_din;
+din_t g_buf_tension_din;
+din_t g_buf_compression_din;
 
 tmc_t g_tmc_l1;
 tmc_t g_tmc_l2;
@@ -401,8 +401,8 @@ int main(void) {
     lane_setup(&g_lane_l2, PIN_L2_IN, PIN_L2_OUT, l2, 2, &g_tmc_l2);
 
     din_init(&g_y_split, PIN_Y_SPLIT);
-    din_init(&g_buf_adv_din, PIN_BUF_ADVANCE);
-    din_init(&g_buf_trl_din, PIN_BUF_TRAILING);
+    din_init(&g_buf_tension_din, PIN_BUF_TENSION);
+    din_init(&g_buf_compression_din, PIN_BUF_COMPRESSION);
 
     adc_init();
     adc_gpio_init(PIN_BUF_ANALOG);
@@ -421,8 +421,8 @@ int main(void) {
         din_update(&g_lane_l2.in_sw);
         din_update(&g_lane_l2.out_sw);
         din_update(&g_y_split);
-        din_update(&g_buf_adv_din);
-        din_update(&g_buf_trl_din);
+        din_update(&g_buf_tension_din);
+        din_update(&g_buf_compression_din);
         sleep_ms(1);
     }
 
@@ -453,8 +453,8 @@ int main(void) {
         din_update(&g_lane_l2.in_sw);
         din_update(&g_lane_l2.out_sw);
         din_update(&g_y_split);
-        din_update(&g_buf_adv_din);
-        din_update(&g_buf_trl_din);
+        din_update(&g_buf_tension_din);
+        din_update(&g_buf_compression_din);
 
         // USB commands
         cmd_poll(g_now_ms);

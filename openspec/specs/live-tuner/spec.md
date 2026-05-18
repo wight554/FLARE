@@ -57,28 +57,28 @@ operators and the offline analyzer can observe relief/fault behavior.
   `FAULT_HOLD`) is reported
 
 #### Scenario: Cannot-refill warning
-- **WHEN** ADVANCE persists past the refill-effort threshold
+- **WHEN** TENSION persists past the refill-effort threshold
 - **THEN** a warn-only `SYNC cannot_refill` event is emitted
 - **AND** no control behavior changes solely due to the counter
 
 #### Scenario: Cannot-relieve warning
-- **WHEN** TRAILING persists past the relief-effort threshold
+- **WHEN** COMPRESSION persists past the relief-effort threshold
 - **THEN** a warn-only `SYNC cannot_relieve` event is emitted
 - **AND** no control behavior changes solely due to the counter
 
 ### Requirement: Relief-effort counters are accumulated and exposed
 
 The firmware SHALL accumulate relief effort in commanded-MMU mm:
-`g_sync_refill_effort_mm` while the buffer is in ADVANCE and
-`g_sync_relieve_effort_mm` while in TRAILING, derived from the existing
+`g_sync_refill_effort_mm` while the buffer is in TENSION and
+`g_sync_relieve_effort_mm` while in COMPRESSION, derived from the existing
 commanded-MMU mm integration. Both counters SHALL reset on sync state change
 and buffer-state change (sustained-since-entry semantics). Both SHALL be
 exposed in the `protocol.c` status line and as GET parameters. No control
 behavior SHALL derive from these counters.
 
-#### Scenario: Refill effort accrues during sustained ADVANCE
+#### Scenario: Refill effort accrues during sustained TENSION
 
-- **WHEN** the buffer stays in ADVANCE while filament is commanded
+- **WHEN** the buffer stays in TENSION while filament is commanded
 - **THEN** `g_sync_refill_effort_mm` increases by the commanded-MMU mm and
   is readable via status and GET
 
@@ -92,22 +92,22 @@ behavior SHALL derive from these counters.
 The firmware SHALL emit warn-only diagnostic events when sustained relief
 effort exceeds a configured threshold. A `SYNC cannot_refill` event MUST be
 emitted once per episode when refill effort crosses
-`CONF_SYNC_CANNOT_REFILL_MM` while still in ADVANCE. A `SYNC cannot_relieve`
+`CONF_SYNC_CANNOT_REFILL_MM` while still in TENSION. A `SYNC cannot_relieve`
 event MUST be emitted once per episode when relieve effort crosses
-`CONF_SYNC_CANNOT_RELIEVE_MM` while still in TRAILING. These events MUST be
+`CONF_SYNC_CANNOT_RELIEVE_MM` while still in COMPRESSION. These events MUST be
 diagnostic only and MUST NOT alter control output.
 
 #### Scenario: cannot_refill warns once per episode
 
 - **WHEN** refill effort exceeds `CONF_SYNC_CANNOT_REFILL_MM` while still in
-  ADVANCE
+  TENSION
 - **THEN** exactly one `SYNC cannot_refill` event is emitted until the
   counter resets, and control output is unchanged
 
 #### Scenario: cannot_relieve warns once per episode
 
 - **WHEN** relieve effort exceeds `CONF_SYNC_CANNOT_RELIEVE_MM` while still
-  in TRAILING
+  in COMPRESSION
 - **THEN** exactly one `SYNC cannot_relieve` event is emitted until the
   counter resets, and control output is unchanged
 

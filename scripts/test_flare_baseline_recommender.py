@@ -7,9 +7,9 @@ import tempfile
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def test_replay_determinism():
-    log_content = """OK: LN:0,BUF:MID,EST:1600.0,BP:-3.0,RT:-3.0
-OK: LN:0,BUF:MID,EST:1650.0,BP:-2.0,RT:-3.0
-OK: LN:0,BUF:MID,EST:1550.0,BP:-4.0,RT:-3.0
+    log_content = """OK: LN:0,BUF:NEUTRAL,EST:1600.0,BP:-3.0,RT:-3.0
+OK: LN:0,BUF:NEUTRAL,EST:1650.0,BP:-2.0,RT:-3.0
+OK: LN:0,BUF:NEUTRAL,EST:1550.0,BP:-4.0,RT:-3.0
 """
     with tempfile.TemporaryDirectory() as td:
         log_path = os.path.join(td, "test_stream.log")
@@ -32,7 +32,7 @@ OK: LN:0,BUF:MID,EST:1550.0,BP:-4.0,RT:-3.0
 
     assert clean(out1) == clean(out2)
     assert "Suggested baseline_sps: 1600" in out1
-    assert "Suggested sync_trailing_bias_frac: 0.400" in out1
+    assert "Suggested sync_compression_bias_frac: 0.400" in out1
     print("test_replay_determinism PASS")
 
 if __name__ == "__main__":

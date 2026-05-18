@@ -35,7 +35,7 @@ run_current:
 # feed_rate: 3000
 # rev_rate: 3000
 # auto_rate: 3000
-# buf_stab_rate: 600         # stabilization speed (boot + UL advance recovery)
+# buf_stab_rate: 600         # stabilization speed (boot + UL tension recovery)
 # sync_max_rate: 2200
 # sync_min_rate: 100
 # pre_ramp_rate: 90
@@ -58,11 +58,11 @@ run_current:
 # baseline_cooldown_mm: 5.0
 # flow_schedule_cap: 8        # Max generated flow schedule breakpoints (1..16).
 #                             # If no table is present, baseline_rate +
-#                             # sync_trailing_bias_frac become a 1-point schedule.
+#                             # sync_compression_bias_frac become a 1-point schedule.
 #
 # [flow_schedule.v1]          # Optional, versioned flow-keyed schedule.
 #                             # Native firmware units: flow_sps, baseline_sps,
-#                             # trailing_bias_frac (or bias milli 0..700).
+#                             # compression_bias_frac (or bias milli 0..700).
 # point0: 6000, 7000, 0.30
 # point1: 12000, 13000, 0.40
 #
@@ -75,17 +75,17 @@ run_current:
 # global_max_rate: 4000         # absolute ceiling for every commanded motor rate (mm/min)
 # sync_kp_rate: 900
 # sync_overshoot_pct: 150        # Trailing-side trim as % of sync correction (0..200)
-# sync_reserve_pct: 35           # Reserve target as % of BUF_HALF_TRAVEL toward trailing
-# sync_auto_stop_ms: 5000          # Auto-mode only: tail-assist timeout in TRAILING,
-                                   # or normal sync timeout only after TRAILING
+# sync_reserve_pct: 35           # Reserve target as % of BUF_HALF_TRAVEL toward compression
+# sync_auto_stop_ms: 5000          # Auto-mode only: tail-assist timeout in COMPRESSION,
+                                   # or normal sync timeout only after COMPRESSION
                                    # recovery has already hit the minimum floor.
-# post_print_stab_delay_ms: 0      # Legacy name: idle trailing negative-sync delay.
-                                   # 0 = start immediately when idle+TRAILING.
-# sync_advance_dwell_stop_ms: 6000 # Hard stop if continuously pinned at advance endstop
+# post_print_stab_delay_ms: 0      # Legacy name: idle compression negative-sync delay.
+                                   # 0 = start immediately when idle+COMPRESSION.
+# sync_tension_dwell_stop_ms: 6000 # Hard stop if continuously pinned at tension endstop
                                    # for this many ms. 0 = disable.
-# sync_advance_ramp_delay_ms: 0    # Disable estimator-bypass refill ramp; ADV_STOP
-                                   # remains the hard guard for real advance pins.
-# sync_overshoot_mid_extend: 1     # Extend trailing overshoot trim into BUF_MID when
+# sync_tension_ramp_delay_ms: 0    # Disable estimator-bypass refill ramp; TENSION_STOP
+                                   # remains the hard guard for real tension pins.
+# sync_overshoot_neutral_extend: 1     # Extend compression overshoot trim into BUF_NEUTRAL when
                                    # reserve is below deadband.
 
 # ─── Integral Centering + Estimator Confidence ───────────────────────────
@@ -101,7 +101,7 @@ run_current:
 # est_low_cf_warn_threshold: 0.5       # EV:BUF,EST_LOW_CF fires when confidence < this.
 # est_fallback_cf_threshold: 0.2       # Integral freezes when confidence < this.
 
-# ─── Drift Observer & ADVANCE-Risk Telemetry ─────────────────────────────────
+# ─── Drift Observer & TENSION-Risk Telemetry ─────────────────────────────────
 # buf_drift_ewma_tau_ms: 60000        # EWMA time constant for per-transition residual drift (ms).
 #                                     # Longer = more stable estimate; shorter = faster adaptation.
 # buf_drift_min_samples: 3            # Samples before full correction; enabled correction ramps in earlier.
@@ -109,16 +109,16 @@ run_current:
 #                                     # Raise/lower after observing stable BPD convergence in real prints.
 # buf_drift_clamp_mm: 3.0             # Provisional hard clamp on applied correction magnitude in mm (runtime max 8.0).
 # buf_drift_apply_min_cf: 0.5         # Min estimator confidence (EC:/100) required to apply correction.
-# adv_risk_window_ms: 60000           # Rolling window for ADVANCE-pin density warning (runtime-only).
-# adv_risk_threshold: 4               # EV:SYNC,ADV_RISK_HIGH fires when pin count >= this (runtime-only).
+# tension_risk_window_ms: 60000           # Rolling window for TENSION-pin density warning (runtime-only).
+# tension_risk_threshold: 4               # EV:SYNC,TENSION_RISK_HIGH fires when pin count >= this (runtime-only).
 
 # ─── Trailing-Bias Setpoint Shift & Adaptive Sync ───────────────────────────
-# sync_trailing_bias_frac: 0.4   # additional setpoint shift toward trailing.
+# sync_compression_bias_frac: 0.4   # additional setpoint shift toward compression.
                                  # 0.0 = legacy behavior (SYNC_RESERVE_PCT only).
                                  # 0.4 typical for slow-extrusion soak; 0.7 max.
-# mid_creep_timeout_ms: 4000     # Mid-dwell wait before creep activates (ms). 0 disables.
-# mid_creep_rate_sps_per_s: 5    # Creep ramp slope. 0 disables.
-# mid_creep_cap_frac: 10         # Hard cap on creep as percentage of extruder_est_sps.
+# neutral_creep_timeout_ms: 4000     # Neutral-dwell wait before creep activates (ms). 0 disables.
+# neutral_creep_rate_sps_per_s: 5    # Creep ramp slope. 0 disables.
+# neutral_creep_cap_frac: 10         # Hard cap on creep as percentage of extruder_est_sps.
 # buf_variance_blend_frac: 0.5   # Max variance-aware blend fraction (0.0=OFF, 0.5 typical).
 # buf_variance_blend_ref_mm: 1.0 # Sigma value at which blend distrust saturates.
 
@@ -151,7 +151,7 @@ run_current:
 # load_max_mm: 3000           # Max distance for toolhead load
 # autoload_retract_mm: 10     # Retract distance after LO: triggers OUT and after UL: clears OUT; 0 = stop immediately
 # unload_max_mm: 3000         # Max distance for unloads
-# unload_adv_block_ms: 5000   # Stop UL if buffer stays ADVANCE this long (printer blocking); 0 = disabled
+# unload_tension_block_ms: 5000   # Stop UL if buffer stays TENSION this long (printer blocking); 0 = disabled
 # autoload_max_mm: 600        # Max distance for preload to OUT
 # runout_cooldown_ms: 12000
 
@@ -164,12 +164,12 @@ run_current:
 # dist_out_y: 100             # Distance from OUT sensor to Y-splitter
 # dist_y_buf: 300             # Distance from Y-splitter to buffer entry
 # buf_body_len: 200           # Total physical length of buffer body
-# buf_half_travel_mm: 7.8     # Distance from MID to switch trip, not total half-travel
+# buf_half_travel_mm: 7.8     # Distance from NEUTRAL to switch trip, not total half-travel
 # buf_size_mm: 22             # Total travel distance of buffer arm
 
 # ─── Analog Buffer Sensor ─────────────────────────────────────────────────────
 # buf_sensor_type: 0
-# buf_neutral: 0.5
+# buf_analog_neutral: 0.5
 # buf_range: 0.45
 # buf_thr: 0.30
 # buf_analog_alpha: 0.20
@@ -183,7 +183,7 @@ run_current:
 # reload_join_delay_ms: 10000 # extra wait after tail/Y clear before JOINING
 
 # ─── RELOAD Tuning ───────────────────────────────────────────────────────────
-# trailing_rate: 90           # coasting speed when buffer is stalled
+# compression_rate: 90           # coasting speed when buffer is stalled
 # join_rate: 1600             # fast approach speed
 # press_rate: 1200            # top speed in follow-sync
 # reload_touch_settle_ms: 120 # brief settle after tail-to-tip touch

@@ -25,7 +25,7 @@ The Klipper UDS flow SHALL feed the existing `on_m118` ingress contract.
 The `SegmentMatcher` SHALL remain compatible with existing tuner and test suites.
 
 #### Scenario: Segment Crossing
-- **WHEN** Klipper position advances past boundary
+- **WHEN** Klipper position moves past boundary
 - **THEN** matcher emits expected marker event exactly ONCE
 - **AND** tuner remains agnostic to marker source
 

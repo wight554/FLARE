@@ -11,10 +11,10 @@
 
 #include "cutter.h"
 
-#define RELOAD_TRAILING_SOFT_WALL_MS 900.0f
-#define RELOAD_TRAILING_HARD_WALL_MS 450.0f
-#define RELOAD_TRAILING_HARD_PUSH_MM_S 0.25f
-#define RELOAD_TRAILING_HARD_HOLD_MS 250u
+#define RELOAD_COMPRESSION_SOFT_WALL_MS 900.0f
+#define RELOAD_COMPRESSION_HARD_WALL_MS 450.0f
+#define RELOAD_COMPRESSION_HARD_PUSH_MM_S 0.25f
+#define RELOAD_COMPRESSION_HARD_HOLD_MS 250u
 #include "cutter.h"
 
 
@@ -67,7 +67,7 @@ void tc_manual_reload(uint32_t now_ms) {
     g_tc_ctx.ready_to_join_since_ms = 0;
     g_tc_ctx.reload_tick_ms = now_ms;
     g_tc_ctx.reload_current_sps = 0;
-    g_tc_ctx.last_trailing_ms = 0;
+    g_tc_ctx.last_compression_ms = 0;
     g_tc_ctx.phase_start_ms = now_ms;
     g_tc_ctx.state = TC_RELOAD_APPROACH;
 }
@@ -268,7 +268,7 @@ void tc_tick(uint32_t now_ms) {
         case TC_RELOAD_WAIT_Y: {
             lane_t *from_lane_ptr = lane_ptr(g_tc_ctx.from_lane);
             if (from_lane_ptr && lane_out_present(from_lane_ptr)) {
-                if (from_lane_ptr->task != TASK_FEED) lane_start(from_lane_ptr, TASK_FEED, TRAILING_SPS, true, now_ms, 0);
+                if (from_lane_ptr->task != TASK_FEED) lane_start(from_lane_ptr, TASK_FEED, COMPRESSION_SPS, true, now_ms, 0);
             } else if (from_lane_ptr && from_lane_ptr->task == TASK_FEED) {
                 lane_stop(from_lane_ptr);
             }
@@ -297,7 +297,7 @@ void tc_tick(uint32_t now_ms) {
                 g_tc_ctx.ready_to_join_since_ms = 0;
                 g_tc_ctx.reload_tick_ms = now_ms;
                 g_tc_ctx.reload_current_sps = 0;
-                g_tc_ctx.last_trailing_ms = 0;
+                g_tc_ctx.last_compression_ms = 0;
                 g_tc_ctx.phase_start_ms = now_ms;
                 g_tc_ctx.state = TC_RELOAD_APPROACH;
             } else if ((!tail_cleared || !y_cleared) && age > (uint32_t)RELOAD_Y_TIMEOUT_MS) {
@@ -312,7 +312,7 @@ void tc_tick(uint32_t now_ms) {
                 break;
             }
 
-            bool contacted = (g_buf.state == BUF_TRAILING);
+            bool contacted = (g_buf.state == BUF_COMPRESSION);
 
             if (A && A->task_limit_mm > 0.0f && A->task_dist_mm >= A->task_limit_mm) {
                 lane_stop(A);
@@ -324,8 +324,8 @@ void tc_tick(uint32_t now_ms) {
                 if (A) {
                     lane_stop(A);
                 }
-                g_tc_ctx.reload_current_sps = TRAILING_SPS;
-                g_tc_ctx.last_trailing_ms = (g_buf.state == BUF_TRAILING) ? now_ms : 0;
+                g_tc_ctx.reload_current_sps = COMPRESSION_SPS;
+                g_tc_ctx.last_compression_ms = (g_buf.state == BUF_COMPRESSION) ? now_ms : 0;
                 g_tc_ctx.wall_critical_since_ms = 0;
                 g_tc_ctx.reload_tick_ms = now_ms;
                 g_tc_ctx.phase_start_ms = now_ms;
@@ -338,7 +338,7 @@ void tc_tick(uint32_t now_ms) {
 
         case TC_RELOAD_FOLLOW: {
             buf_state_t instant_buf_state = buf_state_raw();
-            if (g_buf.state == BUF_ADVANCE || instant_buf_state == BUF_ADVANCE || toolhead_has_filament) {
+            if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION || toolhead_has_filament) {
                 if (A) lane_stop(A);
                 set_toolhead_filament(true);
                 char lane_s[2] = { (char)('0' + active_lane), 0 };
@@ -360,8 +360,8 @@ void tc_tick(uint32_t now_ms) {
             g_tc_ctx.reload_tick_ms = now_ms;
 
             uint32_t follow_age_ms = now_ms - g_tc_ctx.phase_start_ms;
-            float trailing_wall_ms = sync_trailing_wall_time_ms(A);
-            float trailing_push_mm_s = sync_trailing_wall_velocity_mm_s(A);
+            float compression_wall_ms = sync_compression_wall_time_ms(A);
+            float compression_push_mm_s = sync_compression_wall_velocity_mm_s(A);
 
             // We must OVER-feed to close the gap and maintain pressure on the old tail.
             // Under-feeding creates a gap because the MMU pushes slower than the extruder pulls!
@@ -369,26 +369,26 @@ void tc_tick(uint32_t now_ms) {
             if (target_sps < PRESS_SPS) {
                 target_sps = PRESS_SPS;
             }
-            if (g_buf.state == BUF_TRAILING) {
-                target_sps = TRAILING_SPS;
-            } else if (g_buf.state == BUF_ADVANCE) {
+            if (g_buf.state == BUF_COMPRESSION) {
+                target_sps = COMPRESSION_SPS;
+            } else if (g_buf.state == BUF_TENSION) {
                 target_sps = JOIN_SPS;
             }
 
-            if (g_buf.state != BUF_TRAILING && trailing_wall_ms < RELOAD_TRAILING_SOFT_WALL_MS) {
-                float urgency = (RELOAD_TRAILING_SOFT_WALL_MS - trailing_wall_ms) / RELOAD_TRAILING_SOFT_WALL_MS;
+            if (g_buf.state != BUF_COMPRESSION && compression_wall_ms < RELOAD_COMPRESSION_SOFT_WALL_MS) {
+                float urgency = (RELOAD_COMPRESSION_SOFT_WALL_MS - compression_wall_ms) / RELOAD_COMPRESSION_SOFT_WALL_MS;
                 urgency = clamp_f(urgency, 0.0f, 1.0f);
-                int wall_trim = (int)(urgency * (float)(target_sps - TRAILING_SPS));
+                int wall_trim = (int)(urgency * (float)(target_sps - COMPRESSION_SPS));
                 target_sps -= wall_trim;
             }
-            target_sps = clamp_i(target_sps, TRAILING_SPS, JOIN_SPS);
+            target_sps = clamp_i(target_sps, COMPRESSION_SPS, JOIN_SPS);
 
             if (follow_age_ms < (uint32_t)RELOAD_TOUCH_SETTLE_MS) {
-                target_sps = TRAILING_SPS;
-            } else if (g_buf.state != BUF_TRAILING &&
+                target_sps = COMPRESSION_SPS;
+            } else if (g_buf.state != BUF_COMPRESSION &&
                        follow_age_ms < (uint32_t)(RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS)) {
                 int floor_sps = (PRESS_SPS * RELOAD_TOUCH_FLOOR_PCT) / 100;
-                if (floor_sps < TRAILING_SPS) floor_sps = TRAILING_SPS;
+                if (floor_sps < COMPRESSION_SPS) floor_sps = COMPRESSION_SPS;
                 if (target_sps < floor_sps) target_sps = floor_sps;
             }
 
@@ -416,13 +416,13 @@ void tc_tick(uint32_t now_ms) {
                 }
             }
 
-            if (g_buf.state == BUF_TRAILING) {
-                if (g_tc_ctx.last_trailing_ms == 0) g_tc_ctx.last_trailing_ms = now_ms;
-                bool wall_critical = trailing_push_mm_s > RELOAD_TRAILING_HARD_PUSH_MM_S &&
-                                     trailing_wall_ms < RELOAD_TRAILING_HARD_WALL_MS;
+            if (g_buf.state == BUF_COMPRESSION) {
+                if (g_tc_ctx.last_compression_ms == 0) g_tc_ctx.last_compression_ms = now_ms;
+                bool wall_critical = compression_push_mm_s > RELOAD_COMPRESSION_HARD_PUSH_MM_S &&
+                                     compression_wall_ms < RELOAD_COMPRESSION_HARD_WALL_MS;
                 if (wall_critical) {
                     if (g_tc_ctx.wall_critical_since_ms == 0) g_tc_ctx.wall_critical_since_ms = now_ms;
-                    else if ((now_ms - g_tc_ctx.wall_critical_since_ms) >= RELOAD_TRAILING_HARD_HOLD_MS) {
+                    else if ((now_ms - g_tc_ctx.wall_critical_since_ms) >= RELOAD_COMPRESSION_HARD_HOLD_MS) {
                         tc_enter_error("FOLLOW_JAM");
                         lane_stop(A);
                         break;
@@ -430,13 +430,13 @@ void tc_tick(uint32_t now_ms) {
                 } else {
                     g_tc_ctx.wall_critical_since_ms = 0;
                 }
-                if ((now_ms - g_tc_ctx.last_trailing_ms) > (uint32_t)FOLLOW_TIMEOUT_MS[lane_to_idx(A->lane_id)]) {
+                if ((now_ms - g_tc_ctx.last_compression_ms) > (uint32_t)FOLLOW_TIMEOUT_MS[lane_to_idx(A->lane_id)]) {
                     tc_enter_error("FOLLOW_JAM");
                     lane_stop(A);
                     break;
                 }
             } else {
-                g_tc_ctx.last_trailing_ms = 0;
+                g_tc_ctx.last_compression_ms = 0;
                 g_tc_ctx.wall_critical_since_ms = 0;
             }
 

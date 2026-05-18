@@ -33,17 +33,17 @@ MIN_RUN_BUCKET_ROWS = 50  # At least one contributing bucket must have this many
 DENOMINATOR_MIN_BUCKET_N = 50  # Denominator in contributor_mass ignores buckets with n below this.
 CONTRIBUTOR_MASS_PASS = 0.40  # Hard gate: below this, contributors are too small a mature-state minority.
 CONTRIBUTOR_MASS_WARN = 0.65  # Soft warning below this contributor mass.
-RAW_COVERAGE_WARN = 0.80  # Raw MID-row coverage is diagnostic only, not a hard failure.
+RAW_COVERAGE_WARN = 0.80  # Raw NEUTRAL-row coverage is diagnostic only, not a hard failure.
 BIAS_SAFE_MIN = 0.05
 BIAS_SAFE_MAX = 0.65
 SIGMA_HARDWARE_CEILING_MM = 5.0  # Absolute FAIL floor: sensor/buffer mechanical failure.
 DEFAULT_FLOW_SCHEDULE_CAP = 8
 DEFAULTS = {
     "baseline_rate": 1600.0,
-    "sync_trailing_bias_frac": 0.4,
-    "mid_creep_timeout_ms": 4000.0,
-    "mid_creep_rate_sps_per_s": 5.0,
-    "mid_creep_cap_frac": 10.0,
+    "sync_compression_bias_frac": 0.4,
+    "neutral_creep_timeout_ms": 4000.0,
+    "neutral_creep_rate_sps_per_s": 5.0,
+    "neutral_creep_cap_frac": 10.0,
     "buf_variance_blend_frac": 0.5,
     "buf_variance_blend_ref_mm": 1.0,
 }
@@ -132,7 +132,7 @@ def read_csv_runs(paths):
                 "zone": row.get("BUF") or row.get("zone"),
                 "feature": row.get("feature") or row.get("feature", ""),
                 "sigma_mm": row.get("sigma_mm"),
-                "mc": row.get("mc") or row.get("mc", "0"),
+                "nc": row.get("nc") or row.get("nc", "0"),
             }
             if norm["ts_ms"] and "." in norm["ts_ms"] and "wall_ts" in row:
                 # Convert wall_ts (seconds) to ms for older logic compatibility
@@ -192,7 +192,7 @@ def force_qualifying_labels(state_buckets, include_stale=False):
             continue
         if int(raw.get("n", 0)) < 50:
             continue
-        if to_float(raw.get("cumulative_mid_s")) < 10.0:
+        if to_float(raw.get("cumulative_neutral_s")) < 10.0:
             continue
         if bucket_noise_ratio(raw) > NOISE_RATIO_THR:
             continue
@@ -200,10 +200,10 @@ def force_qualifying_labels(state_buckets, include_stale=False):
     return labels
 
 
-def mid_rows(rows):
+def neutral_rows(rows):
     return [
         r for r in rows
-        if r.get("zone") == "MID"
+        if r.get("zone") == "NEUTRAL"
         and to_float(r.get("est_sps")) > 0.0
         and to_float(r.get("v_fil")) > 0.0
     ]
@@ -316,7 +316,7 @@ def clamp_flow_schedule_cap(cap):
 
 
 def deterministic_profile_params(rows):
-    mids = mid_rows(rows)
+    mids = neutral_rows(rows)
     grouped = defaultdict(list)
     for r in mids:
         grouped[bucket_label(r.get("feature", ""), to_float(r.get("v_fil")))].append(r)
@@ -391,7 +391,7 @@ def deterministic_flow_schedule(rows, cap):
         return [scalar_point]
 
     by_flow = defaultdict(list)
-    for r in mid_rows(rows):
+    for r in neutral_rows(rows):
         by_flow[bin_v_fil(to_float(r.get("v_fil")))].append(r)
 
     points = []
@@ -438,7 +438,7 @@ def deterministic_flow_schedule(rows, cap):
 def write_flow_schedule(path, cap, points):
     with open(path, "w") as fh:
         fh.write("# flare_analyze.py emitted flow schedule\n")
-        fh.write("# Each point: flow_sps, baseline_sps, trailing_bias_frac\n")
+        fh.write("# Each point: flow_sps, baseline_sps, compression_bias_frac\n")
         fh.write(f"flow_schedule_cap: {cap}\n\n")
         fh.write("[flow_schedule.v1]\n")
         for idx, (flow_sps, baseline_sps, bias_milli) in enumerate(points):
@@ -496,7 +496,7 @@ def contributor_mass(state_buckets, labels):
 def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode, force, include_stale):
     runs = runs_subset
     rows = rows_subset
-    mids = mid_rows(rows)
+    mids = neutral_rows(rows)
 
     import time
     now_ts = time.time()
@@ -563,7 +563,7 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
         bias_detail = f"{len(weighted_bias)} buckets"
     else:
         bp_delta = [to_float(r.get("bp_mm")) - to_float(r.get("rt_mm")) for r in qualifying_rows]
-        current_bias = current["sync_trailing_bias_frac"]
+        current_bias = current["sync_compression_bias_frac"]
         bias = clamp(current_bias + (stats.mean(bp_delta) / 7.8 if bp_delta else 0.0), BIAS_SAFE_MIN, BIAS_SAFE_MAX)
         bias_conf = confidence_from_buckets(set(by_bucket), locked_only) if bp_delta else "DEFAULT"
         bias_detail = f"n={len(bp_delta)}"
@@ -574,7 +574,7 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
         last_ts = None
         for r in run["rows"]:
             ts = to_float(r.get("ts_ms"), -1.0)
-            active = r.get("zone") == "MID" and to_float(r.get("est_sps")) > 0.0 and ts >= 0.0
+            active = r.get("zone") == "NEUTRAL" and to_float(r.get("est_sps")) > 0.0 and ts >= 0.0
             if active and segment_start is None:
                 segment_start = ts
             if not active and segment_start is not None and last_ts is not None:
@@ -584,8 +584,8 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
                 last_ts = ts
         if segment_start is not None and last_ts is not None:
             dwell_ms.append(max(0.0, last_ts - segment_start))
-    mid_timeout = current["mid_creep_timeout_ms"]
-    mid_timeout_conf = "DEFAULT"
+    neutral_timeout = current["neutral_creep_timeout_ms"]
+    neutral_timeout_conf = "DEFAULT"
 
     creep_slopes = []
     creep_caps = []
@@ -595,7 +595,7 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
         for r in run["rows"]:
             ts = to_float(r.get("ts_ms"), -1.0) / 1000.0
             est = to_float(r.get("est_sps"))
-            creeping = r.get("zone") == "MID" and to_float(r.get("mc")) > 0.0 and ts >= 0.0 and est > 0.0
+            creeping = r.get("zone") == "NEUTRAL" and to_float(r.get("nc")) > 0.0 and ts >= 0.0 and est > 0.0
             if not creeping:
                 prev = None
                 segment_start_est = None
@@ -609,9 +609,9 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
                 if dt > 0.0:
                     creep_slopes.append((est - prev[1]) / dt)
             prev = (ts, est)
-    creep_rate = median(creep_slopes) if len(creep_slopes) >= 20 else current["mid_creep_rate_sps_per_s"]
+    creep_rate = median(creep_slopes) if len(creep_slopes) >= 20 else current["neutral_creep_rate_sps_per_s"]
     creep_rate_conf = confidence(len(creep_slopes), 20, 10) if creep_slopes else "DEFAULT"
-    creep_cap = percentile(creep_caps, 90) if len(creep_caps) >= 20 else current["mid_creep_cap_frac"]
+    creep_cap = percentile(creep_caps, 90) if len(creep_caps) >= 20 else current["neutral_creep_cap_frac"]
     creep_cap_conf = confidence(len(creep_caps), 20, 10) if creep_caps else "DEFAULT"
 
     sigma_vals = []
@@ -636,10 +636,10 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
 
     return {
         "baseline_rate": (baseline, baseline_conf, baseline_detail),
-        "sync_trailing_bias_frac": (bias, bias_conf, bias_detail),
-        "mid_creep_timeout_ms": (mid_timeout, mid_timeout_conf, f"deferred; {len(dwell_ms)} dwells"),
-        "mid_creep_rate_sps_per_s": (creep_rate, creep_rate_conf, f"{len(creep_slopes)} creep slopes"),
-        "mid_creep_cap_frac": (creep_cap, creep_cap_conf, f"{len(creep_caps)} creep ratios"),
+        "sync_compression_bias_frac": (bias, bias_conf, bias_detail),
+        "neutral_creep_timeout_ms": (neutral_timeout, neutral_timeout_conf, f"deferred; {len(dwell_ms)} dwells"),
+        "neutral_creep_rate_sps_per_s": (creep_rate, creep_rate_conf, f"{len(creep_slopes)} creep slopes"),
+        "neutral_creep_cap_frac": (creep_cap, creep_cap_conf, f"{len(creep_caps)} creep ratios"),
         "buf_variance_blend_frac": (var_blend, var_conf, sigma_detail),
         "buf_variance_blend_ref_mm": (var_ref, ref_conf, sigma_detail),
     }
@@ -654,7 +654,7 @@ def raw_consistency_by_run(runs):
     bias_vals = defaultdict(list)
     for run in runs:
         grouped = defaultdict(list)
-        for r in mid_rows(run["rows"]):
+        for r in neutral_rows(run["rows"]):
             grouped[bucket_label(r.get("feature", ""), to_float(r.get("v_fil")))].append(r)
         for label, bucket_rows in grouped.items():
             ests = [to_float(r.get("est_sps")) for r in bucket_rows]
@@ -691,11 +691,11 @@ def classify_run(run, state_buckets, current, mode, force, include_stale):
         include_stale,
     )
     baseline, baseline_conf, _baseline_detail = recs["baseline_rate"]
-    bias, bias_conf, _bias_detail = recs["sync_trailing_bias_frac"]
+    bias, bias_conf, _bias_detail = recs["sync_compression_bias_frac"]
     entries = contributor_entries(state_buckets, force=force, include_stale=include_stale)
     contributor_labels = {entry["label"] for entry in entries}
     row_counts = defaultdict(int)
-    for row in mid_rows(run["rows"]):
+    for row in neutral_rows(run["rows"]):
         label = bucket_label(row.get("feature", ""), to_float(row.get("v_fil")))
         if label in contributor_labels:
             row_counts[label] += 1
@@ -770,7 +770,7 @@ def legacy_consistency_by_run(runs, state_buckets, current, mode="safe", force=F
             include_stale,
         )
         baseline, baseline_conf, _baseline_detail = recs["baseline_rate"]
-        bias, bias_conf, _bias_detail = recs["sync_trailing_bias_frac"]
+        bias, bias_conf, _bias_detail = recs["sync_compression_bias_frac"]
         if baseline_conf != "DEFAULT":
             baseline_vals.append(baseline)
         if bias_conf != "DEFAULT":
@@ -783,21 +783,21 @@ def legacy_consistency_by_run(runs, state_buckets, current, mode="safe", force=F
 def acceptance_gate(rows, runs, state_buckets, current, mode="safe", force=False, include_stale=False):
     reasons = []
     warnings = []
-    mids = mid_rows(rows)
+    mids = neutral_rows(rows)
     locked = locked_bucket_labels(state_buckets)
     qualifying = qualifying_labels(state_buckets, force=force, include_stale=include_stale)
-    locked_mid = [
+    locked_neutral = [
         r for r in mids
         if bucket_label(r.get("feature", ""), to_float(r.get("v_fil"))) in locked
     ]
-    raw_coverage = (len(locked_mid) / len(mids)) if mids else 0.0
+    raw_coverage = (len(locked_neutral) / len(mids)) if mids else 0.0
     mass = contributor_mass(state_buckets, qualifying)
     if mass < CONTRIBUTOR_MASS_PASS:
         reasons.append(f"contributor mass {mass * 100:.1f}% < {CONTRIBUTOR_MASS_PASS * 100:.1f}%")
     elif mass < CONTRIBUTOR_MASS_WARN:
         warnings.append(f"contributor mass {mass * 100:.1f}% < {CONTRIBUTOR_MASS_WARN * 100:.1f}%")
     if raw_coverage < RAW_COVERAGE_WARN:
-        warnings.append(f"raw MID coverage {raw_coverage * 100:.1f}% < {RAW_COVERAGE_WARN * 100:.1f}%")
+        warnings.append(f"raw NEUTRAL coverage {raw_coverage * 100:.1f}% < {RAW_COVERAGE_WARN * 100:.1f}%")
 
     consistency = consistency_report_by_run(
         runs,
@@ -847,13 +847,13 @@ def acceptance_gate(rows, runs, state_buckets, current, mode="safe", force=False
 
     telemetry = {
         "FAULT_HOLD": 0,
-        "ADV_RISK_HIGH": 0,
+        "TENSION_RISK_HIGH": 0,
         "EST_FALLBACK": 0,
     }
     if telemetry["FAULT_HOLD"] != 0:
         reasons.append("FAULT_HOLD count > 0")
-    if telemetry["ADV_RISK_HIGH"] > 5 * max(1, len(runs)):
-        reasons.append("ADV_RISK_HIGH count > 5 per run")
+    if telemetry["TENSION_RISK_HIGH"] > 5 * max(1, len(runs)):
+        reasons.append("TENSION_RISK_HIGH count > 5 per run")
     if telemetry["EST_FALLBACK"] != 0:
         reasons.append("EST_FALLBACK count > 0")
 
@@ -876,7 +876,7 @@ def acceptance_gate(rows, runs, state_buckets, current, mode="safe", force=False
 
 
 def format_value(key, value):
-    if key in ("sync_trailing_bias_frac", "buf_variance_blend_frac", "buf_variance_blend_ref_mm"):
+    if key in ("sync_compression_bias_frac", "buf_variance_blend_frac", "buf_variance_blend_ref_mm"):
         return f"{value:.3f}"
     return f"{int(round(value))}"
 
@@ -893,7 +893,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
             fh.write(f"# Acceptance gate: {'PASS' if gate['pass'] else 'FAIL'}\n")
             fh.write(
                 f"# Coverage: contributor mass {gate.get('contributor_mass', 0.0) * 100:.1f} %, "
-                f"raw MID coverage {gate.get('raw_coverage', gate['coverage']) * 100:.1f} %\n"
+                f"raw NEUTRAL coverage {gate.get('raw_coverage', gate['coverage']) * 100:.1f} %\n"
             )
             fh.write(
                 f"# Consistency: max baseline delta {gate['max_baseline_delta']:.0f} sps, "
@@ -927,7 +927,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
             fh.write("# counters reflect pending feature, not real events\n")
             fh.write(
                 "# Telemetry: "
-                f"ADV_RISK_HIGH={tel['ADV_RISK_HIGH']}, "
+                f"TENSION_RISK_HIGH={tel['TENSION_RISK_HIGH']}, "
                 f"EST_FALLBACK={tel['EST_FALLBACK']}, "
                 f"FAULT_HOLD={tel['FAULT_HOLD']}\n"
             )
@@ -1001,7 +1001,7 @@ def run(args):
         all_rows = fast_rows + slow_rows
         scalar = deterministic_profile_params(all_rows)
         if scalar is None:
-            print("Error: no MID rows found in profiles", file=sys.stderr)
+            print("Error: no NEUTRAL rows found in profiles", file=sys.stderr)
             return 1
         baseline, bias = scalar
 
@@ -1016,7 +1016,7 @@ def run(args):
                 return 1
             points = deterministic_flow_schedule(all_rows, cap)
             if points is None:
-                print("Error: no MID rows found in profiles", file=sys.stderr)
+                print("Error: no NEUTRAL rows found in profiles", file=sys.stderr)
                 return 1
             write_flow_schedule(args.out, cap, points)
             print(f"[*] Wrote deterministic flow schedule to {args.out}")
@@ -1025,11 +1025,11 @@ def run(args):
         if args.out:
             with open(args.out, "w") as fh:
                 fh.write(f"baseline_rate: {int(baseline)}\n")
-                fh.write(f"sync_trailing_bias_frac: {bias:.3f}\n")
+                fh.write(f"sync_compression_bias_frac: {bias:.3f}\n")
             print(f"[*] Wrote deterministic baseline to {args.out}")
         else:
             print(f"baseline_rate: {int(baseline)}")
-            print(f"sync_trailing_bias_frac: {bias:.3f}")
+            print(f"sync_compression_bias_frac: {bias:.3f}")
         return 0
 
     if not getattr(args, "inputs", None):

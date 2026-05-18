@@ -62,7 +62,7 @@ The shared `recommend_for_subset` path ensures the gate measures real recommenda
 - **`MIN_RUN_BUCKET_ROWS = 50`**: Minimum rows per bucket in a run.
 - **`CONTRIBUTOR_MASS_PASS = 0.50`**: Hard failure floor.
 - **`CONTRIBUTOR_MASS_WARN = 0.65`**: Preferred coverage target.
-- **`RAW_COVERAGE_WARN = 0.80`**: Warning floor for raw MID row coverage.
+- **`RAW_COVERAGE_WARN = 0.80`**: Warning floor for raw NEUTRAL row coverage.
 
 ### Risks and Constraints
 - **Wrapper**: `compute_recommendations` is a thin wrapper to maintain test stability.

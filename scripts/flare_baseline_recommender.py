@@ -46,7 +46,7 @@ class Recommender:
             return
 
         status = parse_status(line)
-        if "EST" in status and "BUF" in status and status["BUF"] == "MID":
+        if "EST" in status and "BUF" in status and status["BUF"] == "NEUTRAL":
             try:
                 est = float(status["EST"])
                 if est <= 0: return
@@ -69,12 +69,12 @@ class Recommender:
             
             print("\n--- Recommendation ---")
             print(f"Suggested baseline_sps: {int(round(baseline))}")
-            print(f"Suggested sync_trailing_bias_frac: {bias:.3f}")
+            print(f"Suggested sync_compression_bias_frac: {bias:.3f}")
             print(f"Samples collected: {self.total_est_n}")
             print(f"Duration: {time.time() - self.start_ts:.1f}s")
             print("----------------------\n")
         else:
-            print("\nNo MID-zone data collected in this print segment.")
+            print("\nNo NEUTRAL-zone data collected in this print segment.")
 
 def main():
     ap = argparse.ArgumentParser(description="FLARE Baseline Recommender")

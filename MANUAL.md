@@ -37,7 +37,7 @@ Controls whether the MMU handles internal breakpoints automatically or waits for
 
 - **Automated Flow (`AUTO_MODE:1`)** [Default]:
     - **Auto-Preload**: Inserting filament triggers a load to the OUT sensor (if `AUTO_PRELOAD` is 1).
-    - **Auto-Sync**: Pulling the buffer arm (`BUF_ADVANCE`) automatically enables sync mode.
+    - **Auto-Sync**: Pulling the buffer arm (`BUF_TENSION`) automatically enables sync mode.
     - **Post-Load Sync**: Completing a `FL:` or `TC:` load automatically enables sync.
     - **Auto-Load**: If the MMU is empty, inserting filament triggers a full load to the toolhead.
 - **Host-Controlled Flow (`AUTO_MODE:0`)**:
@@ -72,7 +72,7 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `TC:n` | Manual| **Toolchange** — Unload active lane and load lane `n`. |
 | `MV:mm:F[:D]`| Both | **Exact Move** — move `abs(mm)` at `F` mm/min. Direction from sign of `mm` or optional `D` (`F`/`R`/`B`, `+`/`-`). Disables sync. |
 | `FD:` | Both  | **Continuous Feed** — runs forward until `ST:`. |
-| `BS:` | Both  | **Buffer Stabilize** — if the controller is idle, run the buffer neutralization move immediately to bring a dual-endstop buffer back toward `MID`. |
+| `BS:` | Both  | **Buffer Stabilize** — if the controller is idle, run the buffer neutralization move immediately to bring a dual-endstop buffer back toward `NEUTRAL`. |
 | `ST:` | Both  | **Stop** — aborts all motion and resets toolchange state. |
 | `CU:` | Both  | **Cut** — performs the full cutter sequence (Open -> Feed -> Close -> Open -> Repeat -> Block) on the active lane. |
 | `CX:` | Both  | **Bare Cut** — performs the cutter sequence without filament movement (Open -> Close -> Open -> Repeat -> Block). |
@@ -97,7 +97,7 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 ### Driver Access
 | Command | Response | Description |
 |---------|----------|-------------|
-| `TW:lane:reg:val` | OK | **TMC Write** — write raw TMC register value. Bring-up / diagnostics only. |
+| `CW:lane:reg:val` | OK | **TMC Write** — write raw TMC register value. Bring-up / diagnostics only. |
 | `TR:lane:reg` | `OK:lane:reg:0x...` | **TMC Read** — read raw TMC register value. |
 | `RR:lane` | Probe dump | **UART Probe** — try TMC addresses `0..3` and return the raw reply frames for bring-up/debug. |
 
@@ -114,7 +114,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `DIST_OUT_Y` | `dist_out_y` | Distance between OUT sensor and Y-splitter | 100 |
 | `DIST_Y_BUF` | `dist_y_buf` | Distance between Y-splitter and buffer entry | 300 |
 | `BUF_BODY_LEN`| `buf_body_len`| Physical length of the buffer body/tube | 200 |
-| `BUF_HALF_TRAVEL` | `buf_half_travel_mm` | Distance from MID to a dual-endstop switch trip point | 7.8 |
+| `BUF_HALF_TRAVEL` | `buf_half_travel_mm` | Distance from NEUTRAL to a dual-endstop switch trip point | 7.8 |
 | `BUF_SIZE` | `buf_size_mm` | Travel distance of the buffer arm | 22 |
 
 ### Speeds & Rates (mm/min)
@@ -123,7 +123,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `FEED_RATE` | `feed_rate` | Standard feeding speed | 3000 |
 | `REV_RATE` | `rev_rate` | Standard retract speed | 3000 |
 | `AUTO_RATE` | `auto_rate` | Preload speed (`LO:`) | 3000 |
-| `BUF_STAB_RATE` | `buf_stab_rate` | Buffer stabilization speed for boot neutralization and UL advance-recovery move | 600 |
+| `BUF_STAB_RATE` | `buf_stab_rate` | Buffer stabilization speed for boot neutralization and UL tension-recovery move | 600 |
 | `JOIN_RATE` | `join_rate` | RELOAD: Fast approach speed | 1600 |
 | `PRESS_RATE` | `press_rate` | RELOAD: Slow follow-sync speed | 1200 |
 | `GLOBAL_MAX_RATE` | `global_max_rate` | Absolute ceiling applied to every commanded motor rate; `SYNC_MAX_RATE` remains the sync-only soft cap under it | 4000 |
@@ -136,23 +136,23 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `SYNC_TICK_MS` | `sync_tick_ms` | Period between sync-controller updates | 20 |
 | `SYNC_UP_RATE` | `sync_ramp_up_rate` | Max sync-speed increase applied each control tick | 40 |
 | `SYNC_DN_RATE` | `sync_ramp_dn_rate` | Max sync-speed decrease applied each control tick | 80 |
-| `BASELINE_ALPHA` | `baseline_alpha` | Settled-MID baseline adaptation factor | 0.02 |
-| `BUF_PREDICT_THR_MS` | `buf_predict_thr_ms` | MID-dwell threshold used by advance prediction | 250 |
+| `BASELINE_ALPHA` | `baseline_alpha` | Settled-NEUTRAL baseline adaptation factor | 0.02 |
+| `BUF_PREDICT_THR_MS` | `buf_predict_thr_ms` | NEUTRAL-dwell threshold used by tension prediction | 250 |
 | `SYNC_KP_RATE` | `sync_kp_rate` | Proportional reserve-correction window around the virtual buffer target | 900 |
 | `EST_ALPHA_MIN`| `est_alpha_min` | Estimator responsiveness for slow drifts | 0.12 |
 | `EST_ALPHA_MAX`| `est_alpha_max` | Estimator responsiveness for sharp jumps | 0.65 |
-| `SYNC_RESERVE_PCT` | `sync_reserve_pct` | Normal-sync reserve target as % of `BUF_HALF_TRAVEL` toward trailing | 35 |
-| `TRAIL_BIAS_FRAC` | `sync_trailing_bias_frac` | Scalar fallback trailing-side setpoint shift when no flow schedule is configured (0.0 to 0.7) | 0.0 |
-| `MID_CREEP_TIMEOUT_MS` | `mid_creep_timeout_ms` | Mid-dwell wait before creep activates | 0 |
-| `MID_CREEP_RATE` | `mid_creep_rate_sps_per_s` | Creep ramp slope (SPS/s) | 0 |
-| `MID_CREEP_CAP` | `mid_creep_cap_frac` | Hard cap on creep as % of extruder_est_sps | 10 |
+| `SYNC_RESERVE_PCT` | `sync_reserve_pct` | Normal-sync reserve target as % of `BUF_HALF_TRAVEL` toward compression | 35 |
+| `COMPRESSION_BIAS_FRAC` | `sync_compression_bias_frac` | Scalar fallback compression-side setpoint shift when no flow schedule is configured (0.0 to 0.7) | 0.0 |
+| `NEUTRAL_CREEP_TIMEOUT_MS` | `neutral_creep_timeout_ms` | Neutral-dwell wait before creep activates | 0 |
+| `NEUTRAL_CREEP_RATE` | `neutral_creep_rate_sps_per_s` | Creep ramp slope (SPS/s) | 0 |
+| `NEUTRAL_CREEP_CAP` | `neutral_creep_cap_frac` | Hard cap on creep as % of extruder_est_sps | 10 |
 | `VAR_BLEND_FRAC` | `buf_variance_blend_frac` | Max variance-aware blend fraction (0.0=OFF) | 0.0 |
 | `VAR_BLEND_REF_MM` | `buf_variance_blend_ref_mm` | Sigma value at which blend distrust saturates | 1.0 |
 | `ZONE_BIAS_BASE`| `zone_bias_base_rate`| Base reserve-recovery correction around the virtual buffer target (mm/min) | 90 |
 | `ZONE_BIAS_RAMP`| `zone_bias_ramp_rate`| Extra reserve-recovery ramp while buffer stays away from target (mm/min per second) | 30 |
 | `ZONE_BIAS_MAX` | `zone_bias_max_rate` | Max reserve-recovery correction (mm/min) | 600 |
 | `RELOAD_LEAN`  | `reload_lean_factor` | RELOAD follow over-feed factor (0.0 to 5.0) | 1.15 |
-| `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `TRAIL_BIAS_FRAC`, `MID_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
+| `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
 
 ### Safety & Timeouts
 | Parameter | `config.ini` Key | Description | Default |
@@ -161,16 +161,16 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `LOAD_MAX` | `load_max_mm` | Max distance for `FL:` or **Auto-Load** | 3000 |
 | `UNLOAD_MAX` | `unload_max_mm` | Max distance for `UL:`, `UM:` | 3000 |
 | `RETRACT_MM` | `autoload_retract_mm` | Distance to retract after `LO:` triggers OUT, and after `UL:` clears OUT. 0 = stop immediately. | 10 |
-| `UNLOAD_ADV_BLOCK_MS` | `unload_adv_block_ms` | Stop `UL:` if buffer stays in `ADVANCE` for this long (printer blocking retraction). 0 = disabled. | 5000 |
+| `UNLOAD_TENSION_BLOCK_MS` | `unload_tension_block_ms` | Stop `UL:` if buffer stays in `TENSION` for this long (printer blocking retraction). 0 = disabled. | 5000 |
 | `AUTO_MODE` | `auto_mode` | Enable autonomous Flow (Auto-Sync, Toolhead load) | 1 |
 | `AUTO_PRELOAD`| `auto_preload` | Enable parking preload on insertion | 1 |
 | `RELOAD_MODE`| `reload_mode` | Enable autonomous RELOAD behavior (Auto-Swap) | 1 |
 | `RUNOUT_COOLDOWN_MS` | `runout_cooldown_ms` | Cooldown before another runout can be reported on the same lane | 12000 |
-| `SYNC_OVERSHOOT_PCT` | `sync_overshoot_pct` | Extra trailing-side trim as percent of sync correction after reserve overshoots full (0..200) | 150 |
-| `SYNC_OVERSHOOT_MID_EXT` | `sync_overshoot_mid_extend` | Extend trailing overshoot trim into `BUF_MID` when virtual position is below the deadband. | 1 |
-| `SYNC_AUTO_STOP` | `sync_auto_stop_ms` | Auto-mode only: tail-assist stop after sustained `TRAILING`; in normal print sync, stops if continuous `TRAILING` dwell exceeds the timeout and recovery speed has collapsed to the minimum sync floor. | 5000 |
-| `SYNC_ADV_STOP_MS` | `sync_advance_dwell_stop_ms` | Hard stop if continuously pinned at advance endstop for this many ms. 0 = disable. | 6000 |
-| `SYNC_ADV_RAMP_MS` | `sync_advance_ramp_delay_ms` | Grace window before refill-assist overrides target to `SYNC_MAX_RATE`, bypassing the estimator ceiling. 0 = disable. | 0 |
+| `SYNC_OVERSHOOT_PCT` | `sync_overshoot_pct` | Extra compression-side trim as percent of sync correction after reserve overshoots full (0..200) | 150 |
+| `SYNC_OVERSHOOT_NEUTRAL_EXT` | `sync_overshoot_neutral_extend` | Extend compression overshoot trim into `BUF_NEUTRAL` when virtual position is below the deadband. | 1 |
+| `SYNC_AUTO_STOP` | `sync_auto_stop_ms` | Auto-mode only: tail-assist stop after sustained `COMPRESSION`; in normal print sync, stops if continuous `COMPRESSION` dwell exceeds the timeout and recovery speed has collapsed to the minimum sync floor. | 5000 |
+| `SYNC_TENSION_STOP_MS` | `sync_tension_dwell_stop_ms` | Hard stop if continuously pinned at tension endstop for this many ms. 0 = disable. | 6000 |
+| `SYNC_TENSION_RAMP_MS` | `sync_tension_ramp_delay_ms` | Grace window before refill-assist overrides target to `SYNC_MAX_RATE`, bypassing the estimator ceiling. 0 = disable. | 0 |
 | `SYNC_INT_GAIN` | `sync_reserve_integral_gain` | Integral reserve-centering gain (mm of target bias per mm·s of reserve error). **0.0 = disabled** by default. Enable with a small value (e.g. 0.005) after reviewing long-run soak logs. | 0.0 |
 | `SYNC_INT_CLAMP` | `sync_reserve_integral_clamp_mm` | Maximum integral correction magnitude in mm. The integral cannot shift the effective reserve target by more than this amount. | 0.6 |
 | `SYNC_INT_DECAY_MS` | `sync_reserve_integral_decay_ms` | Reserved for future integral decay rate. 0 = hold integral value when frozen. | 0 |
@@ -182,18 +182,18 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `BUF_DRIFT_THR_MM` | `buf_drift_apply_thr_mm` | Minimum `|BPD|` required to apply correction (mm). **0.0 = disabled**. Provisional print default applies correction only after meaningful observed drift. | 2.0 |
 | `BUF_DRIFT_CLAMP` | `buf_drift_clamp_mm` | Hard clamp on applied drift correction magnitude in mm. Runtime range: 0.0–8.0. | 3.0 |
 | `BUF_DRIFT_MIN_CF` | `buf_drift_apply_min_cf` | Minimum estimator confidence (`EC`/100) required to apply drift correction. Correction freezes (but EWMA continues accumulating) when below this. | 0.5 |
-| `ADV_RISK_WINDOW` | `adv_risk_window_ms` | Rolling window for `APX` advance-pin density (ms). Runtime-only, not persisted. | 60000 |
-| `ADV_RISK_THR` | `adv_risk_threshold` | `EV:SYNC,ADV_RISK_HIGH` fires when `APX >= this`. 0 = disable. Runtime-only, not persisted. | 4 |
-| `POST_PRINT_STAB_MS` | `post_print_stab_delay_ms` | Delay before idle+`TRAILING` recovery starts; once triggered, the low-speed post-print stabilization move settles the buffer back to `MID` and only falls back to the advance-side handoff if it overshoots center. `0` starts immediately | 0 |
+| `TENSION_RISK_WINDOW` | `tension_risk_window_ms` | Rolling window for `TPX` tension-pin density (ms). Runtime-only, not persisted. | 60000 |
+| `TENSION_RISK_THR` | `tension_risk_threshold` | `EV:SYNC,TENSION_RISK_HIGH` fires when `TPX >= this`. 0 = disable. Runtime-only, not persisted. | 4 |
+| `POST_PRINT_STAB_MS` | `post_print_stab_delay_ms` | Delay before idle+`COMPRESSION` recovery starts; once triggered, the low-speed post-print stabilization move settles the buffer back to `NEUTRAL` and only falls back to the tension-side handoff if it overshoots center. `0` starts immediately | 0 |
 | `RELOAD_Y_MS` | `reload_y_timeout_ms` | Max time for tail to clear Y during RELOAD | 10000 |
 | `RELOAD_JOIN_MS` | `reload_join_delay_ms` | Extra RELOAD-only settling delay after tail and Y clear before `RELOAD:JOINING` starts | 10000 |
 | `STEALTHCHOP` | `stealthchop_threshold` | Velocity threshold (mm/min) for StealthChop. 0 = always SpreadCycle. | 500 |
 
-`BASELINE_RATE` and `TRAIL_BIAS_FRAC` remain persistent scalar controls. If
+`BASELINE_RATE` and `COMPRESSION_BIAS_FRAC` remain persistent scalar controls. If
 `config.ini` has no `[flow_schedule.v1]` table, `scripts/gen_config.py`
 synthesizes an exact one-point schedule from those scalar values. If a schedule
 table is present, sync evaluates it at the live `extruder_est_sps` to obtain the
-active baseline and trailing bias; `SET:BASELINE_*` or `SET:TRAIL_BIAS_FRAC`
+active baseline and compression bias; `SET:BASELINE_*` or `SET:COMPRESSION_BIAS_FRAC`
 returns runtime behavior to the scalar one-point schedule until settings are
 reloaded or firmware is reflashed.
 
@@ -202,7 +202,7 @@ Config-only schedule keys:
 | `config.ini` Key | Description | Default |
 |------------------|-------------|---------|
 | `flow_schedule_cap` | Maximum generated schedule breakpoints, 1..16 | 8 |
-| `[flow_schedule.v1] pointN` | Optional schedule rows: `flow_sps, baseline_sps, trailing_bias_frac` (or bias milli 0..700). Breakpoints are sorted by flow and interpolated without extrapolation. | absent |
+| `[flow_schedule.v1] pointN` | Optional schedule rows: `flow_sps, baseline_sps, compression_bias_frac` (or bias milli 0..700). Breakpoints are sorted by flow and interpolated without extrapolation. | absent |
 
 `BASELINE_RATE` remains a persistent bootstrap target. AUTO sync no longer rewrites it during startup.
 
@@ -231,17 +231,17 @@ after `SS:`; `HD` appears with the core sync fields near `SM`.
 
 | Field | Unit | Description |
 |-------|------|-------------|
-| `RT` | mm (signed) | Reserve target position. Negative = trailing side. Set by `SYNC_RESERVE_PCT`, active flow-schedule bias (or scalar `TRAIL_BIAS_FRAC` fallback), and `BUF_HALF_TRAVEL`. |
+| `RT` | mm (signed) | Reserve target position. Negative = compression side. Set by `SYNC_RESERVE_PCT`, active flow-schedule bias (or scalar `COMPRESSION_BIAS_FRAC` fallback), and `BUF_HALF_TRAVEL`. |
 | `HD` | bool | Sync HOLD state from `HD:1` / `HD:0`. |
-| `TB` | % (int) | Active trailing bias fraction × 100 after flow-schedule lookup. |
-| `MC` | SPS | Mid-zone creep component added to target rate |
+| `CB` | % (int) | Active compression bias fraction × 100 after flow-schedule lookup. |
+| `NC` | SPS | Neutral-zone creep component added to target rate |
 | `VB` | % (int) | Variance blend distrust percentage |
 | `BPV`| mm × 100 | Post-blend effective position used by control loops |
 | `MK` | seq:tag | Telemetry marker tag and sequence number set by the most recent `MARK:` command. |
 | `RD` | mm | Reserve deadband width around the target. |
-| `AD` | ms | Time the buffer arm has been continuously pinned at the advance-side switch. Zero when not in `BUF_ADVANCE`. |
-| `TD` | ms | Time the buffer arm has been continuously pinned at the trailing-side switch. Zero when not in `BUF_TRAILING`. |
-| `TW` | ms | Estimated time to trailing wall (remaining physical margin ÷ current net push velocity). Capped at 99999 when not applicable or well out of range. |
+| `TT` | ms | Time the buffer arm has been continuously pinned at the tension-side switch. Zero when not in `BUF_TENSION`. |
+| `CT` | ms | Time the buffer arm has been continuously pinned at the compression-side switch. Zero when not in `BUF_COMPRESSION`. |
+| `TW` | ms | Estimated time to compression wall (remaining physical margin ÷ current net push velocity). Capped at 99999 when not applicable or well out of range. |
 | `EA` | ms | Age of the extruder velocity estimate — time since the estimator was last updated by a zone transition or bleed. |
 | `SK` | enum | Active buffer sensor kind: `0` = virtual endstop, `1` = analog. |
 | `CF` | 0.0–1.0 | Signal confidence from the active source. Below ~0.5 indicates saturation or stale data; the control loop treats values below 0.4 as unreliable. |
@@ -252,7 +252,7 @@ after `SS:`; `HD` appears with the core sync fields near `SM`.
 | `BPR` | mm (signed) | Last per-transition residual: `g_buf_pos − switch_pos_mm` measured just before the virtual position snaps to the switch threshold. Non-zero values indicate virtual/physical mismatch at that crossing. |
 | `BPD` | mm (signed) | Drift EWMA — exponentially weighted average of `BPR` samples (time constant `BUF_DRIFT_TAU_MS`). A stable non-zero value indicates systematic virtual-position bias. |
 | `BPN` | int | Number of zone transitions sampled into `BPD`. Drift correction ramps in until `BPN >= BUF_DRIFT_MIN_SMP`, then can apply at full configured strength away from the opposite wall. |
-| `APX` | int | Count of `BUF_ADVANCE` pin entries within the last `ADV_RISK_WINDOW` ms. `EV:SYNC,ADV_RISK_HIGH` fires when this reaches `ADV_RISK_THR`. |
+| `TPX` | int | Count of `BUF_TENSION` pin entries within the last `TENSION_RISK_WINDOW` ms. `EV:SYNC,TENSION_RISK_HIGH` fires when this reaches `TENSION_RISK_THR`. |
 | `RDC` | 0–100 | Drift-correction activity scalar after confidence gating, sample ramp, clamp, and opposite-wall taper. `100` means correction is applying at the configured clamp; values can drop near a physical endstop so correction cannot hide the wall. |
 
 ---
@@ -271,10 +271,10 @@ after `SS:`; `HD` appears with the core sync fields near `SM`.
 | `MOVE_DONE` | `lane` | Exact move completed. |
 | `ACTIVE` | `lane\|NONE`| Reported when the active lane changes. |
 | `FAULT:DRY_SPIN`| `lane` | Motor spinning > 8s without filament (`IN` clear). |
-| `SYNC` | `AUTO_START\|AUTO_STOP\|FAULT_HOLD\|FAULT_HOLD_RECOVERY\|ADV_DWELL_WARN\|ADV_RISK_HIGH` | Automatic sync state transitions. `FAULT_HOLD` fires on advance-dwell timeout or hard-wall critical; recovers automatically after `CONF_SYNC_FAULT_HOLD_RECOVERY_MS`. `ADV_DWELL_WARN` fires when centering drift reaches a significant threshold. `ADV_RISK_HIGH` fires when advance-pin density in the rolling window reaches `ADV_RISK_THR`. |
+| `SYNC` | `AUTO_START\|AUTO_STOP\|FAULT_HOLD\|FAULT_HOLD_RECOVERY\|TENSION_DWELL_WARN\|TENSION_RISK_HIGH` | Automatic sync state transitions. `FAULT_HOLD` fires on tension-dwell timeout or hard-wall critical; recovers automatically after `CONF_SYNC_FAULT_HOLD_RECOVERY_MS`. `TENSION_DWELL_WARN` fires when centering drift reaches a significant threshold. `TENSION_RISK_HIGH` fires when tension-pin density in the rolling window reaches `TENSION_RISK_THR`. |
 | `BUF` | `DRIFT_RESET` | Drift EWMA was reset. Fires when sync stops, `EST_FALLBACK` occurs, or sensor is hot-swapped. Subsequent `BPN` will restart from 0. |
 | `BUF` | `EST_LOW_CF\|EST_FALLBACK` | Buffer estimator events. `EST_LOW_CF` fires when confidence drops; `EST_FALLBACK` fires when sigma exceeds the hard cap. |
-| `BUF_STAB` | `START\|DONE\|TIMEOUT` | Buffer neutralization started, reached `MID`, or hit its safety timeout. |
+| `BUF_STAB` | `START\|DONE\|TIMEOUT` | Buffer neutralization started, reached `NEUTRAL`, or hit its safety timeout. |
 | `BS` | Mode-specific snapshot | Periodic buffer/sync status event used during sync and RELOAD follow. |
 | `TC:*` | Phase-specific | Toolchange progress events such as `TC:UNLOADING`, `TC:SWAPPING`, `TC:LOADING`, `TC:DONE`, `TC:ERROR`. |
 | `RELOAD:*` | Phase-specific | RELOAD progress and fault events such as `RELOAD:SWITCHING`, `RELOAD:JOINING`, `RELOAD:LOADED`, `RELOAD:FAULT`. |
@@ -354,7 +354,7 @@ cp ~/flare-state/buckets-<id>.json ~/flare-state/buckets-<id>.json.schema2.bak
    ```
    Copy the reviewed `flow_schedule_cap` and `[flow_schedule.v1]` block into
    `config.ini`. Sparse inputs emit a one-point schedule equivalent to the
-   scalar `baseline_rate` / `sync_trailing_bias_frac` fallback.
+   scalar `baseline_rate` / `sync_compression_bias_frac` fallback.
 6. Regenerate and flash:
    ```bash
    python3 scripts/gen_config.py
@@ -369,7 +369,7 @@ cp ~/flare-state/buckets-<id>.json ~/flare-state/buckets-<id>.json.schema2.bak
 The acceptance gate differentiates between hardware/math failures (**FAIL**) and
 stale-configuration warnings (**WARN**). It compares the state-aware 
 recommendation path once per "comparable" run. A run is comparable only if it 
-contains at least 50 MID rows for at least three contributing buckets. 
+contains at least 50 NEUTRAL rows for at least three contributing buckets. 
 
 - **FAIL (Recommendation Unreliable)**: Triggered by high scatter 
   (sigma_p95 >= 5.0 mm), inconsistent recommendations between runs, 
@@ -380,7 +380,7 @@ contains at least 50 MID rows for at least three contributing buckets.
   (< 3), short print durations (< 30 min total or any run < 10 min), or
   having fewer than 3 LOCKED buckets.
 
-Raw MID-row coverage is reported as a diagnostic warning only. On FAIL, the 
+Raw NEUTRAL-row coverage is reported as a diagnostic warning only. On FAIL, the 
 analyzer still writes a patch with `Acceptance gate: FAIL` and prints explicit 
 reasons to stderr.
 
@@ -395,7 +395,7 @@ continuously across prints.
 Mode flags:
 
 - default observe mode: no firmware writes, no save.
-- `--allow-bias-writes`: debug-only live `SET:TRAIL_BIAS_FRAC` writes.
+- `--allow-bias-writes`: debug-only live `SET:COMPRESSION_BIAS_FRAC` writes.
 - `--allow-baseline-writes`: debug-only live `SET:BASELINE_SPS` writes.
 - `--klipper-uds PATH`: Klipper API Unix socket path.
 - `--klipper-mode auto|on`: auto-fallback or require UDS.
@@ -412,7 +412,7 @@ python3 scripts/flare_live_tuner.py --machine-id myprinter --state-info --verbos
 ```
 
 Bucket lock is cumulative across calibration runs: samples, run count, layer
-count, and time spent in `MID` must all pass before a bucket becomes `LOCKED`.
+count, and time spent in `NEUTRAL` must all pass before a bucket becomes `LOCKED`.
 Very low `EST` samples below 100 steps/s and rail-clamped bias buckets are
 tracked as diagnostics but excluded from lock/write eligibility.
 

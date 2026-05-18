@@ -28,7 +28,7 @@ typedef struct {
     int post_print_stab_delay_ms;
     int load_max_mm;
     int unload_max_mm;
-    int unload_adv_block_ms;
+    int unload_tension_block_ms;
     int reload_y_timeout_ms;
     int reload_join_delay_ms;
     int autoload_max_mm;
@@ -57,7 +57,7 @@ typedef struct {
     int ramp_step_sps, ramp_tick_ms;
 
     int buf_sensor_type;
-    float buf_neutral, buf_range, buf_thr, buf_analog_alpha;
+    float buf_analog_neutral, buf_range, buf_thr, buf_analog_alpha;
     int sync_kp_sps;
     int sync_overshoot_pct;
     int sync_reserve_pct;
@@ -65,7 +65,7 @@ typedef struct {
 
     int join_sps;
     int press_sps;
-    int trailing_sps;
+    int compression_sps;
     int buf_stab_sps;
     int follow_timeout_ms[NUM_LANES];
 
@@ -88,9 +88,9 @@ typedef struct {
     int tmc_stealthchop_sps[NUM_LANES];
     int tmc_run_current_ma[NUM_LANES], tmc_hold_current_ma[NUM_LANES];
 
-    int sync_advance_dwell_stop_ms;
-    int sync_advance_ramp_delay_ms;
-    int sync_overshoot_mid_extend;
+    int sync_tension_dwell_stop_ms;
+    int sync_tension_ramp_delay_ms;
+    int sync_overshoot_neutral_extend;
 
     float sync_reserve_integral_gain;
     float sync_reserve_integral_clamp_mm;
@@ -103,10 +103,10 @@ typedef struct {
     float buf_drift_clamp_mm;
     float buf_drift_apply_min_cf;
 
-    float sync_trailing_bias_frac;
-    int mid_creep_timeout_ms;
-    int mid_creep_rate_sps_per_s;
-    int mid_creep_cap_frac;
+    float sync_compression_bias_frac;
+    int neutral_creep_timeout_ms;
+    int neutral_creep_rate_sps_per_s;
+    int neutral_creep_cap_frac;
     float buf_variance_blend_frac;
     float buf_variance_blend_ref_mm;
 
@@ -145,7 +145,7 @@ void settings_defaults(void) {
     AUTOLOAD_MAX_MM = CONF_AUTOLOAD_MAX_MM;
     LOAD_MAX_MM = CONF_LOAD_MAX_MM;
     UNLOAD_MAX_MM = CONF_UNLOAD_MAX_MM;
-    UNLOAD_ADV_BLOCK_MS = CONF_UNLOAD_ADV_BLOCK_MS;
+    UNLOAD_TENSION_BLOCK_MS = CONF_UNLOAD_TENSION_BLOCK_MS;
     RELOAD_Y_TIMEOUT_MS = CONF_RELOAD_Y_TIMEOUT_MS;
     RELOAD_JOIN_DELAY_MS = CONF_RELOAD_JOIN_DELAY_MS;
     AUTO_MODE = 1;
@@ -201,7 +201,7 @@ void settings_defaults(void) {
     RAMP_TICK_MS = CONF_RAMP_TICK_MS;
 
     BUF_SENSOR_TYPE = CONF_BUF_SENSOR_TYPE;
-    BUF_NEUTRAL = CONF_BUF_NEUTRAL;
+    BUF_ANALOG_NEUTRAL = CONF_BUF_ANALOG_NEUTRAL;
     BUF_RANGE = CONF_BUF_RANGE;
     BUF_THR = CONF_BUF_THR;
     BUF_ANALOG_ALPHA = CONF_BUF_ANALOG_ALPHA;
@@ -209,9 +209,9 @@ void settings_defaults(void) {
     SYNC_OVERSHOOT_PCT = clamp_i(CONF_SYNC_OVERSHOOT_PCT, 0, 200);
     SYNC_RESERVE_PCT = clamp_i(CONF_SYNC_RESERVE_PCT, 0, 150);
     TS_BUF_FALLBACK_MS = CONF_TS_BUF_FALLBACK_MS;
-    SYNC_ADVANCE_DWELL_STOP_MS = CONF_SYNC_ADVANCE_DWELL_STOP_MS;
-    SYNC_ADVANCE_RAMP_DELAY_MS = CONF_SYNC_ADVANCE_RAMP_DELAY_MS;
-    SYNC_OVERSHOOT_MID_EXTEND = CONF_SYNC_OVERSHOOT_MID_EXTEND;
+    SYNC_TENSION_DWELL_STOP_MS = CONF_SYNC_TENSION_DWELL_STOP_MS;
+    SYNC_TENSION_RAMP_DELAY_MS = CONF_SYNC_TENSION_RAMP_DELAY_MS;
+    SYNC_OVERSHOOT_NEUTRAL_EXTEND = CONF_SYNC_OVERSHOOT_NEUTRAL_EXTEND;
     SYNC_RESERVE_INTEGRAL_GAIN = CONF_SYNC_RESERVE_INTEGRAL_GAIN;
     SYNC_RESERVE_INTEGRAL_CLAMP_MM = CONF_SYNC_RESERVE_INTEGRAL_CLAMP_MM;
     SYNC_RESERVE_INTEGRAL_DECAY_MS = CONF_SYNC_RESERVE_INTEGRAL_DECAY_MS;
@@ -222,16 +222,16 @@ void settings_defaults(void) {
     BUF_DRIFT_CLAMP_MM = CONF_BUF_DRIFT_CLAMP_MM;
     BUF_DRIFT_APPLY_MIN_CF = CONF_BUF_DRIFT_APPLY_MIN_CF;
     
-    SYNC_TRAILING_BIAS_FRAC = clamp_f(CONF_SYNC_TRAILING_BIAS_FRAC, 0.0f, 0.7f);
+    SYNC_COMPRESSION_BIAS_FRAC = clamp_f(CONF_SYNC_COMPRESSION_BIAS_FRAC, 0.0f, 0.7f);
     flow_schedule_reset_runtime();
-    MID_CREEP_TIMEOUT_MS = CONF_MID_CREEP_TIMEOUT_MS;
-    MID_CREEP_RATE_SPS_PER_S = CONF_MID_CREEP_RATE_SPS_PER_S;
-    MID_CREEP_CAP_FRAC = CONF_MID_CREEP_CAP_FRAC;
+    NEUTRAL_CREEP_TIMEOUT_MS = CONF_NEUTRAL_CREEP_TIMEOUT_MS;
+    NEUTRAL_CREEP_RATE_SPS_PER_S = CONF_NEUTRAL_CREEP_RATE_SPS_PER_S;
+    NEUTRAL_CREEP_CAP_FRAC = CONF_NEUTRAL_CREEP_CAP_FRAC;
 
     BUF_STAB_SPS = clamp_i(CONF_BUF_STAB_SPS, 10, 10000);
     JOIN_SPS = CONF_JOIN_SPS;
     PRESS_SPS = CONF_PRESS_SPS;
-    TRAILING_SPS = CONF_TRAILING_SPS;
+    COMPRESSION_SPS = CONF_COMPRESSION_SPS;
 
     MM_PER_STEP[0] = CONF_L1_MM_PER_STEP;
     MM_PER_STEP[1] = CONF_L2_MM_PER_STEP;
@@ -288,7 +288,7 @@ void settings_save(void) {
     s.autoload_max_mm = AUTOLOAD_MAX_MM;
     s.load_max_mm = LOAD_MAX_MM;
     s.unload_max_mm = UNLOAD_MAX_MM;
-    s.unload_adv_block_ms = UNLOAD_ADV_BLOCK_MS;
+    s.unload_tension_block_ms = UNLOAD_TENSION_BLOCK_MS;
     s.reload_y_timeout_ms = RELOAD_Y_TIMEOUT_MS;
     s.reload_join_delay_ms = RELOAD_JOIN_DELAY_MS;
     s.auto_mode = AUTO_MODE;
@@ -334,7 +334,7 @@ void settings_save(void) {
     s.ramp_tick_ms = RAMP_TICK_MS;
 
     s.buf_sensor_type = BUF_SENSOR_TYPE;
-    s.buf_neutral = BUF_NEUTRAL;
+    s.buf_analog_neutral = BUF_ANALOG_NEUTRAL;
     s.buf_range = BUF_RANGE;
     s.buf_thr = BUF_THR;
     s.buf_analog_alpha = BUF_ANALOG_ALPHA;
@@ -344,7 +344,7 @@ void settings_save(void) {
     s.ts_buf_fallback_ms = TS_BUF_FALLBACK_MS;
     s.join_sps = JOIN_SPS;
     s.press_sps = PRESS_SPS;
-    s.trailing_sps = TRAILING_SPS;
+    s.compression_sps = COMPRESSION_SPS;
 
     s.reload_mode = (bool)RELOAD_MODE;
     s.cutter_settle_ms = CUT_TIMEOUT_SETTLE_MS;
@@ -353,9 +353,9 @@ void settings_save(void) {
     }
 
     s.buf_stab_sps = BUF_STAB_SPS;
-    s.sync_advance_dwell_stop_ms = SYNC_ADVANCE_DWELL_STOP_MS;
-    s.sync_advance_ramp_delay_ms = SYNC_ADVANCE_RAMP_DELAY_MS;
-    s.sync_overshoot_mid_extend = SYNC_OVERSHOOT_MID_EXTEND;
+    s.sync_tension_dwell_stop_ms = SYNC_TENSION_DWELL_STOP_MS;
+    s.sync_tension_ramp_delay_ms = SYNC_TENSION_RAMP_DELAY_MS;
+    s.sync_overshoot_neutral_extend = SYNC_OVERSHOOT_NEUTRAL_EXTEND;
     s.sync_reserve_integral_gain = SYNC_RESERVE_INTEGRAL_GAIN;
     s.sync_reserve_integral_clamp_mm = SYNC_RESERVE_INTEGRAL_CLAMP_MM;
     s.sync_reserve_integral_decay_ms = SYNC_RESERVE_INTEGRAL_DECAY_MS;
@@ -366,10 +366,10 @@ void settings_save(void) {
     s.buf_drift_clamp_mm = BUF_DRIFT_CLAMP_MM;
     s.buf_drift_apply_min_cf = BUF_DRIFT_APPLY_MIN_CF;
 
-    s.sync_trailing_bias_frac = SYNC_TRAILING_BIAS_FRAC;
-    s.mid_creep_timeout_ms = MID_CREEP_TIMEOUT_MS;
-    s.mid_creep_rate_sps_per_s = MID_CREEP_RATE_SPS_PER_S;
-    s.mid_creep_cap_frac = MID_CREEP_CAP_FRAC;
+    s.sync_compression_bias_frac = SYNC_COMPRESSION_BIAS_FRAC;
+    s.neutral_creep_timeout_ms = NEUTRAL_CREEP_TIMEOUT_MS;
+    s.neutral_creep_rate_sps_per_s = NEUTRAL_CREEP_RATE_SPS_PER_S;
+    s.neutral_creep_cap_frac = NEUTRAL_CREEP_CAP_FRAC;
     s.buf_variance_blend_frac = BUF_VARIANCE_BLEND_FRAC;
     s.buf_variance_blend_ref_mm = BUF_VARIANCE_BLEND_REF_MM;
 
@@ -467,7 +467,7 @@ void settings_load(void) {
     AUTOLOAD_MAX_MM = s->autoload_max_mm;
     LOAD_MAX_MM = s->load_max_mm;
     UNLOAD_MAX_MM = s->unload_max_mm;
-    UNLOAD_ADV_BLOCK_MS = s->unload_adv_block_ms;
+    UNLOAD_TENSION_BLOCK_MS = s->unload_tension_block_ms;
     RELOAD_Y_TIMEOUT_MS = s->reload_y_timeout_ms;
     RELOAD_JOIN_DELAY_MS = s->reload_join_delay_ms;
     AUTO_MODE = s->auto_mode;
@@ -533,7 +533,7 @@ void settings_load(void) {
     RAMP_TICK_MS = s->ramp_tick_ms;
 
     BUF_SENSOR_TYPE = s->buf_sensor_type;
-    BUF_NEUTRAL = s->buf_neutral;
+    BUF_ANALOG_NEUTRAL = s->buf_analog_neutral;
     BUF_RANGE = s->buf_range;
     BUF_THR = s->buf_thr;
     BUF_ANALOG_ALPHA = s->buf_analog_alpha;
@@ -541,9 +541,9 @@ void settings_load(void) {
     SYNC_OVERSHOOT_PCT = clamp_i(s->sync_overshoot_pct, 0, 200);
     SYNC_RESERVE_PCT = clamp_i(s->sync_reserve_pct, 0, 150);
     TS_BUF_FALLBACK_MS = s->ts_buf_fallback_ms;
-    SYNC_ADVANCE_DWELL_STOP_MS = clamp_i(s->sync_advance_dwell_stop_ms, 0, 30000);
-    SYNC_ADVANCE_RAMP_DELAY_MS = clamp_i(s->sync_advance_ramp_delay_ms, 0, 5000);
-    SYNC_OVERSHOOT_MID_EXTEND = clamp_i(s->sync_overshoot_mid_extend, 0, 1);
+    SYNC_TENSION_DWELL_STOP_MS = clamp_i(s->sync_tension_dwell_stop_ms, 0, 30000);
+    SYNC_TENSION_RAMP_DELAY_MS = clamp_i(s->sync_tension_ramp_delay_ms, 0, 5000);
+    SYNC_OVERSHOOT_NEUTRAL_EXTEND = clamp_i(s->sync_overshoot_neutral_extend, 0, 1);
     SYNC_RESERVE_INTEGRAL_GAIN = clamp_f(s->sync_reserve_integral_gain, 0.0f, 0.05f);
     SYNC_RESERVE_INTEGRAL_CLAMP_MM = clamp_f(s->sync_reserve_integral_clamp_mm, 0.0f, 2.0f);
     SYNC_RESERVE_INTEGRAL_DECAY_MS = clamp_i(s->sync_reserve_integral_decay_ms, 0, 60000);
@@ -554,17 +554,17 @@ void settings_load(void) {
     BUF_DRIFT_CLAMP_MM = clamp_f(s->buf_drift_clamp_mm, 0.0f, BUF_DRIFT_CLAMP_LIMIT_MM);
     BUF_DRIFT_APPLY_MIN_CF = clamp_f(s->buf_drift_apply_min_cf, 0.0f, 1.0f);
 
-    SYNC_TRAILING_BIAS_FRAC = clamp_f(s->sync_trailing_bias_frac, 0.0f, 0.7f);
+    SYNC_COMPRESSION_BIAS_FRAC = clamp_f(s->sync_compression_bias_frac, 0.0f, 0.7f);
     flow_schedule_reset_runtime();
-    MID_CREEP_TIMEOUT_MS = clamp_i(s->mid_creep_timeout_ms, 0, 60000);
-    MID_CREEP_RATE_SPS_PER_S = clamp_i(s->mid_creep_rate_sps_per_s, 0, 1000);
-    MID_CREEP_CAP_FRAC = clamp_i(s->mid_creep_cap_frac, 0, 100);
+    NEUTRAL_CREEP_TIMEOUT_MS = clamp_i(s->neutral_creep_timeout_ms, 0, 60000);
+    NEUTRAL_CREEP_RATE_SPS_PER_S = clamp_i(s->neutral_creep_rate_sps_per_s, 0, 1000);
+    NEUTRAL_CREEP_CAP_FRAC = clamp_i(s->neutral_creep_cap_frac, 0, 100);
 
     RELOAD_MODE = s->reload_mode ? 1 : 0;
     CUT_TIMEOUT_SETTLE_MS = s->cutter_settle_ms;
     JOIN_SPS = s->join_sps;
     PRESS_SPS = s->press_sps;
-    TRAILING_SPS = s->trailing_sps;
+    COMPRESSION_SPS = s->compression_sps;
     BUF_STAB_SPS = s->buf_stab_sps;
     for (int i = 0; i < NUM_LANES; i++) {
         FOLLOW_TIMEOUT_MS[i] = s->follow_timeout_ms[i];

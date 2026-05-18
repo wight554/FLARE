@@ -30,7 +30,7 @@ HIGH_SIGMA_B = os.path.join(REPO_ROOT, "tests/fixtures/high_sigma_run_b.csv")
 
 FIELDS = [
     "ts_ms", "zone", "bp_mm", "sigma_mm", "est_sps", "rt_mm", "cf",
-    "adv_dwell_ms", "tb", "mc", "vb", "bpv_mm", "feature", "v_fil",
+    "tension_dwell_ms", "cb", "nc", "vb", "bpv_mm", "feature", "v_fil",
 ]
 
 
@@ -58,10 +58,10 @@ def write_tuner_csv(path, rows):
 def write_config(path, ref=1.0):
     with open(path, "w") as fh:
         fh.write("baseline_rate: 1600\n")
-        fh.write("sync_trailing_bias_frac: 0.4\n")
-        fh.write("mid_creep_timeout_ms: 4000\n")
-        fh.write("mid_creep_rate_sps_per_s: 5\n")
-        fh.write("mid_creep_cap_frac: 10\n")
+        fh.write("sync_compression_bias_frac: 0.4\n")
+        fh.write("neutral_creep_timeout_ms: 4000\n")
+        fh.write("neutral_creep_rate_sps_per_s: 5\n")
+        fh.write("neutral_creep_cap_frac: 10\n")
         fh.write("buf_variance_blend_frac: 0.5\n")
         fh.write(f"buf_variance_blend_ref_mm: {ref}\n")
 
@@ -81,7 +81,7 @@ def write_state(path, locked_labels):
                         "locked": True,
                         "runs_seen": 3,
                         "layers_seen": 3,
-                        "cumulative_mid_s": 90,
+                        "cumulative_neutral_s": 90,
                     }
                     for label in locked_labels
                 },
@@ -95,18 +95,18 @@ def write_state_records(path, records):
         json.dump({"_schema": 4, "test": records}, fh)
 
 
-def row(ts, feature="Outer_wall", v_fil=1660, est=1600, bp=-3.0, rt=-3.0, sigma=0.2, mc=0):
+def row(ts, feature="Outer_wall", v_fil=1660, est=1600, bp=-3.0, rt=-3.0, sigma=0.2, nc=0):
     return {
         "ts_ms": str(ts),
-        "zone": "MID",
+        "zone": "NEUTRAL",
         "bp_mm": str(bp),
         "sigma_mm": str(sigma),
         "est_sps": str(est),
         "rt_mm": str(rt),
         "cf": "0.95",
-        "adv_dwell_ms": "0",
-        "tb": "40",
-        "mc": str(mc),
+        "tension_dwell_ms": "0",
+        "cb": "40",
+        "nc": str(nc),
         "vb": "50",
         "bpv_mm": str(bp),
         "feature": feature,
@@ -120,14 +120,14 @@ def test_baseline_from_dominant_cluster():
     recs = analyze.compute_recommendations(rows, runs, {}, analyze.DEFAULTS.copy(), "safe")
     baseline = recs["baseline_rate"][0]
     assert 1498 <= baseline <= 1503, baseline
-    return "baseline derives from dominant MID cluster"
+    return "baseline derives from dominant NEUTRAL cluster"
 
 
 def test_bias_clamped_to_safe_range():
     rows = [row(i * 100, bp=10.0, rt=-7.8) for i in range(20)]
     runs = [{"path": "run1.csv", "rows": rows}]
     recs = analyze.compute_recommendations(rows, runs, {}, analyze.DEFAULTS.copy(), "safe")
-    bias = recs["sync_trailing_bias_frac"][0]
+    bias = recs["sync_compression_bias_frac"][0]
     assert bias == analyze.BIAS_SAFE_MAX, bias
     return "bias recommendation clamps to safe max"
 
@@ -154,9 +154,9 @@ def test_acceptance_gate_warns_low_raw_coverage():
         with open(out) as fh:
             text = fh.read()
         assert "Acceptance gate: PASS" in text, text
-        assert "raw MID coverage" in text, text
+        assert "raw NEUTRAL coverage" in text, text
         assert "Failure reasons" not in text, text
-        return "low raw MID coverage warns but does not fail acceptance"
+        return "low raw NEUTRAL coverage warns but does not fail acceptance"
 
 
 def test_acceptance_gate_pass_three_runs():
@@ -217,7 +217,7 @@ def test_refuses_emit_when_zero_locked_in_safe_mode():
         write_state_records(state, {
             "Inner_wall_v1000": {
                 "x": 900, "P": 20, "n": 200, "state": "STABLE", "locked": False,
-                "resid_var_ewma": 400.0, "cumulative_mid_s": 20,
+                "resid_var_ewma": 400.0, "cumulative_neutral_s": 20,
             }
         })
         config = os.path.join(td, "config.ini")
@@ -248,7 +248,7 @@ def test_warns_emit_when_zero_locked_in_aggressive_mode():
         write_state_records(state, {
             "Inner_wall_v1000": {
                 "x": 900, "P": 20, "n": 200, "state": "STABLE", "locked": False,
-                "resid_var_ewma": 400.0, "cumulative_mid_s": 20,
+                "resid_var_ewma": 400.0, "cumulative_neutral_s": 20,
             }
         })
         config = os.path.join(td, "config.ini")
@@ -280,7 +280,7 @@ def test_force_emits_when_zero_locked_in_safe_mode():
         write_state_records(state, {
             "Inner_wall_v1000": {
                 "x": 900, "P": 20, "n": 200, "state": "STABLE", "locked": False,
-                "resid_var_ewma": 400.0, "cumulative_mid_s": 20,
+                "resid_var_ewma": 400.0, "cumulative_neutral_s": 20,
             }
         })
         config = os.path.join(td, "config.ini")
@@ -383,7 +383,7 @@ def test_bias_only_from_qualifying_buckets():
         rows.extend(row(i * 1000 + j * 100, feature=f"Locked{i}", v_fil=1000, est=1000, bp=-3.78, rt=-3.0) for j in range(5))
     rows.extend(row(10000 + j * 100, feature="Unlocked", v_fil=1000, est=1000, bp=-2.22, rt=-3.0) for j in range(100))
     recs = analyze.compute_recommendations(rows, [{"path": "run.csv", "rows": rows}], state, analyze.DEFAULTS.copy(), "safe")
-    bias = recs["sync_trailing_bias_frac"][0]
+    bias = recs["sync_compression_bias_frac"][0]
     assert 0.295 <= bias <= 0.305, bias
     return "bias ignores non-qualifying bucket rows"
 
@@ -422,7 +422,7 @@ def test_buf_variance_blend_ref_mm_from_bp_not_bl():
                 bp = [-0.5, 0.0, 0.5][j % 3] + idx * 0.01
                 rows.append({
                     "wall_ts": str((idx * 1000 + j) / 10.0),
-                    "BUF": "MID",
+                    "BUF": "NEUTRAL",
                     "BP": f"{bp:.3f}",
                     "BPV": "0.1",
                     "BL": "707.5",
@@ -436,7 +436,7 @@ def test_buf_variance_blend_ref_mm_from_bp_not_bl():
         state = {
             f"{feature}_v1000": {
                 "state": "LOCKED", "locked": True, "x": 1000, "n": 60,
-                "resid_var_ewma": 100, "cumulative_mid_s": 20,
+                "resid_var_ewma": 100, "cumulative_neutral_s": 20,
             }
             for feature in labels
         }
@@ -448,10 +448,10 @@ def test_buf_variance_blend_ref_mm_from_bp_not_bl():
         return "variance blend reference derives from BP scatter, not BL baseline"
 
 
-def test_mid_creep_timeout_default_when_insufficient_data():
+def test_neutral_creep_timeout_default_when_insufficient_data():
     rows = []
     for i in range(100):
-        zone = "MID" if i % 4 else "LOW"
+        zone = "NEUTRAL" if i % 4 else "LOW"
         rows.append({
             "ts_ms": str(i * 100),
             "zone": zone,
@@ -460,9 +460,9 @@ def test_mid_creep_timeout_default_when_insufficient_data():
             "est_sps": "1000",
             "rt_mm": "-3.0",
             "cf": "0.95",
-            "adv_dwell_ms": "0",
-            "tb": "40",
-            "mc": "0",
+            "tension_dwell_ms": "0",
+            "cb": "40",
+            "nc": "0",
             "vb": "50",
             "bpv_mm": "-3.0",
             "feature": "Outer_wall",
@@ -471,13 +471,13 @@ def test_mid_creep_timeout_default_when_insufficient_data():
     runs = [{"path": "run.csv", "rows": rows}]
     state = {"Outer_wall_v1000": {"state": "LOCKED", "locked": True, "x": 1000, "n": 100, "resid_var_ewma": 100}}
     current = analyze.DEFAULTS.copy()
-    current["mid_creep_timeout_ms"] = 4321
+    current["neutral_creep_timeout_ms"] = 4321
     recs = analyze.compute_recommendations(rows, runs, state, current, "safe")
-    value, conf, detail = recs["mid_creep_timeout_ms"]
+    value, conf, detail = recs["neutral_creep_timeout_ms"]
     assert value == 4321, value
     assert conf == "DEFAULT", conf
     assert "deferred" in detail, detail
-    return "mid_creep_timeout_ms stays current/default until a valid signal exists"
+    return "neutral_creep_timeout_ms stays current/default until a valid signal exists"
 
 
 def test_contributors_block_emitted():
@@ -494,7 +494,7 @@ def test_contributors_block_emitted():
                 "x": 1000 + i * 5,
                 "n": 100 + i,
                 "resid_var_ewma": 100 + i * 10,
-                "cumulative_mid_s": 20,
+                "cumulative_neutral_s": 20,
             }
             rows.extend(row(i * 1000 + j * 100, feature=feature, v_fil=1000, est=1000 + i * 5) for j in range(10))
         write_csv(csv_path, rows)
@@ -526,7 +526,7 @@ def test_consistency_field_repro_gate_should_pass():
         runs, rows = analyze.read_csv_runs([path])
         recs = analyze.compute_recommendations(rows, runs, state, analyze.DEFAULTS.copy(), "safe")
         baselines.append(recs["baseline_rate"][0])
-        biases.append(recs["sync_trailing_bias_frac"][0])
+        biases.append(recs["sync_compression_bias_frac"][0])
     assert all(700 <= value <= 730 for value in baselines), baselines
     assert max(baselines) - min(baselines) <= 50.0, baselines
     assert max(biases) - min(biases) <= 0.05, biases
@@ -558,7 +558,7 @@ def test_consistency_matches_standalone_recommendations():
     for run in runs:
         recs = analyze.compute_recommendations(run["rows"], [run], state, analyze.DEFAULTS.copy(), "safe")
         standalone_baselines.append(recs["baseline_rate"][0])
-        standalone_biases.append(recs["sync_trailing_bias_frac"][0])
+        standalone_biases.append(recs["sync_compression_bias_frac"][0])
     baseline_delta, bias_delta = analyze.consistency_by_run(runs, state, analyze.DEFAULTS.copy(), "safe")
     assert baseline_delta == max(standalone_baselines) - min(standalone_baselines), baseline_delta
     assert bias_delta == max(standalone_biases) - min(standalone_biases), bias_delta
@@ -573,7 +573,7 @@ def consistency_state_records():
             "x": x,
             "n": 500,
             "resid_var_ewma": 10000.0,
-            "cumulative_mid_s": 120,
+            "cumulative_neutral_s": 120,
         }
         for letter, x in zip("ABCDE", [700, 710, 720, 730, 740])
     }
@@ -588,7 +588,7 @@ def consistency_state_with_nonlocked_mass(extra_count, extra_n):
             "x": 700 + idx,
             "n": extra_n,
             "resid_var_ewma": 10000.0,
-            "cumulative_mid_s": 120,
+            "cumulative_neutral_s": 120,
         }
     return records
 
@@ -737,7 +737,7 @@ def test_raw_coverage_below_80_does_not_fail_alone():
     gate = analyze.acceptance_gate(rows, runs, state, analyze.DEFAULTS.copy())
     assert gate["pass"], gate
     assert gate["raw_coverage"] < analyze.RAW_COVERAGE_WARN, gate
-    assert any("raw MID coverage" in warning for warning in gate["warnings"]), gate
+    assert any("raw NEUTRAL coverage" in warning for warning in gate["warnings"]), gate
     assert not any("coverage" in reason for reason in gate["reasons"]), gate
     return "raw row coverage below 80 percent is diagnostic only"
 
@@ -841,7 +841,7 @@ def test_deterministic_baseline():
         with open(out) as fh:
             content = fh.read()
         assert "baseline_rate: " in content
-        assert "sync_trailing_bias_frac: " in content
+        assert "sync_compression_bias_frac: " in content
 
         out2 = os.path.join(td, "out2.ini")
         args.out = out2
@@ -953,7 +953,7 @@ def main():
         ("bias-qual", test_bias_only_from_qualifying_buckets),
         ("field-osc", test_field_oscillation_repro),
         ("bp-sigma", test_buf_variance_blend_ref_mm_from_bp_not_bl),
-        ("mid-timeout", test_mid_creep_timeout_default_when_insufficient_data),
+        ("neutral-timeout", test_neutral_creep_timeout_default_when_insufficient_data),
         ("contributors", test_contributors_block_emitted),
         ("gate-parity", test_consistency_field_repro_gate_should_pass),
         ("gate-shared", test_consistency_uses_recommendation_path),

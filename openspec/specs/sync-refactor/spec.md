@@ -131,19 +131,19 @@ The gate SHALL FAIL only on unreliable recommendations or pathological scatter.
 - **THEN** gate fails and reports hardware failure
 
 ### Requirement: Bidirectional Drift Observation
-The residual drift observer SHALL measure errors on both `ADVANCE` and `TRAILING` boundaries to prevent directional blindness.
+The residual drift observer SHALL measure errors on both `TENSION` and `COMPRESSION` boundaries to prevent directional blindness.
 
 #### Scenario: Flow Overestimation
 - **WHEN** the model overestimates extruder flow
 - **THEN** virtual position drifts to the right
-- **AND** the physical arm hits `TRAILING`
+- **AND** the physical arm hits `COMPRESSION`
 - **AND** the observer records the positive residual to apply a corrective offset
 
 ### Requirement: Double-Integrator Avoidance
 The feedforward velocity estimator SHALL NOT bleed towards the PI controller output in the safe zone.
 
 #### Scenario: Buffer Mid-Range
-- **WHEN** the physical arm is floating safely in `BUF_MID`
+- **WHEN** the physical arm is floating safely in `BUF_NEUTRAL`
 - **THEN** the feedforward estimator holds its last known measurement
 - **AND** normal P/I terms handle local position errors without corrupting the feedforward baseline
 
@@ -163,12 +163,12 @@ offline analyzer remains the sole persistent baseline/bias authority.
 
 #### Scenario: No learning in non-active states
 - **WHEN** the controller is in `SYNC_OFF`, `SYNC_HOLD`,
-  `SYNC_RELIEF_PAUSE`, or `SYNC_FAULT_HOLD`, or trailing-recovery / fast-brake
+  `SYNC_RELIEF_PAUSE`, or `SYNC_FAULT_HOLD`, or compression-recovery / fast-brake
   is active
 - **THEN** the live baseline value is not updated
 
 #### Scenario: Multi-cycle and variance gating
-- **WHEN** a single settle into MID occurs
+- **WHEN** a single settle into NEUTRAL occurs
 - **THEN** the baseline does not move on that observation alone
 - **AND** it moves only after N comparable settles within the variance
   threshold and after the cooldown (time AND commanded-MMU distance) elapses
@@ -190,7 +190,7 @@ intact.
 
 ### Requirement: Baseline and bias sourced from flow schedule
 
-The sync controller SHALL obtain its baseline and trailing-bias by
+The sync controller SHALL obtain its baseline and compression-bias by
 evaluating the flow-keyed schedule at the live `extruder_est_sps`,
 replacing the single-scalar read, with a length-1 schedule as the exact
 degenerate fallback. This SHALL NOT alter the full-bias invariant: the

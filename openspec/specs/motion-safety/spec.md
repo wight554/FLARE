@@ -11,7 +11,7 @@ The system SHALL halt any spinning motor if no filament is detected at the intak
 #### Scenario: Filament Lost Mid-Task
 - **WHEN** `TASK_FEED` or `TASK_LOAD_FULL` is active
 - **AND** the `IN` sensor clears
-- **AND** the buffer is not in `BUF_ADVANCE` (pulling a tail)
+- **AND** the buffer is not in `BUF_TENSION` (pulling a tail)
 - **AND** this state persists for > 8 seconds
 - **THEN** the motor stops and `FAULT:DRY_SPIN` is emitted
 - **AND** automatic background restarts (sync or reload) are blocked until cleared by manual command or new filament insertion
@@ -40,7 +40,7 @@ estimator, drift observer, or sigma/confidence state. Destructive reset SHALL
 be reserved for true off transitions only.
 
 #### Scenario: Overfull does not wipe local model
-- **WHEN** a sustained trailing/overfull condition is reached
+- **WHEN** a sustained compression/overfull condition is reached
 - **THEN** the controller pauses assist non-destructively
 - **AND** the extruder estimator and drift/sigma state survive the event
 
@@ -51,17 +51,17 @@ be reserved for true off transitions only.
 
 ### Requirement: Under-Extrusion Direction Priority
 The controller SHALL never pause local assist while the buffer is empty-side
-(`BUF_ADVANCE`), and SHALL prioritize avoiding under-extrusion over relieving
+(`BUF_TENSION`), and SHALL prioritize avoiding under-extrusion over relieving
 overfull.
 
 #### Scenario: Empty side always fed
-- **WHEN** the buffer is in `BUF_ADVANCE`
+- **WHEN** the buffer is in `BUF_TENSION`
 - **THEN** assist is not paused or reduced for relief purposes
 - **AND** the controller feeds within configured limits
 
 ### Requirement: Terminal jam paths enter non-destructive FAULT_HOLD
 
-Hard-wall critical and advance-dwell stop SHALL transition the sync
+Hard-wall critical and tension-dwell stop SHALL transition the sync
 controller to `SYNC_FAULT_HOLD` instead of calling destructive
 `sync_disable(true)`. Entry MUST stop motion (`sync_current_sps = 0`) and
 MUST NOT reset the extruder estimator, drift observer, sigma/confidence, or
@@ -69,17 +69,17 @@ reserve integrator. Each path SHALL emit a `SYNC FAULT_HOLD` event.
 
 #### Scenario: Hard-wall critical triggers FAULT_HOLD
 
-- **WHEN** the trailing wall is critical (virtual endstop, push above
-  `SYNC_TRAILING_HARD_PUSH_MM_S`, wall time below
-  `SYNC_TRAILING_HARD_WALL_MS`)
+- **WHEN** the compression wall is critical (virtual endstop, push above
+  `SYNC_COMPRESSION_HARD_PUSH_MM_S`, wall time below
+  `SYNC_COMPRESSION_HARD_WALL_MS`)
 - **THEN** the controller enters `SYNC_FAULT_HOLD`, motion stops, the
   estimator/drift/sigma state is preserved, and a `SYNC FAULT_HOLD` event
   is emitted
 
 #### Scenario: Advance-dwell stop triggers FAULT_HOLD
 
-- **WHEN** the buffer is pinned at ADVANCE for at least
-  `SYNC_ADVANCE_DWELL_STOP_MS`
+- **WHEN** the buffer is pinned at TENSION for at least
+  `SYNC_TENSION_DWELL_STOP_MS`
 - **THEN** the controller enters `SYNC_FAULT_HOLD`, motion stops, the
   estimator/drift/sigma state is preserved, and a `SYNC FAULT_HOLD` event
   is emitted

@@ -89,7 +89,7 @@ python3 scripts/gen_config.py
 cmake --build build_local
 ```
 
-Runtime changes (serial protocol `SET:/GET:/TW:/TR:`) can be saved to flash via `SV:`.
+Runtime changes (serial protocol `SET:/GET:/CW:/TR:`) can be saved to flash via `SV:`.
 
 ## Serial Runtime Commands
 

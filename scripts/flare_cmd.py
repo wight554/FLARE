@@ -75,7 +75,7 @@ DUMP_PARAMS = [
     ("SYNC_MIN_RATE",     "sync_min_rate",           False),
     ("JOIN_RATE",         "join_rate",               False),
     ("PRESS_RATE",        "press_rate",              False),
-    ("TRAILING_RATE",     "trailing_rate",           False),
+    ("COMPRESSION_RATE",     "compression_rate",           False),
     # --- Motion / Ramp ---
     ("STARTUP_MS",        "motion_startup_ms",       False),
     ("RAMP_STEP_RATE",    "ramp_step_rate",          False),
@@ -93,18 +93,18 @@ DUMP_PARAMS = [
     ("SYNC_KP_RATE",      "sync_kp_rate",            False),
     ("SYNC_OVERSHOOT_PCT", "sync_overshoot_pct",     False),
     ("SYNC_RESERVE_PCT",  "sync_reserve_pct",        False),
-    ("TRAIL_BIAS_FRAC",   "sync_trailing_bias_frac", False),
-    ("MID_CREEP_TIMEOUT_MS", "mid_creep_timeout_ms", False),
-    ("MID_CREEP_RATE",    "mid_creep_rate_sps_per_s", False),
-    ("MID_CREEP_CAP",     "mid_creep_cap_frac",      False),
+    ("COMPRESSION_BIAS_FRAC",   "sync_compression_bias_frac", False),
+    ("NEUTRAL_CREEP_TIMEOUT_MS", "neutral_creep_timeout_ms", False),
+    ("NEUTRAL_CREEP_RATE",    "neutral_creep_rate_sps_per_s", False),
+    ("NEUTRAL_CREEP_CAP",     "neutral_creep_cap_frac",      False),
     ("VAR_BLEND_FRAC",    "buf_variance_blend_frac", False),
     ("VAR_BLEND_REF_MM",  "buf_variance_blend_ref_mm", False),
     ("SYNC_AUTO_STOP",    "sync_auto_stop_ms",       False),
     ("POST_PRINT_STAB_MS", "post_print_stab_delay_ms", False),
-    # --- Advance Hardening ---
-    ("SYNC_ADV_STOP_MS",  "sync_advance_dwell_stop_ms", False),
-    ("SYNC_ADV_RAMP_MS",  "sync_advance_ramp_delay_ms", False),
-    ("SYNC_OVERSHOOT_MID_EXT", "sync_overshoot_mid_extend", False),
+    # --- Tension Hardening ---
+    ("SYNC_TENSION_STOP_MS",  "sync_tension_dwell_stop_ms", False),
+    ("SYNC_TENSION_RAMP_MS",  "sync_tension_ramp_delay_ms", False),
+    ("SYNC_OVERSHOOT_NEUTRAL_EXT", "sync_overshoot_neutral_extend", False),
     # --- Integral Centering & Confidence ---
     ("SYNC_INT_GAIN",     "sync_reserve_integral_gain", False),
     ("SYNC_INT_CLAMP",    "sync_reserve_integral_clamp_mm", False),
@@ -127,7 +127,7 @@ DUMP_PARAMS = [
     ("BUF_SIZE",          "buf_size_mm",             False),
     # --- Analog Buffer Sensor ---
     ("BUF_SENSOR",        "buf_sensor_type",         False),
-    ("BUF_NEUTRAL",       "buf_neutral",             False),
+    ("BUF_ANALOG_NEUTRAL", "buf_analog_neutral",             False),
     ("BUF_RANGE",         "buf_range",               False),
     ("BUF_THR",           "buf_thr",                 False),
     ("BUF_ALPHA",         "buf_analog_alpha",        False),
@@ -168,7 +168,7 @@ SECTION_BREAKS = {
     "feed_rate":           "# ─── Speeds (mm/min) ───────────────────────────────────────────────────────",
     "motion_startup_ms":   "# ─── Motion / Ramp ─────────────────────────────────────────────────────────",
     "buf_half_travel_mm":  "# ─── Buffer Sync ───────────────────────────────────────────────────────────",
-    "sync_advance_dwell_stop_ms": "# ─── Advance Hardening ───────────────────────────────────────────",
+    "sync_tension_dwell_stop_ms": "# ─── Tension Hardening ───────────────────────────────────────────",
     "sync_reserve_integral_gain": "# ─── Integral Centering & Confidence ───────────────────────────",
     "est_alpha_min":       "# ─── Smarter Sync (Estimator) ─────────────────────────────────────────────",
     "dist_in_out":         "# ─── Physical Model (mm) ─────────────────────────────────────────────────",
@@ -185,7 +185,7 @@ BOOL_KEYS = {
     "auto_preload",
     "enable_cutter",
     "unload_cut",
-    "sync_overshoot_mid_extend",
+    "sync_overshoot_neutral_extend",
 }
 
 

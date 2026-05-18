@@ -69,7 +69,7 @@ allowing stale evidence to dominate current recommendations.
 ### Requirement: Firmware live learning is bounded and subordinate to offline
 The firmware live baseline tier SHALL be ephemeral, up-only, and gated to
 `SYNC_ACTIVE`, and SHALL never write persistent state. Persistent baseline
-and trailing-bias values SHALL change only through the reviewed offline
+and compression-bias values SHALL change only through the reviewed offline
 analyzer + config flash path.
 
 #### Scenario: Live tier cannot persist

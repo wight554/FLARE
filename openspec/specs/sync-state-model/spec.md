@@ -28,24 +28,24 @@ state rather than independent ad-hoc flags.
 
 ### Requirement: Non-Destructive Relief Pause
 The controller SHALL enter `SYNC_RELIEF_PAUSE` instead of destructive disable
-on a sustained trailing/overfull condition, preserving the extruder
+on a sustained compression/overfull condition, preserving the extruder
 estimator, drift observer, sigma/confidence, and reserve integrator.
 
 #### Scenario: Enter relief pause without losing state
-- **WHEN** the continuous-trailing terminal condition is reached (previously
+- **WHEN** the continuous-compression terminal condition is reached (previously
   `sync_disable(true)` at the auto-stop path)
 - **THEN** the controller enters `SYNC_RELIEF_PAUSE`
 - **AND** local assist is reduced to zero/floor
 - **AND** estimator, drift, sigma, and integrator values are retained
 
-#### Scenario: Resume on ADVANCE re-arm
-- **WHEN** the buffer reaches `BUF_ADVANCE` while in `SYNC_RELIEF_PAUSE`
+#### Scenario: Resume on TENSION re-arm
+- **WHEN** the buffer reaches `BUF_TENSION` while in `SYNC_RELIEF_PAUSE`
 - **THEN** the controller returns to `SYNC_ACTIVE`
 - **AND** it reuses the preserved estimator instead of cold bootstrap unless
   the estimate is stale per `SYNC_EST_FRESH_MS`
 
-#### Scenario: ADVANCE is never paused
-- **WHEN** the buffer is in `BUF_ADVANCE`
+#### Scenario: TENSION is never paused
+- **WHEN** the buffer is in `BUF_TENSION`
 - **THEN** the controller SHALL NOT enter `SYNC_RELIEF_PAUSE`
 
 ### Requirement: Fault Hold With Autonomous Recovery
@@ -67,14 +67,14 @@ state, and SHALL recover conservatively without host involvement.
 
 ### Requirement: Host Hold Is Non-Destructive
 The host `HD` HOLD command SHALL place the controller in `SYNC_HOLD`: closed
-loop off, buffer-stabilize toward MID permitted, controller state preserved,
+loop off, buffer-stabilize toward NEUTRAL permitted, controller state preserved,
 learning paused. It SHALL NOT destructively reset estimator/drift/sigma.
 
 #### Scenario: Host requests hold
 - **WHEN** the host sends `HD` (sent only while paused/idle, extruder not
   pulling)
 - **THEN** the controller enters `SYNC_HOLD`
-- **AND** closed-loop sync stops while buffer-stabilize-to-MID stays available
+- **AND** closed-loop sync stops while buffer-stabilize-to-NEUTRAL stays available
 - **AND** estimator/drift/sigma state is preserved
 
 #### Scenario: Host clears hold
@@ -82,7 +82,7 @@ learning paused. It SHALL NOT destructively reset estimator/drift/sigma.
 - **THEN** the controller leaves `SYNC_HOLD` and resumes normal lifecycle
 
 ### Requirement: Full-Bias Invariant Preserved
-The reserve/full-biased buffer target (between MID and TRAILING) SHALL remain
+The reserve/full-biased buffer target (between NEUTRAL and COMPRESSION) SHALL remain
 owned exclusively by `SYNC_ACTIVE` control and SHALL be unchanged by this
 state model. `SYNC_RELIEF_PAUSE` and `SYNC_FAULT_HOLD` SHALL NOT drain the
 buffer below the reserve target by design.
@@ -99,10 +99,10 @@ buffer below the reserve target by design.
   after re-arm
 
 ### Requirement: Creep Suppressed In Non-Active States
-`mid_creep` SHALL be active only in `SYNC_ACTIVE` and SHALL be suppressed in
+`neutral_creep` SHALL be active only in `SYNC_ACTIVE` and SHALL be suppressed in
 `SYNC_HOLD`, `SYNC_RELIEF_PAUSE`, and `SYNC_FAULT_HOLD`.
 
 #### Scenario: No creep while paused
 - **WHEN** the controller is in `SYNC_HOLD`, `SYNC_RELIEF_PAUSE`, or
   `SYNC_FAULT_HOLD`
-- **THEN** `mid_creep` produces zero added rate
+- **THEN** `neutral_creep` produces zero added rate

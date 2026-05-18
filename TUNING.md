@@ -83,7 +83,7 @@ printer pulls material at changing speeds.
 
 - `baseline_rate` is the starting sync feed rate when no flow schedule is
   configured.
-- `sync_trailing_bias_frac` shifts the target slightly toward the trailing side
+- `sync_compression_bias_frac` shifts the target slightly toward the compression side
   so the buffer keeps useful reserve.
 - `[flow_schedule.v1]` lets those two values change with live estimated flow.
 - `flow_schedule_cap` is the maximum number of points (`pointN` rows) the
@@ -91,11 +91,11 @@ printer pulls material at changing speeds.
   default 8. More points = a finer flow curve; the limit keeps the math light
   on the controller. The analyzer always reduces its output to at most this
   many points (the same inputs always reduce the same way). `flow_schedule_cap:
-  1` is just the scalar `baseline_rate` / `sync_trailing_bias_frac` expressed
+  1` is just the scalar `baseline_rate` / `sync_compression_bias_frac` expressed
   as a one-point schedule.
 
 Good tuning looks boring: the buffer moves, status fields change smoothly, sync
-does not pin at the advance side for long, and prints do not show repeated
+does not pin at the tension side for long, and prints do not show repeated
 runout-looking sync faults.
 
 Bad tuning is noisy or one-sided: the buffer stays pinned, `FAULT_HOLD` appears
@@ -115,7 +115,7 @@ events almost always mean a *physical* problem, not a number to change.
 
    ```ini
    baseline_rate: 1600
-   sync_trailing_bias_frac: 0.4
+   sync_compression_bias_frac: 0.4
    flow_schedule_cap: 8
    ```
 
@@ -251,7 +251,7 @@ Sample output file:
 
 ```ini
 # flare_analyze.py emitted flow schedule
-# Each point: flow_sps, baseline_sps, trailing_bias_frac
+# Each point: flow_sps, baseline_sps, compression_bias_frac
 flow_schedule_cap: 8
 
 [flow_schedule.v1]
@@ -292,7 +292,7 @@ For a scalar fallback, use these keys instead:
 
 ```ini
 baseline_rate: 1600
-sync_trailing_bias_frac: 0.4
+sync_compression_bias_frac: 0.4
 ```
 
 Then regenerate, build, and flash:
@@ -339,7 +339,7 @@ Typical output includes:
 
 ```text
 Suggested baseline_sps: 1600
-Suggested sync_trailing_bias_frac: 0.400
+Suggested sync_compression_bias_frac: 0.400
 ```
 
 Treat this as a hint. If it disagrees with the deterministic analyzer, prefer
@@ -356,8 +356,8 @@ python3 scripts/flare_cmd.py --port "$FLARE_PORT" "?:"
 Useful fields:
 
 - `BL`: active baseline after schedule lookup and any temporary live lift.
-- `TB`: active trailing bias as percent.
-- `RT`: reserve target; negative means trailing side.
+- `TB`: active compression bias as percent.
+- `RT`: reserve target; negative means compression side.
 - `BP` / `BPV`: current/effective buffer position.
 - `EST`: live flow estimate.
 - `SYNC_REFILL_MM`: accumulated refill effort during the current episode.

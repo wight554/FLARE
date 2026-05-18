@@ -3,7 +3,7 @@
 ## Purpose
 
 Define the versioned flow-keyed schedule that maps live estimated flow to
-sync `{baseline_sps, trailing_bias_frac}`, its bounded/deterministic
+sync `{baseline_sps, compression_bias_frac}`, its bounded/deterministic
 generation contract, the firmware interpolation behavior, and the
 degenerate single-point equivalence that preserves prior scalar behavior.
 
@@ -12,10 +12,10 @@ degenerate single-point equivalence that preserves prior scalar behavior.
 ### Requirement: Versioned bounded flow-keyed schedule format
 
 The system SHALL define a versioned schedule table mapping estimated flow
-to `{baseline_sps, trailing_bias_frac}`. The table SHALL be a strictly
+to `{baseline_sps, compression_bias_frac}`. The table SHALL be a strictly
 increasing-in-flow, sorted array bounded by a config-tunable maximum
 breakpoint count. The format SHALL be additive: existing scalar
-`baseline_sps` / `trailing_bias_frac` config keys SHALL remain valid.
+`baseline_sps` / `compression_bias_frac` config keys SHALL remain valid.
 
 #### Scenario: Bounded sorted table generated
 
@@ -32,7 +32,7 @@ breakpoint count. The format SHALL be additive: existing scalar
 ### Requirement: Degenerate single-point equivalence
 
 A length-1 schedule SHALL produce, for every flow value, exactly the
-scalar `baseline_sps` and the milli-resolution `trailing_bias_frac` it
+scalar `baseline_sps` and the milli-resolution `compression_bias_frac` it
 was synthesized from. Bias fractions that are already aligned to integer
 milli SHALL be exact; other bias fractions SHALL differ by no more than
 0.0005 absolute bias after milli quantization. Firmware behavior with a
@@ -54,7 +54,7 @@ milli-resolution bound.
 
 ### Requirement: Firmware interpolates baseline and bias on live flow
 
-The firmware SHALL derive the active baseline and trailing-bias by
+The firmware SHALL derive the active baseline and compression-bias by
 clamped linear interpolation of the schedule against the live
 `extruder_est_sps`, with no extrapolation beyond the first/last
 breakpoint. The flow key SHALL be the firmware's own `extruder_est_sps`

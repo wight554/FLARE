@@ -31,7 +31,7 @@ void motion_limit_runtime_rates(bool refresh_active_motors) {
     BUF_STAB_SPS = motion_clamp_rate_sps(BUF_STAB_SPS);
     JOIN_SPS = motion_clamp_rate_sps(JOIN_SPS);
     PRESS_SPS = motion_clamp_rate_sps(PRESS_SPS);
-    TRAILING_SPS = motion_clamp_rate_sps(TRAILING_SPS);
+    COMPRESSION_SPS = motion_clamp_rate_sps(COMPRESSION_SPS);
     RAMP_STEP_SPS = motion_clamp_rate_sps(RAMP_STEP_SPS);
     PRE_RAMP_SPS = motion_clamp_rate_sps(PRE_RAMP_SPS);
     SYNC_MAX_SPS = motion_clamp_rate_sps(SYNC_MAX_SPS);
@@ -169,7 +169,7 @@ void lane_setup(lane_t *L, uint pin_in, uint pin_out, motor_t m, int lane_id, tm
     L->runout_block_until_ms = 0;
     L->retract_deadline_ms = 0;
     L->unload_sensor_latch = false;
-    L->buf_advance_since_ms = 0;
+    L->buf_tension_since_ms = 0;
     L->dist_at_in_clear_mm = 0.0f;
     L->prev_in = false;
     L->unload_to_in = false;
@@ -184,7 +184,7 @@ void lane_stop(lane_t *L) {
     L->unload_sensor_latch = false;
     L->unload_buf_recover_done = false;
     L->retract_deadline_ms = 0;
-    L->buf_advance_since_ms = 0;
+    L->buf_tension_since_ms = 0;
     L->reload_tail_ms = 0;
     L->suppress_unloaded_event = false;
     L->current_sps = 0;
@@ -287,7 +287,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                     motor_set_dir(&L->m, false);
                     motor_set_rate_sps(&L->m, L->current_sps);
                 }
-            } else if (!L->unload_to_in && !L->unload_buf_recover_done && g_buf.state == BUF_ADVANCE) {
+            } else if (!L->unload_to_in && !L->unload_buf_recover_done && g_buf.state == BUF_TENSION) {
                 motor_stop(&L->m);
                 L->unload_buf_recover_done = true;
                 L->unload_sensor_latch = true;
@@ -325,15 +325,15 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                 cmd_event("UNLOAD_TIMEOUT", NULL);
             }
 
-            if (UNLOAD_ADV_BLOCK_MS > 0 && !L->unload_to_in) {
-                if (g_buf.state == BUF_ADVANCE) {
-                    if (L->buf_advance_since_ms == 0) L->buf_advance_since_ms = now_ms;
-                    else if ((int32_t)(now_ms - L->buf_advance_since_ms) >= UNLOAD_ADV_BLOCK_MS) {
+            if (UNLOAD_TENSION_BLOCK_MS > 0 && !L->unload_to_in) {
+                if (g_buf.state == BUF_TENSION) {
+                    if (L->buf_tension_since_ms == 0) L->buf_tension_since_ms = now_ms;
+                    else if ((int32_t)(now_ms - L->buf_tension_since_ms) >= UNLOAD_TENSION_BLOCK_MS) {
                         lane_stop(L);
                         cmd_event("UNLOAD_BLOCKED", NULL);
                     }
                 } else {
-                    L->buf_advance_since_ms = 0;
+                    L->buf_tension_since_ms = 0;
                 }
             }
         } else {
@@ -360,30 +360,30 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
         }
 
         if (TS_BUF_FALLBACK_MS > 0 && L->unload_sensor_latch) {
-            if (g_buf.state == BUF_TRAILING) {
-                if (L->buf_advance_since_ms == 0) L->buf_advance_since_ms = now_ms;
-                else if ((int32_t)(now_ms - L->buf_advance_since_ms) >= TS_BUF_FALLBACK_MS)
+            if (g_buf.state == BUF_COMPRESSION) {
+                if (L->buf_tension_since_ms == 0) L->buf_tension_since_ms = now_ms;
+                else if ((int32_t)(now_ms - L->buf_tension_since_ms) >= TS_BUF_FALLBACK_MS)
                     set_toolhead_filament(true);
             } else {
-                L->buf_advance_since_ms = 0;
+                L->buf_tension_since_ms = 0;
             }
         }
 
-        bool buf_advance_sane = (g_buf.state == BUF_ADVANCE);
-        bool buf_trailing_sane = false;
+        bool buf_tension_sane = (g_buf.state == BUF_TENSION);
+        bool buf_compression_sane = false;
         if (L->unload_sensor_latch) {
             float dist_since_out = L->task_dist_mm - L->dist_at_out_mm;
             float threshold = (float)DIST_OUT_Y + (float)DIST_Y_BUF + (float)BUF_SIZE_MM / 2.0f;
             if (dist_since_out < threshold * 0.8f) {
-                buf_advance_sane = false;
-            } else if (g_buf.state == BUF_TRAILING) {
-                buf_trailing_sane = true;
+                buf_tension_sane = false;
+            } else if (g_buf.state == BUF_COMPRESSION) {
+                buf_compression_sane = true;
             }
         } else {
-            buf_advance_sane = false;
+            buf_tension_sane = false;
         }
 
-        bool loaded = toolhead_has_filament || buf_advance_sane || buf_trailing_sane;
+        bool loaded = toolhead_has_filament || buf_tension_sane || buf_compression_sane;
 
         if (loaded) {
             L->load_completed = true;
@@ -438,7 +438,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
         }
     }
 
-    if (L->task != TASK_IDLE && !lane_in_present(L) && !lane_out_present(L) && g_buf.state != BUF_ADVANCE) {
+    if (L->task != TASK_IDLE && !lane_in_present(L) && !lane_out_present(L) && g_buf.state != BUF_TENSION) {
         if (L->dry_spin_ms == 0) L->dry_spin_ms = now_ms;
         if ((int32_t)(now_ms - L->dry_spin_ms) > 8000) {
             lane_stop(L);

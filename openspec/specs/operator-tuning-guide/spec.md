@@ -9,7 +9,7 @@ The repository SHALL provide a `TUNING.md` that a user with no firmware or
 internals knowledge can follow end to end. It MUST NOT contain internal
 "Phase 2.x" (or similar internal-phase) labels. It MUST begin with a
 "simplest path" TL;DR that gets defaults working, followed by a plain
-explanation of what tuning does (baseline and trailing-bias, what good
+explanation of what tuning does (baseline and compression-bias, what good
 and bad behavior look like) with no assumed firmware knowledge.
 
 #### Scenario: New user reaches a working default
@@ -104,7 +104,7 @@ choice).
 
 `TUNING.md` MUST give exact review/apply steps (which `config.ini` keys —
 `flow_schedule_cap` + `[flow_schedule.v1]`, or scalar `baseline_rate` /
-`sync_trailing_bias_frac`), then exact `gen_config.py`, build, flash, and
+`sync_compression_bias_frac`), then exact `gen_config.py`, build, flash, and
 watermark commands. It MUST document `flare_baseline_recommender.py` as
 observe-only (suggests, never writes; offline analyzer remains the
 authority) with its exact invocation. It MUST include a verification

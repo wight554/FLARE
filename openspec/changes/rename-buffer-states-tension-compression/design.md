@@ -92,6 +92,31 @@ docs + `TEST_CASES.md` snapshots together. P3 live specs reworded. Gate D4.
 Rollback: revert; pure rename has no state/format migration beyond config
 keys.
 
+## Implementation Plan — 2026-05-18
+
+- Firmware state rename: replace `BUF_ADVANCE/TRAILING/MID` with
+  `BUF_TENSION/COMPRESSION/NEUTRAL`; keep sign conventions and numeric
+  order unchanged. Rename derived runtime identifiers, events, and comments
+  without changing branches or constants.
+- Analog-center conflict: existing runtime float `BUF_NEUTRAL` conflicts
+  with the new enum name. Rename the analog center tunable in C/macros to
+  `BUF_ANALOG_NEUTRAL` / `CONF_BUF_ANALOG_NEUTRAL`; keep it functionally
+  identical and expose it as `BUF_ANALOG_NEUTRAL` in protocol/docs.
+- Protocol key mapping: `AD -> TT` (tension dwell), `TD -> CT`
+  (compression dwell), `TW -> CW` (compression-wall time),
+  `AP -> TP` (tension predicted), `APX -> TPX` (tension-pin count),
+  `TB -> CB` (compression bias), `MC -> NC` (neutral creep).
+- Config/protocol mapping: `TRAILING_RATE -> COMPRESSION_RATE`,
+  `TRAIL_BIAS_FRAC -> COMPRESSION_BIAS_FRAC`,
+  `MID_CREEP_* -> NEUTRAL_CREEP_*`,
+  `SYNC_ADV_* -> SYNC_TENSION_*`,
+  `SYNC_OVERSHOOT_MID_EXT -> SYNC_OVERSHOOT_NEUTRAL_EXT`,
+  `ADV_RISK_* -> TENSION_RISK_*`.
+- Host scripts/docs/specs: update `flare_cmd.py`, `gen_config.py`,
+  analyzer/tuner/recommender tests, operator docs, and live specs in lockstep.
+  Archived changes remain historical and are excluded from the zero-survivor
+  grep gate.
+
 ## Open Questions
 
 - `EV:SYNC:*` substrings beyond `ADV_RISK_HIGH` that encode a state — sweep

@@ -59,7 +59,7 @@ typedef struct lane_s {
     fault_t fault;
     int lane_id;
     uint32_t runout_block_until_ms;
-    uint32_t buf_advance_since_ms;
+    uint32_t buf_tension_since_ms;
     uint32_t reload_tail_ms;
     float task_dist_mm;
     float dist_at_out_mm;
@@ -99,15 +99,15 @@ typedef struct {
     uint32_t ready_to_join_since_ms;
     uint32_t reload_tick_ms;
     int reload_current_sps;
-    uint32_t last_trailing_ms;
+    uint32_t last_compression_ms;
     uint32_t wall_critical_since_ms;
     bool unload_cut_done;
 } tc_ctx_t;
 
 typedef enum {
-    BUF_MID,
-    BUF_ADVANCE,
-    BUF_TRAILING,
+    BUF_NEUTRAL,
+    BUF_TENSION,
+    BUF_COMPRESSION,
     BUF_FAULT
 } buf_state_t;
 
@@ -145,7 +145,7 @@ extern int RELOAD_Y_TIMEOUT_MS;
 extern int RELOAD_JOIN_DELAY_MS;
 extern int JOIN_SPS;
 extern int PRESS_SPS;
-extern int TRAILING_SPS;
+extern int COMPRESSION_SPS;
 extern int RELOAD_TOUCH_SETTLE_MS;
 extern int RELOAD_TOUCH_BOOST_MS;
 extern int RELOAD_TOUCH_FLOOR_PCT;
@@ -172,7 +172,7 @@ extern int TMC_HSTRT[NUM_LANES];
 extern int TMC_HEND[NUM_LANES];
 extern bool TMC_INTERPOLATE[NUM_LANES];
 extern int BUF_SENSOR_TYPE;
-extern float BUF_NEUTRAL;
+extern float BUF_ANALOG_NEUTRAL;
 extern float BUF_RANGE;
 extern float BUF_THR;
 extern float BUF_ANALOG_ALPHA;
@@ -193,7 +193,7 @@ extern int CUT_TIMEOUT_FEED_MS;
 extern int TC_TIMEOUT_CUT_MS;
 extern int LOAD_MAX_MM;
 extern int UNLOAD_MAX_MM;
-extern int UNLOAD_ADV_BLOCK_MS;
+extern int UNLOAD_TENSION_BLOCK_MS;
 extern int TC_TIMEOUT_TH_MS;
 extern int TC_TIMEOUT_Y_MS;
 extern int SYNC_MAX_SPS;
@@ -207,13 +207,13 @@ extern int BUF_HYST_MS;
 extern int BUF_PREDICT_THR_MS;
 extern float BUF_HALF_TRAVEL_MM;
 extern int SYNC_AUTO_STOP_MS;
-extern int SYNC_ADVANCE_DWELL_STOP_MS;
-extern int SYNC_ADVANCE_RAMP_DELAY_MS;
-extern int SYNC_OVERSHOOT_MID_EXTEND;
-extern float SYNC_TRAILING_BIAS_FRAC;
-extern int MID_CREEP_TIMEOUT_MS;
-extern int MID_CREEP_RATE_SPS_PER_S;
-extern int MID_CREEP_CAP_FRAC;
+extern int SYNC_TENSION_DWELL_STOP_MS;
+extern int SYNC_TENSION_RAMP_DELAY_MS;
+extern int SYNC_OVERSHOOT_NEUTRAL_EXTEND;
+extern float SYNC_COMPRESSION_BIAS_FRAC;
+extern int NEUTRAL_CREEP_TIMEOUT_MS;
+extern int NEUTRAL_CREEP_RATE_SPS_PER_S;
+extern int NEUTRAL_CREEP_CAP_FRAC;
 extern float BUF_VARIANCE_BLEND_FRAC;
 extern float BUF_VARIANCE_BLEND_REF_MM;
 extern float g_buf_pos_raw_status;
@@ -229,8 +229,8 @@ extern int   BUF_DRIFT_MIN_SAMPLES;
 extern float BUF_DRIFT_APPLY_THR_MM;
 extern float BUF_DRIFT_CLAMP_MM;
 extern float BUF_DRIFT_APPLY_MIN_CF;
-extern int   ADV_RISK_WINDOW_MS;
-extern int   ADV_RISK_THRESHOLD;
+extern int   TENSION_RISK_WINDOW_MS;
+extern int   TENSION_RISK_THRESHOLD;
 extern int AUTOLOAD_MAX_MM;
 extern bool BUF_INVERT;
 extern int AUTO_MODE;
@@ -251,8 +251,8 @@ extern bool g_shadow_vsense[NUM_LANES];
 extern lane_t g_lane_l1;
 extern lane_t g_lane_l2;
 extern din_t g_y_split;
-extern din_t g_buf_adv_din;
-extern din_t g_buf_trl_din;
+extern din_t g_buf_tension_din;
+extern din_t g_buf_compression_din;
 extern tmc_t g_tmc_l1;
 extern tmc_t g_tmc_l2;
 extern tc_ctx_t g_tc_ctx;
@@ -276,7 +276,7 @@ extern float extruder_est_sps;
 extern float g_buf_pos;
 extern bool g_boot_stabilizing;
 
-extern int sync_mid_creep_sps(void);
+extern int sync_neutral_creep_sps(void);
 int mm_per_min_to_sps_idx(float mm_per_min, int idx);
 int mm_per_min_to_sps(float mm_per_min);
 float sps_to_mm_per_min_idx(int sps, int idx);

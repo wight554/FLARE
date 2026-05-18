@@ -46,7 +46,7 @@ Pre-loaded is the normal parked state after `LO:` or autopreload completes.
 5. `prev_*_in_present` is initialised from current sensor state so that
    autopreload does **not** re-trigger for filament already present at boot.
 6. **Background buffer stabilization** — in dual-endstop mode, if the buffer
-  starts in `ADVANCE` or `TRAILING`, firmware nudges it toward `MID` at
+  starts in `TENSION` or `COMPRESSION`, firmware nudges it toward `NEUTRAL` at
   `BUF_STAB_RATE` in the normal main loop. This no longer blocks USB command
   handling or the rest of the control loop during boot.
 
@@ -80,7 +80,7 @@ Runs `TASK_AUTOLOAD` at `AUTO_RATE` until OUT triggers, then retracts by
 ### `FL:` — Full load to toolhead
 
 Runs `TASK_LOAD_FULL` at `FEED_RATE` continuously until `TS:1`, the
-`TS_BUF_MS` sustained-TRAILING fallback, or distance-checked buffer geometry
+`TS_BUF_MS` sustained-COMPRESSION fallback, or distance-checked buffer geometry
 reports the lane loaded. OUT sensor is a non-stopping checkpoint.
 
 **Interlocks checked before starting:**
@@ -95,8 +95,8 @@ reports the lane loaded. OUT sensor is a non-stopping checkpoint.
 |-----------|---------|-------|
 | IN goes low >1 s after start | 1.2x DIST_IN_OUT | `EV:RUNOUT:<lane>` (waits for transit) |
 | OUT never seen after 10 s | 10 s | `EV:RUNOUT:<lane>` |
-| Buffer holds TRAILING after OUT for `TS_BUF_MS` | `TS_BUF_MS` | `EV:LOADED:<lane>` (fallback) |
-| Buffer reaches sane ADVANCE/TRAILING geometry after OUT | distance-checked | `EV:LOADED:<lane>` |
+| Buffer holds COMPRESSION after OUT for `TS_BUF_MS` | `TS_BUF_MS` | `EV:LOADED:<lane>` (fallback) |
+| Buffer reaches sane TENSION/COMPRESSION geometry after OUT | distance-checked | `EV:LOADED:<lane>` |
 | Load task exceeds travel limit | `LOAD_MAX` distance | `EV:LOAD_TIMEOUT:<lane>` |
 
 ---
@@ -112,8 +112,8 @@ cutter sequence, then reverses again until OUT clears and emits the final
 **Requires OUT to be triggered before starting** — returns `ER:NOT_LOADED` if
 OUT is already clear.
 
-If the printer blocks retraction and the buffer stays in `BUF_ADVANCE`, `UL:`
-stops with `EV:UNLOAD_BLOCKED` after `UNLOAD_ADV_BLOCK_MS`.
+If the printer blocks retraction and the buffer stays in `BUF_TENSION`, `UL:`
+stops with `EV:UNLOAD_BLOCKED` after `UNLOAD_TENSION_BLOCK_MS`.
 
 ### `UM:` — Unload from MMU
 
@@ -171,14 +171,14 @@ reached.
 ### Buffer sync speed control
 
 The sync controller runs every `SYNC_TICK_MS` (20 ms). In dual-endstop mode it
-tracks a virtual buffer position in millimeters instead of treating `MID` as
+tracks a virtual buffer position in millimeters instead of treating `NEUTRAL` as
 the steady-state target. The controller still uses the extruder-rate estimator,
-but it now drives toward a buffered-reserve target on the trailing side.
-The baseline and trailing-bias inputs come from `flow_param(extruder_est_sps)`.
+but it now drives toward a buffered-reserve target on the compression side.
+The baseline and compression-bias inputs come from `flow_param(extruder_est_sps)`.
 With no schedule table this is the exact scalar `BASELINE_RATE` /
-`TRAIL_BIAS_FRAC` fallback, and with `[flow_schedule.v1]` present it is a
+`COMPRESSION_BIAS_FRAC` fallback, and with `[flow_schedule.v1]` present it is a
 clamped linear interpolation across flow breakpoints. The effective reserve
-bias is floored by `SYNC_TRAILING_BIAS_FRAC`, and the baseline control floor is
+bias is floored by `SYNC_COMPRESSION_BIAS_FRAC`, and the baseline control floor is
 floored by `BASELINE_RATE`, so schedule interpolation and live learning may
 only strengthen the reserve/baseline safety floor, not weaken it.
 
@@ -188,7 +188,7 @@ target = extruder_est_sps
   + zone_bias_sps
   + slope_bias_sps
   - overshoot_trim_sps
-  + PRE_RAMP_RATE  (if predict_advance_coming)
+  + PRE_RAMP_RATE  (if predict_tension_coming)
 
 target = sync_apply_scaling(...)
 target = clamp(target, SYNC_MIN_RATE, SYNC_MAX_RATE)
@@ -201,31 +201,31 @@ zone and converts the switch-threshold travel into an estimated arm velocity.
 Combined with the MMU speed averaged during that dwell, this yields an
 instantaneous extruder-rate estimate.
 
-- `BUF_HALF_TRAVEL` is the switch distance from `MID`, not the total arm half-travel.
+- `BUF_HALF_TRAVEL` is the switch distance from `NEUTRAL`, not the total arm half-travel.
 - `BUF_SIZE / 2` is the physical half-travel used to clamp the virtual
   position beyond the switch.
-- `MID→ADVANCE`, `ADVANCE→MID`, `MID→TRAILING`, `TRAILING→MID` use the switch
+- `NEUTRAL→TENSION`, `TENSION→NEUTRAL`, `NEUTRAL→COMPRESSION`, `COMPRESSION→NEUTRAL` use the switch
   threshold distance.
-- `ADVANCE→TRAILING` and `TRAILING→ADVANCE` use twice the switch threshold.
+- `TENSION→COMPRESSION` and `COMPRESSION→TENSION` use twice the switch threshold.
 - Half the hysteresis window is subtracted from dwell time before computing arm
   velocity so the estimate is not biased late.
 - The instantaneous estimate is clamped to `GLOBAL_MAX_RATE` and merged into
   `extruder_est_sps` with an adaptive EMA bounded by `EST_ALPHA_MIN` and
   `EST_ALPHA_MAX`.
-- A fast `ADVANCE→TRAILING` transition overwrites the estimator directly so a
+- A fast `TENSION→COMPRESSION` transition overwrites the estimator directly so a
   sudden demand collapse is reflected immediately.
 
-If the buffer stays in MID for > 2 s, the estimator decays gently toward the
+If the buffer stays in NEUTRAL for > 2 s, the estimator decays gently toward the
 current MMU speed. This keeps the feed-forward term sane during long steady
 sections where no new transitions arrive.
 
 The `EA:` field in the `?:` status response exposes the estimator age in
 milliseconds since the last meaningful update. `ES:` and `EC:` expose the current
 estimator sigma (uncertainty in mm) and confidence percentage. A large `EA:`
-value while the arm is in `BUF_MID` is normal; a large `EA:` while in `BUF_ADVANCE`
+value while the arm is in `BUF_NEUTRAL` is normal; a large `EA:` while in `BUF_TENSION`
 may indicate the bleed path is the only update source.
 
-FLARE includes a residual drift observer. At every `MID → ADVANCE` zone
+FLARE includes a residual drift observer. At every `NEUTRAL → TENSION` zone
 transition the virtual position (`g_buf_pos`) is measured
 against the known switch threshold *before* the position is snapped to that
 threshold. The difference `BPR = g_buf_pos − switch_pos_mm` is the literal
@@ -248,8 +248,8 @@ correction and the third sample applies full correction. The integration loop
 and re-anchoring always use the raw position; only the controller's *reaction*
 to the current position is corrected. Correction is also sign-aware tapered
 near the opposite physical endstop: negative drift correction fades out as the
-raw position approaches `TRAILING`, and positive drift correction fades out as
-the raw position approaches `ADVANCE`. This keeps drift compensation from
+raw position approaches `COMPRESSION`, and positive drift correction fades out as
+the raw position approaches `TENSION`. This keeps drift compensation from
 masking a real wall contact. `RDC:` (0–100) shows the final correction activity
 after sample ramp, clamp, confidence gating, and wall taper. The observer state
 resets on sync stop, `EST_FALLBACK`, and sensor hot-swap, emitting
@@ -261,13 +261,13 @@ In dual-endstop mode, firmware anchors the virtual position to the switch edge
 on each transition, then integrates the mismatch between estimated extruder
 draw and commanded MMU feed inside the physical travel envelope.
 
-The normal sync target is not `MID`. It is a buffered-reserve target on the
-trailing side set by `SYNC_RESERVE_PCT`, expressed as a percentage of
+The normal sync target is not `NEUTRAL`. It is a buffered-reserve target on the
+compression side set by `SYNC_RESERVE_PCT`, expressed as a percentage of
 `BUF_HALF_TRAVEL`. The effective flow-schedule bias is
-`max(SYNC_TRAILING_BIAS_FRAC, schedule_bias)`, so a schedule can deepen reserve
+`max(SYNC_COMPRESSION_BIAS_FRAC, schedule_bias)`, so a schedule can deepen reserve
 but cannot reduce it below the scalar safety cushion. Firmware also keeps a
 small built-in center guard on top of that percentage target so steady sync
-stays slightly farther away from the advance-side switch. This keeps reserve in
+stays slightly farther away from the tension-side switch. This keeps reserve in
 the buffer without hard-coding a deep hidden-margin target into firmware.
 
 `ZONE_BIAS_BASE` and `ZONE_BIAS_RAMP` provide a bounded reserve-recovery pull:
@@ -275,50 +275,50 @@ the buffer without hard-coding a deep hidden-margin target into firmware.
 - If the virtual position is more depleted than the target, sync adds positive
   correction to refill the buffer.
 - If the virtual position is fuller than the target, sync removes speed and can
-  apply extra trailing-side trim.
+  apply extra compression-side trim.
 - The total bias is capped by `ZONE_BIAS_MAX`.
 - `SYNC_OVERSHOOT_PCT` adds extra braking after reserve overshoots into the
-  full/trailing side, and `SYNC_OVERSHOOT_MID_EXT` extends that trim into
-  `BUF_MID` while reserve is below the deadband.
+  full/compression side, and `SYNC_OVERSHOOT_NEUTRAL_EXT` extends that trim into
+  `BUF_NEUTRAL` while reserve is below the deadband.
 
 This bias keeps the arm near the desired reserve target when the estimator is
 slightly wrong, while the estimator remains the dominant term.
 
-When normal sync is active and the arm is still physically in `BUF_MID`,
-firmware also applies a MID-only anti-advance floor if the estimator looks
+When normal sync is active and the arm is still physically in `BUF_NEUTRAL`,
+firmware also applies a NEUTRAL-only anti-tension floor if the estimator looks
 stale, low-confidence, or has collapsed below the learned baseline-derived
-floor while reserve is already near or deeper than the trailing-side target.
-This prevents long MID dwell from decaying command speed into the next
-advance hit. The floor is not active in `BUF_TRAILING`, so trailing braking,
+floor while reserve is already near or deeper than the compression-side target.
+This prevents long NEUTRAL dwell from decaying command speed into the next
+tension hit. The floor is not active in `BUF_COMPRESSION`, so compression braking,
 collapse recovery, fast brake, and fault-hold behavior keep full authority.
 
-FLARE supports **mid-zone creep** for active wall-seek. If the arm dwells in the `MID` zone longer than `MID_CREEP_TIMEOUT_MS`, a synthetic push velocity is gradually added (`MID_CREEP_RATE`) to gently force the arm back to the trailing wall to restore confidence. This creep is capped by `MID_CREEP_CAP` (% of the measured extruder rate) and resets immediately if the arm reaches an endstop.
+FLARE supports **neutral-zone creep** for active wall-seek. If the arm dwells in the `NEUTRAL` zone longer than `NEUTRAL_CREEP_TIMEOUT_MS`, a synthetic push velocity is gradually added (`NEUTRAL_CREEP_RATE`) to gently force the arm back to the compression wall to restore confidence. This creep is capped by `NEUTRAL_CREEP_CAP` (% of the measured extruder rate) and resets immediately if the arm reaches an endstop.
 
 The `RT:` and `RD:` fields in `?:` status expose the current reserve target
 and deadband in mm, so tuning of `SYNC_RESERVE_PCT`, `BUF_HALF_TRAVEL`, and
-`SYNC_KP_RATE` can be observed in real time. `AD:` and `TD:` expose how long
-the arm has been continuously pinned at the advance or trailing endstop. `TW:`
-shows estimated time-to-trailing-wall in ms (99999 when not applicable).
+`SYNC_KP_RATE` can be observed in real time. `TT:` and `CT:` expose how long
+the arm has been continuously pinned at the tension or compression endstop. `CW:`
+shows estimated time-to-compression-wall in ms (99999 when not applicable).
 
 A low-gain integral centering term (`RI:`) can correct for slow
-rate mismatches that could otherwise settle the arm near the advance side over
-long runs. This term is active only in `BUF_MID` when estimator confidence is
+rate mismatches that could otherwise settle the arm near the tension side over
+long runs. This term is active only in `BUF_NEUTRAL` when estimator confidence is
 high. It is capped by `SYNC_INT_CLAMP` and frozen during pin events, toolchanges,
 or low-confidence dwells. `RC:` shows the active gain percentage (0% = disabled
-or frozen). If the integral saturates toward the advance side,
-`EV:SYNC,ADV_DWELL_WARN` is emitted as an upstream warning before an advance
+or frozen). If the integral saturates toward the tension side,
+`EV:SYNC,TENSION_DWELL_WARN` is emitted as an upstream warning before an tension
 pin occurs.
 
 A transition-residual drift correction layer (`RDC:`) can also be enabled. When
 enabled (`BUF_DRIFT_THR_MM > 0`), the effective position seen by the control
 law is shifted by the signed EWMA of pre-snap residuals, ramping from the first
 sample to full strength at `BUF_DRIFT_MIN_SMP`. The correction fades near the
-opposite endstop, so a learned bias can help through the mid-zone without
+opposite endstop, so a learned bias can help through the neutral-zone without
 hiding a physical wall. When enabled and the integral is also active, the
 integral operates on the corrected position so both terms do not double-correct
-for the same bias. `APX:` counts recent
-advance-pin events; `EV:SYNC,ADV_RISK_HIGH` fires when the density exceeds
-`ADV_RISK_THR` in the `ADV_RISK_WINDOW` rolling window.
+for the same bias. `TPX:` counts recent
+tension-pin events; `EV:SYNC,TENSION_RISK_HIGH` fires when the density exceeds
+`TENSION_RISK_THR` in the `TENSION_RISK_WINDOW` rolling window.
 
 After a deep negative reserve excursion, firmware also latches a
 positive-relaunch damp state. During that state, positive reserve correction
@@ -338,22 +338,22 @@ state.
 
 #### Advance-dwell guard
 
-If the buffer arm is continuously pinned at the advance endstop for longer
-than `SYNC_ADV_RAMP_MS`, the sync controller bypasses the estimator ceiling and
+If the buffer arm is continuously pinned at the tension endstop for longer
+than `SYNC_TENSION_RAMP_MS`, the sync controller bypasses the estimator ceiling and
 forces the target speed toward `SYNC_MAX_RATE`. The default is `0`, so this
 estimator-bypass refill ramp is disabled; normal reserve control and the hard
-advance stop remain active. Operators can re-enable the ramp as a runtime
+tension stop remain active. Operators can re-enable the ramp as a runtime
 escape hatch if hardware evidence supports it.
 
-If the arm remains pinned for longer than `SYNC_ADV_STOP_MS` (default 6000
+If the arm remains pinned for longer than `SYNC_TENSION_STOP_MS` (default 6000
 ms), sync enters a non-destructive fault hold with `EV:SYNC,FAULT_HOLD`. This
 is the safety net for genuine extruder-overload conditions where no amount of
 speed increase will refill the buffer. Sync automatically recovers after
 `CONF_SYNC_FAULT_HOLD_RECOVERY_MS` (default 5000 ms), emitting
-`EV:SYNC,FAULT_HOLD_RECOVERY` and attempting to re-arm. `SYNC_ADV_STOP_MS: 0`
+`EV:SYNC,FAULT_HOLD_RECOVERY` and attempting to re-arm. `SYNC_TENSION_STOP_MS: 0`
 disables the hard stop.
 
-The `AD:` status field exposes the current advance-dwell timer in real time
+The `TT:` status field exposes the current tension-dwell timer in real time
 for tuning and regression monitoring.
 
 #### Scaling, brake, and baseline adaptation
@@ -361,29 +361,29 @@ for tuning and regression monitoring.
 `sync_apply_scaling()` is a limiter on top of the estimator target:
 
 - In analog-buffer mode, `g_buf_pos` scales the target between
-  `TRAILING_RATE` and the requested target.
+  `COMPRESSION_RATE` and the requested target.
 - In dual-endstop mode, the virtual reserve target shapes the controller.
   If the estimated position moves past the target into “too full”, sync tapers
-  the requested target down toward `TRAILING_RATE` across the remaining
+  the requested target down toward `COMPRESSION_RATE` across the remaining
   full-side virtual travel instead of dropping there in one step.
-- The controller also computes a dynamic trailing-wall time from remaining
+- The controller also computes a dynamic compression-wall time from remaining
   physical margin and current relative push. If time-to-wall collapses while
-  sync is still driving toward `TRAILING`, firmware adds urgency trim and can
-  immediately auto-stop AUTO sync instead of waiting for a long static trailing
+  sync is still driving toward `COMPRESSION`, firmware adds urgency trim and can
+  immediately auto-stop AUTO sync instead of waiting for a long static compression
   dwell once the condition becomes critically unsafe.
 
-On a direct `ADVANCE→TRAILING` transition, firmware arms a short fast-brake
+On a direct `TENSION→COMPRESSION` transition, firmware arms a short fast-brake
 window. During that window the sync target is forced to 0 before normal
-TRAILING low-speed recovery resumes.
+COMPRESSION low-speed recovery resumes.
 
 The live baseline learner remains ephemeral and up-only. Once the settle,
 variance, cooldown, distance, and `SYNC_ACTIVE` gates accept an update, the
 accepted lift is stored only on the currently active flow segment. Reboot,
-`LD:`, `RS:`, or scalar `SET:BASELINE_*` / `SET:TRAIL_BIAS_FRAC` refreshes
+`LD:`, `RS:`, or scalar `SET:BASELINE_*` / `SET:COMPRESSION_BIAS_FRAC` refreshes
 discard that segment delta and restore the generated schedule or scalar
 one-point fallback.
 
-When the buffer returns to MID after a non-MID dwell and settles there for
+When the buffer returns to NEUTRAL after a non-NEUTRAL dwell and settles there for
 > 500 ms, the runtime control baseline drifts toward the current speed. The
 configured `BASELINE_RATE` remains a separate bootstrap target and persistence
 value; the learned runtime baseline cannot pull control below that configured
@@ -411,7 +411,7 @@ the new lane begins its join approach.
 **`TC_RELOAD_APPROACH` — buffer-driven contact detection**
 
 The motor runs at `JOIN_RATE` while the controller waits for the buffer to move
-into `BUF_TRAILING`, which is treated as the first reliable sign that the new
+into `BUF_COMPRESSION`, which is treated as the first reliable sign that the new
 lane has made contact and started pushing filament toward the extruder.
 
 If contact never arrives, the approach phase still has hard escape paths: the
@@ -423,20 +423,20 @@ sensor.
 
 RELOAD follow no longer derives speed from driver-load telemetry.
 It benefits from the same estimator and virtual-position updates, but its speed
-policy stays deliberately trailing-centric and does not inherit the normal-sync
+policy stays deliberately compression-centric and does not inherit the normal-sync
 reserve target:
 
 ```
 target = extruder_est_sps × RELOAD_LEAN
 ```
 
-- Target is clamped between `TRAILING_RATE` and `JOIN_RATE`.
+- Target is clamped between `COMPRESSION_RATE` and `JOIN_RATE`.
 - `RELOAD_LEAN` now defaults to `1.15` (over-feeds by 15%).
-- While in `BUF_MID`, `TC_RELOAD_FOLLOW` intentionally **over-feeds** to ensure the new tip pushes faster than the extruder pulls, actively closing the gap to the old tail.
-- This causes the arm to gradually drift toward `BUF_TRAILING`.
-- If it hits `BUF_TRAILING`, it drops to `TRAILING_RATE` (usually 0), allowing the extruder to pull it back to `MID`, creating a solid bang-bang pressure cycle.
-- RELOAD follow also watches geometry-aware trailing-wall time. If the lane is
-  still pushing deeper into the trailing wall and the predicted remaining time
+- While in `BUF_NEUTRAL`, `TC_RELOAD_FOLLOW` intentionally **over-feeds** to ensure the new tip pushes faster than the extruder pulls, actively closing the gap to the old tail.
+- This causes the arm to gradually drift toward `BUF_COMPRESSION`.
+- If it hits `BUF_COMPRESSION`, it drops to `COMPRESSION_RATE` (usually 0), allowing the extruder to pull it back to `NEUTRAL`, creating a solid bang-bang pressure cycle.
+- RELOAD follow also watches geometry-aware compression-wall time. If the lane is
+  still pushing deeper into the compression wall and the predicted remaining time
   collapses, `FOLLOW_JAM` is raised early instead of waiting only on the static
   `FOLLOW_TIMEOUT_MS` dwell.
 
@@ -446,22 +446,22 @@ jam severity from driver load telemetry.
 
 ### Trailing behavior and auto-stop
 
-`BUF_TRAILING` is now a valid low-speed recovery state, not an immediate hard
-stop. In normal print sync, entering `BUF_TRAILING` latches a recovery phase:
-sync caps speed below the estimator until the buffer returns to `MID`, then
-applies a brief re-acceleration bump. If trailing recovery still persists, the
+`BUF_COMPRESSION` is now a valid low-speed recovery state, not an immediate hard
+stop. In normal print sync, entering `BUF_COMPRESSION` latches a recovery phase:
+sync caps speed below the estimator until the buffer returns to `NEUTRAL`, then
+applies a brief re-acceleration bump. If compression recovery still persists, the
 controller tightens that cap and ramps down more aggressively until sync hits
-its trailing floor. The hard trailing-wall guard still remains the true stop
+its compression floor. The hard compression-wall guard still remains the true stop
 path if recovery cannot pull the buffer back safely.
 
-`SYNC_AUTO_STOP_MS` is no longer a generic normal-sync trailing dwell timeout.
+`SYNC_AUTO_STOP_MS` is no longer a generic normal-sync compression dwell timeout.
 Instead:
 
-- tail-assist auto-starts still stop if `BUF_TRAILING` persists for
+- tail-assist auto-starts still stop if `BUF_COMPRESSION` persists for
   `SYNC_AUTO_STOP_MS`;
-- normal auto-started print sync requires **continuous `TRAILING` dwell** exceeding 
+- normal auto-started print sync requires **continuous `COMPRESSION` dwell** exceeding 
   `SYNC_AUTO_STOP_MS` **and** that the recovery speed has collapsed to the minimum 
-  trailing-floor speed (ignoring micro-fluctuations). The configured `SYNC_AUTO_STOP_MS` 
+  compression-floor speed (ignoring micro-fluctuations). The configured `SYNC_AUTO_STOP_MS` 
   applies directly without relying on an internal deadman multiplier since the 
   dwell timer no longer falsely resets.
 
@@ -469,15 +469,15 @@ The same low-speed stabilization helper used at boot can also be run on demand
 with `BS:` when the controller is idle.
 
 In idle loaded states, firmware also runs a negative-sync / retract-sync flow:
-if the raw buffer state is `TRAILING`, it can wait `POST_PRINT_STAB_MS`
-(legacy name, now used as the idle trailing delay), then reverse slowly until
-the raw buffer reaches `MID`. If the move somehow overshoots before the
+if the raw buffer state is `COMPRESSION`, it can wait `POST_PRINT_STAB_MS`
+(legacy name, now used as the idle compression delay), then reverse slowly until
+the raw buffer reaches `NEUTRAL`. If the move somehow overshoots before the
 control loop catches that center crossing, firmware falls back to the
-advance-side handoff and then settles the buffer back toward `MID`.
+tension-side handoff and then settles the buffer back toward `NEUTRAL`.
 
 **AUTO sync sequence:**
 
-1. `BUF_ADVANCE` auto-starts sync in `AUTO_MODE` and seeds the estimator from
+1. `BUF_TENSION` auto-starts sync in `AUTO_MODE` and seeds the estimator from
    the current baseline.
 2. If the active lane is in the `IN=0`, `OUT=1` tail-between-sensors state,
   that same auto-start acts as a temporary tail-clear assist so the printer's
@@ -485,15 +485,15 @@ advance-side handoff and then settles the buffer back toward `MID`.
 3. Once `OUT` clears in that assist path, firmware disables sync immediately
   and then continues with the normal `RUNOUT` / optional RELOAD handling.
 4. Normal sync runs from the estimator, bounded by buffer state.
-5. During normal print sync, `BUF_TRAILING` enters a bounded recovery phase
-  until the buffer returns to `MID`; if that recovery persists, sync ramps down
-  aggressively toward the trailing floor.
-6. During tail assist, sustained `BUF_TRAILING` for `SYNC_AUTO_STOP_MS`
+5. During normal print sync, `BUF_COMPRESSION` enters a bounded recovery phase
+  until the buffer returns to `NEUTRAL`; if that recovery persists, sync ramps down
+  aggressively toward the compression floor.
+6. During tail assist, sustained `BUF_COMPRESSION` for `SYNC_AUTO_STOP_MS`
   disables sync.
-7. During normal auto-started print sync, sustained `BUF_TRAILING` only
+7. During normal auto-started print sync, sustained `BUF_COMPRESSION` only
    disables sync after the continuous dwell exceeds `SYNC_AUTO_STOP_MS`
-   and the controller speed has collapsed to the trailing-floor limit.
-8. The next eligible `BUF_ADVANCE` event bootstraps sync again.
+   and the controller speed has collapsed to the compression-floor limit.
+8. The next eligible `BUF_TENSION` event bootstraps sync again.
 
 ---
 
@@ -504,21 +504,21 @@ load completion and RELOAD handover, but it is not the main sync controller.
 
 | Event | Sync state |
 |-------|-----------|
-| `BUF_ADVANCE` while sync is off | enabled and bootstrapped |
+| `BUF_TENSION` while sync is off | enabled and bootstrapped |
 | `UL:`, `UM:`, or `TC:` unload starts | disabled |
-| tail-assist `BUF_TRAILING` for `SYNC_AUTO_STOP_MS` | disabled and estimator reset |
-| normal-sync `BUF_TRAILING` at trailing-floor speed for `SYNC_AUTO_STOP_MS` | disabled and estimator reset |
+| tail-assist `BUF_COMPRESSION` for `SYNC_AUTO_STOP_MS` | disabled and estimator reset |
+| normal-sync `BUF_COMPRESSION` at compression-floor speed for `SYNC_AUTO_STOP_MS` | disabled and estimator reset |
 | `ST:` command | disabled |
 ---
 
 ## Dry Spin Protection
 
-To prevent indefinite motor wear if filament is lost or snapped mid-task, the firmware implements a global "Dry Spin" watchdog.
+To prevent indefinite motor wear if filament is lost or snapped neutral-task, the firmware implements a global "Dry Spin" watchdog.
 
 **Conditions for `FAULT:DRY_SPIN`:**
 - Motor is spinning (`task != TASK_IDLE`).
 - `IN` sensor is clear (no filament present at intake).
-- Buffer is **not** in `BUF_ADVANCE` (the printer is not successfully pulling a remaining tail).
+- Buffer is **not** in `BUF_TENSION` (the printer is not successfully pulling a remaining tail).
 - This state persists for > 8 seconds.
 
 **Effects:**

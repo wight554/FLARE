@@ -12,7 +12,7 @@ Usage examples:
 The live loop reads FLARE status and marker lines, learns per
 (feature, v_fil_bin) buckets, and persists calibration state. Default
 mode is observe-only: no SET writes and no SAVE. Research/debug modes:
-    --allow-bias-writes      allow guarded SET:TRAIL_BIAS_FRAC writes
+    --allow-bias-writes      allow guarded SET:COMPRESSION_BIAS_FRAC writes
     --allow-baseline-writes  allow guarded SET:BASELINE_SPS writes
     --commit-flash           enable both write flags and send SV: at
                              end-of-print commit time
@@ -82,7 +82,7 @@ except ImportError:
 
 
 CF_GATE = 0.6
-APX_THR = 4
+TPX_THR = 4
 P_STABLE_THR = 100.0
 SET_DEADBAND_SPS = 30.0
 BIAS_DEADBAND = 0.03
@@ -93,10 +93,10 @@ MIN_SET_SPACING = 2.0
 N_MIN_SAMPLES_CUMULATIVE = 200
 N_MIN_RUNS = 2
 N_MIN_LAYERS = 3
-MIN_MID_TIME_S = 60.0
+MIN_NEUTRAL_TIME_S = 60.0
 N_SINGLE_PRINT_SAMPLES = 500
 N_SINGLE_PRINT_LAYERS = 5
-MIN_PRINT_MID_S = 300.0
+MIN_PRINT_NEUTRAL_S = 300.0
 RECHECK_NEW_LOCKED = 3
 RECHECK_SAMPLE_PCT = 25.0
 RECHECK_AGE_DAYS = 30
@@ -121,10 +121,10 @@ SCHEMA_VERSION = 4
 DEFAULT_STATE_DIR = os.path.expanduser("~/flare-state")
 PATCH_KEYS = [
     "baseline_rate",
-    "sync_trailing_bias_frac",
-    "mid_creep_timeout_ms",
-    "mid_creep_rate_sps_per_s",
-    "mid_creep_cap_frac",
+    "sync_compression_bias_frac",
+    "neutral_creep_timeout_ms",
+    "neutral_creep_rate_sps_per_s",
+    "neutral_creep_cap_frac",
     "buf_variance_blend_frac",
     "buf_variance_blend_ref_mm",
 ]
@@ -158,7 +158,7 @@ class Bucket:
     last_debug_state: str = ""
     runs_seen: int = 0
     layers_seen: int = 0
-    cumulative_mid_s: float = 0.0
+    cumulative_neutral_s: float = 0.0
     low_flow_skip_count: int = 0
     rail_skip_count: int = 0
     rollback_count: int = 0
@@ -196,9 +196,9 @@ def bucket_label(feature: str, v_fil: float) -> str:
     return f"{feature}_v{int(round(v_fil / 25.0)) * 25}"
 
 
-def kf_predict_update(bucket: Bucket, z: float, cf: float, apx: int, dt_s: float) -> None:
+def kf_predict_update(bucket: Bucket, z: float, cf: float, tpx: int, dt_s: float) -> None:
     bucket.P += Q_PROCESS * max(dt_s, 0.0)
-    R = (R_BASE / max(cf, 0.05)) * (1.0 + apx / float(APX_THR))
+    R = (R_BASE / max(cf, 0.05)) * (1.0 + tpx / float(TPX_THR))
     K = bucket.P / (bucket.P + R)
     bucket.x += K * (z - bucket.x)
     bucket.P *= 1.0 - K
@@ -234,7 +234,7 @@ class CsvEmitter:
         self.path = path
         self.fields = [
             "wall_ts", "run_seq", "layer", "feature", "v_fil",
-            "BL", "BP", "BPV", "EST", "RT", "AD", "APX", "CF", "TC", "BUF", "MK_seq"
+            "BL", "BP", "BPV", "EST", "RT", "TT", "TPX", "CF", "TC", "BUF", "MK_seq"
         ]
         parent = os.path.dirname(os.path.abspath(path))
         if parent:
@@ -346,7 +346,7 @@ class Tuner:
         self.run_seq = 0
         self.current_run_id = ""
         self.current_layer = ""
-        self.total_print_mid_s = 0.0
+        self.total_print_neutral_s = 0.0
         self._run_seen_labels = set()
         self._seen_layer_keys = set()
         self.recent_sets = deque()
@@ -391,7 +391,7 @@ class Tuner:
                 locked=bool(raw.get("locked", False)),
                 runs_seen=int(raw.get("runs_seen", 0)),
                 layers_seen=int(raw.get("layers_seen", 0)),
-                cumulative_mid_s=float(raw.get("cumulative_mid_s", 0.0)),
+                cumulative_neutral_s=float(raw.get("cumulative_neutral_s", 0.0)),
                 low_flow_skip_count=int(raw.get("low_flow_skip_count", 0)),
                 rail_skip_count=int(raw.get("rail_skip_count", 0)),
                 rollback_count=int(raw.get("rollback_count", 0)),
@@ -434,7 +434,7 @@ class Tuner:
                 "last_seen": b.last_seen,
                 "runs_seen": b.runs_seen,
                 "layers_seen": b.layers_seen,
-                "cumulative_mid_s": b.cumulative_mid_s,
+                "cumulative_neutral_s": b.cumulative_neutral_s,
                 "low_flow_skip_count": b.low_flow_skip_count,
                 "rail_skip_count": b.rail_skip_count,
                 "rollback_count": b.rollback_count,
@@ -509,7 +509,7 @@ class Tuner:
             self.run_seq += 1
             self.current_run_id = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(self.wall_fn()))
             self.current_layer = ""
-            self.total_print_mid_s = 0.0
+            self.total_print_neutral_s = 0.0
             self._run_seen_labels.clear()
             self._seen_layer_keys.clear()
             if self.debug:
@@ -578,7 +578,7 @@ class Tuner:
 
     def on_event(self, line: str) -> None:
         now = self.now_fn()
-        if line.startswith("EV:SYNC,ADV_RISK_HIGH"):
+        if line.startswith("EV:SYNC,TENSION_RISK_HIGH"):
             self.frozen_until = now + 30.0
             self._rollback_active()
         elif line.startswith("EV:SYNC,FAULT_HOLD"):
@@ -617,13 +617,13 @@ class Tuner:
             return
         if tc == "IDLE" and self.idle_since == 0.0:
             self.idle_since = now
-        apx = int(float(fields.get("APX", "0") or 0))
-        if apx >= APX_THR:
+        tpx = int(float(fields.get("TPX", "0") or 0))
+        if tpx >= TPX_THR:
             self.frozen_until = now + 10.0
             return
         if now < self.frozen_until:
             return
-        if fields.get("BUF") != "MID":
+        if fields.get("BUF") != "NEUTRAL":
             return
         cf = cf_value(fields.get("CF", "0"))
         if cf < CF_GATE:
@@ -669,8 +669,8 @@ class Tuner:
         dt_s = now - self.last_status_t
         self.last_status_t = now
         if dt_s > 0.0:
-            b.cumulative_mid_s += dt_s
-            self.total_print_mid_s += dt_s
+            b.cumulative_neutral_s += dt_s
+            self.total_print_neutral_s += dt_s
 
         if b.state == "LOCKED" or b.locked:
             resid = est - b.x
@@ -679,21 +679,21 @@ class Tuner:
             reason = self._evaluate_unlock(b, resid)
             if reason:
                 self._apply_unlock(b, reason, est)
-            self._debug_bucket_progress(b, now, est, bp, cf, apx)
+            self._debug_bucket_progress(b, now, est, bp, cf, tpx)
             return
 
-        kf_predict_update(b, est, cf, apx, dt_s)
+        kf_predict_update(b, est, cf, tpx, dt_s)
         b.bp_ewma = 0.95 * b.bp_ewma + 0.05 * bp if b.n > 1 else bp
         bias_target = b.bias + (b.bp_ewma - rt) / 7.8
         b.bias = max(BIAS_SAFE_MIN, min(BIAS_SAFE_MAX, 0.95 * b.bias + 0.05 * bias_target))
         self._maybe_emit_set(b, now)
         self._maybe_lock(b, now)
-        self._debug_bucket_progress(b, now, est, bp, cf, apx)
+        self._debug_bucket_progress(b, now, est, bp, cf, tpx)
 
     def _bucket_wait_reason(self, b: Bucket, now: float) -> str:
-        return bucket_wait_reason(b, self.total_print_mid_s)
+        return bucket_wait_reason(b, self.total_print_neutral_s)
 
-    def _debug_bucket_progress(self, b: Bucket, now: float, est: float, bp: float, cf: float, apx: int) -> None:
+    def _debug_bucket_progress(self, b: Bucket, now: float, est: float, bp: float, cf: float, tpx: int) -> None:
         if not self.debug or self.progress_interval <= 0.0:
             return
         state_changed = b.state != b.last_debug_state
@@ -705,7 +705,7 @@ class Tuner:
         print(
             f"[tuner] bucket {b.label} n={b.n} P={b.P:.1f} "
             f"x={b.x:.0f} est={est:.0f} bias={b.bias:.3f} "
-            f"bp={bp:.2f} cf={cf:.2f} apx={apx} state={b.state} wait={wait}",
+            f"bp={bp:.2f} cf={cf:.2f} tpx={tpx} state={b.state} wait={wait}",
             file=sys.stderr,
         )
 
@@ -753,7 +753,7 @@ class Tuner:
             if self._rate_limited(now):
                 return
             self._engage_lock()
-            self._send(f"SET:TRAIL_BIAS_FRAC:{b.bias:.3f}")
+            self._send(f"SET:COMPRESSION_BIAS_FRAC:{b.bias:.3f}")
             b.last_set_bias = b.bias
             self.last_set_t = now
 
@@ -772,13 +772,13 @@ class Tuner:
             b.n >= N_MIN_SAMPLES_CUMULATIVE
             and b.runs_seen >= N_MIN_RUNS
             and b.layers_seen >= N_MIN_LAYERS
-            and b.cumulative_mid_s >= MIN_MID_TIME_S
+            and b.cumulative_neutral_s >= MIN_NEUTRAL_TIME_S
         )
         ready_B = (
             b.n >= N_SINGLE_PRINT_SAMPLES
             and b.layers_seen >= N_SINGLE_PRINT_LAYERS
-            and b.cumulative_mid_s >= MIN_MID_TIME_S
-            and self.total_print_mid_s >= MIN_PRINT_MID_S
+            and b.cumulative_neutral_s >= MIN_NEUTRAL_TIME_S
+            and self.total_print_neutral_s >= MIN_PRINT_NEUTRAL_S
         )
         if b.state == "STABLE" and (ready_A or ready_B):
             if not self._noise_ok_for_lock(b):
@@ -971,7 +971,7 @@ def bucket_from_raw(label: str, raw: dict) -> Bucket:
         locked=bool(raw.get("locked", False)),
         runs_seen=int(raw.get("runs_seen", 0)),
         layers_seen=int(raw.get("layers_seen", 0)),
-        cumulative_mid_s=float(raw.get("cumulative_mid_s", 0.0)),
+        cumulative_neutral_s=float(raw.get("cumulative_neutral_s", 0.0)),
         low_flow_skip_count=int(raw.get("low_flow_skip_count", 0)),
         rail_skip_count=int(raw.get("rail_skip_count", 0)),
         rollback_count=int(raw.get("rollback_count", 0)),
@@ -987,7 +987,7 @@ def bucket_from_raw(label: str, raw: dict) -> Bucket:
     )
 
 
-def bucket_wait_reason(b: Bucket, total_print_mid_s: float = 0.0) -> str:
+def bucket_wait_reason(b: Bucket, total_print_neutral_s: float = 0.0) -> str:
     if b.state == "LOCKED" or b.locked:
         if b.locked_sample_count < MIN_LOCK_DWELL:
             return f"dwell {b.locked_sample_count}/{MIN_LOCK_DWELL}"
@@ -1005,13 +1005,13 @@ def bucket_wait_reason(b: Bucket, total_print_mid_s: float = 0.0) -> str:
     if b.n < N_MIN_SAMPLES_CUMULATIVE: reasons_A.append(f"samples {b.n}/{N_MIN_SAMPLES_CUMULATIVE}")
     if b.runs_seen < N_MIN_RUNS: reasons_A.append(f"runs {b.runs_seen}/{N_MIN_RUNS}")
     if b.layers_seen < N_MIN_LAYERS: reasons_A.append(f"layers {b.layers_seen}/{N_MIN_LAYERS}")
-    if b.cumulative_mid_s < MIN_MID_TIME_S: reasons_A.append(f"mid_time {b.cumulative_mid_s:.0f}/{MIN_MID_TIME_S:.0f}s")
+    if b.cumulative_neutral_s < MIN_NEUTRAL_TIME_S: reasons_A.append(f"neutral_time {b.cumulative_neutral_s:.0f}/{MIN_NEUTRAL_TIME_S:.0f}s")
     
     reasons_B = []
     if b.n < N_SINGLE_PRINT_SAMPLES: reasons_B.append(f"samples {b.n}/{N_SINGLE_PRINT_SAMPLES}")
     if b.layers_seen < N_SINGLE_PRINT_LAYERS: reasons_B.append(f"layers {b.layers_seen}/{N_SINGLE_PRINT_LAYERS}")
-    if b.cumulative_mid_s < MIN_MID_TIME_S: reasons_B.append(f"mid_time {b.cumulative_mid_s:.0f}/{MIN_MID_TIME_S:.0f}s")
-    if total_print_mid_s < MIN_PRINT_MID_S: reasons_B.append(f"total_mid {total_print_mid_s:.0f}/{MIN_PRINT_MID_S:.0f}s")
+    if b.cumulative_neutral_s < MIN_NEUTRAL_TIME_S: reasons_B.append(f"neutral_time {b.cumulative_neutral_s:.0f}/{MIN_NEUTRAL_TIME_S:.0f}s")
+    if total_print_neutral_s < MIN_PRINT_NEUTRAL_S: reasons_B.append(f"total_neutral {total_print_neutral_s:.0f}/{MIN_PRINT_NEUTRAL_S:.0f}s")
     
     if not reasons_A or not reasons_B:
         return "stable"
@@ -1047,21 +1047,21 @@ def print_state_info(
     now = time.time()
     cutoff = now - STALE_AGE_DAYS * 86400
     if csv_mode:
-        header = "feature_v_fil,x,P,n,bias,state,runs,layers,mid_s,last_seen_age_s,wait"
+        header = "feature_v_fil,x,P,n,bias,state,runs,layers,neutral_s,last_seen_age_s,wait"
         if verbose:
             header += ",resid_var_ewma,outlier_streak,locked_sample_count,last_unlock_reason"
         print(header)
     else:
         header = (
             f"{'feature_v_fil':<24} {'x':>7} {'P':>8} {'n':>6} {'bias':>7} "
-            f"{'state':>11} {'runs':>5} {'layers':>6} {'mid_s':>7} {'age_s':>7} wait"
+            f"{'state':>11} {'runs':>5} {'layers':>6} {'neutral_s':>7} {'age_s':>7} wait"
         )
         if verbose:
             header += f" {'sigma2':>8} {'streak':>6} {'dwell':>6} last_unlock"
         print(header)
     locked = 0
     total_n = 0
-    total_mid_s = 0.0
+    total_neutral_s = 0.0
     for label, raw in sorted(buckets.items()):
         if label.startswith("_"): continue
         b = bucket_from_raw(label, raw)
@@ -1077,12 +1077,12 @@ def print_state_info(
             locked += 1
         n = int(raw.get("n", 0))
         total_n += n
-        total_mid_s += b.cumulative_mid_s
+        total_neutral_s += b.cumulative_neutral_s
         wait = bucket_wait_reason(b)
         if csv_mode:
             row = (
                 f"{label},{b.x:.0f},{b.P:.1f},{b.n},{b.bias:.3f},{st},"
-                f"{b.runs_seen},{b.layers_seen},{b.cumulative_mid_s:.1f},{age_s:.1f},{wait}"
+                f"{b.runs_seen},{b.layers_seen},{b.cumulative_neutral_s:.1f},{age_s:.1f},{wait}"
             )
             if verbose:
                 row += (
@@ -1094,7 +1094,7 @@ def print_state_info(
             row = (
                 f"{label:<24} {b.x:>7.0f} {b.P:>8.1f} {n:>6d} "
                 f"{b.bias:>7.3f} {st:>11} {b.runs_seen:>5d} "
-                f"{b.layers_seen:>6d} {b.cumulative_mid_s:>7.1f} "
+                f"{b.layers_seen:>6d} {b.cumulative_neutral_s:>7.1f} "
                 f"{age_s:>7.0f} {wait}"
             )
             if verbose:
@@ -1104,7 +1104,7 @@ def print_state_info(
                 )
             print(row)
     if not csv_mode:
-        print(f"TOTAL: {len(buckets)} buckets, {locked} locked, {total_n} samples, {total_mid_s:.1f}s MID")
+        print(f"TOTAL: {len(buckets)} buckets, {locked} locked, {total_n} samples, {total_neutral_s:.1f}s NEUTRAL")
 
 
 def emit_patch(state_path: str, machine_id: str, out_path: str) -> None:
@@ -1144,7 +1144,7 @@ def emit_patch(state_path: str, machine_id: str, out_path: str) -> None:
             "LOW",
             "single-source tuner estimate; verify with flare_analyze.py",
         ),
-        "sync_trailing_bias_frac": (
+        "sync_compression_bias_frac": (
             f"{bias:.3f}",
             "LOW",
             f"{len(locked)} locked buckets, recency weighted",
@@ -1350,7 +1350,7 @@ def run_loop(args) -> None:
                         tuner.finish_seen = False
                         tuner.seen_print_activity = False
                         tuner.idle_since = 0.0
-                        tuner.total_print_mid_s = 0.0
+                        tuner.total_print_neutral_s = 0.0
                         if args.recommend_recheck:
                             do_recommend_recheck(args.state, args.machine_id)
                         continue
@@ -1522,7 +1522,7 @@ def main() -> None:
     ap.add_argument(
         "--allow-bias-writes",
         action="store_true",
-        help="Experimental: allow live SET:TRAIL_BIAS_FRAC writes from learned buckets",
+        help="Experimental: allow live SET:COMPRESSION_BIAS_FRAC writes from learned buckets",
     )
     ap.add_argument(
         "--allow-baseline-writes",

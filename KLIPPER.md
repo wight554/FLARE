@@ -88,7 +88,7 @@ runout_gcode:
 
 ### Option B — Buffer fallback / geometry-only load
 
-When filament presses against the extruder gears, the buffer arm holds TRAILING
+When filament presses against the extruder gears, the buffer arm holds COMPRESSION
 for `TS_BUF_MS` milliseconds and FLARE self-triggers the loaded state.
 Tune to your bowden length:
 
@@ -98,7 +98,7 @@ SV:
 ```
 
 Even with `TS_BUF_MS=0`, `TC:` can complete from the distance-checked buffer
-ADVANCE/TRAILING geometry path. Unload commands clear toolhead state
+TENSION/COMPRESSION geometry path. Unload commands clear toolhead state
 internally, so change macros do not need `TS:0` or `SM:` commands.
 
 ---
@@ -235,7 +235,7 @@ gcode:
 The current sync controller is estimator-driven. `BASELINE_RATE` seeds and
 stabilizes the controller around your expected steady-state print speed, while
 `SYNC_KP_RATE` adds bounded correction when the buffer keeps leaning away from
-MID.
+NEUTRAL.
 
 Monitor buffer state during a print:
 ```bash
@@ -245,20 +245,20 @@ python3 scripts/flare_cmd.py "?:"
 
 A healthy steady-state print:
 ```
-EV:BS:MID,2100.0,0.01
-EV:BS:MID,2100.0,-0.02
-EV:BS:ADVANCE,2500.0,0.43    ← extruder accelerating
-EV:BS:MID,2250.0,0.11        ← settling back
+EV:BS:NEUTRAL,2100.0,0.01
+EV:BS:NEUTRAL,2100.0,-0.02
+EV:BS:TENSION,2500.0,0.43    ← extruder accelerating
+EV:BS:NEUTRAL,2250.0,0.11        ← settling back
 ```
 
-**If the arm stays at ADVANCE during steady extrusion:** first raise `BASELINE_RATE`, then increase `SYNC_KP_RATE` only if recovery is still too weak:
+**If the arm stays at TENSION during steady extrusion:** first raise `BASELINE_RATE`, then increase `SYNC_KP_RATE` only if recovery is still too weak:
 ```bash
 python3 scripts/flare_cmd.py "SET:BASELINE_RATE:2300" "SET:SYNC_KP_RATE:1200"
 ```
 
-**If speed oscillates MID ↔ ADVANCE ↔ MID rapidly:** decrease `SYNC_KP_RATE` or lower `BASELINE_RATE` if the whole controller is biased too fast.
+**If speed oscillates NEUTRAL ↔ TENSION ↔ NEUTRAL rapidly:** decrease `SYNC_KP_RATE` or lower `BASELINE_RATE` if the whole controller is biased too fast.
 
-Target: MID during steady extrusion, with brief ADVANCE / TRAILING excursions
+Target: NEUTRAL during steady extrusion, with brief TENSION / COMPRESSION excursions
 only on real flow changes.
 
 ### BUF_ALPHA — EMA weight for arm position
@@ -266,13 +266,13 @@ only on real flow changes.
 `BUF_ALPHA` (default 0.20) controls how quickly `g_buf_pos` ramps to the new
 zone value (endstop sensors only).
 
-| BUF_ALPHA | Time to 86 % correction from MID | Character |
+| BUF_ALPHA | Time to 86 % correction from NEUTRAL | Character |
 |-----------|-----------------------------------|-----------|
 | 0.10      | ~400 ms                           | Smooth, slow |
 | 0.20      | ~200 ms                           | Default — balanced |
 | 0.40      | ~100 ms                           | Fast; some overshoot risk |
 
-Increase if ADVANCE correction builds too slowly. Decrease if motor speed
+Increase if TENSION correction builds too slowly. Decrease if motor speed
 oscillates.
 
 ---
@@ -370,7 +370,7 @@ ratio gate.
 The acceptance gate differentiates between hardware/math failures (**FAIL**) and
 stale-configuration warnings (**WARN**). It compares the state-aware 
 recommendation path once per "comparable" run. A run is comparable only if it 
-contains at least 50 MID rows for at least three contributing buckets. 
+contains at least 50 NEUTRAL rows for at least three contributing buckets. 
 
 - **FAIL (Recommendation Unreliable)**: Triggered by high scatter 
   (sigma_p95 >= 5.0 mm), inconsistent recommendations between runs, 
@@ -407,7 +407,7 @@ python3 scripts/flare_analyze.py \
 
 Review and copy the `flow_schedule_cap` plus `[flow_schedule.v1]` block into
 `config.ini`. If the input is too sparse, the analyzer emits a one-point
-schedule equivalent to the scalar `baseline_rate` / `sync_trailing_bias_frac`
+schedule equivalent to the scalar `baseline_rate` / `sync_compression_bias_frac`
 fallback. The older scalar two-profile output remains available with
 `--emit-baseline`.
 
@@ -432,6 +432,6 @@ Debug-only live writes still exist for controlled experiments:
 | `TS:1` not reaching FLARE | Sensor wiring or config | Test: `RUN_SHELL_COMMAND CMD=flare PARAMS="TS:1"` |
 | `TC:` times out | Bowden too long / jam | Increase `LOAD_MAX` / `UNLOAD_MAX` if travel is genuinely too short; otherwise tune `TC_Y_MS` or fix the path |
 | Sync not enabling after load | Load task never reached a loaded condition | Check buffer travel/sensor state; optional sensor can be tested with `TS:1` |
-| RELOAD approach never detects contact | Buffer sensor never reaches `TRAILING` | Verify buffer wiring and travel; reduce `JOIN_RATE` if the path is too aggressive |
-| RELOAD approach exits too early | Buffer sensor chatter or preload already trailing | Verify hysteresis/sensor state and make sure the standby path starts with real slack |
-| RELOAD follow times out mid-bowden | Drag too high or follow speed too low | Check PTFE routing; reduce `PRESS_RATE` or increase `FOLLOW_TIMEOUT_MS` |
+| RELOAD approach never detects contact | Buffer sensor never reaches `COMPRESSION` | Verify buffer wiring and travel; reduce `JOIN_RATE` if the path is too aggressive |
+| RELOAD approach exits too early | Buffer sensor chatter or preload already compression | Verify hysteresis/sensor state and make sure the standby path starts with real slack |
+| RELOAD follow times out neutral-bowden | Drag too high or follow speed too low | Check PTFE routing; reduce `PRESS_RATE` or increase `FOLLOW_TIMEOUT_MS` |

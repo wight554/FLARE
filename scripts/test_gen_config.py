@@ -18,7 +18,7 @@ rotation_distance: 22.679
 run_current: 0.980
 gear_ratio: 50:17
 baseline_rate: 1200
-sync_trailing_bias_frac: 0.25
+sync_compression_bias_frac: 0.25
 sync_cannot_refill_mm: 50.0
 sync_cannot_relieve_mm: 50.0
 """

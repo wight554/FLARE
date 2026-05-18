@@ -62,12 +62,12 @@ static void manual_unload_reset(void) {
 static bool live_tune_locked_param(const char *param) {
     return !strcmp(param, "BASELINE_RATE") ||
            !strcmp(param, "BASELINE_SPS") ||
-           !strcmp(param, "TRAIL_BIAS_FRAC") ||
-           !strcmp(param, "MID_CREEP_TIMEOUT_MS") ||
-           !strcmp(param, "MID_CREEP_RATE") ||
-           !strcmp(param, "MID_CREEP_RATE_SPS_PER_S") ||
-           !strcmp(param, "MID_CREEP_CAP") ||
-           !strcmp(param, "MID_CREEP_CAP_FRAC") ||
+           !strcmp(param, "COMPRESSION_BIAS_FRAC") ||
+           !strcmp(param, "NEUTRAL_CREEP_TIMEOUT_MS") ||
+           !strcmp(param, "NEUTRAL_CREEP_RATE") ||
+           !strcmp(param, "NEUTRAL_CREEP_RATE_SPS_PER_S") ||
+           !strcmp(param, "NEUTRAL_CREEP_CAP") ||
+           !strcmp(param, "NEUTRAL_CREEP_CAP_FRAC") ||
            !strcmp(param, "VAR_BLEND_FRAC") ||
            !strcmp(param, "BUF_VARIANCE_BLEND_FRAC") ||
            !strcmp(param, "VAR_BLEND_REF_MM") ||
@@ -140,7 +140,7 @@ static void status_dump(void) {
     int blen = snprintf(b, sizeof(b),
         "LN:%d,TC:%s,L1T:%s,L2T:%s,"
         "I1:%d,O1:%d,I2:%d,O2:%d,"
-        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BL:%.1f,BP:%.2f,SM:%d,HD:%d,ST:%d,BI:%d,AP:%d,CU:%d,RELOAD:%d,"
+        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BL:%.1f,BP:%.2f,SM:%d,HD:%d,ST:%d,BI:%d,TPR:%d,CU:%d,RELOAD:%d,"
         "EST:%.1f,RE:%.2f,DP:%d,PR:%d,AV:%.2f,SC:%.1f,SA:%d,GC:0x%X,TP:%u,TS:%u,PW:0x%X,"
         "RS:%d%d%d%d%d,SS:%d",
         active_lane, tc_state_name(g_tc_ctx.state),
@@ -165,7 +165,7 @@ static void status_dump(void) {
         (double)sps_to_mm_per_min((int)extruder_est_sps),
         (double)sync_reserve_error_mm(),
         sync_is_positive_relaunch_damped() ? 1 : 0,
-        sync_is_advance_predicted() ? 1 : 0,
+        sync_is_tension_predicted() ? 1 : 0,
         (double)g_buf.arm_vel_mm_s,
         (double)sps_to_mm_per_min_idx(TMC_STEALTHCHOP_SPS[idx], idx),
         (drv >> 30) & 1,
@@ -178,14 +178,14 @@ static void status_dump(void) {
 
     if (blen > 0 && blen < (int)sizeof(b)) {
         uint32_t now_ms = g_now_ms;
-        uint32_t ad_ms = sync_advance_dwell_ms(now_ms);
-        uint32_t td_ms = (g_buf.state == BUF_TRAILING && g_buf.entered_ms > 0)
+        uint32_t ad_ms = sync_tension_dwell_ms(now_ms);
+        uint32_t td_ms = (g_buf.state == BUF_COMPRESSION && g_buf.entered_ms > 0)
                          ? (now_ms - g_buf.entered_ms) : 0;
-        float tw_raw = sync_trailing_wall_time_ms(A);
+        float tw_raw = sync_compression_wall_time_ms(A);
         uint32_t tw_ms = (tw_raw >= 99999.0f) ? 99999u : (uint32_t)tw_raw;
         uint32_t ea_ms = sync_est_age_ms(now_ms);
         int rc = (SYNC_RESERVE_INTEGRAL_GAIN > 0.0f && sync_enabled
-                  && g_buf.state == BUF_MID && g_buf_signal.confidence >= 0.7f) ? 100 : 0;
+                  && g_buf.state == BUF_NEUTRAL && g_buf_signal.confidence >= 0.7f) ? 100 : 0;
         float drift_corr = sync_bp_drift_correction_applied_mm();
         int rdc = 0;
         if (BUF_DRIFT_CLAMP_MM > 0.0f && drift_corr != 0.0f) {
@@ -193,8 +193,8 @@ static void status_dump(void) {
             if (rdc > 100) rdc = 100;
         }
         snprintf(b + blen, sizeof(b) - (size_t)blen,
-            ",RT:%.2f,RD:%.2f,AD:%u,TD:%u,TW:%u,EA:%u,SK:%u,CF:%.2f,RI:%.2f,RC:%d,ES:%.2f,EC:%d"
-            ",BPR:%.2f,BPD:%.2f,BPN:%d,APX:%d,RDC:%d,TB:%d,MC:%d,VB:%d,BPV:%d,MK:%u:%s"
+            ",RT:%.2f,RD:%.2f,TT:%u,CT:%u,CW:%u,EA:%u,SK:%u,CF:%.2f,RI:%.2f,RC:%d,ES:%.2f,EC:%d"
+            ",BPR:%.2f,BPD:%.2f,BPN:%d,TPX:%d,RDC:%d,CB:%d,NC:%d,VB:%d,BPV:%d,MK:%u:%s"
             ",SYNC_REFILL_MM:%d,SYNC_RELIEVE_MM:%d",
             (double)sync_reserve_target_mm(),
             (double)sync_reserve_deadband_mm(),
@@ -211,10 +211,10 @@ static void status_dump(void) {
             (double)sync_bp_residual_last_mm(),
             (double)sync_bp_drift_ewma_mm(),
             sync_bp_drift_samples(),
-            sync_adv_pin_window_count(now_ms),
+            sync_tension_pin_window_count(now_ms),
             rdc,
             (active_flow_param.bias_milli + 5) / 10,
-            sync_mid_creep_sps(),
+            sync_neutral_creep_sps(),
             (int)(BUF_VARIANCE_BLEND_FRAC * 100.0f),
             (int)(g_buf_pos * 100.0f),
             g_marker_seq,
@@ -658,7 +658,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         }
         else if (!strcmp(base_param, "JOIN_RATE")) JOIN_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
         else if (!strcmp(base_param, "PRESS_RATE")) PRESS_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
-        else if (!strcmp(base_param, "TRAILING_RATE")) TRAILING_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 10, 10000));
+        else if (!strcmp(base_param, "COMPRESSION_RATE")) COMPRESSION_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 10, 10000));
         else if (!strcmp(base_param, "BUF_STAB_RATE")) BUF_STAB_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 10, 10000));
         else if (!strcmp(base_param, "BASELINE_ALPHA")) g_baseline_alpha = clamp_f(fv, 0.0f, 1.0f);
         else if (!strcmp(base_param, "EST_ALPHA_MIN")) EST_ALPHA_MIN = clamp_f(fv, 0.01f, 1.0f);
@@ -701,30 +701,30 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             BUF_SENSOR_TYPE = clamp_i(iv, 0, 1);
             sync_disable(false);
         }
-        else if (!strcmp(base_param, "BUF_NEUTRAL")) BUF_NEUTRAL = clamp_f(fv, 0.0f, 1.0f);
+        else if (!strcmp(base_param, "BUF_ANALOG_NEUTRAL")) BUF_ANALOG_NEUTRAL = clamp_f(fv, 0.0f, 1.0f);
         else if (!strcmp(base_param, "BUF_RANGE")) BUF_RANGE = clamp_f(fv, 0.01f, 0.5f);
         else if (!strcmp(base_param, "BUF_THR")) BUF_THR = clamp_f(fv, 0.01f, 0.99f);
         else if (!strcmp(base_param, "BUF_ALPHA")) BUF_ANALOG_ALPHA = clamp_f(fv, 0.01f, 1.0f);
         else if (!strcmp(base_param, "AUTOLOAD_MAX")) AUTOLOAD_MAX_MM = clamp_i(iv, 10, 10000);
         else if (!strcmp(base_param, "LOAD_MAX")) LOAD_MAX_MM = clamp_i(iv, 100, 10000);
         else if (!strcmp(base_param, "UNLOAD_MAX")) UNLOAD_MAX_MM = clamp_i(iv, 100, 10000);
-        else if (!strcmp(base_param, "UNLOAD_ADV_BLOCK_MS")) UNLOAD_ADV_BLOCK_MS = clamp_i(iv, 0, 60000);
+        else if (!strcmp(base_param, "UNLOAD_TENSION_BLOCK_MS")) UNLOAD_TENSION_BLOCK_MS = clamp_i(iv, 0, 60000);
         else if (!strcmp(base_param, "SYNC_KP_RATE")) SYNC_KP_SPS = clamp_i(mm_per_min_to_sps(fv), 0, 50000);
         else if (!strcmp(base_param, "SYNC_OVERSHOOT_PCT")) SYNC_OVERSHOOT_PCT = clamp_i(iv, 0, 200);
         else if (!strcmp(base_param, "SYNC_RESERVE_PCT")) SYNC_RESERVE_PCT = clamp_i(iv, 0, 150);
-        else if (!strcmp(base_param, "TRAIL_BIAS_FRAC")) {
-            SYNC_TRAILING_BIAS_FRAC = clamp_f(fv, 0.0f, 0.7f);
+        else if (!strcmp(base_param, "COMPRESSION_BIAS_FRAC")) {
+            SYNC_COMPRESSION_BIAS_FRAC = clamp_f(fv, 0.0f, 0.7f);
             flow_schedule_refresh_scalar();
         }
         else if (!strcmp(base_param, "SYNC_AUTO_STOP")) SYNC_AUTO_STOP_MS = clamp_i(iv, 0, 30000);
-        else if (!strcmp(base_param, "MID_CREEP_TIMEOUT_MS")) MID_CREEP_TIMEOUT_MS = clamp_i(iv, 0, 60000);
-        else if (!strcmp(base_param, "MID_CREEP_RATE") || !strcmp(base_param, "MID_CREEP_RATE_SPS_PER_S")) MID_CREEP_RATE_SPS_PER_S = clamp_i(iv, 0, 1000);
-        else if (!strcmp(base_param, "MID_CREEP_CAP") || !strcmp(base_param, "MID_CREEP_CAP_FRAC")) MID_CREEP_CAP_FRAC = clamp_i(iv, 0, 100);
+        else if (!strcmp(base_param, "NEUTRAL_CREEP_TIMEOUT_MS")) NEUTRAL_CREEP_TIMEOUT_MS = clamp_i(iv, 0, 60000);
+        else if (!strcmp(base_param, "NEUTRAL_CREEP_RATE") || !strcmp(base_param, "NEUTRAL_CREEP_RATE_SPS_PER_S")) NEUTRAL_CREEP_RATE_SPS_PER_S = clamp_i(iv, 0, 1000);
+        else if (!strcmp(base_param, "NEUTRAL_CREEP_CAP") || !strcmp(base_param, "NEUTRAL_CREEP_CAP_FRAC")) NEUTRAL_CREEP_CAP_FRAC = clamp_i(iv, 0, 100);
         else if (!strcmp(base_param, "VAR_BLEND_FRAC") || !strcmp(base_param, "BUF_VARIANCE_BLEND_FRAC")) BUF_VARIANCE_BLEND_FRAC = clamp_f(fv, 0.0f, 0.9f);
         else if (!strcmp(base_param, "VAR_BLEND_REF_MM") || !strcmp(base_param, "BUF_VARIANCE_BLEND_REF_MM")) BUF_VARIANCE_BLEND_REF_MM = clamp_f(fv, 0.5f, 5.0f);
-        else if (!strcmp(base_param, "SYNC_ADV_STOP_MS")) SYNC_ADVANCE_DWELL_STOP_MS = clamp_i(iv, 0, 30000);
-        else if (!strcmp(base_param, "SYNC_ADV_RAMP_MS")) SYNC_ADVANCE_RAMP_DELAY_MS = clamp_i(iv, 0, 5000);
-        else if (!strcmp(base_param, "SYNC_OVERSHOOT_MID_EXT")) SYNC_OVERSHOOT_MID_EXTEND = clamp_i(iv, 0, 1);
+        else if (!strcmp(base_param, "SYNC_TENSION_STOP_MS")) SYNC_TENSION_DWELL_STOP_MS = clamp_i(iv, 0, 30000);
+        else if (!strcmp(base_param, "SYNC_TENSION_RAMP_MS")) SYNC_TENSION_RAMP_DELAY_MS = clamp_i(iv, 0, 5000);
+        else if (!strcmp(base_param, "SYNC_OVERSHOOT_NEUTRAL_EXT")) SYNC_OVERSHOOT_NEUTRAL_EXTEND = clamp_i(iv, 0, 1);
         else if (!strcmp(base_param, "SYNC_INT_GAIN")) SYNC_RESERVE_INTEGRAL_GAIN = clamp_f(fv, 0.0f, 0.05f);
         else if (!strcmp(base_param, "SYNC_INT_CLAMP")) SYNC_RESERVE_INTEGRAL_CLAMP_MM = clamp_f(fv, 0.0f, 2.0f);
         else if (!strcmp(base_param, "SYNC_INT_DECAY_MS")) SYNC_RESERVE_INTEGRAL_DECAY_MS = clamp_i(iv, 0, 60000);
@@ -736,8 +736,8 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "BUF_DRIFT_THR_MM")) BUF_DRIFT_APPLY_THR_MM = clamp_f(fv, 0.0f, 5.0f);
         else if (!strcmp(base_param, "BUF_DRIFT_CLAMP")) BUF_DRIFT_CLAMP_MM = clamp_f(fv, 0.0f, BUF_DRIFT_CLAMP_LIMIT_MM);
         else if (!strcmp(base_param, "BUF_DRIFT_MIN_CF")) BUF_DRIFT_APPLY_MIN_CF = clamp_f(fv, 0.0f, 1.0f);
-        else if (!strcmp(base_param, "ADV_RISK_WINDOW")) ADV_RISK_WINDOW_MS = clamp_i(iv, 5000, 300000);
-        else if (!strcmp(base_param, "ADV_RISK_THR")) ADV_RISK_THRESHOLD = clamp_i(iv, 0, 1000);
+        else if (!strcmp(base_param, "TENSION_RISK_WINDOW")) TENSION_RISK_WINDOW_MS = clamp_i(iv, 5000, 300000);
+        else if (!strcmp(base_param, "TENSION_RISK_THR")) TENSION_RISK_THRESHOLD = clamp_i(iv, 0, 1000);
         else if (!strcmp(base_param, "TS_BUF_MS")) TS_BUF_FALLBACK_MS = clamp_i(iv, 0, 30000);
         else if (!strcmp(base_param, "STARTUP_MS")) MOTION_STARTUP_MS = clamp_i(iv, 0, 30000);
         else if (!strcmp(base_param, "SERVO_OPEN")) SERVO_OPEN_US = clamp_i(iv, 400, 2700);
@@ -811,21 +811,21 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "BUF_SIZE")) snprintf(out, sizeof(out), "BUF_SIZE:%d", BUF_SIZE_MM);
         else if (!strcmp(param, "JOIN_RATE")) snprintf(out, sizeof(out), "JOIN_RATE:%.1f", (double)sps_to_mm_per_min_idx(JOIN_SPS, idx));
         else if (!strcmp(param, "PRESS_RATE")) snprintf(out, sizeof(out), "PRESS_RATE:%.1f", (double)sps_to_mm_per_min_idx(PRESS_SPS, idx));
-        else if (!strcmp(param, "TRAILING_RATE")) snprintf(out, sizeof(out), "TRAILING_RATE:%.1f", (double)sps_to_mm_per_min_idx(TRAILING_SPS, idx));
+        else if (!strcmp(param, "COMPRESSION_RATE")) snprintf(out, sizeof(out), "COMPRESSION_RATE:%.1f", (double)sps_to_mm_per_min_idx(COMPRESSION_SPS, idx));
         else if (!strcmp(param, "BUF_STAB_RATE")) snprintf(out, sizeof(out), "BUF_STAB_RATE:%.1f", (double)sps_to_mm_per_min_idx(BUF_STAB_SPS, idx));
         else if (!strcmp(param, "FOLLOW_MS")) snprintf(out, sizeof(out), "FOLLOW_MS:%d", FOLLOW_TIMEOUT_MS[idx]);
         else if (!strcmp(param, "BASELINE_RATE")) snprintf(out, sizeof(out), "BASELINE_RATE:%.1f", (double)sps_to_mm_per_min_idx(g_baseline_target_sps, idx));
         else if (!strcmp(param, "BASELINE_SPS")) snprintf(out, sizeof(out), "BASELINE_SPS:%d", g_baseline_target_sps);
         else if (!strcmp(param, "BASELINE_ALPHA")) snprintf(out, sizeof(out), "BASELINE_ALPHA:%.3f", (double)g_baseline_alpha);
         else if (!strcmp(param, "BUF_SENSOR")) snprintf(out, sizeof(out), "BUF_SENSOR:%d", BUF_SENSOR_TYPE);
-        else if (!strcmp(param, "BUF_NEUTRAL")) snprintf(out, sizeof(out), "BUF_NEUTRAL:%.3f", (double)BUF_NEUTRAL);
+        else if (!strcmp(param, "BUF_ANALOG_NEUTRAL")) snprintf(out, sizeof(out), "BUF_ANALOG_NEUTRAL:%.3f", (double)BUF_ANALOG_NEUTRAL);
         else if (!strcmp(param, "BUF_RANGE")) snprintf(out, sizeof(out), "BUF_RANGE:%.3f", (double)BUF_RANGE);
         else if (!strcmp(param, "BUF_THR")) snprintf(out, sizeof(out), "BUF_THR:%.3f", (double)BUF_THR);
         else if (!strcmp(param, "BUF_ALPHA")) snprintf(out, sizeof(out), "BUF_ALPHA:%.3f", (double)BUF_ANALOG_ALPHA);
         else if (!strcmp(param, "AUTOLOAD_MAX")) snprintf(out, sizeof(out), "AUTOLOAD_MAX:%d", AUTOLOAD_MAX_MM);
         else if (!strcmp(param, "LOAD_MAX")) snprintf(out, sizeof(out), "LOAD_MAX:%d", LOAD_MAX_MM);
         else if (!strcmp(param, "UNLOAD_MAX")) snprintf(out, sizeof(out), "UNLOAD_MAX:%d", UNLOAD_MAX_MM);
-        else if (!strcmp(param, "UNLOAD_ADV_BLOCK_MS")) snprintf(out, sizeof(out), "UNLOAD_ADV_BLOCK_MS:%d", UNLOAD_ADV_BLOCK_MS);
+        else if (!strcmp(param, "UNLOAD_TENSION_BLOCK_MS")) snprintf(out, sizeof(out), "UNLOAD_TENSION_BLOCK_MS:%d", UNLOAD_TENSION_BLOCK_MS);
         else if (!strcmp(param, "TC_LOAD_MS")) snprintf(out, sizeof(out), "TC_LOAD_MS:%d", LOAD_MAX_MM);
         else if (!strcmp(param, "TC_UNLOAD_MS")) snprintf(out, sizeof(out), "TC_UNLOAD_MS:%d", UNLOAD_MAX_MM);
         else if (!strcmp(param, "TC_CUT_MS")) snprintf(out, sizeof(out), "TC_CUT_MS:%d", TC_TIMEOUT_CUT_MS);
@@ -836,16 +836,16 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "SYNC_KP_RATE")) snprintf(out, sizeof(out), "SYNC_KP_RATE:%.1f", (double)sps_to_mm_per_min(SYNC_KP_SPS));
         else if (!strcmp(param, "SYNC_OVERSHOOT_PCT")) snprintf(out, sizeof(out), "SYNC_OVERSHOOT_PCT:%d", SYNC_OVERSHOOT_PCT);
         else if (!strcmp(param, "SYNC_RESERVE_PCT")) snprintf(out, sizeof(out), "SYNC_RESERVE_PCT:%d", SYNC_RESERVE_PCT);
-        else if (!strcmp(param, "TRAIL_BIAS_FRAC")) snprintf(out, sizeof(out), "TRAIL_BIAS_FRAC:%.3f", (double)SYNC_TRAILING_BIAS_FRAC);
-        else if (!strcmp(param, "MID_CREEP_TIMEOUT_MS")) snprintf(out, sizeof(out), "MID_CREEP_TIMEOUT_MS:%d", MID_CREEP_TIMEOUT_MS);
-        else if (!strcmp(param, "MID_CREEP_RATE") || !strcmp(param, "MID_CREEP_RATE_SPS_PER_S")) snprintf(out, sizeof(out), "%s:%d", param, MID_CREEP_RATE_SPS_PER_S);
-        else if (!strcmp(param, "MID_CREEP_CAP") || !strcmp(param, "MID_CREEP_CAP_FRAC")) snprintf(out, sizeof(out), "%s:%d", param, MID_CREEP_CAP_FRAC);
+        else if (!strcmp(param, "COMPRESSION_BIAS_FRAC")) snprintf(out, sizeof(out), "COMPRESSION_BIAS_FRAC:%.3f", (double)SYNC_COMPRESSION_BIAS_FRAC);
+        else if (!strcmp(param, "NEUTRAL_CREEP_TIMEOUT_MS")) snprintf(out, sizeof(out), "NEUTRAL_CREEP_TIMEOUT_MS:%d", NEUTRAL_CREEP_TIMEOUT_MS);
+        else if (!strcmp(param, "NEUTRAL_CREEP_RATE") || !strcmp(param, "NEUTRAL_CREEP_RATE_SPS_PER_S")) snprintf(out, sizeof(out), "%s:%d", param, NEUTRAL_CREEP_RATE_SPS_PER_S);
+        else if (!strcmp(param, "NEUTRAL_CREEP_CAP") || !strcmp(param, "NEUTRAL_CREEP_CAP_FRAC")) snprintf(out, sizeof(out), "%s:%d", param, NEUTRAL_CREEP_CAP_FRAC);
         else if (!strcmp(param, "VAR_BLEND_FRAC") || !strcmp(param, "BUF_VARIANCE_BLEND_FRAC")) snprintf(out, sizeof(out), "%s:%.3f", param, (double)BUF_VARIANCE_BLEND_FRAC);
         else if (!strcmp(param, "VAR_BLEND_REF_MM") || !strcmp(param, "BUF_VARIANCE_BLEND_REF_MM")) snprintf(out, sizeof(out), "%s:%.3f", param, (double)BUF_VARIANCE_BLEND_REF_MM);
         else if (!strcmp(param, "SYNC_AUTO_STOP")) snprintf(out, sizeof(out), "SYNC_AUTO_STOP:%d", SYNC_AUTO_STOP_MS);
-        else if (!strcmp(param, "SYNC_ADV_STOP_MS")) snprintf(out, sizeof(out), "SYNC_ADV_STOP_MS:%d", SYNC_ADVANCE_DWELL_STOP_MS);
-        else if (!strcmp(param, "SYNC_ADV_RAMP_MS")) snprintf(out, sizeof(out), "SYNC_ADV_RAMP_MS:%d", SYNC_ADVANCE_RAMP_DELAY_MS);
-        else if (!strcmp(param, "SYNC_OVERSHOOT_MID_EXT")) snprintf(out, sizeof(out), "SYNC_OVERSHOOT_MID_EXT:%d", SYNC_OVERSHOOT_MID_EXTEND);
+        else if (!strcmp(param, "SYNC_TENSION_STOP_MS")) snprintf(out, sizeof(out), "SYNC_TENSION_STOP_MS:%d", SYNC_TENSION_DWELL_STOP_MS);
+        else if (!strcmp(param, "SYNC_TENSION_RAMP_MS")) snprintf(out, sizeof(out), "SYNC_TENSION_RAMP_MS:%d", SYNC_TENSION_RAMP_DELAY_MS);
+        else if (!strcmp(param, "SYNC_OVERSHOOT_NEUTRAL_EXT")) snprintf(out, sizeof(out), "SYNC_OVERSHOOT_NEUTRAL_EXT:%d", SYNC_OVERSHOOT_NEUTRAL_EXTEND);
         else if (!strcmp(param, "SYNC_INT_GAIN")) snprintf(out, sizeof(out), "SYNC_INT_GAIN:%.4f", (double)SYNC_RESERVE_INTEGRAL_GAIN);
         else if (!strcmp(param, "SYNC_INT_CLAMP")) snprintf(out, sizeof(out), "SYNC_INT_CLAMP:%.3f", (double)SYNC_RESERVE_INTEGRAL_CLAMP_MM);
         else if (!strcmp(param, "SYNC_INT_DECAY_MS")) snprintf(out, sizeof(out), "SYNC_INT_DECAY_MS:%d", SYNC_RESERVE_INTEGRAL_DECAY_MS);
@@ -857,8 +857,8 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "BUF_DRIFT_THR_MM")) snprintf(out, sizeof(out), "BUF_DRIFT_THR_MM:%.3f", (double)BUF_DRIFT_APPLY_THR_MM);
         else if (!strcmp(param, "BUF_DRIFT_CLAMP")) snprintf(out, sizeof(out), "BUF_DRIFT_CLAMP:%.3f", (double)BUF_DRIFT_CLAMP_MM);
         else if (!strcmp(param, "BUF_DRIFT_MIN_CF")) snprintf(out, sizeof(out), "BUF_DRIFT_MIN_CF:%.3f", (double)BUF_DRIFT_APPLY_MIN_CF);
-        else if (!strcmp(param, "ADV_RISK_WINDOW")) snprintf(out, sizeof(out), "ADV_RISK_WINDOW:%d", ADV_RISK_WINDOW_MS);
-        else if (!strcmp(param, "ADV_RISK_THR")) snprintf(out, sizeof(out), "ADV_RISK_THR:%d", ADV_RISK_THRESHOLD);
+        else if (!strcmp(param, "TENSION_RISK_WINDOW")) snprintf(out, sizeof(out), "TENSION_RISK_WINDOW:%d", TENSION_RISK_WINDOW_MS);
+        else if (!strcmp(param, "TENSION_RISK_THR")) snprintf(out, sizeof(out), "TENSION_RISK_THR:%d", TENSION_RISK_THRESHOLD);
         else if (!strcmp(param, "TS_BUF_MS")) snprintf(out, sizeof(out), "TS_BUF_MS:%d", TS_BUF_FALLBACK_MS);
         else if (!strcmp(param, "STARTUP_MS")) snprintf(out, sizeof(out), "STARTUP_MS:%d", MOTION_STARTUP_MS);
         else if (!strcmp(param, "EST_ALPHA_MIN")) snprintf(out, sizeof(out), "EST_ALPHA_MIN:%.3f", (double)EST_ALPHA_MIN);
