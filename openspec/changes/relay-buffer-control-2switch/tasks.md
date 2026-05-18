@@ -67,3 +67,22 @@ goal: park between NEUTRAL and COMPRESSION, never reach TENSION.
   `protocol.c:217` (status emit) — never added to `target_sps`. Decide:
   intended inert, or wire it into the NEUTRAL feed path. Not a polarity bug;
   relay NEUTRAL feed is unaffected today.
+
+Full `sync.c` COMPRESSION/TENSION sweep (beyond audit's 13 sites): relay
+path zero inverted assumptions — decode, override (`1624-1632`),
+`g_buf_pos` anchor, estimator-at-crossing (`735-753`), fast-brake,
+relief-pause exit, baseline Kp, AUTO_START, continuous-COMPRESSION
+auto-stop all correct vocab. Historical "trailing=empty" bug fully purged
+from the relay path.
+
+- [ ] 7.3 Legacy inverted assumption survives in **analog-only**
+  `sync_compression_floor_sps()` (`sync.c:385-386`, applied `1655-1657`,
+  gated `BUF_SENSOR_TYPE != 0`). Old `trailing_floor`: force-raises a feed
+  FLOOR while `BUF_COMPRESSION` (=full) → fights drain = inverted. Relay
+  skips it (relay COMPRESSION → SYNC_MIN stop), so inert for current
+  tuning. = `audit-sync-polarity` finding #6, classified
+  `pending-analog-rig` (no analog hardware; policy = never blind-fix
+  analog). Recorded here so it is not re-derived; resolve only with an
+  analog rig. Same bucket: audit #7 `compression_recovery`/collapse and
+  the H2 feed-trim comment (`sync.c:1499-1517`, dead under relay override)
+  — verify on the analog rig, not a relay-path inversion.
