@@ -251,7 +251,8 @@ static float buf_target_reserve_mm(void) {
     float physical_half = buf_physical_half_travel_mm();
     float pct = (float)SYNC_RESERVE_PCT / 100.0f;
     flow_param_t fp = flow_param((int)extruder_est_sps);
-    float bias = clamp_f((float)fp.bias_milli / 1000.0f, 0.0f, 0.7f);
+    float schedule_bias = (float)fp.bias_milli / 1000.0f;
+    float bias = clamp_f(fmaxf(SYNC_TRAILING_BIAS_FRAC, schedule_bias), 0.0f, 0.7f);
     float target = -(threshold * pct);
     float center_guard_mm = threshold * SYNC_RESERVE_CENTER_GUARD_FRAC;
 
@@ -859,7 +860,7 @@ static void baseline_update_on_settle(uint32_t mid_dwell_ms, uint32_t now_ms) {
 
 static int baseline_control_floor_sps(void) {
     flow_param_t fp = flow_param((int)extruder_est_sps);
-    return fp.baseline_sps;
+    return (fp.baseline_sps > g_baseline_target_sps) ? fp.baseline_sps : g_baseline_target_sps;
 }
 
 int sync_clamp_max_sps(int requested_sps) {

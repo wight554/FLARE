@@ -174,10 +174,13 @@ The sync controller runs every `SYNC_TICK_MS` (20 ms). In dual-endstop mode it
 tracks a virtual buffer position in millimeters instead of treating `MID` as
 the steady-state target. The controller still uses the extruder-rate estimator,
 but it now drives toward a buffered-reserve target on the trailing side.
-The baseline and trailing-bias inputs come from `flow_param(extruder_est_sps)`:
-with no schedule table this is the exact scalar `BASELINE_RATE` /
+The baseline and trailing-bias inputs come from `flow_param(extruder_est_sps)`.
+With no schedule table this is the exact scalar `BASELINE_RATE` /
 `TRAIL_BIAS_FRAC` fallback, and with `[flow_schedule.v1]` present it is a
-clamped linear interpolation across flow breakpoints.
+clamped linear interpolation across flow breakpoints. The effective reserve
+bias is floored by `SYNC_TRAILING_BIAS_FRAC`, and the baseline control floor is
+floored by `BASELINE_RATE`, so schedule interpolation and live learning may
+only strengthen the reserve/baseline safety floor, not weaken it.
 
 ```
 target = extruder_est_sps
@@ -260,12 +263,12 @@ draw and commanded MMU feed inside the physical travel envelope.
 
 The normal sync target is not `MID`. It is a buffered-reserve target on the
 trailing side set by `SYNC_RESERVE_PCT`, expressed as a percentage of
-`BUF_HALF_TRAVEL`. The active flow-schedule bias, or scalar
-`SYNC_TRAILING_BIAS_FRAC` fallback when no table is configured, adds a further
-shift toward the trailing wall. Firmware also keeps a small built-in center
-guard on top of that percentage target so steady sync stays slightly farther
-away from the advance-side switch. This keeps reserve in the buffer without
-hard-coding a deep hidden-margin target into firmware.
+`BUF_HALF_TRAVEL`. The effective flow-schedule bias is
+`max(SYNC_TRAILING_BIAS_FRAC, schedule_bias)`, so a schedule can deepen reserve
+but cannot reduce it below the scalar safety cushion. Firmware also keeps a
+small built-in center guard on top of that percentage target so steady sync
+stays slightly farther away from the advance-side switch. This keeps reserve in
+the buffer without hard-coding a deep hidden-margin target into firmware.
 
 `ZONE_BIAS_BASE` and `ZONE_BIAS_RAMP` provide a bounded reserve-recovery pull:
 

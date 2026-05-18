@@ -586,6 +586,35 @@ hardware.
   and within 0.0005 absolute bias otherwise.
 - No new sync, toolchange, or RELOAD fault appears during the sweep.
 
+### pending-manual-hardware: Flow-Schedule Reserve Safety Floor
+
+#### Goal
+
+Confirm multi-point flow schedules cannot weaken the reserve cushion or
+ADVANCE recovery floor at startup and low flow.
+
+#### Steps
+
+1. Flash a config with `[flow_schedule.v1]` containing at least one low-flow
+   breakpoint whose bias is less than `TRAIL_BIAS_FRAC` and whose baseline is
+   less than `BASELINE_RATE`.
+2. Start a sync run from idle/startup and include low-flow perimeter or
+   post-travel motion that clamps to that weak endpoint.
+3. Capture status fields including `BUF`, `RT`, `BP`, `BL`, `TB`, `AD`, `SPS`,
+   and any `SYNC`/`BUF` events.
+4. Repeat with a breakpoint whose bias is greater than `TRAIL_BIAS_FRAC` to
+   confirm deeper reserve is still honored.
+
+#### Expected Result
+
+- At the weak endpoint, effective reserve depth is no shallower than the scalar
+  `TRAIL_BIAS_FRAC` cushion.
+- The baseline control floor stays at or above `BASELINE_RATE`, so ADVANCE
+  recovery gain is not sluggish.
+- Startup and low-flow motion do not pin the buffer in `BUF_ADVANCE` for
+  seconds, and no underextrusion-causing ADVANCE dwell is observed.
+- A stronger schedule bias still deepens reserve relative to the scalar.
+
 ---
 
 ## Expected Status Snapshots
