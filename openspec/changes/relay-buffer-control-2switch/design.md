@@ -35,11 +35,14 @@ In `BUF_SENSOR_TYPE == 0`, immediately before the existing ramp/clamp,
 override `target_sps`. FLARE polarity: `BUF_ADVANCE` = empty/starved,
 `BUF_TRAILING` = full reserve (negative `RT`, REFILL in ADVANCE, RELIEVE
 in TRAILING).
-`ADVANCE → base*CATCHUP(1.45)`, `TRAILING → base*BACKOFF(0.35)`,
-`MID → base*MID(1.05, gentle overfeed toward the full reserve side)`,
-where `base = baseline_control_floor_sps()`. The legacy `trailing_floor`
-(assumes trailing = empty) is skipped in relay mode so back-off is not
-defeated.
+`ADVANCE → base*CATCHUP(1.45)` (strong fixed refill, estimator-independent
+safety), `TRAILING → SYNC_MIN` (stop; extruder draws the full buffer
+down), `MID → clamp(EST*MID(1.10), SYNC_MIN, base)` where
+`base = baseline_control_floor_sps()`. MID tracks *demand* (EST), not the
+fixed baseline: anchoring MID to baseline (~5× real demand on the test
+print) rocketed the buffer to the full wall and caused the MID↔TRAILING
+bangbang. The legacy `trailing_floor` (assumes trailing = empty) is
+skipped in relay mode.
 Placed after all est/reserve assembly so it discards the dead-reckon
 controller while the slow ramp (`SYNC_RAMP_UP/DN`), `[SYNC_MIN,max]`
 clamp, `trailing_floor`, fast-brake and relief logic still apply and damp

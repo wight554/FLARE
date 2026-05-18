@@ -27,16 +27,19 @@ The relay swing itself is user symptom 2 ("bangbang trailing↔advance").
 
 - **Relay control (2-switch standalone, `BUF_SENSOR_TYPE == 0`).** Override
   the est/reserve/PI feed target with a hysteretic relay matched to the
-  switches:
-  - `BUF_TRAILING` → catch-up: `baseline_floor * SYNC_RELAY_CATCHUP_FRAC`
-    (buffer empty → refill faster than demand).
-  - `BUF_ADVANCE` → back-off: `baseline_floor * SYNC_RELAY_BACKOFF_FRAC`
-    (buffer full → feed slow, let the extruder drain it).
-  - `BUF_MID` → trailing-biased hold: `baseline_floor *
-    SYNC_RELAY_MID_FRAC` (`<1`, never-ADVANCE lean → slow, shallow cycle).
-  Hysteresis is inherent (two physical switches + the MID band). The
-  existing ramp, clamp, `trailing_floor` and relief logic are kept and
-  damp/limit the cycle.
+  switches (FLARE polarity: ADVANCE = empty, TRAILING = full reserve).
+  Decoupled anchors so the cycle is slow/shallow:
+  - `BUF_ADVANCE` (empty) → strong **fixed** refill `baseline_floor *
+    SYNC_RELAY_CATCHUP_FRAC` — safety, never starve, estimator-independent.
+  - `BUF_TRAILING` (full) → **stop** (`SYNC_MIN_SPS`) so the extruder
+    draws the buffer off the full wall (no overfill / no physical slam).
+  - `BUF_MID` → **track demand**: `extruder_est_sps * SYNC_RELAY_MID_FRAC`,
+    clamped `[SYNC_MIN, baseline_floor]`. `MID_FRAC` ~1.1 = gentle
+    full/TRAILING-reserve lean. Anchoring MID to the fixed baseline
+    (~5× real demand) was what rocketed the buffer to the full wall and
+    caused the MID↔TRAILING bangbang; matching demand makes it drift
+    slowly. Hysteresis is inherent (two switches + the MID band); the
+    existing ramp/clamp/relief logic damp the cycle.
 - **Disarm FAULT_HOLD on normal switch contact in relay mode.** Switch
   contact is the control signal, not a fault: gate the advance-dwell
   FAULT_HOLD and `trailing_wall_critical` FAULT_HOLD to `BUF_SENSOR_TYPE

@@ -6,33 +6,37 @@ In standalone two-switch mode (`BUF_SENSOR_TYPE == 0`) the controller SHALL
 drive the active-lane feed as a hysteretic relay on the buffer switch
 state, not a continuous PI loop on a dead-reckoned position. Per FLARE polarity (negative reserve target, REFILL effort in ADVANCE,
 RELIEVE in TRAILING), `BUF_ADVANCE` is the empty/starved side and
-`BUF_TRAILING` is the full reserve side. The relay SHALL command a
-catch-up rate while ADVANCE is engaged (empty -> refill), a back-off rate
-while TRAILING is engaged (full -> let the extruder draw it down), and a
-gentle overfeed hold rate (above neutral) while in MID, each derived from
-the baseline control floor. The existing ramp, rate clamp, fast-brake and
-relief logic MUST still apply; the legacy trailing floor MUST be skipped
-in relay mode (it assumes trailing = empty).
+`BUF_TRAILING` is the full reserve side. The relay SHALL command a strong
+fixed catch-up rate (off the baseline control floor) while ADVANCE is
+engaged, stop feed (clamp to `SYNC_MIN_SPS`) while TRAILING is engaged, and
+a demand-tracking rate (`extruder_est_sps * SYNC_RELAY_MID_FRAC`, clamped
+to `[SYNC_MIN, baseline floor]`) while in MID. The MID rate MUST track
+extruder demand, not the fixed baseline, so the buffer drifts slowly
+instead of slamming the full wall. The existing ramp, rate clamp,
+fast-brake and relief logic MUST still apply; the legacy trailing floor
+MUST be skipped in relay mode (it assumes trailing = empty).
 
 #### Scenario: ADVANCE switch engaged
 
 - **WHEN** the buffer is in `BUF_ADVANCE` (empty) in two-switch standalone
   mode
-- **THEN** feed targets the catch-up rate so the buffer refills
+- **THEN** feed targets the strong fixed catch-up rate so the buffer
+  refills regardless of the estimator
 
 #### Scenario: TRAILING switch engaged
 
 - **WHEN** the buffer is in `BUF_TRAILING` (full reserve) in two-switch
   standalone mode
-- **THEN** feed targets the back-off rate so the extruder draws the
-  buffer down
+- **THEN** feed stops (clamps to `SYNC_MIN_SPS`) so the extruder draws
+  the buffer off the full wall
 
-#### Scenario: MID band leans to the full reserve side
+#### Scenario: MID band tracks demand with a full-reserve lean
 
 - **WHEN** the buffer is in `BUF_MID` in two-switch standalone mode
-- **THEN** feed targets a hold rate above neutral so the equilibrium
-  drifts gently toward the full/TRAILING reserve side and never reaches
-  ADVANCE (never starve), producing a slow shallow limit cycle
+- **THEN** feed targets `extruder_est_sps * SYNC_RELAY_MID_FRAC` (clamped
+  to the baseline floor), so it matches consumption with a gentle
+  full/TRAILING lean and the buffer drifts slowly rather than slamming a
+  wall
 
 #### Scenario: Analog mode unchanged
 

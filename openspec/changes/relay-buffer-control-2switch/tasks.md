@@ -36,3 +36,13 @@
 - [x] 5.3 Skip legacy `trailing_floor` in relay mode (it force-raised
   feed in TRAILING, defeating back-off)
 - [x] 5.4 `cmake --build build_local`; `py_compile`; `openspec validate`
+
+## 6. Demand-tracked MID (post-retest 2)
+
+- [x] 6.1 Hardware showed MID↔TRAILING bangbang + full-wall (-11) slam:
+  MID anchored to fixed baseline (~5× real demand). Re-anchor MID to
+  `extruder_est_sps * MID_FRAC` clamped `[SYNC_MIN, baseline]`
+- [x] 6.2 TRAILING (full) → `SYNC_MIN` (stop, drain off wall); remove
+  `SYNC_RELAY_BACKOFF_FRAC`
+- [x] 6.3 ADVANCE keeps strong fixed baseline-anchored catch-up
+- [x] 6.4 `MID_FRAC` 1.05 → 1.10; `cmake`/`py_compile`/`openspec validate`

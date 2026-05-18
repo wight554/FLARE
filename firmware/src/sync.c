@@ -48,10 +48,13 @@
  * -> feed slow so the extruder draws it down; MID -> gently overfeed so
  * the buffer leans to the full/TRAILING reserve side and never reaches
  * ADVANCE (never starve). These three fracs (x baseline control floor)
- * are the primary on-hardware relay tuning knobs. */
+ * are the primary on-hardware relay tuning knobs.
+ * CATCHUP scales the fixed baseline-anchored refill (ADVANCE/empty).
+ * MID scales the demand-tracking (EST) MID feed: ~1.0 = match extruder
+ * (long dwell), >1 = gentle full/TRAILING-reserve lean. TRAILING/full
+ * feed is fixed at SYNC_MIN (stop) so the buffer drains off the wall. */
 #define SYNC_RELAY_CATCHUP_FRAC 1.45f
-#define SYNC_RELAY_BACKOFF_FRAC 0.35f
-#define SYNC_RELAY_MID_FRAC     1.05f
+#define SYNC_RELAY_MID_FRAC     1.10f
 #define ENDSTOP_PER_UNIT_SIGMA_MM 0.025f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_START_MM_MIN 1000.0f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_FULL_MM_MIN 1400.0f
@@ -1605,20 +1608,29 @@ void sync_tick(uint32_t now_ms) {
         sync_fast_brake_until_ms = 0;
 
     /* RELAY CONTROL (2-switch standalone). Override the est/reserve/PI
-     * target with a hysteretic relay matched to the switches. This
-     * discards the dead-reckon position controller (the limit-cycle
-     * source) but keeps the ramp, clamp, trailing_floor and relief logic
-     * below. Hysteresis is inherent: two physical switches + the MID band.
-     * Equilibrium leans trailing (MID frac < 1) for the never-ADVANCE
-     * intent; the slow ramp keeps the cycle shallow. */
+     * target with a hysteretic relay matched to the switches. Decoupled
+     * anchors so the cycle is slow and shallow:
+     *  - ADVANCE (empty): strong FIXED refill off the baseline floor —
+     *    safety, never starve, independent of a collapsed estimator.
+     *  - TRAILING (full): stop (clamps to SYNC_MIN) so the extruder draws
+     *    the buffer off the full wall — no overfill / no -11 slam.
+     *  - MID: track *demand* (EST-scaled, gentle full-lean). Anchoring
+     *    MID to the fixed baseline (~5x real demand) was what rocketed the
+     *    buffer to the full wall and caused the MID<->TRAILING bangbang;
+     *    matching demand makes it drift slowly instead. Capped at the
+     *    baseline floor, floored at SYNC_MIN. */
     if (BUF_SENSOR_TYPE == 0) {
         int relay_base = baseline_control_floor_sps();
-        if (s == BUF_ADVANCE)        /* empty / starved -> refill fast */
+        if (s == BUF_ADVANCE) {
             target_sps = (int)((float)relay_base * SYNC_RELAY_CATCHUP_FRAC);
-        else if (s == BUF_TRAILING)  /* full / reserve  -> back off    */
-            target_sps = (int)((float)relay_base * SYNC_RELAY_BACKOFF_FRAC);
-        else                          /* MID -> gentle overfeed lean    */
-            target_sps = (int)((float)relay_base * SYNC_RELAY_MID_FRAC);
+        } else if (s == BUF_TRAILING) {
+            target_sps = SYNC_MIN_SPS;
+        } else {
+            int mid = (int)((float)extruder_est_sps * SYNC_RELAY_MID_FRAC);
+            if (mid < SYNC_MIN_SPS) mid = SYNC_MIN_SPS;
+            if (mid > relay_base)   mid = relay_base;
+            target_sps = mid;
+        }
     }
 
     int max_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
