@@ -24,5 +24,7 @@
 ## 4. Closeout
 
 - [x] 4.1 Commit + push to main
-- [ ] 4.2 On-Pi A/B retest; tune `SYNC_RESERVE_BIAS_POS_FRAC_CAP` if the
-  buffer still dwells near the wall (pending hardware)
+- [x] 4.2 SUPERSEDED by `relay-buffer-control-2switch` (H1 RT cap + H2 trim
+  are computed then discarded under the relay override in
+  `BUF_SENSOR_TYPE==0`). Analog re-verification deferred to
+  `audit-sync-polarity` (no analog rig).

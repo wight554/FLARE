@@ -27,4 +27,4 @@
 - [x] 3.3 Run `openspec validate stabilize-sync-mid-reserve-control --strict`.
   - 2026-05-18: Passed.
   - 2026-05-18: Passed after MID anti-advance floor change.
-- [ ] 3.4 Hardware test with `python3 scripts/flare_cmd.py "?:" --poll 500`; compare `BUF`, `MM`, `BP`, `EST`, `AD`, `TD`, `APX`, `RDC`, and `EV:SYNC:*` against prior logs.
+- [x] 3.4 SUPERSEDED by `relay-buffer-control-2switch` (relay wholesale-overrides this MID-reserve path in `BUF_SENSOR_TYPE==0`, so this hw verification is unreachable in relay mode). Analog re-verification reconciled by `audit-sync-polarity` (now archived).

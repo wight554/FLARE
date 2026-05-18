@@ -63,5 +63,6 @@
 ## 6. Closeout
 
 - [x] 6.1 Commit to main (firmware + OpenSpec + TEST_CASES.md)
-- [ ] 6.2 On-Pi A/B retest with `flare_cmd.py "?:" --poll 500`; compare
-  `BUF/BP/EST/AD/TD/APX/RDC` and `EV:SYNC:*` vs prior logs (pending hardware)
+- [x] 6.2 SUPERSEDED by `relay-buffer-control-2switch` (F1/F2 overridden by
+  the relay override; shared infra G1/F2b/`sync_bootstrap_sps` still live).
+  Analog re-verification reconciled by `audit-sync-polarity` (now archived).
