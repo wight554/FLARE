@@ -467,9 +467,9 @@ def main():
     args = parser.parse_args()
     if "--every-layer" in sys.argv:
         print("Warning: --every-layer is deprecated. Layer markers are now injected by default.", file=sys.stderr)
-    if args.emit in ("file", "mark", "both"):
+    if args.emit in ("file", "mark", "both", "m118"):
         print(
-            "Warning: shell-marker emit modes are deprecated; prefer --emit sidecar with flare_live_tuner.py --klipper-uds.",
+            "Warning: shell-marker emit modes are deprecated (injects per-layer RUN_SHELL_COMMAND/M118 into printed G-code, blocking Klipper's gcode queue; use --emit sidecar).",
             file=sys.stderr,
         )
 

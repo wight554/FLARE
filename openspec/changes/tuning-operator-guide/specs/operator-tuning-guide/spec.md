@@ -61,19 +61,21 @@ setup is rejected by the analyzer.
 - **THEN** the guide routes them to revert-to-safe-defaults and a
   mechanical checklist before any capture or analyze step
 
-### Requirement: Both capture paths are first-class
+### Requirement: Sidecar is the supported capture path
 
 `TUNING.md` MUST document both the Klipper sidecar capture path and the
 standalone shell-marker fallback path with full command lines and the
-expected output that confirms it is working. Neither path may be
-presented only as a footnote to the other.
+expected output that confirms it is working. Sidecar MUST be presented
+as the supported and recommended path; shell-marker MUST be presented
+as a deprecated fallback (print-lag rationale) that remains documented
+and functional.
 
 #### Scenario: Klipper-less user can capture
 
 - **WHEN** a user without Klipper follows the shell-marker fallback
   section
 - **THEN** they can capture a calibration run using only the documented
-  commands
+  commands, and they are aware it is deprecated due to print lag
 
 ### Requirement: Two-profile deterministic workflow explained
 

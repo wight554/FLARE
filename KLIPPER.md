@@ -340,9 +340,9 @@ python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 \
 `--klipper-mode auto` is the default: the tuner tries the Klipper UDS first and
 falls back to marker input if it is unavailable. Use `--klipper-mode on` when
 you want a missing socket to fail fast, or `--klipper-mode off` for shell-marker
-fallback testing. When both UDS and `--marker-file` are configured, UDS wins
-after a sidecar is attached.
-
+fallback testing (**DEPRECATED**: shell-marker input causes print lag;
+prefer sidecar capture). When both UDS and `--marker-file` are configured,
+UDS wins after a sidecar is attached.
 The sidecar stores the source G-code SHA-256. If the G-code is re-sliced or
 edited without regenerating the sidecar, the tuner refuses to attach it and
 prints a loud warning.

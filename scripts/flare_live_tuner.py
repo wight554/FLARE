@@ -1220,13 +1220,23 @@ def open_serial(port: str, baud: int):
 
 def setup_klipper_motion(args):
     if getattr(args, "klipper_mode", "auto") == "off":
+        print(
+            "Warning: shell-marker input is deprecated (blocks Klipper's gcode queue; prefer --klipper-mode auto/on with UDS).",
+            file=sys.stderr,
+        )
         return None, None, {}, False
     if KlipperApiClient is None or SegmentMatcher is None:
         msg = "Klipper motion tracker module is unavailable"
         if args.klipper_mode == "on":
             print(f"flare_live_tuner: {msg}", file=sys.stderr)
             sys.exit(1)
-        print(f"[tuner] warning: {msg}; falling back to marker input", file=sys.stderr)
+        if getattr(args, "marker_file", None):
+            print(
+                "Warning: shell-marker input is deprecated (blocks Klipper's gcode queue; prefer --klipper-mode auto/on with UDS).",
+                file=sys.stderr,
+            )
+        else:
+            print(f"[tuner] warning: {msg}; falling back to marker input", file=sys.stderr)
         return None, None, {}, False
 
     try:
@@ -1235,7 +1245,13 @@ def setup_klipper_motion(args):
         if args.klipper_mode == "on":
             print(f"flare_live_tuner: sidecar refused: {exc}", file=sys.stderr)
             sys.exit(1)
-        print(f"[tuner] warning: sidecar refused: {exc}; falling back to marker input", file=sys.stderr)
+        if getattr(args, "marker_file", None):
+            print(
+                "Warning: shell-marker input is deprecated (blocks Klipper's gcode queue; prefer --klipper-mode auto/on with UDS).",
+                file=sys.stderr,
+            )
+        else:
+            print(f"[tuner] warning: sidecar refused: {exc}; falling back to marker input", file=sys.stderr)
         return None, None, {}, False
     client = KlipperApiClient(args.klipper_uds)
     try:
@@ -1246,7 +1262,13 @@ def setup_klipper_motion(args):
         if args.klipper_mode == "on":
             print(f"flare_live_tuner: Klipper API required but unavailable at {args.klipper_uds}: {exc}", file=sys.stderr)
             sys.exit(1)
-        print(f"[tuner] warning: Klipper API unavailable at {args.klipper_uds}: {exc}; falling back to marker input", file=sys.stderr)
+        if getattr(args, "marker_file", None):
+            print(
+                "Warning: shell-marker input is deprecated (blocks Klipper's gcode queue; prefer --klipper-mode auto/on with UDS).",
+                file=sys.stderr,
+            )
+        else:
+            print(f"[tuner] warning: Klipper API unavailable at {args.klipper_uds}: {exc}; falling back to marker input", file=sys.stderr)
         return None, None, {}, False
 
     print(f"[tuner] Klipper API connected: {args.klipper_uds}", file=sys.stderr)

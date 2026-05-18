@@ -8,7 +8,7 @@ kept in-tree and can be recovered from git history when needed.
 
 Phase 2.8 adds host-side live tuner; firmware delta is the `LIVE_TUNE_LOCK` flag in `protocol.c`. No settings version change.
 Phase 2.9 makes calibration observe-only by default, matures `flare_analyze.py`, and keeps the final workflow host-detached after reviewed defaults are flashed.
-Phase 2.10 replaces per-marker `gcode_shell_command` calibration markers with sidecar JSON plus Klipper API `objects/subscribe` motion tracking; shell-marker mode remains a fallback.
+Phase 2.10 replaces per-marker `gcode_shell_command` calibration markers with sidecar JSON plus Klipper API `objects/subscribe` motion tracking; shell-marker mode remains a deprecated fallback.
 Phase 2.11 adds residual-aware live-tuner lock hysteresis: schema 4 stores per-bucket residual EWMA diagnostics, noisy buckets remain STABLE, and LOCKED buckets unlock only on catastrophic mismatch, sustained outlier streak, or sustained drift.
 Phase 2.12 makes the tuner noise gate relative (`sigma/x`) and hardens `flare_analyze.py` with LOCKED-bucket floors, precision-weighted bucket contributors, BP-derived variance reference, and safer mode semantics.
 Phase 2.13 makes the analyzer acceptance gate use the same recommendation path as patch emission, skips immature runs from consistency checks, gates coverage by contributor mass, and labels telemetry counters as pending parser work.

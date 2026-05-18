@@ -192,9 +192,10 @@ Only change slicer speed/flow settings. A practical example:
 The analyzer uses both captures to create one deterministic result. Same input
 files produce the same output.
 
-## Capture Path A: Klipper Sidecar
+## Capture Live Data (Klipper Sidecar)
 
-This is the preferred path when Klipper is available.
+This is the supported and recommended path for live capture. It injects
+nothing into the printed G-code and has zero print-time overhead.
 
 Generate marked G-code and a sidecar:
 
@@ -230,10 +231,16 @@ Expected signs it is working:
 Run this once for the slow profile and once for the fast profile, using
 different CSV output names.
 
-## Capture Path B: Standalone Shell-Marker Fallback
+## Standalone Shell-Marker Fallback (DEPRECATED)
 
-Use this when the Klipper API sidecar path is unavailable. It is first-class
-for capture, but it does require a Klipper shell marker command.
+**Warning:** This capture path is deprecated because it injects per-layer
+`RUN_SHELL_COMMAND` / `M118` markers into the printed G-code, which blocks
+Klipper's G-code queue and causes visible print lag/stutter. The preferred
+[sidecar path](#capture-live-data-klipper-sidecar) injects nothing into the
+printed file and has zero print-time overhead.
+
+Use this only when the Klipper API sidecar path is unavailable. It does
+require a Klipper shell marker command.
 
 Add this to `printer.cfg`:
 
