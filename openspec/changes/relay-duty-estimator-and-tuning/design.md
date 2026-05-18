@@ -131,6 +131,28 @@ Add optional distance-hysteresis flip guard (`os_min_flip_mm` style)
 time-based to preserve behavior). HH relief-fraction snap captured as a
 reference note in the new spec only (analog, no rig — not shipped).
 
+### D9 — Sync-Feedback Sensor taxonomy; name the law separately from the sensor
+
+Adopt Happy Hare's umbrella concept **Sync-Feedback Sensor (SFS)** and
+abbreviate the two variants: **PSF** = Proportional (analog) Sync-Feedback
+(already used in FLARE comments/audit) and **DSF** = Discrete
+(dual-switch, 3-state) Sync-Feedback. `BUF_SENSOR_TYPE` values map
+`DSF = 0` (this change's path), `PSF = 1`. The *sensor* (DSF/PSF) and the
+*control law* (HH "two-level" / hysteretic relay; PD/EKF for analog) are
+**named separately** — "2-Switch Hysteretic Relay Control" conflates them
+(the same layer-mixing the tension/compression rename removed). In this
+change's artifacts and the new `relay-duty-estimator` spec, the feature is
+"the DSF two-level/relay control law + DSF duty-cycle estimator", not a
+"2-switch" feature. *Rationale:* cross-system legibility with the
+established HH conceptual model; clean sensor-vs-law separation.
+*Decision:* this is a vocabulary decision recorded here; the
+comment/spec/doc rollout (SFS/DSF/PSF everywhere, `BUF_SENSOR_TYPE`
+documented as DSF=0/PSF=1) is deferred to a separate
+`adopt-sync-feedback-vocab` change (mirrors
+`rename-buffer-states-tension-compression`: pure rename, no behavior
+change, not bundled with logic). No symbol churn here — wording in this
+change's prose only.
+
 ## Risks / Trade-offs
 
 - [Estimator destabilizes the cycle the relay change just stabilized] →
