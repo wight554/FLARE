@@ -24,7 +24,27 @@
 
 - [x] 4.1 Commit + push to main
 - [ ] 4.2 On-Pi A/B: tune `SYNC_RELAY_*_FRAC` for a slow, shallow,
-  never-ADVANCE, never-faulting cycle (pending hardware)
+  never-TENSION, never-faulting cycle (pending hardware). Note: old
+  "never-ADVANCE" wording = new "never-TENSION" (rename; see 7.1).
+
+  Interactive A/B loop (each round):
+  - Operator sends: (a) param dump — `flare_cmd "?:"` once + the SET/config
+    dump (current `SYNC_RELAY_CATCHUP_FRAC`/`NEUTRAL_FRAC`, `baseline_rate`,
+    `SYNC_COMPRESSION_BIAS_FRAC`, `SYNC_MIN/MAX_SPS`); (b) a
+    `flare_cmd "?:" --poll 500 > round-N.log` spanning a real print long
+    enough to show several switch flips (not a 2 s window); (c) current
+    frac pair + any `EV:SYNC:*` events observed.
+  - Reviewer returns: cycle diagnosis (dwell, depth, TENSION pins, fault
+    events) + next CATCHUP/NEUTRAL pair + expected effect + stop/continue.
+  - Operator applies the pair, rebuilds (`#define` until knobs→config in
+    `relay-duty-estimator-and-tuning`), flashes, reprints, recaptures.
+  - Exit when: slow + shallow + never-TENSION + never-fault.
+
+  Deliverable: the final frac pair + the `?:` poll log proving the cycle.
+  This log/pair is the known-good baseline that gates
+  `relay-duty-estimator-and-tuning` §0.1 (its estimator bounds against it).
+  This hand-loop produces the baseline only; the deterministic offline
+  `flare_analyze` path remains the persistent tuning authority.
 
 ## 5. Polarity fix (post-retest)
 
