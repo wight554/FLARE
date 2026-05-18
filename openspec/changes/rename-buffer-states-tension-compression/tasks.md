@@ -59,7 +59,9 @@
     snapshot review found status/config/control expressions preserved with
     renamed identifiers and tokens only. `python3 -m pytest scripts/test_*.py`
     could not run because `pytest` is not installed in this Python.
-- [ ] 5.4 Commit + push to main (rename only, no logic change)
+- [x] 5.4 Commit + push to main (rename only, no logic change)
+  - 2026-05-18: Committed and pushed rename implementation as
+    `83989fb` (`sync: rename buffer states to tension compression`).
 - [x] 5.5 Hand off to `audit-sync-polarity`
   - 2026-05-18: Next change remains `audit-sync-polarity`; this change
     deliberately avoided polarity/control behavior edits.
