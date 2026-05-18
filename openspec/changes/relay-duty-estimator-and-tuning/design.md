@@ -1,14 +1,15 @@
 ## Context
 
-2-switch relay mode (`BUF_SENSOR_TYPE == 0`) has only TENSION/COMPRESSION
-microswitches. `relay-buffer-control-2switch` (`sync.c:1622-1634`) ended the
-relaxation oscillation by overriding the est/reserve/PI target with a
-hysteretic relay: `BUF_TENSION → relay_base × SYNC_RELAY_CATCHUP_FRAC`,
+Sync-Feedback Sensor type D relay mode (`BUF_SENSOR_TYPE == 0`, D=0) has
+only TENSION/COMPRESSION microswitches. `relay-buffer-control-2switch`
+(`sync.c:1622-1634`) ended the relaxation oscillation by overriding the
+est/reserve/PI target with a two-level / hysteretic relay law:
+`BUF_TENSION → relay_base × SYNC_RELAY_CATCHUP_FRAC`,
 `BUF_COMPRESSION → SYNC_MIN_SPS`, `BUF_NEUTRAL → extruder_est_sps ×
 SYNC_RELAY_NEUTRAL_FRAC` (≈1.10, hand-tuned), clamped `[SYNC_MIN,
 relay_base]`. Only the NEUTRAL branch is a guess. Happy Hare
 `mmu_sync_controller.py3` solves the identical zero-info problem for its
-dual-switch (`D`) sensor with a duty-cycle estimator: it pairs
+type-D dual-switch sensor with a duty-cycle estimator: it pairs
 low/high-state travel between flips into duty cycles and derives an
 effective feed. FLARE has exactly the signal HH uses (the two switches) but
 currently discards it in NEUTRAL.
@@ -34,7 +35,7 @@ formula must flip sign.
 **Non-Goals:**
 - No change to TENSION→catch-up or COMPRESSION→stop branches.
 - No online flash-save / no firmware persistence of the estimate.
-- No analog (`BUF_SENSOR_TYPE != 0`) behavior change; no blind analog code
+- No type-P analog (`BUF_SENSOR_TYPE != 0`, P=1) behavior change; no blind analog code
   (no rig; HH-modelled spec only).
 - Not replacing the offline analyzer authority with online learning.
 
@@ -145,23 +146,21 @@ Type Sensors"):
  CO  Compression Only single switch (buffer extended)    not implemented in FLARE
 ```
 
-The FLARE-historic alias "PSF" is the HH **P** type; it is treated as a
-legacy alias of `P` to be retired in the rollout (do NOT mint new
-acronyms like DSF/PSF — HH's codes are P/D/TO/CO). The *sensor* (P/D) and
+The retired FLARE-historic analog alias is the HH **P** type. Do NOT mint
+new acronyms — HH's codes are P/D/TO/CO. The *sensor* (P/D) and
 the *control law* (HH "two-level" / hysteretic relay for D; PD/EKF for P)
-are **named separately** — "2-Switch Hysteretic Relay Control" conflates
+are **named separately** — "type-D relay control" names both layers only
+when the type-D sensor and relay law are explicitly distinct; the old
+standalone feature label conflated
 them (the same layer-mixing the tension/compression rename removed). In
 this change's artifacts and the new `relay-duty-estimator` spec, the
 feature is "the type-`D` two-level/relay control law + its duty-cycle
-estimator", not a "2-switch" feature. *Rationale:* cross-system legibility
+estimator", not a sensor named by its wiring. *Rationale:* cross-system legibility
 with the established HH model; clean sensor-vs-law separation.
-*Decision:* vocabulary decision recorded here; the comment/spec/doc
-rollout (Sync-Feedback Sensor + P/D/TO/CO codes, `BUF_SENSOR_TYPE`
-documented as `D = 0` / `P = 1`, legacy "PSF" retired) is deferred to a
-separate `adopt-sync-feedback-vocab` change (mirrors
-`rename-buffer-states-tension-compression`: pure rename, no behavior
-change, not bundled with logic). No symbol churn here — wording in this
-change's prose only.
+*Decision:* vocabulary decision recorded here and realized by
+`adopt-sync-feedback-vocab`: Sync-Feedback Sensor + P/D/TO/CO codes,
+`BUF_SENSOR_TYPE` documented as `D = 0` / `P = 1`, legacy analog alias
+retired. No symbol churn here — wording in this change's prose only.
 
 ## Risks / Trade-offs
 

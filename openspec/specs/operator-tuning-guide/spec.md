@@ -127,3 +127,19 @@ plain language with the action for each.
 - **THEN** the guide makes clear it only suggests a baseline and performs
   no writes, and the offline analyzer remains the persistent authority
 
+### Requirement: Sync-Feedback Sensor vocabulary in tuning docs
+
+`TUNING.md` and `config.ini.example` SHALL describe buffer sensor mode with
+Happy Hare Sync-Feedback Sensor type codes: `D` = Dual two-switch sensor
+(`BUF_SENSOR_TYPE == 0`, D=0), `P` = Proportional analog sensor
+(`BUF_SENSOR_TYPE == 1`, P=1), and `TO`/`CO` as recognized but not
+implemented in FLARE. The docs SHALL name the sensor separately from the
+control law: type-D two-level / hysteretic relay control law, type-P analog
+PD/EKF reserve control law.
+
+#### Scenario: Operator sees value contract
+
+- **WHEN** an operator reads `TUNING.md` or `config.ini.example` near sensor
+  mode selection
+- **THEN** the `D=0` / `P=1` value contract is visible and no legacy analog
+  alias is used

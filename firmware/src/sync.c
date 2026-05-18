@@ -37,18 +37,19 @@
  * Tight cap (~150mm/min equiv) so it can never starve vs the reserve
  * P-authority; only applied NEUTRAL and only on the tension side of target. */
 #define SYNC_COMPRESSION_FEED_TRIM_MAX_SPS 120
-/* RELAY CONTROL (2-switch standalone). The buffer has only COMPRESSION and
- * TENSION microswitches: no analog position, no extruder feedback. A
- * continuous PI controller on a dead-reckoned position limit-cycles by
- * construction (no feedback between crossings). The correct controller for
- * a 2-switch buffer is a hysteretic relay matched to the switches.
+/* Type-D Sync-Feedback Sensor control (BUF_SENSOR_TYPE == 0, D=0). The buffer
+ * has only COMPRESSION and TENSION microswitches: no analog position, no
+ * extruder feedback. A continuous PI controller on a dead-reckoned position
+ * limit-cycles by construction (no feedback between crossings). The correct
+ * controller is the type-D two-level / hysteretic relay law matched to the
+ * switches.
  * FLARE polarity (per the rest of the system: RT is negative/compression,
  * REFILL effort fires in TENSION, RELIEVE in COMPRESSION): TENSION = buffer
  * EMPTY (starved) -> feed fast to refill; COMPRESSION = buffer FULL (reserve)
  * -> feed slow so the extruder draws it down; NEUTRAL -> gently overfeed so
  * the buffer leans to the full/COMPRESSION reserve side and never reaches
  * TENSION (never starve). These three fracs (x baseline control floor)
- * are the primary on-hardware relay tuning knobs.
+ * are the primary on-hardware type-D relay-law tuning knobs.
  * CATCHUP scales the fixed baseline-anchored refill (TENSION/empty).
  * NEUTRAL scales the demand-tracking (EST) NEUTRAL feed: ~1.0 = match extruder
  * (long dwell), >1 = gentle full/COMPRESSION-reserve lean. COMPRESSION/full
@@ -1524,7 +1525,7 @@ void sync_tick(uint32_t now_ms) {
         uint32_t tension_dwell_ms = now_ms - sync_tension_pin_since_ms;
         /* RELAY: TENSION switch contact is the normal "buffer empty, refill"
          * signal, not a fault. Only fault-hold on tension dwell in analog
-         * mode; the relay catch-up path refills it in 2-switch mode. */
+         * mode; the type-D relay catch-up path refills it. */
         if (BUF_SENSOR_TYPE != 0 &&
             SYNC_TENSION_DWELL_STOP_MS > 0 &&
             tension_dwell_ms >= (uint32_t)SYNC_TENSION_DWELL_STOP_MS) {
@@ -1592,7 +1593,7 @@ void sync_tick(uint32_t now_ms) {
                                  compression_wall_ms < SYNC_COMPRESSION_HARD_WALL_MS;
     /* RELAY: hitting the COMPRESSION switch is the normal "buffer full,
      * back off" control signal, not a jam. This critical-fault only ever
-     * fired in 2-switch mode and was manufacturing the FAULT_HOLD ->
+     * fired in type-D mode and was manufacturing the FAULT_HOLD ->
      * recovery-slam cycle. Suppress it in relay mode; the relay stop state
      * drains the full buffer off the compression wall. */
     if (compression_wall_critical && BUF_SENSOR_TYPE != 0) {
@@ -1607,8 +1608,9 @@ void sync_tick(uint32_t now_ms) {
     if (!fast_brake_active && sync_fast_brake_until_ms != 0 && (int32_t)(now_ms - sync_fast_brake_until_ms) >= 0)
         sync_fast_brake_until_ms = 0;
 
-    /* RELAY CONTROL (2-switch standalone). Override the est/reserve/PI
-     * target with a hysteretic relay matched to the switches. Decoupled
+    /* Type-D Sync-Feedback Sensor control (BUF_SENSOR_TYPE == 0, D=0).
+     * Override the est/reserve/PI target with the two-level / hysteretic
+     * relay law matched to the switches. Decoupled
      * anchors so the cycle is slow and shallow:
      *  - TENSION (empty): strong FIXED refill off the baseline floor —
      *    safety, never starve, independent of a collapsed estimator.

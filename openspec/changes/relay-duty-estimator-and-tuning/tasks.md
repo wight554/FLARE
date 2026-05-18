@@ -79,7 +79,7 @@
 
 ## 6. Docs (T3/T4)
 
-- [ ] 6.1 TUNING.md: add the relay (2-switch standalone) tuning section —
+- [ ] 6.1 TUNING.md: add the type-D relay-law tuning section —
   config keys, relay capture/analyze loop, runtime estimator (estimate vs
   fallback, reading confidence). State knobs are config-driven, not
   compile-time.

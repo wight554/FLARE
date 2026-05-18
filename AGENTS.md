@@ -30,7 +30,7 @@ changes are allowed when they keep the tree coherent.
 
 - Two TMC2209 stepper drivers, one per filament lane, over UART
 - Per-lane IN / OUT filament switches; optional Y-splitter switch; optional toolhead sensor (TS:)
-- Buffer sensor: dual-endstop (default) or analog PSF / Hall-effect
+- Sync-Feedback Sensor: type D dual-endstop (default, `BUF_SENSOR_TYPE=0`, D=0) or type P analog / Hall-effect (`BUF_SENSOR_TYPE=1`, P=1)
 - USB CDC serial at 115200 baud — `CMD:params\n`, responses `OK:...` / `ER:...`, events `EV:...`
 - No Klipper plugin required; `scripts/flare_cmd.py` bridges to Klipper macros when needed
 

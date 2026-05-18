@@ -167,7 +167,9 @@ run_current:
 # buf_half_travel_mm: 7.8     # Distance from NEUTRAL to switch trip, not total half-travel
 # buf_size_mm: 22             # Total travel distance of buffer arm
 
-# ─── Analog Buffer Sensor ─────────────────────────────────────────────────────
+# ─── Sync-Feedback Sensor ─────────────────────────────────────────────────────
+# Happy Hare types: D=0 (Dual two-switch), P=1 (Proportional analog).
+# TO/CO are recognized type names but are not implemented in FLARE.
 # buf_sensor_type: 0
 # buf_analog_neutral: 0.5
 # buf_range: 0.45

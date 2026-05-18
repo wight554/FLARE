@@ -171,6 +171,7 @@ extern int TMC_TOFF[NUM_LANES];
 extern int TMC_HSTRT[NUM_LANES];
 extern int TMC_HEND[NUM_LANES];
 extern bool TMC_INTERPOLATE[NUM_LANES];
+/* Sync-Feedback Sensor type: D=0 (Dual two-switch), P=1 (Proportional analog). */
 extern int BUF_SENSOR_TYPE;
 extern float BUF_ANALOG_NEUTRAL;
 extern float BUF_RANGE;

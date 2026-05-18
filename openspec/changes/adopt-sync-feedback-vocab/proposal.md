@@ -1,7 +1,7 @@
 ## Why
 
-FLARE invents its own buffer-sensor vocabulary ("2-switch", "relay",
-"BUF_SENSOR_TYPE 0/1", FLARE-historic "PSF") that conflates the *sensor*
+FLARE invents its own buffer-sensor vocabulary (legacy wiring shorthand,
+"relay", undocumented `BUF_SENSOR_TYPE` integers, FLARE-historic analog alias) that conflates the *sensor*
 with the *control law* and does not match the established Happy Hare
 conceptual model every MMU user already knows. The tension/compression
 rename (`rename-buffer-states-tension-compression`) already proved the cost
@@ -11,7 +11,7 @@ and the value of aligning to Happy Hare. Happy Hare's umbrella is the
 (HH wiki "Sync-Feedback 'Buffer' Type Sensors"): **P** Proportional
 (analog), **D** Dual (two-switch), **TO** Tension-Only, **CO**
 Compression-Only. FLARE's discrete path is HH type **D**; its analog path
-is HH type **P** (FLARE's legacy "PSF" alias). The decision is recorded in
+is HH type **P**. The decision is recorded in
 `relay-duty-estimator-and-tuning` design D9; this change is the pure
 vocabulary rollout, deliberately split out (no behavior change, not
 bundled with logic — same methodology as the tension/compression rename).
@@ -26,12 +26,12 @@ bundled with logic — same methodology as the tension/compression rename).
   wherever the type is referenced (comments, specs, docs, TUNING.md,
   config.ini.example). The integer values are unchanged. Note TO/CO are
   HH types **not implemented in FLARE**.
-- Retire the FLARE-historic alias **"PSF"** — it is HH type **P**; live
-  prose/comments say "type P (analog)", not "PSF".
+- Retire the FLARE-historic analog alias — it is HH type **P**; live
+  prose/comments say "type P (analog)".
 - Separate the **sensor** name from the **control law** name everywhere:
   the discrete path is "the type-D two-level / hysteretic relay control
-  law", not a "2-switch feature". Stop using "2-switch" / "relay" as if
-  they named the sensor.
+  law", not a legacy wiring shorthand feature. Stop using wiring shorthand
+  / "relay" as if they named the sensor.
 - Comments / specs / docs / `config.ini.example` / TUNING.md updated in
   lockstep. **No firmware behavior change. No `BUF_SENSOR_TYPE` value
   change. No C symbol/enum rename that alters the build** — prose +

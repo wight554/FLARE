@@ -81,6 +81,13 @@ python3 scripts/flare_cmd.py --port "$FLARE_PORT" "?:"
 FLARE sync tries to keep a little filament reserve in the buffer while the
 printer pulls material at changing speeds.
 
+- `buf_sensor_type` selects the Sync-Feedback Sensor type: `D=0` is the
+  dual two-switch sensor, `P=1` is the proportional analog sensor. Happy Hare
+  types `TO` and `CO` are recognized vocabulary but are not implemented in
+  FLARE.
+- Type D uses the two-level / hysteretic relay control law. Type P uses the
+  analog PD/EKF reserve control law. The sensor type and the control law are
+  separate: keep the `D=0` / `P=1` value contract when changing sensor mode.
 - `baseline_rate` is the starting sync feed rate when no flow schedule is
   configured.
 - `sync_compression_bias_frac` shifts the target slightly toward the compression side

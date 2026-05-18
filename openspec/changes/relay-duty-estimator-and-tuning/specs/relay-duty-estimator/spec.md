@@ -4,8 +4,9 @@
 
 The `BUF_NEUTRAL` relay feed target SHALL be derived from a runtime
 duty-cycle estimator computed from the cadence of TENSION↔COMPRESSION
-switch flips in 2-switch relay mode (`BUF_SENSOR_TYPE == 0`), not from a
-fixed hand-tuned multiplier. The estimate SHALL be clamped to an
+switch flips in Sync-Feedback Sensor type D relay mode
+(`BUF_SENSOR_TYPE == 0`, D=0), not from a fixed hand-tuned multiplier. The
+estimate SHALL be clamped to an
 offline-provided `[lo, hi]` bound before use. The `BUF_TENSION` catch-up
 and `BUF_COMPRESSION` stop branches SHALL be unchanged.
 

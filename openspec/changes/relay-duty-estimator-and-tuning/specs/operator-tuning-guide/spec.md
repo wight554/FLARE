@@ -1,9 +1,9 @@
 ## ADDED Requirements
 
-### Requirement: Relay (2-switch standalone) tuning section
+### Requirement: Type-D relay-law tuning section
 
-TUNING.md SHALL include a section for 2-switch standalone relay mode
-(`BUF_SENSOR_TYPE == 0`) covering: the relay config keys (catch-up,
+TUNING.md SHALL include a section for Sync-Feedback Sensor type D relay mode
+(`BUF_SENSOR_TYPE == 0`, D=0) covering: the relay config keys (catch-up,
 NEUTRAL, estimator bounds, confidence), the relay capture/analyze loop via
 `flare_analyze`, and the runtime duty estimator (estimate vs fallback,
 how to read the confidence telemetry). It SHALL state that relay knobs are
@@ -11,7 +11,7 @@ config-driven (config→flash/`SET:`), not compile-time.
 
 #### Scenario: Relay user can tune without source edits
 
-- **WHEN** a 2-switch standalone operator follows TUNING.md
+- **WHEN** a type-D standalone operator follows TUNING.md
 - **THEN** they tune the relay via documented `config.ini` keys and the
   relay analyze loop, with no instruction to edit firmware `#define`s
 

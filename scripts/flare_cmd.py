@@ -125,7 +125,7 @@ DUMP_PARAMS = [
     ("DIST_Y_BUF",        "dist_y_buf",              False),
     ("BUF_BODY_LEN",      "buf_body_len",            False),
     ("BUF_SIZE",          "buf_size_mm",             False),
-    # --- Analog Buffer Sensor ---
+    # --- Sync-Feedback Sensor ---
     ("BUF_SENSOR",        "buf_sensor_type",         False),
     ("BUF_ANALOG_NEUTRAL", "buf_analog_neutral",             False),
     ("BUF_RANGE",         "buf_range",               False),
@@ -172,7 +172,7 @@ SECTION_BREAKS = {
     "sync_reserve_integral_gain": "# ─── Integral Centering & Confidence ───────────────────────────",
     "est_alpha_min":       "# ─── Smarter Sync (Estimator) ─────────────────────────────────────────────",
     "dist_in_out":         "# ─── Physical Model (mm) ─────────────────────────────────────────────────",
-    "buf_sensor_type":     "# ─── Analog Buffer Sensor ─────────────────────────────────────────────────",
+    "buf_sensor_type":     "# ─── Sync-Feedback Sensor ─────────────────────────────────────────────────",
     "auto_mode":           "# ─── Flow / Reload ────────────────────────────────────────────────────────",
     "autoload_max_mm":     "# ─── Safety ────────────────────────────────────────────────────────────────",
     "tc_timeout_cut_ms":   "# ─── Toolchange Timeouts ───────────────────────────────────────────────────",

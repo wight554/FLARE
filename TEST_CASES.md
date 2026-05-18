@@ -617,13 +617,14 @@ TENSION recovery floor at startup and low flow.
 
 ---
 
-### pending-manual-hardware: 2-Switch Hysteretic Relay Control
+### pending-manual-hardware: Type-D Hysteretic Relay Control
 
 #### Goal
 
-Confirm that in standalone 2-switch mode (`BUF_SENSOR_TYPE=0`) the buffer
-follows a slow, shallow, never-TENSION-leaning limit cycle with no
-FAULT_HOLD on normal switch contact, during a real print.
+Confirm that standalone Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE=0`)
+uses the two-level / hysteretic relay control law to follow a slow, shallow,
+never-TENSION-leaning limit cycle with no FAULT_HOLD on normal switch
+contact, during a real print.
 
 #### Steps
 
@@ -638,10 +639,10 @@ FAULT_HOLD on normal switch contact, during a real print.
 - No `EV:SYNC:FAULT_HOLD` from normal COMPRESSION/TENSION contact; no
   5 s pause → TENSION-slam pattern.
 - Cycle leans compression (more time compression side); no underextrusion.
-- Tune `SYNC_RELAY_CATCHUP_FRAC` (↑ if it starves), `BACKOFF_FRAC`
-  (↓ if it pins TENSION), `NEUTRAL_FRAC` (↓ for more compression lean) until the
-  cycle is slow and benign.
-- `BUF_SENSOR_TYPE != 0` (analog) behavior unchanged.
+- Tune `SYNC_RELAY_CATCHUP_FRAC` (increase if it starves) and
+  `SYNC_RELAY_NEUTRAL_FRAC` (lower for less compression lean, raise for more)
+  until the cycle is slow and benign.
+- `BUF_SENSOR_TYPE != 0` (type P analog, P=1) behavior unchanged.
 
 ---
 
@@ -684,8 +685,8 @@ well below the learned baseline on a long same-flow print.
 #### Steps
 
 1. Flash firmware with the F1a/F1b/F2a/F2b changes.
-2. Run a long, steady same-flow standalone print (no analog buffer sensor,
-   `BUF_SENSOR_TYPE=0`).
+2. Run a long, steady same-flow standalone print with Sync-Feedback Sensor
+   type D (`BUF_SENSOR_TYPE=0`, D=0).
 3. Capture status with `python3 scripts/flare_cmd.py "?:" --poll 500` and
    watch `BUF`, `BP`, `RT`, `EST`, `TT`, `CT`, `TPX`, `RDC`, and
    `EV:SYNC:*`.
@@ -816,8 +817,10 @@ For major refactors, run the full list.
 
 ## Pending Analog Rig
 
-These tests require `BUF_SENSOR_TYPE=1` with a real analog / PSF buffer rig.
-They are documented as `pending-analog-rig` until that hardware exists.
+These tests require Sync-Feedback Sensor type P (`BUF_SENSOR_TYPE=1`, P=1)
+with a real analog buffer rig. They are documented as `pending-analog-rig`
+until that hardware exists. Happy Hare types TO/CO are recognized names but
+are not implemented in FLARE.
 
 ### Analog compression floor polarity
 

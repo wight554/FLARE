@@ -106,3 +106,21 @@ buffer below the reserve target by design.
 - **WHEN** the controller is in `SYNC_HOLD`, `SYNC_RELIEF_PAUSE`, or
   `SYNC_FAULT_HOLD`
 - **THEN** `neutral_creep` produces zero added rate
+
+### Requirement: Sync-Feedback Sensor Taxonomy
+Live sync docs and specs SHALL describe the buffer sensor as a
+Sync-Feedback Sensor using Happy Hare type codes: `D` = Dual two-switch
+sensor (`BUF_SENSOR_TYPE == 0`), `P` = Proportional analog sensor
+(`BUF_SENSOR_TYPE == 1`), `TO` = Tension-Only (not implemented in FLARE),
+and `CO` = Compression-Only (not implemented in FLARE). The sensor type
+SHALL be named separately from the control law.
+
+#### Scenario: Type code names the sensor
+- **WHEN** a live doc or spec refers to the buffer sensor mode
+- **THEN** it states the Sync-Feedback Sensor type and the `D=0` / `P=1`
+  `BUF_SENSOR_TYPE` value contract
+
+#### Scenario: Control law named separately
+- **WHEN** the dual-switch path is described
+- **THEN** type D names the sensor and "two-level / hysteretic relay"
+  names the control law

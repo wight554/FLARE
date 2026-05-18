@@ -5,19 +5,19 @@
 Documentation and live specs SHALL use the umbrella concept Sync-Feedback
 Sensor with Happy Hare's canonical type codes: P (Proportional, analog),
 D (Dual, two-switch 3-state), TO (Tension-Only), CO (Compression-Only).
-New acronyms (DSF/SFS) MUST NOT be minted, and "2-switch" or "relay" MUST
-NOT be used to denote the sensor in live prose.
+New acronyms (DSF/SFS) MUST NOT be minted, and wiring shorthand or "relay"
+MUST NOT be used to denote the sensor in live prose.
 
 #### Scenario: Sensor referred to by HH type code
 
 - **WHEN** a live spec or doc refers to the buffer sensor
 - **THEN** it uses the Sync-Feedback Sensor term and a P/D/TO/CO code, not
-  "2-switch", "relay", or an invented acronym
+  wiring shorthand, "relay", or an invented acronym
 
-#### Scenario: Legacy PSF retired
+#### Scenario: Legacy analog alias retired
 
 - **WHEN** the analog sensor is referenced in live prose or comments
-- **THEN** it is called Happy Hare type P, not the legacy "PSF" alias
+- **THEN** it is called Happy Hare type P, not the legacy analog alias
 
 ### Requirement: BUF_SENSOR_TYPE value contract is documented
 

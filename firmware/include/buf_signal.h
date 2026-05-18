@@ -24,7 +24,7 @@ typedef struct {
  * buf_source_t — vtable for a buffer signal source.
  * Populated by the adapter's init function; tick/read are called each control
  * cycle by buf_sensor_tick().  The full adapter split into separate .c files
- * is deferred until PSF hardware is available.
+ * is deferred until type-P analog Sync-Feedback Sensor hardware is available.
  */
 typedef struct buf_source_s {
     void (*tick)(struct buf_source_s *src, uint32_t now_ms);

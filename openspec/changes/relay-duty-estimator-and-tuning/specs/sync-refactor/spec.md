@@ -27,11 +27,12 @@ edit-`#define`-recompile loop.
 The relay-mode `BUF_NEUTRAL` target SHALL be produced by the relay
 duty-cycle estimator (bounded, lean-on-top, fallback when unconfident).
 The relay `BUF_TENSION` catch-up and `BUF_COMPRESSION` stop branches and
-the analog (`BUF_SENSOR_TYPE != 0`) path SHALL remain unchanged.
+the type-P analog (`BUF_SENSOR_TYPE != 0`, P=1) path SHALL remain
+unchanged.
 
 #### Scenario: Analog path byte-identical
 
-- **WHEN** `BUF_SENSOR_TYPE != 0`
+- **WHEN** `BUF_SENSOR_TYPE != 0` (type P analog, P=1)
 - **THEN** control behavior is identical to before this change
 
 #### Scenario: Relay safety branches unchanged

@@ -303,14 +303,18 @@ belongs to `audit-sync-polarity`.
 Sync control SHALL feed faster when the buffer is `BUF_TENSION` (empty,
 printer pulling faster than the MMU) and back off when the buffer is
 `BUF_COMPRESSION` (full, MMU pushing faster than the printer), in both the
-relay and PSF control paths. No control site SHALL invert this
-relationship.
+type-D two-level / hysteretic relay control law (`BUF_SENSOR_TYPE == 0`,
+D=0) and the type-P analog PD/EKF reserve control law
+(`BUF_SENSOR_TYPE == 1`, P=1). No control site SHALL invert this
+relationship. `TO` and `CO` are recognized Happy Hare Sync-Feedback Sensor
+types but are not implemented in FLARE.
 
 #### Scenario: Tension feeds, compression backs off
 
 - **WHEN** the buffer is `BUF_TENSION`
 - **THEN** commanded feed increases (refill); **WHEN** `BUF_COMPRESSION`,
-  commanded feed backs off — in both relay and PSF paths
+  commanded feed backs off in both the type-D relay law and type-P analog
+  law
 
 #### Scenario: Audited sites classified
 
@@ -318,9 +322,9 @@ relationship.
 - **THEN** every site in the audit list is classified correct, fixed, or
   documented as needing hardware confirmation
 
-#### Scenario: Analog handled without a rig
+#### Scenario: Type-P analog handled without a rig
 
-- **WHEN** an analog/PSF site is found inverted and no analog hardware
+- **WHEN** a type-P analog site is found inverted and no analog hardware
   exists
 - **THEN** it is either implemented to match the Happy Hare reference
   controller or recorded as basic-spec-only `pending-analog-rig`, and is
@@ -351,10 +355,11 @@ contradiction it resolves. The rename change MUST remain behavior-preserving.
   rename churn mixed in
 
 ## Historical Design Decisions (Traceability)
-- **D1 (PSF)**: Generic adapter until hardware land.
+- **D1 (type P analog)**: Generic adapter until hardware land.
 - **D2 (Advance Dwell)**: Default 6000 ms (400 ms start).
 - **D3 (Versioning)**: Bump `SETTINGS_VERSION` ONLY on `settings_t` struct change.
-- **D4 (Hot-swap)**: `BUF_SENSOR_TYPE` swap ONLY when IDLE.
+- **D4 (Hot-swap)**: `BUF_SENSOR_TYPE` swap ONLY when IDLE
+  (`D=0`, `P=1`).
 - **D5 (Follow)**: Reload follow logic = baseline. Telemetry only.
 - **D6 (Overshoot)**: `SYNC_OVERSHOOT_PCT` default OFF.
 - **D7 (Status)**: CDC strings additive-at-tail. FROZEN order.

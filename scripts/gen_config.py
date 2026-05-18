@@ -127,7 +127,7 @@ DEFAULTS = {
     "auto_mode": "1",
     "auto_preload": "True",
 
-    # Analog Buffer Sensor
+    # Sync-Feedback Sensor
     "buf_sensor_type": "0",
     "buf_analog_neutral": "0.5",
     "buf_range": "0.45",
@@ -492,7 +492,7 @@ def main():
         "// --- Safety / Swap ---",
         f"#define CONF_RUNOUT_COOLDOWN_MS     {get('runout_cooldown_ms')}",
         "",
-        "// --- Analog Buffer Sensor ---",
+        "// --- Sync-Feedback Sensor ---",
         f"#define CONF_BUF_SENSOR_TYPE    {get('buf_sensor_type')}",
         f"#define CONF_BUF_ANALOG_NEUTRAL        {get_float('buf_analog_neutral'):.3f}f",
         f"#define CONF_BUF_RANGE          {get_float('buf_range'):.3f}f",

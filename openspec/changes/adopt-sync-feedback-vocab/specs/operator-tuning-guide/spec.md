@@ -6,7 +6,7 @@ TUNING.md SHALL use the Sync-Feedback Sensor vocabulary with Happy Hare
 type codes (P, D; TO/CO noted as unimplemented) and SHALL document the
 `BUF_SENSOR_TYPE` value contract (D=0, P=1) where sensor mode is
 referenced, naming the sensor separately from the control law and not
-using the legacy "PSF" alias.
+using the legacy analog alias.
 
 #### Scenario: Dual/analog sections use the taxonomy
 
@@ -19,4 +19,4 @@ using the legacy "PSF" alias.
 
 - **WHEN** an operator reads `config.ini.example` around the sensor type
 - **THEN** the D=0 / P=1 contract is documented in the same Sync-Feedback
-  Sensor vocabulary as TUNING.md, with no "PSF" alias
+  Sensor vocabulary as TUNING.md, with no legacy analog alias

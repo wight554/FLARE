@@ -1,15 +1,18 @@
 ## 1. Relay control core
 
-- [x] 1.1 Add `SYNC_RELAY_CATCHUP_FRAC` / `BACKOFF_FRAC` / `MID_FRAC`
+- [x] 1.1 Add relay control fractions (current live knobs:
+  `SYNC_RELAY_CATCHUP_FRAC` / `SYNC_RELAY_NEUTRAL_FRAC`)
 - [x] 1.2 Override `target_sps` before the ramp/clamp, gated
-  `BUF_SENSOR_TYPE == 0`: TRAILING→catch-up, ADVANCE→back-off, MID→hold
-- [x] 1.3 Confirm ramp, `[SYNC_MIN,max]` clamp, `trailing_floor`,
+  `BUF_SENSOR_TYPE == 0` (D=0): TENSION→catch-up,
+  COMPRESSION→stop, NEUTRAL→hold
+- [x] 1.3 Confirm ramp, `[SYNC_MIN,max]` clamp,
   fast-brake, relief logic still run after the override
 
 ## 2. Disarm FAULT_HOLD on normal switch contact
 
-- [x] 2.1 Gate advance-dwell FAULT_HOLD to `BUF_SENSOR_TYPE != 0`
-- [x] 2.2 Gate `trailing_wall_critical` FAULT_HOLD to `BUF_SENSOR_TYPE != 0`
+- [x] 2.1 Gate tension-dwell FAULT_HOLD to `BUF_SENSOR_TYPE != 0` (P=1)
+- [x] 2.2 Gate `compression_wall_critical` FAULT_HOLD to
+  `BUF_SENSOR_TYPE != 0` (P=1)
 - [x] 2.3 Confirm RELIEF_PAUSE / continuous-trailing auto-stop unchanged
 
 ## 3. Validation
@@ -17,8 +20,9 @@
 - [x] 3.1 `cmake --build build_local`
 - [x] 3.2 `python3 -m py_compile scripts/*.py`
 - [x] 3.3 `openspec validate relay-buffer-control-2switch --strict`
-- [x] 3.4 Analog parity reasoning: `BUF_SENSOR_TYPE != 0` path unchanged
-- [x] 3.5 `TEST_CASES.md`: 2-switch relay regression entry
+- [x] 3.4 Type-P analog parity reasoning: `BUF_SENSOR_TYPE != 0` (P=1)
+  path unchanged
+- [x] 3.5 `TEST_CASES.md`: type-D relay-law regression entry
 
 ## 4. Closeout
 
@@ -77,11 +81,15 @@ read + `audit-sync-polarity` 13-site table). No inversion: `sync.c:1622-1634`
 `[SYNC_MIN, baseline]` (gentle compression lean, never starve). Matches the
 goal: park between NEUTRAL and COMPRESSION, never reach TENSION.
 
-- [ ] 7.1 Refresh `proposal.md` prose to tension/compression vocab. It still
-  uses old ADVANCE/TRAILING (predates the rename); maps consistently
+- [x] 7.1 Refresh `proposal.md` prose to tension/compression vocab. Old
+  prose used ADVANCE/TRAILING (predating the rename); it mapped consistently
   (ADVANCE=empty=TENSION, TRAILING=full=COMPRESSION) but reading old labels
-  during on-Pi tuning is the same inversion-confusion trap that caused the
+  during on-Pi tuning was the same inversion-confusion trap that caused the
   5 debug rounds. Prose-only; enums/code already correct.
+
+  2026-05-19: `adopt-sync-feedback-vocab` refreshed `proposal.md`,
+  `design.md`, and active spec prose to type-D / TENSION / COMPRESSION
+  vocabulary. Historical task notes below remain as retest history.
 - [ ] 7.2 `neutral_creep` is telemetry-only: `g_neutral_creep_sps` computed
   in `neutral_creep_update()` (`sync.c:395-428`) but consumed only at
   `protocol.c:217` (status emit) — never added to `target_sps`. Decide:
@@ -95,9 +103,9 @@ relief-pause exit, baseline Kp, AUTO_START, continuous-COMPRESSION
 auto-stop all correct vocab. Historical "trailing=empty" bug fully purged
 from the relay path.
 
-- [ ] 7.3 Legacy inverted assumption survives in **analog-only**
+- [ ] 7.3 Legacy inverted assumption survives in **type-P analog-only**
   `sync_compression_floor_sps()` (`sync.c:385-386`, applied `1655-1657`,
-  gated `BUF_SENSOR_TYPE != 0`). Old `trailing_floor`: force-raises a feed
+  gated `BUF_SENSOR_TYPE != 0`, P=1). Old `compression_floor`: force-raises a feed
   FLOOR while `BUF_COMPRESSION` (=full) → fights drain = inverted. Relay
   skips it (relay COMPRESSION → SYNC_MIN stop), so inert for current
   tuning. = `audit-sync-polarity` finding #6, classified

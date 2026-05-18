@@ -1,14 +1,15 @@
 ## Why
 
-In 2-switch standalone (relay) mode the buffer has only TENSION/COMPRESSION
-microswitches — zero position information between flips — so the historical
-estimator collapsed and the controller was a relaxation oscillator by
-construction. `relay-buffer-control-2switch` stopped the oscillation by
+In Sync-Feedback Sensor type D standalone mode (`BUF_SENSOR_TYPE == 0`,
+D=0), the buffer has only TENSION/COMPRESSION microswitches — zero position
+information between flips — so the historical estimator collapsed and the
+controller was a relaxation oscillator by construction.
+`relay-buffer-control-2switch` stopped the oscillation by
 *abandoning* estimation: a hand-tuned fixed NEUTRAL feed (`extruder_est_sps
 * SYNC_RELAY_NEUTRAL_FRAC`, ~1.10). Happy Hare solves the same zero-info
 problem without abandoning it: a two-level duty-cycle estimator that learns
 effective feed from the *cadence* of switch flips (the only signal a
-2-switch buffer has). Adopting it removes the hand guess while keeping the
+type-D sensor has). Adopting it removes the hand guess while keeping the
 never-TENSION compression lean. Two adjacent gaps are fixed in the same
 pass: the relay knobs are compile-time `#define`s (no config/SET loop, so
 on-Pi tuning means recompile-per-tweak), and TUNING.md documents only the
@@ -41,8 +42,8 @@ analog flow plus a stale status token.
   `config.ini`/schedule mechanism. Same inputs → same output;
   acceptance-gate parity with existing analyzer behavior. Happy Hare's
   online autotune-flash-save is **explicitly not** adopted.
-- **TUNING.md.** Add a relay (2-switch standalone,
-  `BUF_SENSOR_TYPE == 0`) section: new config keys, the relay
+- **TUNING.md.** Add a type-D relay (`BUF_SENSOR_TYPE == 0`, D=0)
+  section: new config keys, the relay
   capture/analyze loop, and the runtime estimator. Fix the stale
   status-field token `TB` → `CB` (`TUNING.md:360`; firmware emits `CB:` at
   `protocol.c:197` — `rename-buffer-states-tension-compression` mapped
@@ -69,9 +70,9 @@ this change cross-links, does not duplicate.
 
 ### New Capabilities
 
-- `relay-duty-estimator`: the 2-switch relay NEUTRAL feed is driven by a
-  runtime duty-cycle estimator learned from switch-flip cadence, bounded by
-  offline-recommended limits, with the never-TENSION compression lean
+- `relay-duty-estimator`: the type-D relay-law NEUTRAL feed is driven by
+  a runtime duty-cycle estimator learned from switch-flip cadence, bounded
+  by offline-recommended limits, with the never-TENSION compression lean
   preserved on top and a fixed-demand unconfident fallback.
 
 ### Modified Capabilities
@@ -82,7 +83,7 @@ this change cross-links, does not duplicate.
 - `deterministic-tuning-workflow`: the deterministic offline analyzer is
   extended to ingest switch-flip duty statistics and emit relay baseline /
   estimator bounds, same-inputs→same-output preserved.
-- `operator-tuning-guide`: TUNING.md gains a relay (2-switch) tuning
+- `operator-tuning-guide`: TUNING.md gains a type-D relay-law tuning
   section and the stale `TB`→`CB` status token is corrected.
 
 ## Impact
@@ -90,7 +91,8 @@ this change cross-links, does not duplicate.
 - Firmware: `firmware/src/sync.c` (relay NEUTRAL branch + estimator state),
   `firmware/include/config.h`, generated `tune.h`; `protocol.c` only if a
   duty/estimator telemetry field is added. TENSION→catch-up,
-  COMPRESSION→stop, and the analog (`BUF_SENSOR_TYPE != 0`) path are
+  COMPRESSION→stop, and the type-P analog (`BUF_SENSOR_TYPE != 0`, P=1)
+  path are
   untouched / byte-identical.
 - Host: `scripts/gen_config.py` (new config keys), `scripts/flare_analyze.py`
   (relay duty stats + bound emission), related capture/tests; pure stdlib +
