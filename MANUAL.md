@@ -160,7 +160,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `RAMP_TICK_MS` | `ramp_tick_ms` | Period between lane acceleration ramp steps | 5 |
 | `LOAD_MAX` | `load_max_mm` | Max distance for `FL:` or **Auto-Load** | 3000 |
 | `UNLOAD_MAX` | `unload_max_mm` | Max distance for `UL:`, `UM:` | 3000 |
-| `RETRACT_MM` | `autoload_retract_mm` | Distance to retract after `LO:` triggers OUT, and after `UL:` clears OUT. 0 = stop immediately. | 10 |
+| `RETRACT_MM` | `autoload_retract_mm` | Distance to retract after `LO:` triggers OUT, and after `UL:` clears OUT. 0 = stop immediately. | 5 |
 | `UNLOAD_TENSION_BLOCK_MS` | `unload_tension_block_ms` | Stop `UL:` if buffer stays in `TENSION` for this long (printer blocking retraction). 0 = disabled. | 5000 |
 | `AUTO_MODE` | `auto_mode` | Enable autonomous Flow (Auto-Sync, Toolhead load) | 1 |
 | `AUTO_PRELOAD`| `auto_preload` | Enable parking preload on insertion | 1 |

@@ -138,7 +138,7 @@ run_current:
 # servo_block_us: 950
 # servo_settle_ms: 500
 # cut_feed_rate: 600
-# cut_feed_mm: 48
+# cut_feed_mm: 145
 # cut_length_mm: 10
 # cut_amount: 1
 
@@ -149,7 +149,7 @@ run_current:
 
 # ─── Safety / Limits ─────────────────────────────────────────────────────────
 # load_max_mm: 3000           # Max distance for toolhead load
-# autoload_retract_mm: 10     # Retract distance after LO: triggers OUT and after UL: clears OUT; 0 = stop immediately
+# autoload_retract_mm: 5      # Retract distance after LO: triggers OUT and after UL: clears OUT; 0 = stop immediately
 # unload_max_mm: 3000         # Max distance for unloads
 # unload_tension_block_ms: 5000   # Stop UL if buffer stays TENSION this long (printer blocking); 0 = disabled
 # autoload_max_mm: 600        # Max distance for preload to OUT

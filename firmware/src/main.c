@@ -140,7 +140,7 @@ int AUTOLOAD_MAX_MM = CONF_AUTOLOAD_MAX_MM;
 bool BUF_INVERT = false;
 int AUTO_MODE = 1; // 1=Automated flow, 0=Host-controlled flow
 bool AUTO_PRELOAD = true;
-int AUTOLOAD_RETRACT_MM = 10;
+int AUTOLOAD_RETRACT_MM = 5;
 bool ENABLE_CUTTER = CONF_ENABLE_CUTTER;
 bool UNLOAD_CUT = CONF_UNLOAD_CUT;
 

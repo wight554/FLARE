@@ -169,7 +169,7 @@ void settings_defaults(void) {
     g_baseline_alpha = CONF_BASELINE_ALPHA;
     BUF_INVERT = false;
     AUTO_PRELOAD = true;
-    AUTOLOAD_RETRACT_MM = 10;
+    AUTOLOAD_RETRACT_MM = 5;
     ENABLE_CUTTER = CONF_ENABLE_CUTTER;
     UNLOAD_CUT = CONF_UNLOAD_CUT;
 

@@ -108,7 +108,7 @@ DEFAULTS = {
     "servo_block_us": "950",
     "servo_settle_ms": "500",
     "cut_feed_rate": "600",
-    "cut_feed_mm": "48",
+    "cut_feed_mm": "145",
     "cut_length_mm": "10",
     "cut_amount": "1",
 
