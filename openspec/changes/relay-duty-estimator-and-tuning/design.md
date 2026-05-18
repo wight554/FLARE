@@ -133,22 +133,32 @@ reference note in the new spec only (analog, no rig — not shipped).
 
 ### D9 — Sync-Feedback Sensor taxonomy; name the law separately from the sensor
 
-Adopt Happy Hare's umbrella concept **Sync-Feedback Sensor (SFS)** and
-abbreviate the two variants: **PSF** = Proportional (analog) Sync-Feedback
-(already used in FLARE comments/audit) and **DSF** = Discrete
-(dual-switch, 3-state) Sync-Feedback. `BUF_SENSOR_TYPE` values map
-`DSF = 0` (this change's path), `PSF = 1`. The *sensor* (DSF/PSF) and the
-*control law* (HH "two-level" / hysteretic relay; PD/EKF for analog) are
-**named separately** — "2-Switch Hysteretic Relay Control" conflates them
-(the same layer-mixing the tension/compression rename removed). In this
-change's artifacts and the new `relay-duty-estimator` spec, the feature is
-"the DSF two-level/relay control law + DSF duty-cycle estimator", not a
-"2-switch" feature. *Rationale:* cross-system legibility with the
-established HH conceptual model; clean sensor-vs-law separation.
-*Decision:* this is a vocabulary decision recorded here; the
-comment/spec/doc rollout (SFS/DSF/PSF everywhere, `BUF_SENSOR_TYPE`
-documented as DSF=0/PSF=1) is deferred to a separate
-`adopt-sync-feedback-vocab` change (mirrors
+Adopt Happy Hare's umbrella concept **Sync-Feedback Sensor** with HH's
+**canonical single-letter type codes** (HH wiki "Sync-Feedback 'Buffer'
+Type Sensors"):
+
+```
+ P   Proportional   analog, ADC continuous position     FLARE BUF_SENSOR_TYPE == 1
+ D   Dual           two switches, independent tension    FLARE BUF_SENSOR_TYPE == 0
+                     + compression (3-state)             (this change's path)
+ TO  Tension Only    single switch (buffer shortened)    not implemented in FLARE
+ CO  Compression Only single switch (buffer extended)    not implemented in FLARE
+```
+
+The FLARE-historic alias "PSF" is the HH **P** type; it is treated as a
+legacy alias of `P` to be retired in the rollout (do NOT mint new
+acronyms like DSF/PSF — HH's codes are P/D/TO/CO). The *sensor* (P/D) and
+the *control law* (HH "two-level" / hysteretic relay for D; PD/EKF for P)
+are **named separately** — "2-Switch Hysteretic Relay Control" conflates
+them (the same layer-mixing the tension/compression rename removed). In
+this change's artifacts and the new `relay-duty-estimator` spec, the
+feature is "the type-`D` two-level/relay control law + its duty-cycle
+estimator", not a "2-switch" feature. *Rationale:* cross-system legibility
+with the established HH model; clean sensor-vs-law separation.
+*Decision:* vocabulary decision recorded here; the comment/spec/doc
+rollout (Sync-Feedback Sensor + P/D/TO/CO codes, `BUF_SENSOR_TYPE`
+documented as `D = 0` / `P = 1`, legacy "PSF" retired) is deferred to a
+separate `adopt-sync-feedback-vocab` change (mirrors
 `rename-buffer-states-tension-compression`: pure rename, no behavior
 change, not bundled with logic). No symbol churn here — wording in this
 change's prose only.
