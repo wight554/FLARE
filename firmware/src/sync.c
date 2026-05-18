@@ -26,6 +26,17 @@
 #define SYNC_MID_ANTI_ADVANCE_FLOOR_FRAC 0.70f
 #define SYNC_MID_ANTI_ADVANCE_CONF 0.98f
 #define SYNC_RESERVE_CENTER_GUARD_FRAC 0.05f
+/* H1: cap the bias contribution to the reserve *position* target. A deep
+ * parked target (the old uncapped bias*threshold, up to ~5.5mm) sits the
+ * buffer on the trailing fault edge AND starves the switch-crossing
+ * estimator (no crossings while pinned). Cap it shallow/holdable; the
+ * never-ADVANCE trailing lean is carried by H2 (a feed-rate trim) instead.
+ * Primary on-hardware tuning knob. */
+#define SYNC_RESERVE_BIAS_POS_FRAC_CAP 0.10f
+/* H2: gentle trailing feed trim (never-ADVANCE lean without deep parking).
+ * Tight cap (~150mm/min equiv) so it can never starve vs the reserve
+ * P-authority; only applied MID and only on the advance side of target. */
+#define SYNC_TRAILING_FEED_TRIM_MAX_SPS 120
 #define ENDSTOP_PER_UNIT_SIGMA_MM 0.025f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_START_MM_MIN 1000.0f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_FULL_MM_MIN 1400.0f
@@ -261,7 +272,12 @@ static float buf_target_reserve_mm(void) {
 
     if (pct > 0.0f) target -= center_guard_mm;
 
-    target -= bias * threshold;
+    /* H1: holdable target. Cap the bias position contribution so the
+     * buffer parks off the fault wall with room for frequent switch
+     * crossings (keeps the estimator fresh). Remaining trailing lean is
+     * applied as a feed trim (H2), not parked depth. */
+    float bias_pos = fminf(bias, SYNC_RESERVE_BIAS_POS_FRAC_CAP);
+    target -= bias_pos * threshold;
 
     float min_target = -physical_half + 0.5f;
     if (target < min_target) target = min_target;
@@ -1461,6 +1477,22 @@ void sync_tick(uint32_t now_ms) {
 
     int target_sps = (int)extruder_est_sps + reserve_correction + zone_bias + slope_bias - overshoot_trim - wall_trim;
     if (advance_predicted) target_sps += PRE_RAMP_SPS;
+
+    /* H2: gentle trailing feed trim. H1 removed the deep parked target;
+     * this carries the never-ADVANCE lean as a small, tightly-capped feed
+     * reduction. Gated to MID and to the advance side of the reserve
+     * target (reserve_error_mm > 0), so it can only ever nudge toward the
+     * holdable target — never deepen past it, never starve. */
+    if (s == BUF_MID && reserve_error_mm > 0.0f) {
+        flow_param_t tfp = flow_param((int)extruder_est_sps);
+        float tbias = clamp_f(fmaxf(SYNC_TRAILING_BIAS_FRAC,
+                                    (float)tfp.bias_milli / 1000.0f), 0.0f, 0.7f);
+        int trailing_trim = (int)((tbias / 0.7f) * (float)SYNC_TRAILING_FEED_TRIM_MAX_SPS);
+        if (trailing_trim > SYNC_TRAILING_FEED_TRIM_MAX_SPS)
+            trailing_trim = SYNC_TRAILING_FEED_TRIM_MAX_SPS;
+        if (trailing_trim < 0) trailing_trim = 0;
+        target_sps -= trailing_trim;
+    }
 
     /* RAMPING BIAS: If we don't know where we are, raise speed a little bit
      * until we touch trailing. This probe speed (up to ~150mm/min) ensures

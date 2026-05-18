@@ -617,6 +617,33 @@ ADVANCE recovery floor at startup and low flow.
 
 ---
 
+### pending-manual-hardware: Holdable Reserve Target (No Wall-Riding)
+
+#### Goal
+
+Confirm the buffer holds near a holdable reserve target with frequent
+switch crossings (estimator stays fresh) instead of parking on the
+trailing fault wall and FAULT_HOLD-cycling, during a real print.
+
+#### Steps
+
+1. Flash firmware with H1/H2.
+2. Run a real print; capture `flare_cmd.py "?:" --poll 500`.
+3. Watch `RT`, `BP`, `EST`, `BUF`, `EV:BS:*`, `EV:SYNC:*`.
+
+#### Expected Result
+
+- `RT ≈ -3.9mm` (not `-6.24`); `BP` oscillates around `RT` with regular
+  MID↔TRAILING/ADVANCE crossings, not pinned at `-7.7…-7.8`.
+- `EST` tracks demand and does not freeze for seconds at a hallucinated
+  value.
+- No repeating `FAULT_HOLD`/`FAULT_HOLD_RECOVERY` cycle; no underextrusion.
+- Buffer stays trailing-biased (rarely ADVANCE) via the H2 feed trim, not
+  by parking on the wall.
+- If still wall-riding, lower `SYNC_RESERVE_BIAS_POS_FRAC_CAP` and retest.
+
+---
+
 ### pending-manual-hardware: MID Refill And FAULT_HOLD Anti-Oscillation
 
 #### Goal
