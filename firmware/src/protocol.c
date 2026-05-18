@@ -142,7 +142,7 @@ static void status_dump(void) {
         "I1:%d,O1:%d,I2:%d,O2:%d,"
         "TH:%d,YS:%d,BUF:%s,MM:%.1f,BL:%.1f,BP:%.2f,SM:%d,HD:%d,ST:%d,BI:%d,AP:%d,CU:%d,RELOAD:%d,"
         "EST:%.1f,RE:%.2f,DP:%d,PR:%d,AV:%.2f,SC:%.1f,SA:%d,GC:0x%X,TP:%u,TS:%u,PW:0x%X,"
-        "RS:%d%d%d%d%d,SS:%d,REF:%.1f,REL:%.1f",
+        "RS:%d%d%d%d%d,SS:%d",
         active_lane, tc_state_name(g_tc_ctx.state),
         task_name(g_lane_l1.task), task_name(g_lane_l2.task),
         lane_in_present(&g_lane_l1) ? 1 : 0,
