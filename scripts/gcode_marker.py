@@ -14,6 +14,8 @@ import re
 import sys
 import tempfile
 
+from path_utils import normalize_output, resolve_input, PathError
+
 # Regular expressions
 MOVE_RE = re.compile(r"([Gg][0123])\s*(.*)")
 PARAM_RE = re.compile(r"([XYZEFIJ])([-+]?\d*\.?\d*)")
@@ -339,10 +341,13 @@ def main():
 
     args = parser.parse_args()
 
-    for _a in ("input", "output", "sidecar"):
-        _v = getattr(args, _a, None)
-        if _v:
-            setattr(args, _a, os.path.expanduser(_v))
+    try:
+        args.input = resolve_input(args.input)
+        args.output = normalize_output(args.output)
+        args.sidecar = normalize_output(args.sidecar)
+    except PathError as exc:
+        print(f"Error: {exc.path}: {exc.reason}", file=sys.stderr)
+        sys.exit(2)
 
     in_place = args.output is None
     if in_place:

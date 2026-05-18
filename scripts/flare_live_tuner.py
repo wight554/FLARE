@@ -45,6 +45,8 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Dict, Optional
 
+from path_utils import normalize_output, resolve_input, PathError
+
 try:
     import serial
 except ImportError:
@@ -1529,12 +1531,21 @@ def main() -> None:
     )
     ap.add_argument("--debug", action="store_true", help="Print marker and commit diagnostics to stderr")
     args = ap.parse_args()
-    for _a in ("state", "csv_out", "klipper_log", "klipper_uds", "sidecar", "marker_file"):
-        _v = getattr(args, _a, None)
-        if _v:
-            setattr(args, _a, os.path.expanduser(_v))
+
     if args.state is None:
         args.state = default_state_path(args.machine_id)
+
+    try:
+        args.sidecar = resolve_input(args.sidecar)
+        args.state = normalize_output(args.state)
+        args.csv_out = normalize_output(args.csv_out)
+        args.klipper_log = normalize_output(args.klipper_log)
+        args.klipper_uds = normalize_output(args.klipper_uds)
+        if hasattr(args, "emit_config_patch") and args.emit_config_patch:
+            args.emit_config_patch = normalize_output(args.emit_config_patch)
+    except PathError as exc:
+        print(f"Error: {exc.path}: {exc.reason}", file=sys.stderr)
+        sys.exit(2)
 
     if args.emit_config_patch:
         emit_patch(args.state, args.machine_id, args.emit_config_patch)

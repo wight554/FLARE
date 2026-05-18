@@ -11,6 +11,8 @@ import re
 import sys
 import time
 
+from path_utils import resolve_input, PathError
+
 try:
     import serial
 except ImportError:
@@ -81,8 +83,11 @@ def main():
     ap.add_argument("--file", help="Replay from a recorded stream file")
     args = ap.parse_args()
 
-    if args.file:
-        args.file = os.path.expanduser(args.file)
+    try:
+        args.file = resolve_input(args.file)
+    except PathError as exc:
+        print(f"Error: {exc.path}: {exc.reason}", file=sys.stderr)
+        sys.exit(2)
 
     rec = Recommender()
     

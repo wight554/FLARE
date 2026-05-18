@@ -17,6 +17,8 @@ import statistics as stats
 import sys
 from collections import defaultdict
 
+from path_utils import normalize_output, resolve_input, expand_input_paths, PathError
+
 try:
     from flare_live_tuner import migrate_state_data
 except ImportError:
@@ -106,20 +108,6 @@ def to_float(raw, default=0.0):
         return float(raw)
     except (TypeError, ValueError):
         return default
-
-
-def expand_input_paths(paths):
-    expanded = []
-    for raw in paths:
-        path = os.path.expanduser(raw)
-        if glob.has_magic(path):
-            matches = sorted(glob.glob(path))
-            if not matches:
-                raise FileNotFoundError(errno.ENOENT, "no matches for input pattern", raw)
-            expanded.extend(matches)
-        else:
-            expanded.append(path)
-    return expanded
 
 
 def read_csv_runs(paths):
@@ -989,28 +977,26 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
 
 
 def run(args):
-    for _a in ("out", "state", "config", "profile_fast", "profile_slow"):
-        _v = getattr(args, _a, None)
-        if _v:
-            setattr(args, _a, os.path.expanduser(_v))
-    if getattr(args, "inputs", None):
-        args.inputs = [os.path.expanduser(p) for p in args.inputs]
+    # Normalize outputs
+    args.out = normalize_output(getattr(args, "out", None))
+    args.state = normalize_output(getattr(args, "state", None))
+    args.config = normalize_output(getattr(args, "config", None))
+
     if getattr(args, "emit_baseline", False) or getattr(args, "emit_flow_schedule", False):
         if getattr(args, "emit_baseline", False) and getattr(args, "emit_flow_schedule", False):
             print("Error: choose only one emit mode", file=sys.stderr)
             return 1
-        if not getattr(args, "profile_fast", None) or not getattr(args, "profile_slow", None):
-            print("Error: emit mode requires both --profile-fast and --profile-slow", file=sys.stderr)
-            return 1
+
+        # Resolve inputs
+        args.profile_fast = resolve_input(getattr(args, "profile_fast", None))
+        args.profile_slow = resolve_input(getattr(args, "profile_slow", None))
+
         if not getattr(args, "out", None) and getattr(args, "emit_flow_schedule", False):
             print("Error: --emit-flow-schedule requires --out", file=sys.stderr)
             return 1
-        try:
-            fast_runs, fast_rows = read_csv_runs([args.profile_fast])
-            slow_runs, slow_rows = read_csv_runs([args.profile_slow])
-        except FileNotFoundError as exc:
-            print(f"Error: file not found: {exc.filename}", file=sys.stderr)
-            return 1
+
+        fast_runs, fast_rows = read_csv_runs([args.profile_fast])
+        slow_runs, slow_rows = read_csv_runs([args.profile_slow])
 
         all_rows = fast_rows + slow_rows
         scalar = deterministic_profile_params(all_rows)
@@ -1053,11 +1039,7 @@ def run(args):
         print("Error: --out required unless using --emit-baseline or --emit-flow-schedule", file=sys.stderr)
         return 1
 
-    try:
-        runs, rows = read_csv_runs(args.inputs)
-    except FileNotFoundError as exc:
-        print(f"Error: file not found: {exc.filename}", file=sys.stderr)
-        return 1
+    runs, rows = read_csv_runs(args.inputs)
     if not rows:
         print("Error: no data rows found", file=sys.stderr)
         return 1
@@ -1169,7 +1151,12 @@ def main():
     ap.add_argument("--include-stale", action="store_true", help="Include buckets not seen in >60 days")
     ap.add_argument("--force", action="store_true", help="Bypass the locked-bucket floor and emit low-confidence estimates")
     ap.add_argument("--feedforward", action="store_true", help=argparse.SUPPRESS)
-    return run(ap.parse_args())
+    args = ap.parse_args()
+    try:
+        return run(args)
+    except PathError as exc:
+        print(f"Error: {exc.path}: {exc.reason}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":
