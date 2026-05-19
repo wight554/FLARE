@@ -989,28 +989,28 @@ def test_relay_duty_recommendation_is_deterministic():
 def _relay_run_with_transitions(low_rate, high_rate, n_cycles_each):
     """Build a synthetic relay run with n_cycles_each fill/relieve pairs
     at each of two demand rates (low_rate and high_rate mm/min).
-    Uses post-normalization field names (mm_rate, zone) as relay_duty_coverage
+    Uses post-normalization field names (est_sps, zone) as relay_duty_coverage
     operates on already-normalized rows."""
     rows = []
     ts = 0
     for _i in range(n_cycles_each):
         # low-demand cycle
-        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "TENSION", "mm_rate": str(low_rate)})
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "TENSION", "est_sps": str(low_rate)})
         ts += 200
-        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(low_rate)})
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(low_rate)})
         ts += 200
-        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "COMPRESSION", "mm_rate": str(low_rate)})
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "COMPRESSION", "est_sps": str(low_rate)})
         ts += 200
-        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(low_rate)})
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(low_rate)})
         ts += 200
         # high-demand cycle
-        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "TENSION", "mm_rate": str(high_rate)})
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "TENSION", "est_sps": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(high_rate)})
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "COMPRESSION", "mm_rate": str(high_rate)})
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "COMPRESSION", "est_sps": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(high_rate)})
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(high_rate)})
         ts += 200
     return [{"path": "relay_run.csv", "rows": rows}]
 
@@ -1033,13 +1033,13 @@ def test_relay_coverage_verdict_warn_undersample():
     ts = 0
     high_rate = 2000
     for _i in range(6):
-        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "TENSION", "mm_rate": str(high_rate)})
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "TENSION", "est_sps": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(high_rate)})
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "COMPRESSION", "mm_rate": str(high_rate)})
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "COMPRESSION", "est_sps": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(high_rate)})
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(high_rate)})
         ts += 200
     runs = [{"path": "relay_run.csv", "rows": rows}]
     current = analyze.DEFAULTS.copy()

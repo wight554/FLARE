@@ -703,7 +703,7 @@ def relay_duty_recommendations(runs, current):
         for row in run["rows"]:
             ts = to_float(row.get("ts_ms"), -1.0)
             zone = row.get("zone")
-            rate = to_float(row.get("mm_rate"), math.nan)
+            rate = to_float(row.get("est_sps"), math.nan)
             if ts < 0.0 or math.isnan(rate):
                 if ts >= 0.0:
                     prev_ts = ts
@@ -785,7 +785,7 @@ def relay_duty_coverage(runs, current):
         for row in run["rows"]:
             ts = to_float(row.get("ts_ms"), -1.0)
             zone = row.get("zone")
-            rate = to_float(row.get("mm_rate"), math.nan)
+            rate = to_float(row.get("est_sps"), math.nan)
             if ts < 0.0 or math.isnan(rate):
                 if ts >= 0.0:
                     prev_ts = ts
