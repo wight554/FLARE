@@ -16,6 +16,11 @@
 - Happy Hare sync can observe Klipper extruder motion and adjust MMU gear
   rotation distance from sync-feedback sensors. That gives it stronger host
   context than FLARE.
+- Happy Hare wiki describes it as a Klipper-expanded state machine whose
+  parameters can mostly change at runtime.
+- Happy Hare wiki now describes native Mainsail/Fluidd MMU panels/dashlets in
+  addition to KlipperScreen, including tool-to-gate mapping, gate-map editing,
+  and maintenance/state-recovery surfaces.
 - FLARE is intentionally firmware-first: RP2040 owns the two lanes, sensors,
   TMC configuration, RELOAD state machine, and USB serial protocol. Klipper can
   command it, but FLARE can run RELOAD without Klipper or a plugin.
@@ -41,4 +46,3 @@
 - Avoid overstating Happy Hare limitations; it is broader and more mature.
 - Avoid implying FLARE has Happy Hare's KlipperScreen/Mainsail/Fluidd plugin
   experience today.
-
