@@ -54,16 +54,23 @@
 
 ## 4. Analyzer subtraction with parity (R4)
 
-- [ ] 4.1 `flare_analyze.py`: remove `relay_duty_recommendations`,
+- [x] 4.1 `flare_analyze.py`: remove `relay_duty_recommendations`,
   `relay_duty_coverage`, relay duty stats, `relay_estimate_*`/
   `relay_seed_rate` emit + the `current`/DEFAULTS keys they used.
-- [ ] 4.2 Retire relay tests in `test_flare_analyze.py`
+- [x] 4.2 Retire relay tests in `test_flare_analyze.py`
   (`relay-d12`, `relay-d12-real`, `relay-cov-pass`, `relay-cov-warn`,
   `relay-d11`) and remove `tests/fixtures/relay_review{1,2}.csv`
   after grep-confirming no other consumer.
-- [ ] 4.3 **Parity gate:** non-relay analyzer output byte-identical on
+- [x] 4.3 **Parity gate:** non-relay analyzer output byte-identical on
   existing non-relay fixtures; full non-relay `test_flare_analyze.py`
   + `py_compile scripts/*.py` green.
+
+  2026-05-19: Removed relay analyzer recommendation/coverage machinery,
+  retired relay-only tests and fixtures, and grep-confirmed no analyzer
+  relay estimator references remain. Compared representative non-relay
+  patch outputs against commit `283e806` with `PYTHONHASHSEED=0`; patch
+  diff was empty. `python3 scripts/test_flare_analyze.py` and
+  `python3 -m py_compile scripts/*.py` green.
 
 ## 5. Docs (R6)
 
