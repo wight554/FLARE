@@ -258,7 +258,7 @@ D2 math unchanged); see D12.
   `relay_base`. Must stay deterministic (D7 parity).
 - [x] 9.3a Synthetic ratchet test `test_relay_d12_ratchet` (hand-built
   bimodal rows; asserts `hi≥2000`, `seed≥1800`, `lo<200`).
-- [ ] 9.3b **Real-capture fixture** (user-confirmed): import sanitized
+- [x] 9.3b **Real-capture fixture** (user-confirmed): import sanitized
   on-Pi `review1.csv` / `review2.csv` (columns `wall_ts,run_seq,layer,
   feature,v_fil,BL,BP,BPV,EST,MM,RT,TT,TPX,CF,TC,BUF,RDE,RDCF,RDV,
   MK_seq`; trim to a representative window if large, keep zone/EST
