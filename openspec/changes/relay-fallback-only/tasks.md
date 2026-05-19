@@ -106,6 +106,34 @@
 
   2026-05-19: Pending physical hardware gate. Host build is ready for
   flash; on-hardware print/capture not run in this session.
+
+  **Partial verification 2026-05-20** (live status + dump from flashed
+  board, no print running):
+  - `RDE`/`RDCF`/`RDV` confirmed absent from `?:` status string ✓
+  - Removed config keys (`relay_confidence_cycles`,
+    `relay_confidence_window_ms`, `relay_estimate_lo/hi`,
+    `relay_seed_warmup_ms`) confirmed absent from `--dump` ✓
+  - `relay_catchup_frac`/`relay_neutral_frac`/`relay_min_flip_mm`/
+    collapse-ramp keys all present with correct defaults ✓
+  - `SM:0` at idle is **expected** — sync arms only during a live
+    print, not at rest. The task "sync auto-arms (SM:1)" means it
+    should arm when printing starts (RELOAD mode, `auto_mode: True`),
+    not that it must show `SM:1` at idle.
+
+  **Remaining for next agent — print gate:**
+  Run a short vase print and a bimodal cube. During each, poll status:
+  ```bash
+  watch -n 2 "python3 scripts/flare_cmd.py --port /dev/ttyACM0 '?:'"
+  ```
+  Pass criteria (steady-state, startup excluded):
+  - `BUF` cycles through NEUTRAL/TENSION/COMPRESSION, not stuck on one
+  - `BP` stays off the ±12.5 mm physical wall (roughly `|BP| < 10`)
+  - No repeated `TENSION_RISK_HIGH` events
+  - `RDE` is NOT present anywhere in the output (belt-and-suspenders)
+  Capture a CSV with the live tuner for the record:
+  ```bash
+  python3 scripts/flare_cmd.py --port /dev/ttyACM0 --csv ~/relay-fallback-smoke.csv
+  ```
 - [x] 6.3 `openspec validate relay-fallback-only --type change
   --strict` green. Commit + push to main. Update memory
   `relay-confident-estimator-bimodal-bangbang` (REMOVE executed).

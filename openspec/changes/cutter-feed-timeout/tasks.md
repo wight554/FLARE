@@ -44,6 +44,40 @@
 
 - [x] 6.1 Full host check: `ninja -C build_local`, `python3 -m py_compile scripts/*.py`, `python3 scripts/test_gen_config.py`.
 - [ ] 6.2 On-hardware: `GET:CUT_FEED_MS` returns 30000; `GET:CUT_SETTLE_MS` returns 3000; `SET:CUT_FEED_MS:15000` + `SV:` + reflash → `GET:CUT_FEED_MS` returns 15000; `CU` with large `CUT_FEED_MM` completes without `CUT:ERROR ABORTED`.
+
+  **Partial verification 2026-05-20** (live `--dump` from flashed board):
+  - `cut_feed_timeout_ms: 30000` confirmed in dump ✓
+  - `cut_settle_timeout_ms: 3000` confirmed in dump ✓
+  - `GET:CUT_FEED_MS` / `GET:CUT_SETTLE_MS` defaults covered by dump ✓
+
+  **Remaining for next agent — persistence + functional:**
+
+  Step 1 — persistence test (no reflash needed for SET, but SV: persists):
+  ```bash
+  python3 scripts/flare_cmd.py --port /dev/ttyACM0 \
+    "SET:CUT_FEED_MS:15000" "SV:" "GET:CUT_FEED_MS"
+  # expect: CUT_FEED_MS:15000
+  ```
+  Then reflash (rebuilds tune.h, reloads persisted settings from flash):
+  ```bash
+  python3 scripts/gen_config.py && ninja -C build_local && bash scripts/flash_flare.sh
+  python3 scripts/flare_cmd.py --port /dev/ttyACM0 "GET:CUT_FEED_MS"
+  # expect: CUT_FEED_MS:15000  (persisted across reflash)
+  ```
+  Reset back to default after test:
+  ```bash
+  python3 scripts/flare_cmd.py --port /dev/ttyACM0 \
+    "SET:CUT_FEED_MS:30000" "SV:"
+  ```
+
+  Step 2 — functional CU test (cutter must be physically present):
+  Default `cut_feed_mm: 145`. With a 30 s timeout the cutter easily
+  completes; the test exercises that the firmware doesn't abort early.
+  ```bash
+  python3 scripts/flare_cmd.py --port /dev/ttyACM0 "CU:"
+  # expect: OK:CU or CUT:DONE — NOT CUT:ERROR ABORTED
+  ```
+  If no physical cutter is attached, skip step 2 and note it.
 - [x] 6.3 Commit + push.
 
   Validation 2026-05-20: host checks passed; code/docs commits pushed through final documentation update. Hardware verification remains pending.
