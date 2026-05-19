@@ -36,10 +36,14 @@
 
 ## 5. MANUAL.md — documentation
 
-- [ ] 5.1 Add `CUT_FEED_MS` and `CUT_SETTLE_MS` parameter entries to `MANUAL.md` under the cutter parameter section, documenting range, default, and effect.
+- [x] 5.1 Add `CUT_FEED_MS` and `CUT_SETTLE_MS` parameter entries to `MANUAL.md` under the cutter parameter section, documenting range, default, and effect.
+
+  Validation 2026-05-20: `MANUAL.md` cutter table documents `CUT_FEED_MS` and `CUT_SETTLE_MS` names, config keys, ranges, defaults, and effects.
 
 ## 6. Build + validation
 
-- [ ] 6.1 Full host check: `ninja -C build_local`, `python3 -m py_compile scripts/*.py`, `python3 scripts/test_gen_config.py`.
+- [x] 6.1 Full host check: `ninja -C build_local`, `python3 -m py_compile scripts/*.py`, `python3 scripts/test_gen_config.py`.
 - [ ] 6.2 On-hardware: `GET:CUT_FEED_MS` returns 30000; `GET:CUT_SETTLE_MS` returns 3000; `SET:CUT_FEED_MS:15000` + `SV:` + reflash → `GET:CUT_FEED_MS` returns 15000; `CU` with large `CUT_FEED_MM` completes without `CUT:ERROR ABORTED`.
-- [ ] 6.3 Commit + push.
+- [x] 6.3 Commit + push.
+
+  Validation 2026-05-20: host checks passed; code/docs commits pushed through final documentation update. Hardware verification remains pending.
