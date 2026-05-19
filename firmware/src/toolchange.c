@@ -86,6 +86,7 @@ void reload_trigger(int runout_lane, uint32_t now_ms) {
     int other = (runout_lane == 1) ? 2 : 1;
     lane_t *other_lane_ptr = lane_ptr(other);
     if (!other_lane_ptr || !lane_in_present(other_lane_ptr)) {
+        sync_disable(true);
         cmd_event("RELOAD:FAULT", "NO_FILAMENT");
         return;
     }
