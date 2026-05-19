@@ -43,10 +43,10 @@ class Clock:
         return self.t
 
 
-def status(est=1820, cf=0.90, tpx=0, zone="NEUTRAL", tc="IDLE", bp=-3.0, rt=-2.8):
+def status(est=1820, cf=0.90, tpx=0, zone="NEUTRAL", tc="IDLE", bp=-3.0, rt=-2.8, sm=1):
     return (
         f"OK:LN:1,TC:{tc},BUF:{zone},BP:{bp:.2f},RT:{rt:.2f},"
-        f"EST:{est:.1f},CF:{cf:.2f},TPX:{tpx}"
+        f"EST:{est:.1f},CF:{cf:.2f},TPX:{tpx},SM:{sm}"
     )
 
 
@@ -1238,7 +1238,7 @@ def _run_chatter_repro():
             locked=True,
             runs_seen=int(control["runs_seen"]),
             layers_seen=int(control["layers_seen"]),
-            cumulative_neutral_s=float(control["cumulative_neutral_s"]),
+            cumulative_neutral_s=float(control.get("cumulative_neutral_s") or control.get("cumulative_mid_s", 0.0)),
             first_seen=clock.now(),
             last_seen=clock.now(),
             resid_var_ewma=float(control.get("resid_var_ewma", tuner_mod.R_BASE)),
@@ -1258,7 +1258,7 @@ def _run_chatter_repro():
                     bp=float(sample["bp"]),
                     rt=float(sample["rt"]),
                     cf=float(sample["cf"]),
-                    tpx=int(sample["tpx"]),
+                    tpx=int(sample.get("tpx") or sample.get("apx", 0)),
                 )
             )
             is_locked = b.locked or b.state == "LOCKED"

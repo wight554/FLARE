@@ -597,7 +597,7 @@ class Tuner:
         if not fields:
             return
 
-        if self.csv_emitter:
+        if self.csv_emitter and fields.get("SM") == "1":
             row = fields.copy()
             row["wall_ts"] = self.wall_fn()
             row["run_seq"] = self.run_seq
