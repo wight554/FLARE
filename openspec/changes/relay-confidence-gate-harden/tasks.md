@@ -59,6 +59,11 @@
   scripts/*.py`, `ninja -C build_local`; generated local `tune.h`
   carries `CONF_RELAY_MIN_FLIP_MM 0.5f`.
 
+  2026-05-19 parity correction: `relay_min_flip_mm` is settings-backed,
+  so it now has `SET:RELAY_MIN_FLIP_MM`, `GET:RELAY_MIN_FLIP_MM`, live
+  tune lock coverage, and `scripts/flare_cmd.py --dump` output. Docs no
+  longer describe it as config-only.
+
 ## 4. On-hardware A/B validation (G4, acceptance gate)
 
 - [ ] 4.1 Flash the new defaults. Reprint the fast/bimodal 60×60 cube;

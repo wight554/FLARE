@@ -72,6 +72,7 @@ static bool live_tune_locked_param(const char *param) {
            !strcmp(param, "RELAY_NEUTRAL_FRAC") ||
            !strcmp(param, "RELAY_CONF_CYCLES") ||
            !strcmp(param, "RELAY_CONF_WINDOW_MS") ||
+           !strcmp(param, "RELAY_MIN_FLIP_MM") ||
            !strcmp(param, "VAR_BLEND_FRAC") ||
            !strcmp(param, "BUF_VARIANCE_BLEND_FRAC") ||
            !strcmp(param, "VAR_BLEND_REF_MM") ||
@@ -747,6 +748,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "RELAY_NEUTRAL_FRAC")) RELAY_NEUTRAL_FRAC = clamp_f(fv, 0.5f, 3.0f);
         else if (!strcmp(base_param, "RELAY_CONF_CYCLES")) RELAY_CONFIDENCE_CYCLES = clamp_i(iv, 1, 64);
         else if (!strcmp(base_param, "RELAY_CONF_WINDOW_MS")) RELAY_CONFIDENCE_WINDOW_MS = clamp_i(iv, 1000, 300000);
+        else if (!strcmp(base_param, "RELAY_MIN_FLIP_MM")) RELAY_MIN_FLIP_MM = clamp_f(fv, 0.0f, 100.0f);
         else if (!strcmp(base_param, "BUF_DRIFT_TAU_MS")) BUF_DRIFT_EWMA_TAU_MS = clamp_i(iv, 5000, 600000);
         else if (!strcmp(base_param, "BUF_DRIFT_MIN_SMP")) BUF_DRIFT_MIN_SAMPLES = clamp_i(iv, 1, 32);
         else if (!strcmp(base_param, "BUF_DRIFT_THR_MM")) BUF_DRIFT_APPLY_THR_MM = clamp_f(fv, 0.0f, 5.0f);
@@ -872,6 +874,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "RELAY_NEUTRAL_FRAC")) snprintf(out, sizeof(out), "RELAY_NEUTRAL_FRAC:%.3f", (double)RELAY_NEUTRAL_FRAC);
         else if (!strcmp(param, "RELAY_CONF_CYCLES")) snprintf(out, sizeof(out), "RELAY_CONF_CYCLES:%d", RELAY_CONFIDENCE_CYCLES);
         else if (!strcmp(param, "RELAY_CONF_WINDOW_MS")) snprintf(out, sizeof(out), "RELAY_CONF_WINDOW_MS:%d", RELAY_CONFIDENCE_WINDOW_MS);
+        else if (!strcmp(param, "RELAY_MIN_FLIP_MM")) snprintf(out, sizeof(out), "RELAY_MIN_FLIP_MM:%.3f", (double)RELAY_MIN_FLIP_MM);
         else if (!strcmp(param, "BUF_DRIFT_TAU_MS")) snprintf(out, sizeof(out), "BUF_DRIFT_TAU_MS:%d", BUF_DRIFT_EWMA_TAU_MS);
         else if (!strcmp(param, "BUF_DRIFT_MIN_SMP")) snprintf(out, sizeof(out), "BUF_DRIFT_MIN_SMP:%d", BUF_DRIFT_MIN_SAMPLES);
         else if (!strcmp(param, "BUF_DRIFT_THR_MM")) snprintf(out, sizeof(out), "BUF_DRIFT_THR_MM:%.3f", (double)BUF_DRIFT_APPLY_THR_MM);

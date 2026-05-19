@@ -53,8 +53,9 @@ python3 scripts/flare_analyze.py \
 
 Check `relay-review.ini` for the coverage verdict:
 
-- `Relay coverage: PASS` — apply the `relay_estimate_lo`, `relay_estimate_hi`,
-  and `relay_seed_rate` values to `config.ini`, then rebuild and flash.
+- `Relay coverage: PASS` — apply the `relay_estimate_lo`,
+  `relay_estimate_hi`, and `relay_seed_warmup_ms` values to `config.ini`,
+  then rebuild and flash.
 - `Relay coverage: WARN` — the warning names exactly what to add (print
   slower / faster / taller). Fix that one thing and rerun.
 
@@ -186,16 +187,16 @@ relay_neutral_frac: 1.25
 relay_estimate_lo: 100
 relay_estimate_hi: 1600
 relay_confidence_cycles: 8
-relay_confidence_window_ms: 60000
-relay_seed_rate: 1600
-relay_seed_warmup_ms: 20000
-relay_min_flip_mm: 0.0
+relay_confidence_window_ms: 1000
+relay_seed_warmup_ms: 2000
+relay_min_flip_mm: 0.5
 ```
 
 `RELAY_CATCHUP_FRAC`, `RELAY_NEUTRAL_FRAC`, `RELAY_CONF_CYCLES`, and
 `RELAY_CONF_WINDOW_MS` are runtime-safe `SET:`/`GET:` parameters for field
-experiments. The estimator bounds and seed are config/flash values from the
-offline analyzer.
+experiments. `RELAY_MIN_FLIP_MM` is also runtime-safe and appears in
+`flare_cmd.py --dump`. The estimator bounds and seed warmup are config/flash
+values from the offline analyzer.
 
 Capture relay data with CSV enabled so switch transitions and commanded feed
 are present:
@@ -220,8 +221,8 @@ python3 scripts/flare_analyze.py \
 
 When relay transitions are present, the review patch can include
 `baseline_rate` as the relay base plus `relay_estimate_lo`,
-`relay_estimate_hi`, and `relay_seed_rate`. Same input CSVs produce the same
-relay recommendations.
+`relay_estimate_hi`, and `relay_seed_warmup_ms`. Same input CSVs produce the
+same relay recommendations.
 
 Status fields for relay diagnosis:
 

@@ -178,6 +178,27 @@ clamps (`RELAY_CONF_CYCLES` 1-64, `RELAY_CONF_WINDOW_MS` 1000-300000,
 `RELAY_MIN_FLIP_MM` 0.0-100.0). These are provisional defaults pending
 the hardware A/B in section 4.
 
+### 2026-05-19 Runtime dump parity for `relay_min_flip_mm`
+
+Files:
+- `firmware/src/protocol.c`: expose `RELAY_MIN_FLIP_MM` through the
+  same live `SET:`/`GET:` surface as the other relay field-tuning knobs
+  and include it in `LIVE_TUNE_LOCK`.
+- `scripts/flare_cmd.py`: add `RELAY_MIN_FLIP_MM` to `--dump` so live
+  config snapshots include the default/field value.
+- `MANUAL.md` + `TUNING.md`: correct the relay table/snippet so
+  `relay_min_flip_mm` is no longer described as config-only, the
+  hardened confidence-window/min-flip defaults match the current
+  generator, and removed `relay_seed_rate` guidance is not copied.
+- `openspec/changes/relay-confidence-gate-harden/tasks.md`: record the
+  parity correction under the G1/G2 validation notes without marking
+  hardware A/B tasks complete.
+
+Risk/invariant: `RELAY_MIN_FLIP_MM` already exists in settings storage
+and clamps at boot to 0.0-100.0 mm; adding runtime protocol access must
+use the same clamp and must not change `settings_t`, relay control-law
+branches, or analyzer behavior.
+
 ## Open Questions
 
 - **Keep vs remove the confident relay-estimator path.** r3–r6 show the
