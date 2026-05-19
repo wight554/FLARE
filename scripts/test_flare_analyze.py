@@ -27,6 +27,8 @@ CONSISTENCY_RUN_FIXTURES = [
 DILUTED_MASS_STATE = os.path.join(REPO_ROOT, "tests/fixtures/diluted_mass_state.json")
 HIGH_SIGMA_A = os.path.join(REPO_ROOT, "tests/fixtures/high_sigma_run_a.csv")
 HIGH_SIGMA_B = os.path.join(REPO_ROOT, "tests/fixtures/high_sigma_run_b.csv")
+RELAY_REVIEW1 = os.path.join(REPO_ROOT, "tests/fixtures/relay_review1.csv")
+RELAY_REVIEW2 = os.path.join(REPO_ROOT, "tests/fixtures/relay_review2.csv")
 
 FIELDS = [
     "ts_ms", "zone", "bp_mm", "sigma_mm", "est_mm_min", "rt_mm", "cf",
@@ -1138,6 +1140,62 @@ def test_relay_d12_ratchet():
     return "D12 fix: hi/seed track fill_rates, lo tracks blended estimates"
 
 
+def test_relay_d12_real_capture():
+    """D12 regression on the real on-Pi capture (tasks 9.3b).
+
+    Sanitized two-round 60x60 bimodal capture: review1 = default params,
+    review2 = round-1 review clamps applied. Pre-fix this apply->review
+    loop collapsed hi 1600->1062->612 (the COMPRESSION-suppression
+    ratchet). Post-fix hi/seed must be fill-anchored + monotone: round2
+    >= round1, landing near fill_p90 (~2200), never the collapsed
+    612/137. Uses an explicit round-1 baseline (not analyze.DEFAULTS,
+    whose relay-key shape is version-dependent).
+    """
+    if not (os.path.exists(RELAY_REVIEW1) and os.path.exists(RELAY_REVIEW2)):
+        return "SKIP (relay_review{1,2}.csv fixtures absent)"
+
+    current = {
+        "baseline_rate": 1600.0,
+        "relay_estimate_lo": 100.0,
+        "relay_estimate_hi": 1600.0,
+        "relay_seed_rate": 1600.0,
+    }
+
+    def review(path, cur):
+        runs, _ = analyze.read_csv_runs([path])
+        r = analyze.relay_duty_recommendations(runs, dict(cur))
+        return {k: r[k][0] for k in (
+            "relay_estimate_lo", "relay_estimate_hi",
+            "relay_seed_rate", "baseline_rate")}
+
+    r1 = review(RELAY_REVIEW1, current)
+    r2 = review(RELAY_REVIEW2, r1)  # apply round-1 output, then re-review
+
+    # Anti-ratchet core: hi/seed monotone non-decreasing round-over-round.
+    assert r2["relay_estimate_hi"] >= r1["relay_estimate_hi"], (
+        f"hi ratcheted DOWN {r1['relay_estimate_hi']:.0f} -> "
+        f"{r2['relay_estimate_hi']:.0f} (D12 defect present)")
+    assert r2["relay_seed_rate"] >= r1["relay_seed_rate"], (
+        f"seed ratcheted DOWN {r1['relay_seed_rate']:.0f} -> "
+        f"{r2['relay_seed_rate']:.0f}")
+
+    # Lands near true demand (fill_p90 ~2200), not the collapsed 612/137.
+    assert r1["relay_estimate_hi"] >= 2200.0, (
+        f"round1 hi={r1['relay_estimate_hi']:.0f} below fill-anchor floor")
+    assert 1500.0 <= r2["relay_estimate_hi"] <= 4000.0, (
+        f"round2 hi={r2['relay_estimate_hi']:.0f} out of sane band")
+    assert r2["relay_seed_rate"] >= 1800.0, (
+        f"round2 seed={r2['relay_seed_rate']:.0f} collapsed")
+    assert 2050.0 <= r2["baseline_rate"] <= 2300.0, (
+        f"round2 base={r2['baseline_rate']:.0f} != fill_p90 ~2193")
+    assert r1["relay_estimate_lo"] < 200.0 and r2["relay_estimate_lo"] < 200.0, (
+        f"lo should track slow perim: {r1['relay_estimate_lo']:.0f}/"
+        f"{r2['relay_estimate_lo']:.0f}")
+
+    return (f"D12 real capture: hi {r1['relay_estimate_hi']:.0f}->"
+            f"{r2['relay_estimate_hi']:.0f} (monotone, no ratchet)")
+
+
 def main():
     tests = [
         ("baseline", test_baseline_from_dominant_cluster),
@@ -1182,6 +1240,7 @@ def main():
         ("relay-cov-warn", test_relay_coverage_verdict_warn_undersample),
         ("relay-d11", test_relay_fallback_not_clamped_by_lohi),
         ("relay-d12", test_relay_d12_ratchet),
+        ("relay-d12-real", test_relay_d12_real_capture),
     ]
     print(f"{'case':<12} result")
     print(f"{'-' * 12} {'-' * 40}")
