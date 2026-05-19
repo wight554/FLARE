@@ -61,6 +61,70 @@ change versus `relay-buffer-control-2switch`.
 - **THEN** the controller reverts to the fixed-demand fallback without a
   feed discontinuity that destabilizes the cycle
 
+### Requirement: Estimator is a recovery arbitrator, not the steady driver
+
+In a good low-flip cycle the estimator SHALL be expected to remain
+unconfident, and that state SHALL be treated as the normal operating
+point, not a fault. The bounded fixed-demand fallback is the intended
+steady-state driver (it is the locked known-good baseline); the estimator
+gains signal only from switch flips, which occur during demand
+disturbances, so it SHALL act to re-find demand during recovery and decay
+back to the fallback as flips cease.
+
+#### Scenario: Quiet steady state stays on fallback by design
+
+- **WHEN** the relay cycle is steady with very few or no switch flips
+- **THEN** the estimator remains unconfident and the bounded fallback
+  drives NEUTRAL
+- **AND** no fault, warning, or instability is raised for the unconfident
+  state
+
+#### Scenario: Disturbance engages the estimator
+
+- **WHEN** a demand disturbance causes repeated switch flips
+- **THEN** the estimator accrues paired duty cycles and, once confident,
+  arbitrates the NEUTRAL feed during recovery
+- **AND** returns to the fallback as flip activity subsides
+
+### Requirement: Cold-start fallback is offline-seeded
+
+The relay NEUTRAL cold-start fallback SHALL be seeded from an
+offline-provided relay baseline for a warmup window at print start / boot,
+instead of a cold `extruder_est_sps`. The seed source is the recommended
+`relay_base`, the `[lo, hi]` midpoint, or a dedicated offline-provided
+seed key. The seed SHALL be offline-provided and SHALL NOT be persisted by
+the firmware.
+
+#### Scenario: Startup uses the offline seed, not cold EST
+
+- **WHEN** a relay print begins and `extruder_est_sps` has not warmed
+- **THEN** the NEUTRAL fallback feed is computed from the offline relay
+  baseline seed, not a cold `extruder_est_sps`
+- **AND** the warmup window exits on EST-warm or first estimator
+  confidence, whichever comes first
+
+#### Scenario: Seed is never persisted
+
+- **WHEN** the cold-start seed is applied
+- **THEN** no flash write occurs and the seed value originates only from
+  offline-provided config
+
+### Requirement: End-of-print COMPRESSION grind is an accepted limitation
+
+This change SHALL NOT modify the `BUF_COMPRESSION → SYNC_MIN_SPS` branch.
+The end-of-print COMPRESSION-floor grind observed in the 4.2 round-2
+baseline is explicitly out of scope and SHALL be recorded as an accepted
+limitation (print-tail only, draw≈0, already arrested by the existing
+RELIEF_PAUSE / BUF_STAB auto-stop, no print-quality impact), cross-linked
+rather than silently dropped.
+
+#### Scenario: COMPRESSION branch untouched
+
+- **WHEN** the buffer is in `BUF_COMPRESSION`
+- **THEN** the target remains `SYNC_MIN_SPS` exactly as in the archived
+  `relay-buffer-control-2switch` relay law
+- **AND** the accepted-limitation note is present in the change docs/spec
+
 ### Requirement: Estimate and confidence are observable
 
 The runtime SHALL expose, via the status/telemetry protocol, whether the

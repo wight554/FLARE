@@ -6,7 +6,8 @@ information between flips — so the historical estimator collapsed and the
 controller was a relaxation oscillator by construction.
 `relay-buffer-control-2switch` stopped the oscillation by
 *abandoning* estimation: a hand-tuned fixed NEUTRAL feed (`extruder_est_sps
-* SYNC_RELAY_NEUTRAL_FRAC`, ~1.10). Happy Hare solves the same zero-info
+* SYNC_RELAY_NEUTRAL_FRAC`, locked 4.2 baseline = **1.25**, round-2). Happy
+Hare solves the same zero-info
 problem without abandoning it: a two-level duty-cycle estimator that learns
 effective feed from the *cadence* of switch flips (the only signal a
 type-D sensor has). Adopting it removes the hand guess while keeping the
@@ -24,9 +25,13 @@ analog flow plus a stale status token.
   the hand-tuned guess. Clamped to offline-provided `[lo, hi]` bounds. The
   existing never-TENSION compression lean (`SYNC_COMPRESSION_BIAS_FRAC` /
   the `×SYNC_RELAY_NEUTRAL_FRAC` lean) is applied **on top**, unchanged.
-  The fixed `×1.10` demand path remains the fallback whenever the estimator
-  is unconfident. TENSION→catch-up and COMPRESSION→stop branches are **not
-  touched**. No flash write.
+  The fixed `×1.25` demand path (locked 4.2 baseline) remains the fallback
+  whenever the estimator is unconfident — which, in a good low-flip cycle,
+  is the steady state by design (see estimator-role decision D10). At print
+  start the cold-EST fallback is **seeded from the offline relay baseline**
+  (D10) instead of a cold `extruder_est_sps`, fixing the 4.2 round-2
+  startup-bangbang transient. TENSION→catch-up and COMPRESSION→stop branches
+  are **not touched**. No flash write.
 - **Motion-based anti-chatter (secondary, from HH).** Optional
   distance-hysteresis flip guard (`os_min_flip_mm` style) alongside the
   existing time-based `BUF_HYST_MS`; HH relief-fraction snap captured as a
@@ -56,15 +61,19 @@ analog flow plus a stale status token.
   `relay-buffer-control-2switch` task 7.3.
 
 Cross-change bookkeeping (no edits to the other change from here):
-`relay-buffer-control-2switch` is a hard dependency — its task **4.2**
-(on-Pi A/B hardware baseline) **must land first** (the estimator needs a
-known-good cycle to bound against). Its task **7.2** (neutral_creep inert:
-wire or kill) is **resolved here** — the duty estimator subsumes
-neutral_creep's long-NEUTRAL anti-drift role, so kill-or-repurpose is
-decided in this change. Tasks 1.x/2.x/3.x/5.x/6.x of that change are the
-prerequisite baseline and are **not** stale (6.x `×1.10` is the
-estimator's unconfident fallback). Tasks 7.1/7.3 stay in that change;
-this change cross-links, does not duplicate.
+`relay-buffer-control-2switch` is **archived** (2026-05-19, 24/24); its
+task **4.2** baseline landed and is the hard input here: locked pair
+**`CATCHUP=1.30` / `NEUTRAL=1.25`** + round-2 `?:` log (slow/shallow/
+never-TENSION/never-fault steady state). Scale caveat carried: the pair is
+switch-state driven, geometry-config-independent; round-2 BP-mm was under
+the pre-`align-buffer-range-vocab` half=7.8 scale (non-authoritative for
+the frac/bounds). Its task **7.2** was **already decided A — neutral_creep
+is intended-inert telemetry, kept computing, NOT removed** (committed
+`a78d864`). This change therefore does **not** delete neutral_creep; it
+adds estimator telemetry as a separate field and leaves the 7.2-A
+disposition intact (see D5). 7.3 was split to the `pending-analog-rig`
+change. The 6.x `×1.25` fallback (not ×1.10) is the estimator's
+unconfident path and is **not** stale.
 
 ## Capabilities
 
@@ -103,9 +112,17 @@ this change cross-links, does not duplicate.
 - Docs/specs: `TUNING.md`; specs `sync-refactor`,
   `deterministic-tuning-workflow`, `operator-tuning-guide`, new
   `relay-duty-estimator`.
-- Dependency: `relay-buffer-control-2switch` (task 4.2 hardware baseline is
-  a hard prerequisite; task 7.2 resolved here).
+- Dependency: `relay-buffer-control-2switch` **archived**; its 4.2 locked
+  baseline (`1.30/1.25` + round-2 log) is the input. 7.2 already decided A
+  (honored here, not reopened). 7.3 → `pending-analog-rig`.
 - Out of scope: no online flash-save; no change to the compression-lean
   policy; no blind analog code (analog stays `pending-analog-rig`,
   HH-modelled spec only); no change to TENSION→catch-up or
   COMPRESSION→stop branches.
+- **Accepted limitation (D10):** the 4.2 round-2 end-of-print COMPRESSION
+  `SYNC_MIN`-floor grind is **not** addressed here — fixing it requires
+  touching the COMPRESSION branch, which D1 explicitly forbids (minimal
+  blast radius). It is a print-tail artifact at draw≈0 already caught by
+  the existing RELIEF_PAUSE/BUF_STAB auto-stop with no print-quality
+  impact. Documented + cross-linked, not silently dropped; a future
+  dedicated change may revisit if it ever shows real harm.

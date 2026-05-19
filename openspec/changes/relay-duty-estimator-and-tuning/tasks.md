@@ -1,23 +1,29 @@
 ## 0. Prerequisite gate
 
-- [ ] 0.1 Confirm `relay-buffer-control-2switch` task 4.2 (on-Pi A/B
-  hardware baseline) has landed: a known-good slow/shallow/never-TENSION
-  relay cycle is recorded. Do not start firmware behavior work until this
-  baseline exists (the estimator is bounded/A-B'd against it).
+- [x] 0.1 Prereq gate **SATISFIED**: `relay-buffer-control-2switch`
+  archived (2026-05-19, 24/24). Locked 4.2 baseline =
+  **`CATCHUP=1.30` / `NEUTRAL=1.25`** + round-2 `?:` log
+  (slow/shallow/never-TENSION/never-fault steady state). Scale caveat:
+  pair is switch-state driven ⇒ geometry-config-independent; round-2
+  BP-mm under pre-`align-buffer-range-vocab` half=7.8 scale,
+  non-authoritative for the frac/bounds. Estimator is bounded/A-B'd
+  against this.
 
 ## 1. Config-key migration (no behavior change)
 
 - [ ] 1.1 Add `config.ini` keys: relay catch-up, relay NEUTRAL frac,
   `relay_estimate_lo`, `relay_estimate_hi`, estimator confidence window +
-  threshold; defaults = current `#define` constants (catch-up 1.45,
-  NEUTRAL 1.10).
+  threshold, `relay_seed` (D10b cold-start seed source). Defaults =
+  **the locked 4.2 baseline: catch-up `1.30`, NEUTRAL `1.25`** (NOT the
+  old 1.45/1.10 `#define`s — those are the rejected round-1 pair).
 - [ ] 1.2 Wire keys through `gen_config.py` into the generated tune header
   (mirror `baseline_rate` / `sync_compression_bias_frac` pattern).
 - [ ] 1.3 Delete the legacy `SYNC_RELAY_*_FRAC` `#define`s in `sync.c`;
   consume generated values. Mark runtime-safe knobs as `SET:` params;
   keep safety bounds flash-only.
 - [ ] 1.4 `gen_config.py` test + `ninja -C build_local` green; status
-  snapshot identical (values unchanged → behavior byte-identical).
+  snapshot identical to the **locked-baseline build** (1.30/1.25 → behavior
+  byte-identical to archived `relay-buffer-control-2switch` round-2).
 - [ ] 1.5 `config.ini.example` updated; stale `#define` references gone.
 
 ## 2. Firmware duty-cycle estimator (D2/D3/D4)
@@ -37,22 +43,32 @@
 - [ ] 2.5 Apply the existing never-TENSION compression lean AFTER the
   estimate, BEFORE existing ramp/clamp (order: estimate → lean → clamp
   `[lo,hi]` → ramp/clamp).
-- [ ] 2.6 Unconfident/stale/boot → fall back to
-  `extruder_est_sps × SYNC_RELAY_NEUTRAL_FRAC` with no feed discontinuity
-  that destabilizes the cycle.
-- [ ] 2.7 Estimator state volatile only — assert no flash write path is
-  reachable from estimator updates.
-- [ ] 2.8 Host build + captured status snapshot: with confidence gate
-  unreachable, behavior == `relay-buffer-control-2switch` (rollback proof).
+- [ ] 2.6 Unconfident/stale → fall back to
+  `extruder_est_sps × SYNC_RELAY_NEUTRAL_FRAC` (frac = locked **1.25**)
+  with no feed discontinuity. Per D10(a) this is the *normal* steady
+  state in a good low-flip cycle, not an error path — do not treat
+  unconfident as a fault.
+- [ ] 2.7 D10(b) cold-start seed: at print start / boot, seed the
+  fallback feed from the offline relay baseline (`relay_seed` /
+  `relay_base` / `[lo,hi]` midpoint) instead of cold `extruder_est_sps`,
+  for a warmup window (exit on EST-warm or first-confident). Targets the
+  deferred 4.2 round-2 startup-bangbang. No flash persistence.
+- [ ] 2.8 Estimator + seed state volatile only — assert no flash write
+  path is reachable from estimator/seed updates.
+- [ ] 2.9 Host build + captured status snapshot: with confidence gate
+  unreachable AND seed window elapsed, steady-state behavior ==
+  archived `relay-buffer-control-2switch` round-2 (rollback proof).
 
 ## 3. Telemetry + neutral_creep resolution (D5)
 
 - [ ] 3.1 Add status/telemetry: estimate-vs-fallback flag + confidence
   value.
-- [ ] 3.2 Resolve `neutral_creep` (`sync.c:395-428`): remove the dead
-  compute; reuse its protocol slot for the estimator telemetry to avoid
-  status-line churn (or hard-remove if no consumer reads it — decide from
-  a consumer grep). No inert computed-but-unused path remains.
+- [ ] 3.2 `neutral_creep` (`sync.c:395-428`): **leave intact** per the
+  committed 7.2-A disposition (intended-inert telemetry, kept computing,
+  not removed — commit `a78d864`). Do NOT delete it or evict its slot.
+  Estimator estimate/confidence telemetry (3.1) is a **separate new**
+  status field. Add a code comment cross-linking 7.2-A so it is not
+  re-flagged as dead.
 - [ ] 3.3 Update `protocol.c` / any host parsers in lockstep; host build +
   `py_compile` green.
 
@@ -90,8 +106,15 @@
   flip every sign on any analog port); cross-link
   `relay-buffer-control-2switch` task 7.3.
 - [ ] 6.4 Note in this change's artifacts that
-  `relay-buffer-control-2switch` task 7.2 is resolved by §3.2 (do not edit
-  the other change's files here).
+  `relay-buffer-control-2switch` 7.2 was decided **A** (neutral_creep
+  intended-inert telemetry, kept) and is **honored, not reopened** here
+  (§3.2); 7.3 was split to `pending-analog-rig`. Do not edit the
+  archived change's files.
+- [ ] 6.5 Record the D10(c) accepted-limitation: the 4.2 round-2
+  end-of-print COMPRESSION `SYNC_MIN`-grind is out of scope (D1 forbids
+  COMPRESSION-branch edits; print-tail, draw≈0, auto-stop-handled, no
+  quality impact). State it in TUNING.md / the `relay-duty-estimator`
+  spec; cross-link, do not silently drop.
 
 ## 7. Validation + closeout
 
