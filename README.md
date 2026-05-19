@@ -44,6 +44,38 @@ aliases.
 - `config.ini.example`: template for new setups
 - `MOTOR_PARAMS.md`: known motor/TMC parameter profiles
 
+## Why FLARE Exists
+
+[Happy Hare](https://github.com/moggieuk/Happy-Hare/) is the mature,
+host-integrated path for Klipper MMUs. It is a Klipper extension plus
+Moonraker component and macros, with broad support for ERCF, Tradrack, Box
+Turtle, Night Owl, QuattroBox, 3MS, KMS, ViViD, custom machines, Spoolman,
+Mainsail/Fluidd, and KlipperScreen.
+
+FLARE was built for a narrower job: make a dual-lane ERB v2.0 controller own
+the reload/MMU state machine in firmware. Klipper can still drive it, but the
+normal interface is just a small USB serial protocol (`T:`, `TC:`, `LO:`,
+`UL:`, `SET:`, `GET:`, `?:`). That keeps host integration simple and avoids
+making every lane decision a Klipper macro/API round trip.
+
+The main reason to use FLARE instead of Happy Hare is autonomous RELOAD:
+two spools can act like an "infinite" paired supply, and the controller can
+switch/follow on runout without a Klipper plugin or host-side recovery flow.
+This is useful when the goal is redundancy and continuous feed first, not a
+universal multi-material ecosystem.
+
+The tradeoff is scope. Happy Hare has richer UI, broader MMU and board support,
+Spoolman/gate mapping, and stronger host context. Its sync logic can see
+Klipper extruder movement directly. FLARE does not know the printer's exact
+commanded extruder baseline; it estimates from buffer behavior and compensates
+with firmware-side control. That keeps the design standalone, but it is less
+flexible and currently focused on exactly two lanes on the tested RP2040 board.
+
+A future web UI is possible, but serial ownership needs care. A second process
+reading the FLARE serial port would block Klipper's helper, so a UI would
+likely need to act as the serial mediator, with Klipper sending commands through
+that mediator instead of opening the port independently.
+
 ## Quick Start
 
 1. Copy and edit config:
