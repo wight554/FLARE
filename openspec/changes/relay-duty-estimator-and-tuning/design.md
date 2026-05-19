@@ -324,8 +324,57 @@ correct regime — reinforcing the decision to fill-anchor them.
 COMPRESSION mass to calibrate contradicts the control law's own goal.
 
 *Open:* given the fill-anchor, whether `relay_seed_rate` remains a
-distinct emitted scalar or folds into `relay_base` (D10(b) cold-seed
-already prefers the offline baseline) — resolve when implementing §9.
+distinct emitted scalar or folds into `relay_base` — **resolved by D13
+below** (seed sourced from the low end, not the baseline).
+
+### D13 — Cold-start seed directional asymmetry; resolves D10(b) seed source
+
+Surfaced analysing constant slow demand (300–600 mm/min) under the
+relay law. A **single fixed** `relay_seed` cannot serve both regimes:
+
+- **seed HIGH** (current default `1600`; the D10(b) "seed from offline
+  relay baseline" choice): on a slow-only print start, NEUTRAL =
+  `seed·NEUTRAL_FRAC` capped `relay_base` ≫ slow demand → buffer slams
+  COMPRESSION at startup → `SYNC_MIN` stop → long drain off the full
+  wall (potential `-11` / wall park). **Unrecoverable-class direction.**
+- **seed LOW** (≈ `relay_estimate_lo`): on a fast print start, NEUTRAL
+  under-feeds briefly → TENSION → the **fixed strong catch-up**
+  (`relay_base·CATCHUP_FRAC ≈ 3120`) bridges in 1–2 bounded cycles.
+  **Recoverable-class direction.**
+
+**Asymmetry (the decision driver):** a cold *under*-feed lands in
+TENSION, caught by the bounded fixed catch-up anchor (brief, safe). A
+cold *over*-feed lands in COMPRESSION — a buffer-wall slam with a long
+drain and fault potential. The two error directions are **not**
+symmetric in cost ⇒ the seed must err **low**.
+
+**Decision.** Default the cold-start seed to the **low end**
+(≈ `relay_estimate_lo` / slowest intended demand), not the offline
+relay baseline. Pair with a **short** `relay_seed_warmup_ms` so the real
+`extruder_est_sps` fallback takes over quickly — the seed is a brief
+bridge, never a sustained driver, so its magnitude matters only for the
+first ~1–2 cycles. This **resolves the D10(b) open seed-source
+question**: source = low/`lo`, *not* `relay_base` or `[lo,hi]` midpoint.
+D10(b)'s original goal (kill the 4.2 round-2 *fast*-startup bangbang) is
+**still met**: that pathology existed pre-relay with *no* fixed catch-up
+anchor; the relay's fixed strong catch-up — introduced by this very
+change — bridges a cold low-seed under-feed in 1–2 bounded cycles. The
+high-seed approach bought fast-start smoothness at the price of a worse
+slow-start COMPRESSION slam; D13 reverses that trade.
+
+**Analyzer corollary (overrides D12's seed source).** D12 set the
+emitted `relay_seed_rate` from `median(fill_rates)` (≈ demand). D13
+overrides specifically for the *cold-start* seed: the emitted seed must
+be the low/`lo` value (catch-up-recoverable), distinct from the
+confident-estimator demand tracking. Resolves the D12 open: **fold it —
+emit only `relay_estimate_lo`; firmware cold-seeds from `lo`; drop the
+redundant `relay_seed_rate` scalar** (one fewer offline knob, and it can
+no longer be mis-set high). `relay_estimate_hi` (D12 fill-anchored) and
+`relay_estimate_lo` (blend/p10) are unchanged.
+
+*Alternative (rejected):* per-print seed sizing — cold-start has no
+per-print demand information by definition; the low-bias + short-warmup
++ fixed-catch-up combination makes per-print sizing unnecessary.
 
 ## Risks / Trade-offs
 
@@ -359,6 +408,11 @@ already prefers the offline baseline) — resolve when implementing §9.
   `max(current, …)` floor, mirroring the immune `baseline_rate`; analyzer-
   only fix, firmware D2 math unchanged. Pre-fix mitigation: fallback
   un-clamp (D11(a)) + fixed catch-up already carry the print.
+- [High cold-start seed slams COMPRESSION on slow-only print start] →
+  D13: seed from the low end (`relay_estimate_lo`) + short warmup; the
+  bounded fixed catch-up bridges the (recoverable) cold under-feed,
+  whereas a cold over-feed is an unrecoverable-class wall slam — the
+  error directions are asymmetric, so bias low.
 
 ## Migration Plan
 
@@ -390,9 +444,9 @@ unreachable (or a config kill-switch) reverts to the exact
   locked-baseline-relative, resolved during step 8.
 - `v_low`/`v_high` measurement: instantaneous commanded vs dwell-averaged
   per phase — pick during step 3, must be deterministic for D7 parity.
-- D10(b) cold-start seed source: offline `relay_base` directly vs
-  `[lo,hi]` midpoint vs a dedicated `relay_seed` config key — decide in
-  step 3 (must be offline-provided / no flash persistence).
+- (D10(b) cold-start seed source: **RESOLVED by D13** — source = low end
+  / `relay_estimate_lo`, not `relay_base` or `[lo,hi]` midpoint;
+  `relay_seed_rate` scalar dropped. Offline-provided, no flash.)
 - D10(b) warmup-window exit: fixed time, EST-warm threshold, or
   first-confident — decide in step 3, on-Pi-tunable in step 8.
 - (D5 resolved: 7.2-A is committed; neutral_creep stays, telemetry is a

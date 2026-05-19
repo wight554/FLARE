@@ -256,11 +256,17 @@ D2 math unchanged); see D12.
   Resolve the D12 open: `hi` margin factor; `seed` source; whether
   `relay_seed_rate` survives as a distinct scalar or folds into
   `relay_base`. Must stay deterministic (D7 parity).
-- [x] 9.3 Regression-replay the two on-Pi CSVs (review1/review2):
-  assert post-fix `hi`/`seed` do **not** ratchet round-over-round and
-  land within margin of `fill_p90`/EST p50 (~2000–2200), not the
-  collapsed 612/137. Add as a deterministic analyzer test fixture
-  (sanitized rows) alongside `relay-d11`.
+- [x] 9.3a Synthetic ratchet test `test_relay_d12_ratchet` (hand-built
+  bimodal rows; asserts `hi≥2000`, `seed≥1800`, `lo<200`).
+- [ ] 9.3b **Real-capture fixture** (user-confirmed): import sanitized
+  on-Pi `review1.csv` / `review2.csv` (columns `wall_ts,run_seq,layer,
+  feature,v_fil,BL,BP,BPV,EST,MM,RT,TT,TPX,CF,TC,BUF,RDE,RDCF,RDV,
+  MK_seq`; trim to a representative window if large, keep zone/EST
+  structure) → `tests/fixtures/relay_review1.csv` / `relay_review2.csv`.
+  Replay-assert: post-fix `hi`/`seed` do **not** ratchet round-over-round
+  and land within margin of `fill_p90`/EST p50 (~2000–2200), not the
+  collapsed 612/137. Deterministic, alongside `relay-d11`. *(needs the
+  two CSVs pulled from the Pi)*
 - [x] 9.4 Acceptance-gate parity: existing non-relay analyzer outputs
   byte-identical; `relay-cov-*`/`relay-d11` still green;
   `python3 -m py_compile scripts/*.py`; full analyzer test suite.
@@ -270,3 +276,35 @@ D2 math unchanged); see D12.
   capture tension for never-COMPRESSION steady state).
 - [x] 9.6 `openspec validate relay-duty-estimator-and-tuning --strict`
   green; commit + push to main.
+
+## 10. Cold-start seed directional asymmetry (D13, behavior change)
+
+Surfaced analysing constant slow demand (300–600 mm/min). A single
+fixed `relay_seed` cannot serve slow-only + fast prints: high seed →
+slow-start COMPRESSION slam (unrecoverable-class); low seed → fast-start
+brief under-feed bridged by the fixed strong catch-up (recoverable).
+Error directions asymmetric → seed must err low. Resolves D10(b)
+seed-source + D12 seed-scalar open questions (see D13). **Behavior +
+config + firmware scope** — confirm before code edits.
+
+- [ ] 10.1 Record D13 in design (asymmetry, decision, D10(b)/D12
+  resolution) + Risks + Open-Questions reconciliation. *(this artifact
+  pass)*
+- [ ] 10.2 Analyzer: stop emitting `relay_seed_rate`; firmware cold-seed
+  sources `relay_estimate_lo`. Update `flare_analyze.DEFAULTS`,
+  `relay_duty_recommendations` return, patch/emit surface. Keep
+  deterministic (D7 parity); non-relay output byte-identical.
+- [ ] 10.3 Config: remove `relay_seed_rate` key from `config.ini`,
+  `config.ini.example`, `gen_config.py` (+ generated `tune.h`
+  `CONF_RELAY_SEED_SPS`); firmware seeds from `CONF_RELAY_ESTIMATE_LO`.
+  Shorten `relay_seed_warmup_ms` default (pick value; short bridge only).
+- [ ] 10.4 Firmware `sync.c:1798-1799`: `relay_seed_active` path uses the
+  `lo` bound (not `RELAY_SEED_SPS`); delete `RELAY_SEED_SPS` usage. No
+  flash path (D2.8 invariant preserved). Host build green.
+- [ ] 10.5 Tests: slow-only-start fixture asserts **no** startup
+  COMPRESSION slam (seed ≈ lo, not baseline); fast-start asserts
+  catch-up bridges ≤2 cycles; `gen_config`/analyzer/firmware suites +
+  `py_compile` green. Update `test_gen_config` for the removed key.
+- [ ] 10.6 TUNING.md: document seed = low/`lo` rationale (asymmetry),
+  removed `relay_seed_rate` knob, short warmup; cross-link D13.
+- [ ] 10.7 `openspec validate … --strict` green; commit + push to main.
