@@ -69,16 +69,19 @@ redundancy rather than a universal multi-material ecosystem.
 
 FLARE is also a strong open-source alternative to commercial automatic
 filament reloaders such as [Infinity Flow S1 Plus](https://infinityflow3d.com/).
-Products in that category are attractive because they are packaged, assembled,
-and designed to work with many printers with minimal firmware changes. FLARE
-takes the DIY route instead: the firmware is open source, the controller logic
-is inspectable and tunable, and the hardware target uses inexpensive,
-off-the-shelf parts. Because the runtime interface is plain USB serial, it can
-be adapted to inexpensive printer/host setups that can send simple commands,
-instead of depending on a proprietary app or a specific printer ecosystem. For
+The practical value is similar: keep printing when one spool runs out by
+feeding from another spool. FLARE takes the DIY route instead of the appliance
+route, so the firmware is open source, the controller logic is inspectable and
+tunable, and the hardware target uses inexpensive, off-the-shelf parts. For
 builders who are comfortable assembling and tuning the mechanism themselves,
-the total system can be less expensive and more flexible than a closed
-commercial reloader.
+the total system can be less expensive than a closed commercial reloader while
+remaining more flexible.
+
+The extra benefit is that FLARE is not only a reloader. Because the runtime
+interface is plain USB serial, the same controller can also behave as a minimal
+two-lane MMU. A host can select lanes, preload, unload, or request a toolchange
+with a few serial commands instead of relying on a proprietary app, cloud
+service, or a full Klipper MMU plugin.
 
 The tradeoff is scope. Happy Hare has a richer UI and recovery workflow,
 broader MMU and board support, Spoolman/gate mapping, and stronger host

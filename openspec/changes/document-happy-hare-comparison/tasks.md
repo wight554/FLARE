@@ -23,3 +23,8 @@
   README comparison positioning FLARE as an open-source DIY alternative to
   commercial automatic filament reloaders, with plain-serial integration,
   manual assembly, and configuration called out as key tradeoffs.
+
+2026-05-20 follow-up:
+- Reframed README wording around the core product thesis: FLARE is a lower-cost
+  DIY path to InfinityFlow-style automatic reload, with the additional ability
+  to run as a minimal two-lane serial MMU.
