@@ -695,7 +695,9 @@ def relay_duty_recommendations(runs, current):
                 total = dl + dh
                 if total > 0.001:
                     fh = clamp(dh / total, 0.0, 1.0)
-                    estimates.append((1.0 - fh) * last_relieve["rate"] + fh * last_fill["rate"])
+                    rate = (1.0 - fh) * last_relieve["rate"] + fh * last_fill["rate"]
+                    if rate >= 30.0:
+                        estimates.append(rate)
             travel = 0.0
             weighted_rate = 0.0
             weight_ms = 0.0
@@ -812,9 +814,9 @@ def relay_duty_coverage(runs, current):
                             total = dl + dh
                             if total > 0.001:
                                 fh = clamp(dh / total, 0.0, 1.0)
-                                estimates.append(
-                                    (1.0 - fh) * last_relieve["rate"] + fh * last_fill["rate"]
-                                )
+                                rate = (1.0 - fh) * last_relieve["rate"] + fh * last_fill["rate"]
+                                if rate >= 30.0:
+                                    estimates.append(rate)
                         travel = 0.0
                         weighted_rate = 0.0
                         weight_ms = 0.0
