@@ -48,14 +48,18 @@
   travel that COMPRESSION=SYNC_MIN suppresses → automatic sync froze
   on hardware). Reverted default to `0.0`; `test_gen_config` asserts
   `0.0`; example annotated; committed `307fa11`. See design G2.
-- [ ] 3.1 **BLOCKED on guard rework.** Before any non-zero
-  `relay_min_flip_mm` default: implement a G2 rework option —
-  (a) accumulate flip-distance on printer extrusion / buffer-relative
-  travel (not gated MMU motion), or (b) exempt the egress flip from any
-  zero-feed state (COMPRESSION→*), or (c) drop motion hysteresis, rely
-  on `BUF_HYST_MS` + G1. Decide in design, then set default.
-- [ ] 3.2 After rework: host build + `py_compile` + on-hw confirm sync
-  engages and the guard damps chatter without freezing flips.
+- [ ] 3.1 **Guard rework — option (b), chosen (design G2).** Gated on §4
+  (G1-only hw test must pass first). `sync.c:695`: skip the
+  distance-hysteresis guard when the *current stable state* is a
+  zero-feed state (type-D COMPRESSION / any `SYNC_MIN`-commanding
+  branch); apply it only to actuator-moving transitions
+  (NEUTRAL↔TENSION). Add a host/unit check that a COMPRESSION→\* flip is
+  never suppressed by the guard.
+- [ ] 3.2 Re-enable a non-zero `relay_min_flip_mm` default (provisional
+  ≈0.5 mm, final on-hw) now that (b) prevents the deadlock; host build +
+  `py_compile` + `test_gen_config` green.
+- [ ] 3.3 On-hw confirm: automatic sync engages, no COMPRESSION freeze,
+  guard demonstrably damps NEUTRAL↔TENSION chatter vs §4 baseline.
 
   2026-05-19: Set the provisional anti-chatter default to 0.5 mm in
   config/example/generator and added generated-default coverage in

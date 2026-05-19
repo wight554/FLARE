@@ -86,15 +86,27 @@ inert — that is why it worked before. The deadlock is intrinsic to
 "flip-distance measured on the gated actuator's own motion."
 
 **Decision:** default reverted to `0.0` (committed `307fa11`; G2's
-pre-authorized instant rollback). A non-zero default is **blocked**
-until the guard is reworked. Rework options (decide before re-enabling):
-(a) accumulate flip-distance on **printer extrusion / buffer-relative
-travel**, not MMU commanded motion (exogenous to the gated actuator —
-no deadlock); (b) **exempt the egress flip from any zero-feed state**
-(COMPRESSION→*) from the distance guard, keeping it only for
-chatter-prone NEUTRAL↔TENSION; (c) drop motion-distance hysteresis
-entirely and rely on the time-based `BUF_HYST_MS` + G1. *Alternative
-rejected:* keep 0.5 + raise nothing — proven to hang sync on hardware.
+pre-authorized instant rollback). A non-zero default stays **blocked**
+until the guard rework lands.
+
+**Chosen rework: (b) — exempt the egress flip from any zero-feed
+state.** The distance-hysteresis guard (`sync.c:695`) MUST NOT gate a
+flip whose *current* stable state is a zero-feed state (type-D
+COMPRESSION, or any branch commanding `SYNC_MIN`): the actuator is
+stopped there, so the motion the guard measures cannot accrue and the
+relay would deadlock. The guard applies only to flips where the
+actuator is moving (chatter-prone NEUTRAL↔TENSION). This breaks the
+deadlock by construction while still damping the chatter the knob was
+added for. *Alternatives rejected:* (a) accumulate flip-distance on
+printer/buffer-relative travel — standalone type-D has **no continuous
+printer position** (switch-crossing-only estimator), so no clean
+exogenous travel signal; kept only as a fallback if (b) underperforms.
+(c) drop motion hysteresis entirely — abandons G2's purpose; fallback
+only. Keep 0.5 + change nothing — proven to hang sync on hardware.
+
+**Sequencing:** the (b) firmware rework + a re-enabled non-zero default
+land **after** the G1-only on-hw test (§4 with `min_flip=0.0`), so the
+gate-harden primary fix is hardware-validated independently of G2.
 
 ### G3 — Collapse-ramp constants → config (no value change yet)
 
