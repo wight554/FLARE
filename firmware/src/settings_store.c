@@ -238,7 +238,6 @@ void settings_defaults(void) {
     if (RELAY_ESTIMATE_HI_SPS < RELAY_ESTIMATE_LO_SPS) RELAY_ESTIMATE_HI_SPS = RELAY_ESTIMATE_LO_SPS;
     RELAY_CONFIDENCE_CYCLES = clamp_i(CONF_RELAY_CONFIDENCE_CYCLES, 1, 64);
     RELAY_CONFIDENCE_WINDOW_MS = clamp_i(CONF_RELAY_CONFIDENCE_WINDOW_MS, 1000, 300000);
-    RELAY_SEED_SPS = motion_clamp_rate_sps(CONF_RELAY_SEED_SPS);
     RELAY_SEED_WARMUP_MS = clamp_i(CONF_RELAY_SEED_WARMUP_MS, 0, 300000);
     RELAY_MIN_FLIP_MM = clamp_f(CONF_RELAY_MIN_FLIP_MM, 0.0f, 100.0f);
     BUF_DRIFT_EWMA_TAU_MS = CONF_BUF_DRIFT_EWMA_TAU_MS;
@@ -391,7 +390,6 @@ void settings_save(void) {
     s.relay_estimate_hi_sps = RELAY_ESTIMATE_HI_SPS;
     s.relay_confidence_cycles = RELAY_CONFIDENCE_CYCLES;
     s.relay_confidence_window_ms = RELAY_CONFIDENCE_WINDOW_MS;
-    s.relay_seed_sps = RELAY_SEED_SPS;
     s.relay_seed_warmup_ms = RELAY_SEED_WARMUP_MS;
     s.relay_min_flip_mm = RELAY_MIN_FLIP_MM;
     s.buf_drift_ewma_tau_ms = BUF_DRIFT_EWMA_TAU_MS;
