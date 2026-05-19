@@ -148,12 +148,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `NEUTRAL_CREEP_CAP` | `neutral_creep_cap_frac` | Hard cap on creep as % of extruder_est_sps | 10 |
 | `RELAY_CATCHUP_FRAC` | `relay_catchup_frac` | Type-D relay TENSION refill multiplier | 1.30 |
 | `RELAY_NEUTRAL_FRAC` | `relay_neutral_frac` | Type-D relay NEUTRAL fallback/lean multiplier | 1.25 |
-| `RELAY_CONF_CYCLES` | `relay_confidence_cycles` | Paired relay cycles required before the duty estimate is trusted | 8 |
-| `RELAY_CONF_WINDOW_MS` | `relay_confidence_window_ms` | Recency window for relay confidence pairs | 1000 |
 | `RELAY_MIN_FLIP_MM` | `relay_min_flip_mm` | Distance hysteresis for type-D flips; 0.0 keeps time-only `BUF_HYST` behavior | 0.5 |
-| _(config only)_ | `relay_estimate_lo` | Offline lower bound for relay duty estimate (mm/min) | 100 |
-| _(config only)_ | `relay_estimate_hi` | Offline upper bound for relay duty estimate (mm/min) | 1600 |
-| _(config only)_ | `relay_seed_warmup_ms` | Max seed warmup window; exits earlier on EST warm or estimator confidence | 2000 |
 | `VAR_BLEND_FRAC` | `buf_variance_blend_frac` | Max variance-aware blend fraction (0.0=OFF) | 0.0 |
 | `VAR_BLEND_REF_MM` | `buf_variance_blend_ref_mm` | Sigma value at which blend distrust saturates | 1.0 |
 | `ZONE_BIAS_BASE`| `zone_bias_base_rate`| Base reserve-recovery correction around the virtual buffer target (mm/min) | 90 |
@@ -244,9 +239,6 @@ after `SS:`; `HD` appears with the core sync fields near `SM`.
 | `HD` | bool | Sync HOLD state from `HD:1` / `HD:0`. |
 | `CB` | % (int) | Active compression bias fraction × 100 after flow-schedule lookup. |
 | `NC` | SPS | Neutral-zone creep component added to target rate |
-| `RDE` | bool | Type-D relay NEUTRAL source: `1` = duty estimate, `0` = fallback/seed path. |
-| `RDCF` | 0–100 | Relay duty-estimator confidence based on recent paired switch cycles. Quiet low-flip steady state can remain low by design. |
-| `RDV` | mm/min | Current relay duty estimate after offline bounds. |
 | `VB` | % (int) | Variance blend distrust percentage |
 | `BPV`| mm × 100 | Post-blend effective position used by control loops |
 | `MK` | seq:tag | Telemetry marker tag and sequence number set by the most recent `MARK:` command. |

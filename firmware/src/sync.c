@@ -403,7 +403,7 @@ float sync_compression_wall_time_ms(lane_t *L) {
 
 static void neutral_creep_update(buf_state_t s, lane_t *A, uint32_t now_ms) {
     /* D5/relay-buffer-control-2switch 7.2-A: keep neutral_creep as
-     * intended-inert telemetry; relay duty telemetry is separate. */
+     * intended-inert telemetry; fallback relay control ignores it. */
     if (g_sync_state != SYNC_ACTIVE || NEUTRAL_CREEP_TIMEOUT_MS == 0 || NEUTRAL_CREEP_RATE_SPS_PER_S == 0) {
         g_neutral_creep_sps = 0;
         return;
@@ -933,11 +933,8 @@ static int sync_neutral_anti_tension_floor_sps(buf_state_t s, lane_t *A,
     if (reserve_error_mm > reserve_deadband_mm) return 0;
     (void)now_ms;
 
-    /* F1a: unconditional refill floor. The earlier estimator
-     * freshness/confidence gate disabled this exact case — a fresh,
-     * high-confidence but collapsed estimator — letting NEUTRAL drain to the
-     * compression wall. The floor is baseline-derived (not estimator-derived)
-     * so it can never itself drive the buffer toward TENSION. */
+    /* F1a: unconditional refill floor. The floor is baseline-derived so it can
+     * never itself drive the buffer toward TENSION. */
     int baseline_floor_sps = baseline_control_floor_sps();
     int assist_floor_sps = (int)((float)baseline_floor_sps * SYNC_NEUTRAL_ANTI_TENSION_FLOOR_FRAC);
     if (assist_floor_sps <= SYNC_MIN_SPS) return 0;

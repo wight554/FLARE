@@ -30,38 +30,9 @@ cp ~/flare-state/buckets-${MACHINE_ID}.json \
 
 ### TL;DR: Type-D Relay
 
-Type-D does not use the flow schedule. Print **one purpose-built model** that
-sustains both slow and fast demand in the same run (a speed-banded tower works
-well). Keep the live tuner running throughout:
-
-```bash
-python3 scripts/flare_live_tuner.py \
-  --port "$FLARE_PORT" \
-  --machine-id "$MACHINE_ID" \
-  --csv-out ~/flare-runs/relay.csv
-```
-
-After the print, run the analyzer:
-
-```bash
-python3 scripts/flare_analyze.py \
-  --in ~/flare-runs/relay.csv \
-  --out ~/flare-state/relay-review.ini \
-  --mode aggressive \
-  --config config.ini
-```
-
-Check `relay-review.ini` for the coverage verdict:
-
-- `Relay coverage: PASS` — apply the `relay_estimate_lo`,
-  `relay_estimate_hi`, and `relay_seed_warmup_ms` values to `config.ini`,
-  then rebuild and flash.
-- `Relay coverage: WARN` — the warning names exactly what to add (print
-  slower / faster / taller). Fix that one thing and rerun.
-
-Do **not** print slow + fast as separate models — one combined print is all
-the analyzer needs. See
-[Relay Calibration Methodology](#relay-calibration-methodology) for details.
+Type-D does not use the flow schedule or offline analyzer recommendations.
+Start from the fallback relay defaults, then only adjust the retained fallback
+knobs if a real print shows starvation or excess compression lean.
 
 ```bash
 python3 scripts/gen_config.py
@@ -69,13 +40,14 @@ ninja -C build_local
 bash scripts/flash_flare.sh
 ```
 
-Check status:
+Check status during a real print:
 
 ```bash
 python3 scripts/flare_cmd.py --port "$FLARE_PORT" "?:"
 ```
 
-In a healthy run: `RDE:0`, `RDCF` low or zero, no `TENSION_RISK_HIGH` events.
+In a healthy run: no repeated `TENSION_RISK_HIGH`, no long tension-side pinning,
+and `BP` stays off the physical wall.
 
 ### TL;DR: Type-P Flow Schedule
 
@@ -169,40 +141,26 @@ Bad tuning is noisy or one-sided: the buffer stays pinned, `FAULT_HOLD` appears
 often, `cannot_refill` or `cannot_relieve` repeats, or different prints produce
 wildly different recommendations.
 
-## Type-D Relay Duty Tuning
+## Type-D Relay Fallback Tuning
 
 For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`, D=0), FLARE uses the
 two-level relay law:
 
 - `BUF_TENSION`: refill at `baseline_rate * relay_catchup_frac`.
 - `BUF_COMPRESSION`: back off to `SYNC_MIN_RATE`.
-- `BUF_NEUTRAL`: use the duty estimator when confident; otherwise use the
-  proven fallback `extruder_est_sps * relay_neutral_frac`.
+- `BUF_NEUTRAL`: use `extruder_est_sps * relay_neutral_frac`, clamped to the
+  normal `[SYNC_MIN_RATE, baseline_rate]` fallback range.
 
 The knobs live in `config.ini`, not in `sync.c` defines:
 
 ```ini
 relay_catchup_frac: 1.30
 relay_neutral_frac: 1.25
-relay_estimate_lo: 100
-relay_estimate_hi: 1600
-relay_confidence_cycles: 8
-relay_confidence_window_ms: 1000
-relay_seed_warmup_ms: 2000
 relay_min_flip_mm: 0.0
 relay_collapse_delay_ms: 250
 relay_collapse_ramp_mult: 3
 relay_collapse_cap_ms: 600
 ```
-
-`relay_confidence_window_ms` is intentionally short (1000 ms): a
-flip-heavy **bimodal** print (slow + fast features alternating) must NOT
-satisfy the confidence gate, so NEUTRAL stays on the proven
-`extruder_est_sps` fallback rather than the duty estimator. The estimator
-remains a recovery arbitrator for genuine low-flip single-regime runs.
-On-hw this moved the confident-path bimodal failure (deep-TENSION
-buffer-wall slam, `BPmax` pegged at the physical wall) to a shallow,
-fallback-driven cycle off the wall.
 
 `relay_min_flip_mm` stays **`0.0` (time-only)**. A non-zero value
 deadlocks the type-D relay: the flip guard accrues distance from the
@@ -212,99 +170,24 @@ would *start* motion never accumulates the distance — sync freezes. It
 remains a config/`SET:` knob only for experiments that accept this
 caveat; the time-based `BUF_HYST_MS` is the supported chatter guard.
 
-`RELAY_CATCHUP_FRAC`, `RELAY_NEUTRAL_FRAC`, `RELAY_CONF_CYCLES`,
-`RELAY_CONF_WINDOW_MS`, `RELAY_MIN_FLIP_MM`, and the three
+`RELAY_CATCHUP_FRAC`, `RELAY_NEUTRAL_FRAC`, `RELAY_MIN_FLIP_MM`, and the three
 `RELAY_COLLAPSE_{DELAY_MS,RAMP_MULT,CAP_MS}` are runtime-safe
 `SET:`/`GET:` parameters (and appear in `flare_cmd.py --dump`) for field
 experiments without a reflash. The collapse-ramp keys shape the
 deep-COMPRESSION / print-end stop; defaults (250 / 3 / 600) already give
 a graceful taper once the gate-harden keeps the buffer off the wall —
 softening them on-hw only added pre-stop chatter, so leave them unless a
-specific machine shows an abrupt stop. The estimator bounds and seed
-warmup are config/flash values from the offline analyzer.
+specific machine shows an abrupt stop.
 
-Capture relay data with CSV enabled so switch transitions and commanded feed
-are present:
+Tune only from real print behavior:
 
-```bash
-python3 scripts/flare_live_tuner.py \
-  --port "$FLARE_PORT" \
-  --state ~/flare-state/buckets-${MACHINE_ID}.json \
-  --machine-id "$MACHINE_ID" \
-  --csv-out ~/flare-state/relay-${MACHINE_ID}.csv
-```
-
-Then run the analyzer:
-
-```bash
-python3 scripts/flare_analyze.py \
-  --in ~/flare-state/relay-${MACHINE_ID}.csv \
-  --out ~/flare-state/relay-review.ini \
-  --mode aggressive \
-  --config config.ini
-```
-
-When relay transitions are present, the review patch can include
-`baseline_rate` as the relay base plus `relay_estimate_lo`,
-`relay_estimate_hi`, and `relay_seed_warmup_ms`. Same input CSVs produce the
-same relay recommendations.
-
-Status fields for relay diagnosis:
-
-- `RDE`: `1` when NEUTRAL is using the estimate, `0` when using fallback.
-- `RDCF`: relay estimator confidence percent.
-- `RDV`: current relay duty estimate in mm/min.
-- `NC`: unchanged neutral-creep telemetry; kept intentionally separate.
-
-In a healthy low-flip cycle, `RDE:0` is normal. Few switch flips mean the
-fallback is doing its job; the estimator is a recovery arbitrator for disturbed
-cycles, not the steady-state driver.
-
-### Relay Calibration Methodology
-
-The analyzer needs paired low-demand and high-demand duty cycles. **Use one
-purpose-built model**, a single print that sustains both extremes long enough
-for the analyzer to fill both buckets:
-
-- Sustain the slowest intended demand (outer walls, small layer) long enough
-  to observe several TENSION→NEUTRAL→COMPRESSION→NEUTRAL cycles.
-- Sustain the fastest intended demand (infill, tall feature, high flow) long
-  enough to observe several more cycles.
-- Step between them at feature boundaries (realistic worst case for the
-  estimator to adapt).
-
-The preferred form is a **speed-banded tower**: alternating speed zones printed
-back-to-back in a single run. This fills the low and high buckets cheaply, and
-the feature-boundary steps between zones exercise the estimator's recovery path.
-
-**Calibration Note: Bimodal Models and Fill-Anchoring**
-In bimodal prints (where slow features are paired with very fast features, but COMPRESSION dwells are rare due to the intended neutral lean), duty-cycle estimates could previously "ratchet" downward. To prevent this, `relay_estimate_hi` is now **fill-anchored** (derived from the TENSION/catch-up phase demand), making it immune to the ratchet failure mode. This means **calibration no longer needs long COMPRESSION dwells** to succeed. This resolves the capture tension and fully aligns with the never-COMPRESSION intended steady state.
-
-**Cold-Start Seed Directional Asymmetry (D13)**
-The cold-start fallback seed is now sourced from `relay_estimate_lo` (not the baseline) with a very short `relay_seed_warmup_ms`. This handles the asymmetric cost of startup errors: a low-feed error safely bridges via the bounded catch-up anchor, while a high-feed error would risk an unrecoverable buffer wall slam. The standalone `relay_seed_rate` knob was therefore removed.
-
-The analyzer emits a coverage verdict:
-
-- `Relay coverage: PASS` — both low-demand and high-demand buckets are
-  adequately sampled; the recommendation is ready to apply.
-- `Relay coverage: WARN` — one or both buckets are under-sampled. The warning
-  names exactly what to add: print slower / faster / taller.
-
-**Anti-patterns** — do not use these:
-
-- **Three separate prints (slow + fast + combined)**: redundant; the combined
-  run contains no additional calibration signal that the slow and fast runs
-  do not already provide.
-- **Many different models printed one-by-one**: uncontrolled — no constant
-  baseline, different path geometries introduce hidden demand variation. This
-  is the no-constant-baseline trap; the analyzer will flag it with a
-  "no constant-baseline segment detected" WARN.
-
-Known limitation: this change does not alter the `BUF_COMPRESSION ->
-SYNC_MIN_RATE` branch. The round-2 end-of-print COMPRESSION grind at draw near
-zero is accepted here as print-tail only, already arrested by
-`RELIEF_PAUSE`/`BUF_STAB`, and out of scope because changing it would reopen
-the validated COMPRESSION safety branch.
+- Increase `relay_catchup_frac` if TENSION dwell repeats or the printer starves.
+- Lower `relay_neutral_frac` if the buffer spends too much time on the
+  COMPRESSION wall.
+- Raise `relay_neutral_frac` if the buffer drifts toward TENSION during steady
+  demand.
+- Leave `relay_min_flip_mm` at `0.0` unless deliberately testing the deadlock
+  caveat above.
 
 ## If Behavior Is Scary (Do This First)
 
@@ -564,7 +447,6 @@ Useful fields:
 - `RT`: reserve target; negative means compression side.
 - `BP` / `BPV`: current/effective buffer position.
 - `EST`: live flow estimate.
-- `RDE` / `RDCF` / `RDV`: relay duty-estimator path, confidence, and value.
 - `SYNC_REFILL_MM`: accumulated refill effort during the current episode.
 - `SYNC_RELIEVE_MM`: accumulated relieve effort during the current episode.
 

@@ -654,36 +654,31 @@ contact, during a real print.
 
 ---
 
-### relay-duty-estimator: Type-D Estimate/Fallback Regression
+### relay-fallback-only: Type-D Relay Regression
 
 #### Goal
 
-Validate the relay duty estimator without changing the safety-critical
-TENSION/COMPRESSION relay branches.
+Validate fallback-only type-D relay behavior without changing the
+safety-critical TENSION/COMPRESSION relay branches.
 
 #### Steps
 
 1. Flash firmware with `BUF_SENSOR_TYPE=0`, `relay_catchup_frac: 1.30`,
-   `relay_neutral_frac: 1.25`, and analyzer-provided `relay_estimate_lo`,
-   `relay_estimate_hi`.
-2. Capture `?:` status or tuner CSV through a disturbed relay cycle with
-   repeated TENSION/COMPRESSION flips.
-3. Run `scripts/flare_analyze.py` twice on the same CSV and compare output.
-4. Repeat a quiet low-flip run with the confidence gate unreachable or stale.
-5. Print a slow-only model from cold boot.
-6. Print a fast-only model from cold boot.
+   `relay_neutral_frac: 1.25`, and `relay_min_flip_mm: 0.0`.
+2. Capture `?:` status through a disturbed relay cycle with repeated
+   TENSION/COMPRESSION flips.
+3. Print a slow-only model from cold boot.
+4. Print a fast-only model from cold boot.
 
 #### Expected Result
 
 - `BUF_TENSION` still commands `relay_base * RELAY_CATCHUP_FRAC`; `BUF_COMPRESSION`
   still commands `SYNC_MIN_SPS`.
-- `RDE:1` appears only after enough recent paired cycles; `RDCF` rises with
-  paired transitions and decays/stales back to fallback.
-- `RDV` remains within `relay_estimate_lo` / `relay_estimate_hi`.
-- Quiet steady state can stay `RDE:0`; this is not a fault.
-- Same CSV input produces byte-identical relay analyzer recommendations.
-- **D13 Startup Asymmetry**: A slow-only print from cold boot does not slam the COMPRESSION wall at startup (`seed ≈ lo`, not baseline).
-- **D13 Startup Asymmetry**: A fast-only print from cold boot bridges the cold under-feed via bounded catch-up in ≤2 cycles without stalling.
+- `BUF_NEUTRAL` always commands the `extruder_est_sps * RELAY_NEUTRAL_FRAC`
+  fallback, clamped to `[SYNC_MIN_SPS, relay_base]`.
+- `?:` status does not include `RDE`, `RDCF`, or `RDV`.
+- Slow-only and fast-only cold starts bridge via bounded catch-up without
+  stalling or pinning the buffer at the physical wall.
 
 ---
 

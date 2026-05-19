@@ -74,12 +74,19 @@
 
 ## 5. Docs (R6)
 
-- [ ] 5.1 `TUNING.md`: delete the relay duty-estimator /
+- [x] 5.1 `TUNING.md`: delete the relay duty-estimator /
   confidence-gate sections, the offline relay capture/analyze/apply
   loop, the bimodal-ratchet note. Keep fallback law + collapse-ramp +
   `relay_min_flip_mm` caveat.
-- [ ] 5.2 `MANUAL.md`: remove any `RDE`/relay-estimator references.
+- [x] 5.2 `MANUAL.md`: remove any `RDE`/relay-estimator references.
   Grep both for dangling estimator/removed-key mentions.
+
+  2026-05-19: Rewrote type-D tuning docs as fallback-only, removed
+  removed protocol/config fields from `MANUAL.md`, and updated
+  `TEST_CASES.md` to validate absence of `RDE`/`RDCF`/`RDV`. `rg`
+  confirms no removed-key references remain in `TUNING.md` or
+  `MANUAL.md`; `ninja -C build_local` green after nearby firmware
+  comment cleanup.
 
 ## 6. Validation + closeout
 
