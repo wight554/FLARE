@@ -12,6 +12,10 @@ want a first real tuning pass. If behavior **is** scary (repeated
 stuck pinned), do **not** start here — go to
 [If Behavior Is Scary](#if-behavior-is-scary-do-this-first) first.
 
+**Check your sensor type first** (`buf_sensor_type` in `config.ini`):
+- `buf_sensor_type: 0` → type D (two switches) — follow **[Type-D path](#tldr-type-d-relay)**
+- `buf_sensor_type: 1` → type P (analog) — follow **[Type-P path](#tldr-type-p-flow-schedule)**
+
 ```bash
 python3 -m pip install pyserial
 
@@ -23,6 +27,56 @@ mkdir -p ~/flare-runs ~/flare-state
 cp ~/flare-state/buckets-${MACHINE_ID}.json \
   ~/flare-state/buckets-${MACHINE_ID}.json.$(date +%Y%m%d-%H%M%S).bak 2>/dev/null || true
 ```
+
+### TL;DR: Type-D Relay
+
+Type-D does not use the flow schedule. Print **one purpose-built model** that
+sustains both slow and fast demand in the same run (a speed-banded tower works
+well). Keep the live tuner running throughout:
+
+```bash
+python3 scripts/flare_live_tuner.py \
+  --port "$FLARE_PORT" \
+  --machine-id "$MACHINE_ID" \
+  --csv-out ~/flare-runs/relay.csv
+```
+
+After the print, run the analyzer:
+
+```bash
+python3 scripts/flare_analyze.py \
+  --in ~/flare-runs/relay.csv \
+  --out ~/flare-state/relay-review.ini \
+  --mode aggressive \
+  --config config.ini
+```
+
+Check `relay-review.ini` for the coverage verdict:
+
+- `Relay coverage: PASS` — apply the `relay_estimate_lo`, `relay_estimate_hi`,
+  and `relay_seed_rate` values to `config.ini`, then rebuild and flash.
+- `Relay coverage: WARN` — the warning names exactly what to add (print
+  slower / faster / taller). Fix that one thing and rerun.
+
+Do **not** print slow + fast as separate models — one combined print is all
+the analyzer needs. See
+[Relay Calibration Methodology](#relay-calibration-methodology) for details.
+
+```bash
+python3 scripts/gen_config.py
+ninja -C build_local
+bash scripts/flash_flare.sh
+```
+
+Check status:
+
+```bash
+python3 scripts/flare_cmd.py --port "$FLARE_PORT" "?:"
+```
+
+In a healthy run: `RDE:0`, `RDCF` low or zero, no `TENSION_RISK_HIGH` events.
+
+### TL;DR: Type-P Flow Schedule
 
 Prepare and capture the slow profile:
 
