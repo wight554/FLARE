@@ -166,14 +166,11 @@ relief-pause exit, baseline Kp, AUTO_START, continuous-COMPRESSION
 auto-stop all correct vocab. Historical "trailing=empty" bug fully purged
 from the relay path.
 
-- [ ] 7.3 Legacy inverted assumption survives in **type-P analog-only**
-  `sync_compression_floor_sps()` (`sync.c:385-386`, applied `1655-1657`,
-  gated `BUF_SENSOR_TYPE != 0`, P=1). Old `compression_floor`: force-raises a feed
-  FLOOR while `BUF_COMPRESSION` (=full) → fights drain = inverted. Relay
-  skips it (relay COMPRESSION → SYNC_MIN stop), so inert for current
-  tuning. = `audit-sync-polarity` finding #6, classified
-  `pending-analog-rig` (no analog hardware; policy = never blind-fix
-  analog). Recorded here so it is not re-derived; resolve only with an
-  analog rig. Same bucket: audit #7 `compression_recovery`/collapse and
-  the H2 feed-trim comment (`sync.c:1499-1517`, dead under relay override)
-  — verify on the analog rig, not a relay-path inversion.
+- [x] 7.3 Legacy inverted assumption survives in **type-P analog-only**
+  `sync_compression_floor_sps()` (audit #6), plus audit #7
+  `compression_recovery`/collapse and the H2 feed-trim comment
+  (`sync.c:1499-1517`). Inert under relay (COMPRESSION → `SYNC_MIN`).
+  **Dispositioned: split out to the `pending-analog-rig` change**
+  (2026-05-19) as the durable deferred-work tracker — no analog hardware,
+  policy = never blind-fix analog; resolve only on an analog rig. Removed
+  from this change's scope so it archives at 24/24.
