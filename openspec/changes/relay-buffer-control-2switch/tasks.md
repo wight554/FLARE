@@ -50,6 +50,24 @@
   This hand-loop produces the baseline only; the deterministic offline
   `flare_analyze` path remains the persistent tuning authority.
 
+  ### A/B round log
+
+  - **Round 1** (2026-05-19). In: `CATCHUP=1.45`, `NEUTRAL=1.10`
+    (`SYNC_MIN=692`, `RAMP_DN=553`, collapse ×3 / 250 ms). Print + stop
+    poll. Diagnosis: steady-state good (NEUTRAL parks BP ~ -4.2..-5.0,
+    slow shallow full-lean), but two failures — (1) TENSION spikes
+    (BPN 43/45/47/50/52/54/56, 3× `TENSION_RISK_HIGH`): NEUTRAL =
+    `EST*1.10` undershoots on stale/noisy EST demand steps → starve;
+    (2) full-wall grind: COMPRESSION dwell TS 3.2–35.6 s, BP deepens
+    -7.8 → -9.57 while held at `SYNC_MIN`, draw≈0 at print tail, slow
+    `SYNC_RELIEVE_MM`. Out: **`CATCHUP=1.30`, `NEUTRAL=1.25`**.
+    Expected: fewer TENSION (more demand-step margin, deeper safe
+    full-lean), shallower/shorter COMPRESSION slam (gentler refill).
+    Verdict: CONTINUE (never-TENSION not met). Two structural issues
+    (EST-lag undershoot; COMPRESSION `SYNC_MIN` floor grinding a full
+    buffer at zero draw, cf. §6.2) are not frac-fixable → defer to
+    `relay-duty-estimator-and-tuning` §0 / estimator scope.
+
 ## 5. Polarity fix (post-retest)
 
 - [x] 5.1 Hardware showed inverted polarity (ADVANCE=empty,
