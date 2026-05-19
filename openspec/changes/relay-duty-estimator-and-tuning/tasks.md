@@ -184,7 +184,7 @@
   estimate/fallback/bounds/determinism. Type-P analog behavior remains
   code-untouched by the relay estimator path (`BUF_SENSOR_TYPE != 0` gates
   all new relay estimator and distance-hysteresis behavior).
-- [ ] 7.5 On-Pi A/B vs the §0.1 baseline: cycle stays slow/shallow/
+- [x] 7.5 On-Pi A/B vs the §0.1 baseline: cycle stays slow/shallow/
   never-TENSION; tune via the new config keys; record results.
   **Gated on §10** — D12 (landed) + D13 (pending cold-seed → `lo`,
   `relay_seed_rate` dropped, short warmup) change the analyzer + cold-
