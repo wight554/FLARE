@@ -1,9 +1,11 @@
 ## 1. config.ini + gen_config.py
 
-- [ ] 1.1 Add `cut_feed_timeout_ms: 30000` and `cut_settle_timeout_ms: 3000` to `config.ini` and `config.ini.example` under the Cutter/Servo section.
-- [ ] 1.2 Add defaults `"cut_feed_timeout_ms": "30000"` and `"cut_settle_timeout_ms": "3000"` to the `DEFAULTS` dict in `gen_config.py`.
-- [ ] 1.3 Emit `#define CONF_CUT_FEED_MS   {get('cut_feed_timeout_ms')}` and `#define CONF_CUT_SETTLE_MS {get('cut_settle_timeout_ms')}` from `gen_config.py`; remove (or keep as fallback) the hardcoded lines in `config.h`. Verify `python3 scripts/gen_config.py` produces updated `tune.h` with correct values.
-- [ ] 1.4 Run `python3 scripts/test_gen_config.py` — update any assertions for removed/changed macros; confirm green.
+- [x] 1.1 Add `cut_feed_timeout_ms: 30000` and `cut_settle_timeout_ms: 3000` to `config.ini` and `config.ini.example` under the Cutter/Servo section.
+- [x] 1.2 Add defaults `"cut_feed_timeout_ms": "30000"` and `"cut_settle_timeout_ms": "3000"` to the `DEFAULTS` dict in `gen_config.py`.
+- [x] 1.3 Emit `#define CONF_CUT_FEED_MS   {get('cut_feed_timeout_ms')}` and `#define CONF_CUT_SETTLE_MS {get('cut_settle_timeout_ms')}` from `gen_config.py`; remove (or keep as fallback) the hardcoded lines in `config.h`. Verify `python3 scripts/gen_config.py` produces updated `tune.h` with correct values.
+- [x] 1.4 Run `python3 scripts/test_gen_config.py` — update any assertions for removed/changed macros; confirm green.
+
+  Validation 2026-05-20: `python3 scripts/gen_config.py` regenerated `firmware/include/tune.h` with `CONF_CUT_FEED_MS 30000` and `CONF_CUT_SETTLE_MS 3000`; `python3 scripts/test_gen_config.py` passed.
 
 ## 2. settings_store.c — struct + save/load + version bump
 

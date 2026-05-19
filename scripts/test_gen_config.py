@@ -59,6 +59,8 @@ def test_scalar_config_emits_one_point():
     assert macro_int(text, "CONF_RELAY_COLLAPSE_DELAY_MS") == 250
     assert macro_int(text, "CONF_RELAY_COLLAPSE_RAMP_MULT") == 3
     assert macro_int(text, "CONF_RELAY_COLLAPSE_CAP_MS") == 600
+    assert macro_int(text, "CONF_CUT_FEED_MS") == 30000
+    assert macro_int(text, "CONF_CUT_SETTLE_MS") == 3000
     # 0.0 (time-only). Non-zero deadlocks the relay: (b) exempted
     # COMPRESSION-egress but the NEUTRAL->TENSION corrective entry from a
     # cold/idle start has the same topology. Blocked pending G2 redesign.
@@ -91,10 +93,21 @@ relay_collapse_cap_ms: 800
     assert macro_int(text, "CONF_RELAY_COLLAPSE_CAP_MS") == 800
 
 
+def test_cutter_timeout_config_overrides_defaults():
+    text = generate(BASE_CONFIG + """
+cut_feed_timeout_ms: 45000
+cut_settle_timeout_ms: 2500
+""")
+
+    assert macro_int(text, "CONF_CUT_FEED_MS") == 45000
+    assert macro_int(text, "CONF_CUT_SETTLE_MS") == 2500
+
+
 def main():
     test_scalar_config_emits_one_point()
     test_schedule_section_sorts_points()
     test_relay_collapse_config_overrides_defaults()
+    test_cutter_timeout_config_overrides_defaults()
     print("gen_config schedule tests PASS")
 
 

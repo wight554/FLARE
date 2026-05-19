@@ -151,6 +151,8 @@ run_current:
 # servo_close_us: 1400
 # servo_block_us: 950
 # servo_settle_ms: 500
+# cut_feed_timeout_ms: 30000
+# cut_settle_timeout_ms: 3000
 # cut_feed_rate: 600
 # cut_feed_mm: 145
 # cut_length_mm: 10
