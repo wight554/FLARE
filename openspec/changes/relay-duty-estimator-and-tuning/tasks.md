@@ -235,3 +235,38 @@ not new scope (see D11).
   anti-patterns (3-print split, many-model approach). Three new tests
   (`relay-cov-pass`, `relay-cov-warn`, `relay-d11`) added; all 27 tests
   pass. `ninja -C build_local` green.
+
+## 9. Blended-estimate ratchet fix (D12, on-Pi confirmed)
+
+On-Pi 60×60 cube, 2-round bimodal capture: `relay_estimate_hi`
+collapsed `1600→1062→612`, `relay_seed_rate` `1600→143→137` with no
+demand change, while `baseline_rate`/`fill_p90` correctly held ~2193.
+COMPRESSION rows crushed `940→290` — duty blend pinned to `v_low` under
+the intended never-COMPRESSION lean. Analyzer-only defect fix (firmware
+D2 math unchanged); see D12.
+
+- [x] 9.1 Record D12 in design (mechanism, on-Pi evidence, fill-anchor
+  decision, runtime corollary) + Risks + Open Questions entries.
+  *(this artifact pass)*
+- [x] 9.2 `flare_analyze.relay_duty_recommendations`: re-source
+  `relay_estimate_hi` from `p90(fill_rates)·margin` and
+  `relay_seed_rate` from fill-phase p50 (or EST p50); wrap both in a
+  `max(current, …)` monotone floor (mirror `baseline_rate:738`). Keep
+  `relay_estimate_lo` blend/`p10`-sourced (did not collapse on-Pi).
+  Resolve the D12 open: `hi` margin factor; `seed` source; whether
+  `relay_seed_rate` survives as a distinct scalar or folds into
+  `relay_base`. Must stay deterministic (D7 parity).
+- [x] 9.3 Regression-replay the two on-Pi CSVs (review1/review2):
+  assert post-fix `hi`/`seed` do **not** ratchet round-over-round and
+  land within margin of `fill_p90`/EST p50 (~2000–2200), not the
+  collapsed 612/137. Add as a deterministic analyzer test fixture
+  (sanitized rows) alongside `relay-d11`.
+- [x] 9.4 Acceptance-gate parity: existing non-relay analyzer outputs
+  byte-identical; `relay-cov-*`/`relay-d11` still green;
+  `python3 -m py_compile scripts/*.py`; full analyzer test suite.
+- [x] 9.5 TUNING.md: note the bimodal-model ratchet failure mode and
+  that `hi`/`seed` are now fill-anchored (calibration no longer needs
+  COMPRESSION dwell — consistent with the D10 lean, resolves the D11(b)
+  capture tension for never-COMPRESSION steady state).
+- [x] 9.6 `openspec validate relay-duty-estimator-and-tuning --strict`
+  green; commit + push to main.

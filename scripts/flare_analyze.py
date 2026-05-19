@@ -732,10 +732,21 @@ def relay_duty_recommendations(runs, current):
 
     conf = confidence(len(estimates), 8, 3)
     detail = f"{len(estimates)} paired relay cycles"
+    
     lo = max(1.0, percentile(estimates, 10) * 0.90)
-    hi = max(lo, percentile(estimates, 90) * 1.10)
-    seed = median(estimates)
-    relay_base = max(current["baseline_rate"], percentile(fill_rates, 90) if fill_rates else seed)
+    
+    if fill_rates:
+        hi_cand = percentile(fill_rates, 90) * 1.10
+        seed_cand = median(fill_rates)
+    else:
+        hi_cand = percentile(estimates, 90) * 1.10
+        seed_cand = median(estimates)
+        
+    hi = max(current["relay_estimate_hi"], hi_cand)
+    seed = max(current["relay_seed_rate"], seed_cand)
+    
+    relay_base = max(current["baseline_rate"], percentile(fill_rates, 90) if fill_rates else median(estimates))
+    
     return {
         "baseline_rate": (relay_base, conf, detail),
         "relay_estimate_lo": (lo, conf, detail),

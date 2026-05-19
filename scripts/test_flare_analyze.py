@@ -1082,6 +1082,62 @@ def test_relay_fallback_not_clamped_by_lohi():
     return "unconfident fallback path is not clamped by narrow [lo,hi] (D11 rollback proof)"
 
 
+def test_relay_d12_ratchet():
+    """D12 ratchet fix: hi/seed must not ratchet down to relieve-phase rate.
+
+    On a bimodal demand model with never-COMPRESSION lean, the median and p90 of 
+    paired duty cycles collapse toward the low (relieve) term because COMPRESSION
+    travel is near zero. The fix uses fill_rates (TENSION/catch-up) to anchor
+    relay_estimate_hi and relay_seed_rate, while lo remains p10 of the duty cycles.
+    """
+    current = analyze.DEFAULTS.copy()
+    current["relay_estimate_lo"] = 100.0
+    current["relay_estimate_hi"] = 1600.0
+    current["relay_seed_rate"] = 1600.0
+    current["baseline_rate"] = 1600.0
+
+    # Simulate a run with heavy fill (2000) but short/zero relieve.
+    rows = []
+    ts = 0
+    # Add a few slow perimeter rows to set a low 'lo' bound.
+    for i in range(5):
+        rows.append(row(ts, est=150, bp=-2.0) | {"zone": "TENSION", "est_mm_min": "150"})
+        ts += 200
+        rows.append(row(ts, est=150, bp=-2.0) | {"zone": "COMPRESSION", "est_mm_min": "50"})
+        ts += 200
+        rows.append(row(ts, est=150, bp=-2.0) | {"zone": "NEUTRAL", "est_mm_min": "150"})
+        ts += 200
+
+    # Add heavily biased fast rows (bimodal print with never-COMPRESSION lean)
+    # The fill phase is long, the relieve phase is short/slow.
+    for i in range(20):
+        # Long fill at 2200
+        for _ in range(3):
+            rows.append(row(ts, est=2200, bp=-2.0) | {"zone": "TENSION", "est_mm_min": "2200"})
+            ts += 200
+        # Short relieve at 100
+        rows.append(row(ts, est=2200, bp=-2.0) | {"zone": "COMPRESSION", "est_mm_min": "100"})
+        ts += 200
+        rows.append(row(ts, est=2200, bp=-2.0) | {"zone": "NEUTRAL", "est_mm_min": "2200"})
+        ts += 200
+
+    runs = [{"path": "relay_bimodal.csv", "rows": rows}]
+
+    recs = analyze.relay_duty_recommendations(runs, current)
+    
+    lo, _, _ = recs["relay_estimate_lo"]
+    hi, _, _ = recs["relay_estimate_hi"]
+    seed, _, _ = recs["relay_seed_rate"]
+
+    # Before D12 fix, hi and seed collapsed < 1000 due to blended duty cycles.
+    # After fix, hi should be near 2200 * 1.10 = 2420, seed near 2200.
+    assert lo < 200.0, f"lo={lo} (should track the slow feature)"
+    assert hi >= 2000.0, f"hi={hi} collapsed (ratchet defect present)"
+    assert seed >= 1800.0, f"seed={seed} collapsed (ratchet defect present)"
+
+    return "D12 fix: hi/seed track fill_rates, lo tracks blended estimates"
+
+
 def main():
     tests = [
         ("baseline", test_baseline_from_dominant_cluster),
@@ -1125,6 +1181,7 @@ def main():
         ("relay-cov-pass", test_relay_coverage_verdict_pass),
         ("relay-cov-warn", test_relay_coverage_verdict_warn_undersample),
         ("relay-d11", test_relay_fallback_not_clamped_by_lohi),
+        ("relay-d12", test_relay_d12_ratchet),
     ]
     print(f"{'case':<12} result")
     print(f"{'-' * 12} {'-' * 40}")

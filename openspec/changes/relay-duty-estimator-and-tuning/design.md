@@ -260,6 +260,73 @@ deterministic function of the captured CSV; no new authority.
 the estimator is confidence-active in real prints; revisit at §7.5 on-Pi
 A/B, not in this pass.
 
+### D12 — Blended-estimate ratchet: `hi`/`seed` collapse under the intended lean (defect, on-Pi confirmed)
+
+Surfaced on-Pi: a 60×60 mm cube, two-round capture (round 1 default
+params; round 2 = round-1 review clamps applied), bimodal demand (slow
+outer perimeter ~300 mm/min, all other features ~1500 slicer-volumetric
+but **~2000–2200 actual filament feed**). Successive `flare_analyze`
+reviews did **not** converge — `relay_estimate_hi` collapsed
+`1600 → 1062 → 612` and `relay_seed_rate` `1600 → 143 → 137` across two
+rounds with **no physical change in demand**.
+
+**Mechanism (distinct from D11(a); not EST contamination).** Raw `EST`
+got *healthier* round-to-round (p50 `1316 → 2030`, p10 `66 → 431`,
+≥500 mass `76% → 89%`) — demand never dropped. The collapse is in the
+duty **blend** itself. With `fh = dh/(dl+dh)`,
+`v_est = (1-fh)·v_low + fh·v_high` (`flare_analyze.py:697-698`,
+`sync.c:257-258`): `dh` = COMPRESSION/relieve travel, `v_low` =
+COMPRESSION-phase rate (low), `dl`/`v_high` = TENSION/fill (high). A low
+NEUTRAL clamp → MMU under-feeds neutral → buffer rarely reaches
+COMPRESSION (observed COMPRESSION rows `940 → 290`, crushed 3.2×) →
+`dh → 0` → `fh → 0` → `v_est → v_low` → `p90(estimates)` and
+`median(estimates)` collapse toward the low relieve term → next round's
+`hi`/`seed` even lower → COMPRESSION even rarer. Self-reinforcing
+**downward ratchet via COMPRESSION starvation**. Critically, the
+proposal's *intended* steady state (D10: a good low-flip cycle is
+unconfident / never-COMPRESSION by design) is **exactly** the regime
+where the blended `hi`/`seed` are structurally garbage.
+
+**Why `baseline_rate` is immune (the fix template).**
+`baseline_rate = max(current, p90(fill_rates))` (`flare_analyze.py:738`)
+is anchored to the TENSION/catch-up phase, which is a fixed
+`relay_base·CATCHUP_FRAC` anchor (clamp-independent), and is monotone via
+`max(current, …)`. On-Pi it tracked truth: `2165 → 2193` ≈ `fill_p90`
+`2168 → 2193` ≈ true demand. `hi`/`seed` are sourced from the blended
+`estimates` with **no exogenous anchor and no monotone floor** — the
+asymmetry is the defect.
+
+**Decision.** Re-source the offline `relay_estimate_hi` and
+`relay_seed_rate` from **fill-phase (TENSION/catch-up) demand
+percentiles** — the same clamp-immune signal `baseline_rate` already
+uses — not from the COMPRESSION-suppressed blend. Concretely:
+`hi ≈ p90(fill_rates)·margin`, `seed ≈ p50(fill_rates)` (or EST p50),
+with a `max(current, …)` monotone floor so an over-lean capture cannot
+ratchet the bound below a previously-justified value. `relay_estimate_lo`
+stays blend/`p10`-sourced (it governs the floor, not the ceiling, and did
+**not** collapse on-Pi: `78 → 96`, correctly near the slow-perimeter
+demand). `v_low`/`v_high` firmware math (D2) is unchanged — this is an
+**offline analyzer** fix; the firmware clamp consumes whatever bounds the
+analyzer emits.
+
+**Runtime corollary.** Until the analyzer fix lands, the confidence-gated
+estimator path is *actively harmful* on bimodal models: confident windows
+clamp NEUTRAL to a collapsed `[lo, hi]` (~`[96, 613]`) ≈ 3.5× under
+demand → starve → TENSION → fixed catch-up bang → repeat (the user's
+"hitting tension, near edge"). The print only survives because the
+unconfident fallback (D11(a), un-clamped to `[SYNC_MIN, relay_base]`) and
+the fixed catch-up anchor carry it. This sharpens the D10 tension: if the
+intended steady state is unconfident, blend-derived `hi`/`seed` have no
+correct regime — reinforcing the decision to fill-anchor them.
+
+*Alternative (rejected):* "capture with a wider/longer COMPRESSION dwell"
+— cannot work, the intended lean *is* never-COMPRESSION (D10); requiring
+COMPRESSION mass to calibrate contradicts the control law's own goal.
+
+*Open:* given the fill-anchor, whether `relay_seed_rate` remains a
+distinct emitted scalar or folds into `relay_base` (D10(b) cold-seed
+already prefers the offline baseline) — resolve when implementing §9.
+
 ## Risks / Trade-offs
 
 - [Estimator destabilizes the cycle the relay change just stabilized] →
@@ -286,6 +353,12 @@ A/B, not in this pass.
 - [neutral_creep handling contradicts committed 7.2-A] → D5 honors
   7.2-A: neutral_creep is left intact (inert telemetry, as decided);
   estimator telemetry is a separate new field, not a slot eviction.
+- [Blended `hi`/`seed` ratchet down under the intended lean → confident
+  estimator starves bimodal prints] → D12 (on-Pi confirmed): re-source
+  `hi`/`seed` from clamp-immune fill-phase demand percentiles + monotone
+  `max(current, …)` floor, mirroring the immune `baseline_rate`; analyzer-
+  only fix, firmware D2 math unchanged. Pre-fix mitigation: fallback
+  un-clamp (D11(a)) + fixed catch-up already carry the print.
 
 ## Migration Plan
 
@@ -324,6 +397,10 @@ unreachable (or a config kill-switch) reverts to the exact
   first-confident — decide in step 3, on-Pi-tunable in step 8.
 - (D5 resolved: 7.2-A is committed; neutral_creep stays, telemetry is a
   new field — no open question.)
+- D12 fill-anchor: exact `hi` margin factor, whether `seed` uses
+  `p50(fill_rates)` vs EST p50, and whether `relay_seed_rate` survives as
+  a distinct scalar or folds into `relay_base` — resolve when implementing
+  §9 (must stay deterministic for D7 parity).
 
 ## Implementation Plan (2026-05-19)
 

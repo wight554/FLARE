@@ -251,6 +251,9 @@ The preferred form is a **speed-banded tower**: alternating speed zones printed
 back-to-back in a single run. This fills the low and high buckets cheaply, and
 the feature-boundary steps between zones exercise the estimator's recovery path.
 
+**Calibration Note: Bimodal Models and Fill-Anchoring**
+In bimodal prints (where slow features are paired with very fast features, but COMPRESSION dwells are rare due to the intended neutral lean), duty-cycle estimates could previously "ratchet" downward. To prevent this, `relay_estimate_hi` and `relay_seed_rate` are now **fill-anchored** (derived from the TENSION/catch-up phase demand), making them immune to the ratchet failure mode. This means **calibration no longer needs long COMPRESSION dwells** to succeed. This resolves the capture tension and fully aligns with the never-COMPRESSION intended steady state.
+
 The analyzer emits a coverage verdict:
 
 - `Relay coverage: PASS` — both low-demand and high-demand buckets are
