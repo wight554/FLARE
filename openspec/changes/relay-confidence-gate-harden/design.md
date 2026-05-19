@@ -68,14 +68,33 @@ rely on `baseline`/`FRAC` — proven palliative only, `BPmax` stays 12.5;
 Open Questions); (c) change the control law — unnecessary, the law is
 correct, only the driver-selection gate is mis-tuned.
 
-### G2 — `relay_min_flip_mm` default ON
+### G2 — `relay_min_flip_mm` default ON — BLOCKED, guard rework required
 
-Ship a non-zero default (`sync.c:695` distance hysteresis: suppress a
-flip until commanded travel since the last accepted flip ≥ value).
-Damps residual chatter on both buffer sides after G1. Value on-hw (G4);
-start small (≈0.5–1 mm). It is additive and behavior-identical when 0,
-so the only risk is over-damping (delayed legitimate flips) — bounded by
-keeping the default small and validating.
+Original intent: ship a non-zero default (`sync.c:695` distance
+hysteresis) as a residual chatter damper after G1.
+
+**On-hw regression (2026-05-19, default 0.5):** automatic sync stopped
+working. Root cause: the guard gates **all** flips until
+`g_relay_flip_travel_since_mm ≥ RELAY_MIN_FLIP_MM`, and that counter
+accumulates from **actual motor motion** (`sync.c:1285`,
+`lane_motion_sps`). The type-D COMPRESSION branch commands MMU
+`SYNC_MIN ≈ 0`, so while the buffer is held in COMPRESSION no travel
+accrues → the flip *out of* COMPRESSION never reaches the threshold →
+the relay freezes (cannot leave a zero-feed state because leaving it is
+what produces the travel the guard demands). At `0.0` the guard is
+inert — that is why it worked before. The deadlock is intrinsic to
+"flip-distance measured on the gated actuator's own motion."
+
+**Decision:** default reverted to `0.0` (committed `307fa11`; G2's
+pre-authorized instant rollback). A non-zero default is **blocked**
+until the guard is reworked. Rework options (decide before re-enabling):
+(a) accumulate flip-distance on **printer extrusion / buffer-relative
+travel**, not MMU commanded motion (exogenous to the gated actuator —
+no deadlock); (b) **exempt the egress flip from any zero-feed state**
+(COMPRESSION→*) from the distance guard, keeping it only for
+chatter-prone NEUTRAL↔TENSION; (c) drop motion-distance hysteresis
+entirely and rely on the time-based `BUF_HYST_MS` + G1. *Alternative
+rejected:* keep 0.5 + raise nothing — proven to hang sync on hardware.
 
 ### G3 — Collapse-ramp constants → config (no value change yet)
 

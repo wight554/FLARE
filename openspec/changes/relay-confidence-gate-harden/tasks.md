@@ -41,14 +41,21 @@
   scripts/test_gen_config.py`, `python3 -m py_compile scripts/*.py`,
   `ninja -C build_local`.
 
-## 3. Anti-chatter default (G2)
+## 3. Anti-chatter default (G2) — REVERTED, guard rework required
 
-- [x] 3.1 Set a non-zero `relay_min_flip_mm` default (`config.ini`,
-  `config.ini.example`, `gen_config.py`); provisional ≈0.5–1 mm, final
-  in §4. Assert `0.0` still compiles to behavior-identical
-  (time-based) path (`sync.c:695`).
-- [x] 3.2 Host build + `py_compile` green; generated header carries the
-  new default.
+- [x] 3.0 **Regression + revert (2026-05-19):** default 0.5 mm
+  deadlocked the type-D relay (flip-out-of-COMPRESSION needs motor
+  travel that COMPRESSION=SYNC_MIN suppresses → automatic sync froze
+  on hardware). Reverted default to `0.0`; `test_gen_config` asserts
+  `0.0`; example annotated; committed `307fa11`. See design G2.
+- [ ] 3.1 **BLOCKED on guard rework.** Before any non-zero
+  `relay_min_flip_mm` default: implement a G2 rework option —
+  (a) accumulate flip-distance on printer extrusion / buffer-relative
+  travel (not gated MMU motion), or (b) exempt the egress flip from any
+  zero-feed state (COMPRESSION→*), or (c) drop motion hysteresis, rely
+  on `BUF_HYST_MS` + G1. Decide in design, then set default.
+- [ ] 3.2 After rework: host build + `py_compile` + on-hw confirm sync
+  engages and the guard damps chatter without freezing flips.
 
   2026-05-19: Set the provisional anti-chatter default to 0.5 mm in
   config/example/generator and added generated-default coverage in
