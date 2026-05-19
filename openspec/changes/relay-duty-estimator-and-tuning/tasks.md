@@ -63,9 +63,13 @@
   deferred 4.2 round-2 startup-bangbang. No flash persistence.
 - [x] 2.8 Estimator + seed state volatile only — assert no flash write
   path is reachable from estimator/seed updates.
-- [ ] 2.9 Host build + captured status snapshot: with confidence gate
+- [x] 2.9 Host build + captured status snapshot: with confidence gate
   unreachable AND seed window elapsed, steady-state behavior ==
   archived `relay-buffer-control-2switch` round-2 (rollback proof).
+  **Superseded by 8.5** — the D11 rollback proof is a strict superset
+  (same confidence-unreachable + seed-elapsed condition, *plus* the
+  absurdly-narrow `[lo,hi]` case; `ninja` + `py_compile` + `--strict`
+  green there). No separate work outstanding.
 
   2026-05-19 validation: `ninja -C build_local` and
   `python3 -m py_compile scripts/*.py` pass. Estimator state lives in
@@ -182,6 +186,12 @@
   all new relay estimator and distance-hysteresis behavior).
 - [ ] 7.5 On-Pi A/B vs the §0.1 baseline: cycle stays slow/shallow/
   never-TENSION; tune via the new config keys; record results.
+  **Gated on §10** — D12 (landed) + D13 (pending cold-seed → `lo`,
+  `relay_seed_rate` dropped, short warmup) change the analyzer + cold-
+  start behavior; running the A/B before §10 lands would measure a
+  half-changed system. Run/record **after** §10. The on-Pi 60×60
+  bimodal cube + review-loop thread (D12/D13 evidence) is this work in
+  flight, not yet a formal recorded A/B.
 - [x] 7.6 Commit + push to main.
 
   2026-05-19 validation: implementation and docs were committed and pushed
