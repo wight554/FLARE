@@ -27,35 +27,44 @@
 
 ## 3. Forced A/B in that regime (K2)
 
-- [ ] 3.1 Fallback arm: same model/speeds,
-  `SET:RELAY_CONF_WINDOW_MS:1000` (estimator never confident);
-  capture.
-- [ ] 3.2 Confident arm: same model/speeds, gate forced confident;
-  capture. Only the gate forcing differs between arms (no reflash).
-- [ ] 3.3 Reduce both with the established steady-state,
-  startup-excluded compare script (TENSION %rows, ep/min, COMPRESSION
-  dwell, BP min/max, RDE1%) + note print-quality differences.
+- [x] 3.1 Fallback arm captured (`relay-vase-fallback.csv`,
+  `SET:RELAY_CONF_CYCLES:2`+`WINDOW_MS:1000`, vase 60 mm³/s).
+- [x] 3.2 Confident arm captured (`relay-vase-confident.csv`, same
+  model/speed, `CYCLES:2`+`WINDOW_MS:300000`). Only the gate differed.
+- [x] 3.3 Reduced both (demand-gated body isolation, identical):
+
+  | metric | fallback B | confident A |
+  |---|---|---|
+  | RDE1% / longest hold | 0.0 / 0 s | **57.5 / ~79.5 s** |
+  | TENSION %rows | **1.0** | **42.6** |
+  | ep/min | 0.8 | 22.4 |
+  | COMPRESSION | n22 gentle | **None (starved)** |
+  | BP min/max | −5.43 / 5.02 | −1.95 / **12.5 wall** |
+
+  Confident reached AND held confidence (valid exercise) yet pegged the
+  +12.5 empty wall at 42.6 % TENSION — worse than bimodal r3 (26 %);
+  fallback near-perfect in the identical regime. Analyzer corroborates:
+  confident `relay_estimate_lo`→237 (collapsed/underfed) vs fallback
+  →517 (true demand floor).
 
 ## 4. Verdict (K3)
 
-- [ ] 4.1 Apply the pre-committed K3 rule to the A/B result. Record
-  **KEEP** or **REMOVE** in this change with the evidence table.
-  Tie → REMOVE.
-- [ ] 4.2 If KEEP: add a TUNING.md follow-up note documenting the
-  narrow regime where the confident path measurably helps; gate stays
-  hardened; no code change.
-- [ ] 4.3 If REMOVE: confirm the design K4 blast-radius enumeration is
-  complete and accurate against current code (firmware confident
-  branch + clamp + estimator state, `RDE`/`RDCF`/`RDV` telemetry,
-  `flare_analyze.py` duty machinery + `relay_estimate_*`, config keys,
-  docs, tests). Hand it to a new scoped implementation change
-  (`relay-fallback-only` or similar). Do not delete code here.
+- [x] 4.1 **VERDICT: REMOVE** (2026-05-19). K3 applied: KEEP required
+  confident *measurably better* on a plausibly-common archetype; it was
+  catastrophically **worse** (43× TENSION, empty-wall slam) in its own
+  ideal single-regime (clean constant-60 vase) with confidence reached
+  and held. Not a tie, not unreachable — reachable and ruinous. The
+  confident relay duty-estimator path has no regime where it earns its
+  keep. Relay is fallback-only.
+- [x] 4.2 KEEP path not taken.
+- [x] 4.3 REMOVE: K4 blast-radius confirmed accurate; handed to a new
+  scoped implementation change `relay-fallback-only` (proposed
+  separately). No code deleted in this decision change.
 
 ## 5. Closeout
 
-- [ ] 5.1 `openspec validate relay-confident-path-keep-or-remove
-  --type change --strict` green.
-- [ ] 5.2 Update memory `relay-confident-estimator-bimodal-bangbang`
-  with the verdict (resolves the deferred open question). Commit +
-  push to main. If REMOVE: the follow-on implementation change is
+- [x] 5.1 `openspec validate … --strict` green (2026-05-19).
+- [x] 5.2 Memory `relay-confident-estimator-bimodal-bangbang` updated
+  with the REMOVE verdict (deferred open question resolved). Committed
+  + pushed. Follow-on `relay-fallback-only` implementation change
   proposed separately.

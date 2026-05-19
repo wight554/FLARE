@@ -105,6 +105,32 @@ D2/D7/D12 machinery becomes dead history (left as-is; archives are
 immutable). This enumeration is the design contract for that change;
 it is **not** executed here.
 
+### Verdict (2026-05-19): REMOVE
+
+Single-regime A/B (clean constant-60 mm³/s spiralize vase, the
+confident path's designed-for home; both arms identical except the
+forced gate). Confident arm **reached and held** confidence (RDE1%
+57.5, longest hold ~79.5 s) — a valid exercise, not the
+unreachable-evidence path. Result, body-span, demand-gated:
+
+| metric | fallback | confident |
+|---|---|---|
+| TENSION %rows | 1.0 | 42.6 |
+| ep/min | 0.8 | 22.4 |
+| COMPRESSION | n22 gentle | None (starved) |
+| BP min/max | −5.43 / 5.02 | −1.95 / 12.5 (wall) |
+
+Confident pegged the +12.5 mm empty wall at 42.6 % TENSION — worse than
+even bimodal r3 (26 %); fallback near-perfect in the identical regime.
+Per the pre-committed K3 rule (KEEP requires measurably better; tie or
+contrived-only or unreachable → REMOVE), this is an unambiguous
+**REMOVE**: the confident relay duty-estimator path is catastrophically
+worse than fallback in the one regime it was designed for, with
+confidence demonstrably reached and held. It has no regime where it
+earns its keep. The relay is fallback-only; deletion handed to a
+separate scoped implementation change `relay-fallback-only` (K4 blast
+radius).
+
 ## Risks / Trade-offs
 
 - [Confident path wins only in a contrived/rare regime] → K3 requires
