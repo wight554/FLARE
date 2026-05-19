@@ -137,7 +137,7 @@ def read_csv_runs(paths):
                 "_run": idx,
                 "_path": path,
                 "ts_ms": row.get("wall_ts") or row.get("ts_ms"),
-                "est_mm_min": row.get("EST") or row.get("est_mm_min"),
+                "est_mm_min": row.get("EST") or row.get("est_sps") or row.get("est_mm_min"),
                 "mm_rate": row.get("MM") or row.get("mm_rate") or row.get("sync_mm_min"),
                 "v_fil": row.get("v_fil") or row.get("v_fil"),
                 "bp_mm": row.get("BP") or row.get("bp_mm"),
@@ -219,7 +219,7 @@ def neutral_rows(rows):
     return [
         r for r in rows
         if r.get("zone") == "NEUTRAL"
-        and to_float(r.get("est_sps")) > 0.0
+        and to_float(r.get("est_mm_min")) > 0.0
         and to_float(r.get("v_fil")) > 0.0
     ]
 
@@ -346,7 +346,7 @@ def deterministic_profile_params(rows):
         n = len(bucket_rows)
         if n == 0:
             continue
-        ests = [to_float(r.get("est_sps")) for r in bucket_rows]
+        ests = [to_float(r.get("est_mm_min")) for r in bucket_rows]
         bp_delta = [to_float(r.get("bp_mm")) - to_float(r.get("rt_mm")) for r in bucket_rows]
         if ests:
             weighted_x.append((median(ests), float(n)))
@@ -426,7 +426,7 @@ def deterministic_flow_schedule(rows, cap):
             n = len(bucket_rows)
             if n == 0:
                 continue
-            ests = [to_float(r.get("est_sps")) for r in bucket_rows]
+            ests = [to_float(r.get("est_mm_min")) for r in bucket_rows]
             bp_delta = [to_float(r.get("bp_mm")) - to_float(r.get("rt_mm")) for r in bucket_rows]
             if ests:
                 weighted_x.append((median(ests), float(n)))
@@ -551,7 +551,7 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
         baseline_detail = f"{len(trimmed_qualifying)} buckets"
     else:
         dominant = max(by_bucket.values(), key=len) if by_bucket else []
-        est_vals = [to_float(r.get("est_sps")) for r in dominant]
+        est_vals = [to_float(r.get("est_mm_min")) for r in dominant]
         est_p50 = median(est_vals)
         est_sigma = stdev(est_vals)
         baseline = est_p50 if est_vals else current["baseline_rate"]
@@ -589,7 +589,7 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
         last_ts = None
         for r in run["rows"]:
             ts = to_float(r.get("ts_ms"), -1.0)
-            active = r.get("zone") == "NEUTRAL" and to_float(r.get("est_sps")) > 0.0 and ts >= 0.0
+            active = r.get("zone") == "NEUTRAL" and to_float(r.get("est_mm_min")) > 0.0 and ts >= 0.0
             if active and segment_start is None:
                 segment_start = ts
             if not active and segment_start is not None and last_ts is not None:
@@ -609,7 +609,7 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
         segment_start_est = None
         for r in run["rows"]:
             ts = to_float(r.get("ts_ms"), -1.0) / 1000.0
-            est = to_float(r.get("est_sps"))
+            est = to_float(r.get("est_mm_min"))
             creeping = r.get("zone") == "NEUTRAL" and to_float(r.get("nc")) > 0.0 and ts >= 0.0 and est > 0.0
             if not creeping:
                 prev = None
@@ -894,7 +894,7 @@ def raw_consistency_by_run(runs):
         for r in neutral_rows(run["rows"]):
             grouped[bucket_label(r.get("feature", ""), to_float(r.get("v_fil")))].append(r)
         for label, bucket_rows in grouped.items():
-            ests = [to_float(r.get("est_sps")) for r in bucket_rows]
+            ests = [to_float(r.get("est_mm_min")) for r in bucket_rows]
             bp_delta = [to_float(r.get("bp_mm")) - to_float(r.get("rt_mm")) for r in bucket_rows]
             if ests:
                 baseline_vals[label].append(median(ests))
