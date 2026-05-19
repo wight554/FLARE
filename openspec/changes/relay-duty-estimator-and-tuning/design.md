@@ -212,6 +212,54 @@ documented + cross-linked here, **not** widened into this change and
 **not** silently dropped. A future dedicated change may revisit only if it
 demonstrates real harm (it has not).
 
+### D11 — Fallback un-clamp + calibration capture methodology
+
+Surfaced reviewing the applied code against a sudden major *upward
+sustained* speed step (e.g. feature-boundary 300→1500 mm/min).
+
+**(a) Fallback un-clamp (defect fix).** The applied code
+(`sync.c:~1804-1811`) clamps `demand_sps` to the offline
+`[RELAY_ESTIMATE_LO/HI_SPS]` on **both** the confident estimator path
+and the unconfident fallback, before `×NEUTRAL_FRAC`. The archived
+`relay-buffer-control-2switch` round-2 build (the validated baseline)
+clamped the fallback only to `[SYNC_MIN, relay_base ≈ 11000]` —
+effectively unbounded for normal speeds. So a step above a
+narrowly-tuned `hi` now pins the fallback low → underfeed → TENSION flip
+(caught by the untouched catchup, but violates never-TENSION). This is a
+regression vs round-2 and contradicts this change's own "Unconfident
+fallback … no behavior change vs `relay-buffer-control-2switch`"
+requirement. **Decision:** gate the `[lo,hi]` clamp on `use_estimate`;
+the fallback/seed path keeps `extruder_est_sps × NEUTRAL_FRAC` clamped
+only to `[SYNC_MIN, relay_base]` (round-2-identical). `[lo,hi]` governs
+**only** the confidence-gated estimator — its designed role. EST itself
+adapts fast (α→0.65, 2–3 transitions), so an unclamped fallback tracks a
+major step quickly. *Alternative (rejected):* keep the clamp and require
+wide bounds — leaves a latent regression whenever bounds are mis-tuned
+and the §4 analyzer that sets them is not yet built.
+
+**(b) Capture methodology.** §4.2 emits scalars (`relay_base` +
+`[lo,hi]` = demand envelope + floor), so calibration needs two
+well-sampled regimes + the transitions, not a speed sweep. Capture =
+**one purpose-built model**, single print: sustains the slowest and
+fastest intended demand long enough to fill the low/high buckets past the
+analyzer min-sample gate, and steps between them at feature boundaries
+(realistic worst case). Preferred form: a speed-banded tower (also fills
+intermediate buckets cheaply). Explicitly anti-pattern: 3 prints
+(slow+fast+combined — redundant) and many different models (uncontrolled,
+no constant baseline — the prior 10-test trap).
+
+**(c) Analyzer coverage verdict.** `flare_analyze` MUST report per-bucket
+sample counts and emit PASS / WARN; WARN names the single deficiency
+("low/high bucket under-sampled → print slower/faster/taller", "no
+constant-baseline segment detected"). One print then PASSES or states
+exactly the one fix — replacing the blind multi-test loop. Pure
+deterministic function of the captured CSV; no new authority.
+
+**(d) Deferred:** value-aware staleness (invalidate stale pairs / shorten
+`RELAY_CONFIDENCE_WINDOW_MS` on a large demand step) — only matters once
+the estimator is confidence-active in real prints; revisit at §7.5 on-Pi
+A/B, not in this pass.
+
 ## Risks / Trade-offs
 
 - [Estimator destabilizes the cycle the relay change just stabilized] →

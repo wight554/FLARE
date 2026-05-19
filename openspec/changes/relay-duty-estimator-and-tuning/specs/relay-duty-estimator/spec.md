@@ -61,6 +61,24 @@ change versus `relay-buffer-control-2switch`.
 - **THEN** the controller reverts to the fixed-demand fallback without a
   feed discontinuity that destabilizes the cycle
 
+#### Scenario: Fallback clamp matches the archived relay law
+
+- **WHEN** relay NEUTRAL is on the unconfident fallback (or the
+  cold-start seed) path
+- **THEN** the feed is `extruder_est_sps × SYNC_RELAY_NEUTRAL_FRAC`
+  clamped only to `[SYNC_MIN_SPS, relay_base]`, and SHALL NOT be clamped
+  to the estimator `[lo, hi]` bounds
+- **AND** this is byte-for-byte the archived `relay-buffer-control-2switch`
+  round-2 behavior, so a major upward speed step is absorbed with full
+  `relay_base` headroom (no `[lo,hi]`-induced underfeed / TENSION flip)
+
+#### Scenario: Offline bounds gate only the confident estimator
+
+- **WHEN** the estimator is confident and drives NEUTRAL
+- **THEN** the `[lo, hi]` clamp applies to `v_est`
+- **AND** the `[lo, hi]` clamp is never applied to the unconfident
+  fallback or seed path
+
 ### Requirement: Estimator is a recovery arbitrator, not the steady driver
 
 In a good low-flip cycle the estimator SHALL be expected to remain

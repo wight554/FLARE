@@ -189,3 +189,36 @@
   `sync: add relay duty estimator`, `tuning: analyze relay duty cycles`,
   `docs: describe relay duty tuning`). Remaining unchecked tasks require
   hardware/status capture rather than more local code changes.
+
+## 8. Speed-step hardening (D11, review-added)
+
+Surfaced reviewing the applied code vs a sudden major upward sustained
+speed step. Items are defect-fix / sharpening of this change's own scope,
+not new scope (see D11).
+
+- [x] 8.1 Record D11 in design + the fallback-clamp spec scenarios
+  (fallback clamped `[SYNC_MIN, relay_base]` only, never `[lo,hi]`;
+  `[lo,hi]` gates only the confident estimator). *(this artifact pass)*
+- [ ] 8.2 Firmware: gate the `[lo,hi]` clamp (`sync.c:~1804-1811`) on
+  `use_estimate`. Unconfident fallback **and** cold-start seed paths keep
+  `extruder_est_sps × NEUTRAL_FRAC` clamped only to
+  `[SYNC_MIN, relay_base]` — byte-identical to archived
+  `relay-buffer-control-2switch` round-2. Estimator path `[lo,hi]`
+  unchanged. Fixes the regression that contradicts §2.6 / the
+  "Unconfident fallback … no behavior change" requirement.
+- [ ] 8.3 `flare_analyze`: add a coverage verdict — per-bucket sample
+  counts + PASS/WARN naming the single deficiency (low/high bucket
+  under-sampled → print slower/faster/taller; no constant-baseline
+  segment detected). Pure deterministic function of the captured CSV;
+  no new authority; existing acceptance-gate parity preserved.
+- [ ] 8.4 TUNING.md §6.1: prescribe the single purpose-built calibration
+  model (sustained slow+fast + feature-boundary steps; speed-banded
+  tower preferred) and the anti-patterns (no 3 prints
+  slow+fast+combined; no "many different models" — the
+  no-constant-baseline trap).
+- [ ] 8.5 Rollback proof: with confidence unreachable + seed elapsed +
+  `[lo,hi]` set absurdly narrow, fallback NEUTRAL == archived round-2
+  (the narrow bounds no longer underfeed the fallback);
+  `ninja -C build_local` + `py_compile` +
+  `openspec validate relay-duty-estimator-and-tuning --strict` green.
+- [ ] 8.6 Commit + push to main.
