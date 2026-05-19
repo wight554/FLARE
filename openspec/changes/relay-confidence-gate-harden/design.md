@@ -68,7 +68,7 @@ rely on `baseline`/`FRAC` — proven palliative only, `BPmax` stays 12.5;
 Open Questions); (c) change the control law — unnecessary, the law is
 correct, only the driver-selection gate is mis-tuned.
 
-### G2 — `relay_min_flip_mm` default ON — BLOCKED, guard rework required
+### G2 — `relay_min_flip_mm` motion-hysteresis: DROPPED (decision c)
 
 Original intent: ship a non-zero default (`sync.c:695` distance
 hysteresis) as a residual chatter damper after G1.
@@ -85,28 +85,40 @@ what produces the travel the guard demands). At `0.0` the guard is
 inert — that is why it worked before. The deadlock is intrinsic to
 "flip-distance measured on the gated actuator's own motion."
 
-**Decision:** default reverted to `0.0` (committed `307fa11`; G2's
-pre-authorized instant rollback). A non-zero default stays **blocked**
-until the guard rework lands.
+**Second on-hw deadlock (2026-05-19, attempt (b), default 0.5):** (b)
+exempted COMPRESSION-egress, but the **cold `NEUTRAL→TENSION` corrective
+entry** has the identical topology. At print start `EST` is cold,
+NEUTRAL feed ≈ 0, MMU idle → `g_relay_flip_travel_since_mm` never
+reaches the threshold → the first TENSION flip is suppressed. Worse:
+AUTO_MODE sync auto-start (`sync.c:1400`) keys off `g_buf.state ==
+BUF_TENSION`, so suppressing that flip means **sync never even arms**
+(`SM:0`, `BUF` frozen at NEUTRAL). Generalized root: *any* flip whose
+acceptance is what produces the motion the guard measures deadlocks —
+COMPRESSION-egress and corrective TENSION-entry are two instances; the
+exemption list is whack-a-mole.
 
-**Chosen rework: (b) — exempt the egress flip from any zero-feed
-state.** The distance-hysteresis guard (`sync.c:695`) MUST NOT gate a
-flip whose *current* stable state is a zero-feed state (type-D
-COMPRESSION, or any branch commanding `SYNC_MIN`): the actuator is
-stopped there, so the motion the guard measures cannot accrue and the
-relay would deadlock. The guard applies only to flips where the
-actuator is moving (chatter-prone NEUTRAL↔TENSION). This breaks the
-deadlock by construction while still damping the chatter the knob was
-added for. *Alternatives rejected:* (a) accumulate flip-distance on
-printer/buffer-relative travel — standalone type-D has **no continuous
-printer position** (switch-crossing-only estimator), so no clean
-exogenous travel signal; kept only as a fallback if (b) underperforms.
-(c) drop motion hysteresis entirely — abandons G2's purpose; fallback
-only. Keep 0.5 + change nothing — proven to hang sync on hardware.
+**Decision (c): DROP motion-distance hysteresis.** `relay_min_flip_mm`
+default stays `0.0` permanently (committed `307fa11` / `8061974`); it
+remains a config knob (0.0 = inert, `sync.c:695` guarded on `> 0.0f`)
+with a documented deadlock caveat, but is **not** a shipped non-zero
+default. Rationale: (1) G1-only (r7) already met the target — TENSION
+%rows 10.9, ep/min 4.4, `BPmax` off the 12.5 wall, no ratchet;
+(2) time-based `BUF_HYST_MS` is the existing deadlock-free chatter
+guard; (3) the only states where the guard's travel accrues fast are
+the catch-up moves, where it barely damps — low value, high
+deadlock-surface (two on-hw failures). The `sync.c` (b) exemption code
+stays as dormant defense-in-depth (harmless at 0.0). *Alternatives
+rejected:* (a) accumulate on printer/buffer-relative travel — standalone
+type-D has no continuous printer position; (b) refine the exemption to
+also spare corrective entry — marginal damping (catch-up reaches the
+threshold in ~ms) for continued deadlock risk; keep 0.5 — hangs sync.
 
-**Sequencing:** the (b) firmware rework + a re-enabled non-zero default
-land **after** the G1-only on-hw test (§4 with `min_flip=0.0`), so the
-gate-harden primary fix is hardware-validated independently of G2.
+**Stop smoothness is G3, not G2.** The user's "smooth print stops" goal
+is governed by the deep-COMPRESSION collapse-ramp (G3), now config-
+exposed and — since G1 (r7) stabilized the buffer enough to exercise the
+COMPRESSION path — unblocked for on-hw tuning (§4.4). G2 never governed
+stop smoothness; dropping it costs only marginal residual chatter, not
+stop quality.
 
 ### G3 — Collapse-ramp constants → config (no value change yet)
 

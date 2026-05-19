@@ -41,7 +41,7 @@
   scripts/test_gen_config.py`, `python3 -m py_compile scripts/*.py`,
   `ninja -C build_local`.
 
-## 3. Anti-chatter default (G2) — REVERTED, guard rework required
+## 3. Anti-chatter default (G2) — CLOSED, motion-hysteresis DROPPED (decision c)
 
 - [x] 3.0 **Regression + revert (2026-05-19):** default 0.5 mm
   deadlocked the type-D relay (flip-out-of-COMPRESSION needs motor
@@ -59,12 +59,20 @@
   (deadlock-safe under (b)); `gen_config.py` + `config.ini.example`
   (note updated) + `test_gen_config` assert 0.5. `ninja -C
   build_local`, `test_gen_config`, `py_compile` green.
-- [ ] 3.3 On-hw confirm: flash the (b) build; automatic sync engages,
-  **no COMPRESSION freeze** (egress flip immediate), guard demonstrably
-  damps NEUTRAL↔TENSION chatter vs the r7 G1-only baseline (expect
-  TENSION %rows / ep-min below r7's 10.9 / 4.4, BPmax still off the
-  12.5 wall). Settings-persistence: post-flash `GET:RELAY_MIN_FLIP_MM`
-  must read 0.5 (else `SET:0.5`+persist; prior 0.0 may be saved).
+- [x] 3.3 **On-hw (b) test FAILED → decision (c) (2026-05-19).** The
+  (b) 0.5 build deadlocked again: cold `NEUTRAL→TENSION` entry
+  suppressed (EST cold, MMU idle, travel 0 < 0.5), and AUTO_MODE sync
+  auto-start (`sync.c:1400`) keys off `BUF_TENSION` → **sync never
+  armed** (`SM:0`, BUF frozen NEUTRAL). Same root as 3.0, second
+  instance. **Decision (c): drop motion-hysteresis.** Default
+  re-reverted to `0.0` (committed `8061974`); `test_gen_config` asserts
+  `0.0`; example annotated. `relay_min_flip_mm` stays a 0.0-default
+  config knob with caveat; `sync.c:695` (b) exemption left dormant
+  (harmless at 0.0). G2 closes: **not needed — G1 (r7) already meets
+  the target**; time-based `BUF_HYST_MS` is the deadlock-free chatter
+  guard. Stop smoothness is G3 (§4.4), never was G2.
+  Recovery: post-flash `GET:RELAY_MIN_FLIP_MM` must read `0.0` (else
+  `SET:0.0`+persist; prior 0.5 may be saved).
 
   2026-05-19: Set the provisional anti-chatter default to 0.5 mm in
   config/example/generator and added generated-default coverage in
@@ -96,6 +104,13 @@
 - [ ] 4.3 Record both captures + the A/B table vs the archived §0.1
   locked 4.2 baseline in this change (the hardware validation the
   archived 7.5 never did for the confident path).
+- [ ] 4.4 **Stop-smoothness via G3 (replaces G2's stated goal).**
+  Unblocked now that G1 (r7) stabilized the buffer and the COMPRESSION
+  path is exercised. On-hw tune the collapse-ramp config keys
+  (`relay_collapse_delay_ms` ↑ / `relay_collapse_ramp_mult` ↓ /
+  `relay_collapse_cap_ms`) for a gradual print-end / deep-COMPRESSION
+  stop; capture before/after, record finals. Deadlock-free (no flip
+  gating). Defaults unchanged until a value is validated.
 
 ## 5. Docs
 
