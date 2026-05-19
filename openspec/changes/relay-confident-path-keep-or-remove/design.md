@@ -44,6 +44,23 @@ bimodal r7 = 0 %). Without a capture where the confident path is
 actually exercised, no keep/remove conclusion is valid — this is the
 gating artifact.
 
+Concrete model/archetype, fixed before data: a practical vase-mode
+container/lamp-shade style shell, represented by a tall simple cylinder
+or rounded-rectangle container. This is the real-use claim behind the
+"plausibly common" bar: single-wall decorative/utility shells with
+long continuous perimeter motion, not a synthetic straight-line torture
+path. Reproducible slicer recipe:
+- vase/spiralize mode enabled
+- one continuous wall, no infill, no top layers
+- 0.20 mm layer height, 0.45 mm extrusion width (or printer-equivalent)
+- constant external perimeter speed for the whole body; disable
+  feature-speed variation, acceleration/jerk tricks, adaptive layers,
+  ironing, fuzzy skin, and seam painting
+- at least 100 mm body height after any first-layer/base setup so the
+  steady-state window is long enough for confidence to reach and hold
+- exclude first-layer/base rows from reduction; compare only the
+  continuous body span
+
 ### K2 — Forced A/B in that regime
 
 Same model/speeds, two runs, only the gate forced:
@@ -58,6 +75,10 @@ quality. Deterministic, no flash between (SET only).
 
 ### K3 — Decision rule (set before seeing data, to avoid bias)
 
+- The archetype under test is the vase-mode container/lamp-shade shell
+  named in K1. A confident-path win only counts as KEEP if that same
+  archetype is accepted as a plausibly common real print before looking
+  at A/B data.
 - **KEEP** iff in the single-regime A/B the confident path is
   *measurably better* than fallback (lower TENSION% / tighter buffer /
   better quality) by a margin beyond run-to-run noise — AND that regime
@@ -100,9 +121,8 @@ it is **not** executed here.
 
 ## Open Questions
 
-- Exact "plausibly common" bar in K3 — name the concrete print
-  archetype the confident regime corresponds to during K1 (before the
-  A/B), so K3 is judged against a real-use claim, not hindsight.
+- Resolved 2026-05-19 before A/B data: K3's "plausibly common" bar is
+  judged against the K1 vase-mode container/lamp-shade shell archetype.
 - Whether the `relay_confidence_*` config keys are removed too on
   REMOVE or kept as inert fallback-tuning no-ops — resolve in the
   follow-on implementation change, not here.

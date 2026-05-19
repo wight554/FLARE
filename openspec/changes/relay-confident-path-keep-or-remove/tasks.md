@@ -1,15 +1,24 @@
 ## 1. Pre-commit the decision rule (before any data)
 
-- [ ] 1.1 In design (K3), name the concrete real-print archetype the
+- [x] 1.1 In design (K3), name the concrete real-print archetype the
   single-regime low-flip capture represents (the "plausibly common"
   claim K3 is judged against). Fix the KEEP/REMOVE rule + tie→REMOVE
   in writing before printing anything.
 
+  2026-05-19: Locked K1/K3 to a vase-mode container/lamp-shade shell
+  archetype before A/B data. KEEP still requires a measured win beyond
+  run-to-run noise; tie or contrived-only win still means REMOVE.
+
 ## 2. Single-regime low-flip capture (K1)
 
-- [ ] 2.1 Build/choose a sustained ~constant-demand model (one feature
+- [x] 2.1 Build/choose a sustained ~constant-demand model (one feature
   speed, long uninterrupted runs, minimal feature-boundary
   transitions). Document slicer settings so it is reproducible.
+
+  2026-05-19: Chose a tall simple vase/spiralized shell and documented
+  reproducible slicer constraints in K1: one continuous wall, no
+  infill/top, constant body speed, no adaptive/feature speed variation,
+  body height long enough for steady-state confidence.
 - [ ] 2.2 Print it with the estimator able to reach confidence
   (`SET:RELAY_CONF_WINDOW_MS:<large>` + `SET:RELAY_CONF_CYCLES:<low>`);
   capture CSV. Confirm `RDE1%` materially > 0 over a sustained span
