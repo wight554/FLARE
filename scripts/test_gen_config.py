@@ -61,9 +61,10 @@ def test_scalar_config_emits_one_point():
     assert macro_int(text, "CONF_RELAY_COLLAPSE_CAP_MS") == 600
     assert macro_int(text, "CONF_RELAY_CONFIDENCE_CYCLES") == 8
     assert macro_int(text, "CONF_RELAY_CONFIDENCE_WINDOW_MS") == 1000
-    # 0.5 default, deadlock-safe since the G2(b) rework (zero-feed egress
-    # flip is exempt from the distance guard; sync.c:695).
-    assert macro_float(text, "CONF_RELAY_MIN_FLIP_MM") == 0.5
+    # 0.0 (time-only). Non-zero deadlocks the relay: (b) exempted
+    # COMPRESSION-egress but the NEUTRAL->TENSION corrective entry from a
+    # cold/idle start has the same topology. Blocked pending G2 redesign.
+    assert macro_float(text, "CONF_RELAY_MIN_FLIP_MM") == 0.0
 
 
 def test_schedule_section_sorts_points():
