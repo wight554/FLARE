@@ -17,3 +17,9 @@
 2026-05-20 follow-up:
 - Revised README comparison prose to use normal project documentation wording
   rather than compressed session shorthand.
+
+2026-05-20 follow-up:
+- Reviewed Infinity Flow storefront/product/compatibility pages and added a
+  README comparison positioning FLARE as an open-source DIY alternative to
+  commercial automatic filament reloaders, with plain-serial integration,
+  manual assembly, and configuration called out as key tradeoffs.

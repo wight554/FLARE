@@ -21,6 +21,10 @@
 - Happy Hare wiki now describes native Mainsail/Fluidd MMU panels/dashlets in
   addition to KlipperScreen, including tool-to-gate mapping, gate-map editing,
   and maintenance/state-recovery surfaces.
+- Infinity Flow S1 Plus is a commercial automatic filament reloader positioned
+  around universal printer compatibility, minimal firmware changes, packaged
+  hardware, and optional FlowQ/cloud workflow support. Current storefront copy
+  lists S1 Plus variants from roughly $173 to $210 before accessories.
 - FLARE is intentionally firmware-first: RP2040 owns the two lanes, sensors,
   TMC configuration, RELOAD state machine, and USB serial protocol. Klipper can
   command it, but FLARE can run RELOAD without Klipper or a plugin.
@@ -37,6 +41,10 @@
 - State tradeoffs: two-lane ERB v2.0 focus, weaker host-context sync because
   firmware does not see Klipper's exact extruder baseline, and less polished UX
   until a UI/mediator exists.
+- Add Infinity Flow comparison as a commercial-reloader alternative: FLARE is
+  open-source, inspectable, tunable, built from inexpensive parts, and can be
+  adapted to any host/printer setup that can send plain serial commands, but
+  requires manual assembly and configuration.
 - Mention future web UI carefully: possible only if serial ownership is solved,
   likely by making the UI a mediator rather than a second independent serial
   reader.

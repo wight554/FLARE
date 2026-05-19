@@ -67,6 +67,19 @@ switch to the standby lane on runout without a Klipper plugin or host-side
 recovery flow. This is useful when the priority is continuous feed and runout
 redundancy rather than a universal multi-material ecosystem.
 
+FLARE is also a strong open-source alternative to commercial automatic
+filament reloaders such as [Infinity Flow S1 Plus](https://infinityflow3d.com/).
+Products in that category are attractive because they are packaged, assembled,
+and designed to work with many printers with minimal firmware changes. FLARE
+takes the DIY route instead: the firmware is open source, the controller logic
+is inspectable and tunable, and the hardware target uses inexpensive,
+off-the-shelf parts. Because the runtime interface is plain USB serial, it can
+be adapted to inexpensive printer/host setups that can send simple commands,
+instead of depending on a proprietary app or a specific printer ecosystem. For
+builders who are comfortable assembling and tuning the mechanism themselves,
+the total system can be less expensive and more flexible than a closed
+commercial reloader.
+
 The tradeoff is scope. Happy Hare has a richer UI and recovery workflow,
 broader MMU and board support, Spoolman/gate mapping, and stronger host
 context. Its sync logic can observe Klipper extruder movement directly. FLARE
@@ -74,6 +87,10 @@ does not know the printer's exact commanded extruder baseline; it estimates
 motion from buffer behavior and compensates with firmware-side control. That
 keeps the design standalone, but it makes FLARE less flexible and currently
 limits the supported configuration to two lanes on the tested RP2040 board.
+
+Compared with a commercial reloader, FLARE also requires more operator effort:
+the mechanical assembly, wiring, firmware flashing, serial setup, and runtime
+configuration are part of the project rather than a finished appliance.
 
 A future web UI is possible, but serial ownership needs care. A second process
 reading the FLARE serial port would block Klipper's helper, so a UI would
