@@ -27,8 +27,9 @@
 ## 4. Closeout
 
 - [x] 4.1 Commit + push to main
-- [ ] 4.2 On-Pi A/B: tune `SYNC_RELAY_*_FRAC` for a slow, shallow,
-  never-TENSION, never-faulting cycle (pending hardware). Note: old
+- [x] 4.2 On-Pi A/B: tune `SYNC_RELAY_*_FRAC` for a slow, shallow,
+  never-TENSION, never-faulting cycle. **Baseline locked: `CATCHUP=1.30`,
+  `NEUTRAL=1.25`** (round-2 log, see round log below). Note: old
   "never-ADVANCE" wording = new "never-TENSION" (rename; see 7.1).
 
   Interactive A/B loop (each round):
@@ -73,6 +74,35 @@
     `buf_max_travel_mm=25`. Resume 4.2 with the known-good next pair
     **`CATCHUP=1.30`, `NEUTRAL=1.25`** under that corrected default.
 
+  - **Round 2** (2026-05-19). In: `CATCHUP=1.30`, `NEUTRAL=1.25`. Full
+    print + stop poll. Diagnosis: **steady-state goal MET** — from BPN 13
+    on, EST locks ≈609.7, MM flat 762.1 (=EST×1.25), BP parks −4.1…−4.3,
+    ~95 s+ continuous with **0 TENSION / 0 COMPRESSION / 0 fault** (one
+    advisory `TENSION_RISK_HIGH`, no flip). Two boundary transients remain,
+    both non-frac-fixable: (a) startup bangbang BPN 1–13 (~4 TENSION) =
+    cold-EST convergence at print start; (b) end-of-print tail = COMPRESSION
+    held at `SYNC_MIN` into a full buffer at zero draw, BP −7.8→−9.55,
+    RELIEF_PAUSE/BUF_STAB auto-stop (expected print-end). Verdict: **STOP
+    hand-loop — known-good baseline**. Both transients → handed to
+    `relay-duty-estimator-and-tuning` §0 (cold-EST seeding) / estimator
+    scope (COMPRESSION `SYNC_MIN` floor, cf. §6.2).
+
+  **Deliverable (4.2 done):** frac pair **`CATCHUP=1.30` / `NEUTRAL=1.25`**
+  + round-2 `?:` poll log proving the slow/shallow/never-TENSION/never-fault
+  steady-state cycle. This is the known-good baseline gating
+  `relay-duty-estimator-and-tuning` §0.1.
+
+  **Scale caveat:** round-2.log was captured under the pre-fix geometry
+  default (old `buf_half_travel_mm=7.8`, internal half 7.8). The frac pair
+  is **switch-state driven** (§1–6 read discrete TENSION/COMPRESSION/NEUTRAL
+  set by the physical switches) and therefore geometry-config-independent —
+  the cycle proof holds under the corrected `buf_switch_span_mm=10`
+  (half 5). Only the *virtual BP-mm readout, predictive `TENSION_RISK`
+  timing, park-depth/deadband* scale with the geometry value; these are
+  non-authoritative for the frac deliverable. An opportunistic re-poll
+  under half=5 (next real print) is a nice-to-have to refresh the BP-mm
+  reference for the estimator's mm domain — **not** a 4.2 gate.
+
 ## 5. Polarity fix (post-retest)
 
 - [x] 5.1 Hardware showed inverted polarity (ADVANCE=empty,
@@ -113,11 +143,21 @@ goal: park between NEUTRAL and COMPRESSION, never reach TENSION.
   2026-05-19: `adopt-sync-feedback-vocab` refreshed `proposal.md`,
   `design.md`, and active spec prose to type-D / TENSION / COMPRESSION
   vocabulary. Historical task notes below remain as retest history.
-- [ ] 7.2 `neutral_creep` is telemetry-only: `g_neutral_creep_sps` computed
+- [x] 7.2 `neutral_creep` is telemetry-only: `g_neutral_creep_sps` computed
   in `neutral_creep_update()` (`sync.c:395-428`) but consumed only at
-  `protocol.c:217` (status emit) — never added to `target_sps`. Decide:
-  intended inert, or wire it into the NEUTRAL feed path. Not a polarity bug;
-  relay NEUTRAL feed is unaffected today.
+  `protocol.c:217` (status emit) — never added to `target_sps`. Not a
+  polarity bug; relay NEUTRAL feed is unaffected today.
+
+  **Decision: A — intended-inert telemetry. Do NOT wire.** Wiring an upward
+  creep into the relay NEUTRAL feed would re-introduce the slow ratchet that
+  §6 deliberately removed (demand-tracked MID fix; NEUTRAL↔COMPRESSION
+  bangbang + −11 full-wall slam) and directly fights the 4.2 goal
+  (slow/shallow, never-TENSION). Demand-capped at 10% so milder than the old
+  5× baseline bug, but same direction = same hazard. Deleting it loses a
+  free NEUTRAL-dwell telemetry signal useful for 4.2-style `?:` diagnosis.
+  Keep computing; leave unwired; documented intent. Note: if ever wired
+  later it is **not** `BUF_SENSOR_TYPE`-gated and would need type-D polarity
+  rework first → defer that to `relay-duty-estimator-and-tuning`.
 
 Full `sync.c` COMPRESSION/TENSION sweep (beyond audit's 13 sites): relay
 path zero inverted assumptions — decode, override (`1624-1632`),
