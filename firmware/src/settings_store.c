@@ -587,7 +587,6 @@ void settings_load(void) {
     if (RELAY_ESTIMATE_HI_SPS < RELAY_ESTIMATE_LO_SPS) RELAY_ESTIMATE_HI_SPS = RELAY_ESTIMATE_LO_SPS;
     RELAY_CONFIDENCE_CYCLES = clamp_i(s->relay_confidence_cycles, 1, 64);
     RELAY_CONFIDENCE_WINDOW_MS = clamp_i(s->relay_confidence_window_ms, 1000, 300000);
-    RELAY_SEED_SPS = motion_clamp_rate_sps(s->relay_seed_sps);
     RELAY_SEED_WARMUP_MS = clamp_i(s->relay_seed_warmup_ms, 0, 300000);
     RELAY_MIN_FLIP_MM = clamp_f(s->relay_min_flip_mm, 0.0f, 100.0f);
     BUF_DRIFT_EWMA_TAU_MS = clamp_i(s->buf_drift_ewma_tau_ms, 5000, 600000);

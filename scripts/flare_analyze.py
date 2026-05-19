@@ -54,7 +54,6 @@ RELAY_DEFAULTS = {
     "relay_estimate_hi": 1600.0,
     "relay_confidence_cycles": 8.0,
     "relay_confidence_window_ms": 60000.0,
-    "relay_seed_rate": 1600.0,
 }
 CONFIG_DEFAULTS = {**DEFAULTS, **RELAY_DEFAULTS}
 
@@ -737,23 +736,18 @@ def relay_duty_recommendations(runs, current):
     
     if fill_rates:
         hi_cand = percentile(fill_rates, 90) * 1.10
-        seed_cand = median(fill_rates)
     else:
         hi_cand = percentile(estimates, 90) * 1.10
-        seed_cand = median(estimates)
-        
+
     hi = max(current["relay_estimate_hi"], hi_cand)
-    seed = max(current["relay_seed_rate"], seed_cand)
-    
+
     relay_base = max(current["baseline_rate"], percentile(fill_rates, 90) if fill_rates else median(estimates))
-    
+
     return {
         "baseline_rate": (relay_base, conf, detail),
         "relay_estimate_lo": (lo, conf, detail),
         "relay_estimate_hi": (hi, conf, detail),
-        "relay_seed_rate": (seed, conf, detail),
     }
-
 
 # Minimum paired duty cycles per demand bucket for a PASS verdict.
 RELAY_COVERAGE_MIN_BUCKET_CYCLES = 4
@@ -1351,7 +1345,7 @@ def run(args):
         if key in DEFAULTS and conf != "DEFAULT" and entries
     }
     # Only emit relay coverage when relay recommendations were computed.
-    relay_has_recs = "relay_estimate_lo" in recommendations or "relay_seed_rate" in recommendations
+    relay_has_recs = "relay_estimate_lo" in recommendations
     relay_cov = relay_duty_coverage(runs, current) if relay_has_recs else None
     write_patch(args.out, runs, rows, state_buckets, current, recommendations, gate, banner=banner, contributors=contributors, relay_coverage=relay_cov)
     if zero_locked_state and args.mode == "safe" and not force:

@@ -252,7 +252,10 @@ back-to-back in a single run. This fills the low and high buckets cheaply, and
 the feature-boundary steps between zones exercise the estimator's recovery path.
 
 **Calibration Note: Bimodal Models and Fill-Anchoring**
-In bimodal prints (where slow features are paired with very fast features, but COMPRESSION dwells are rare due to the intended neutral lean), duty-cycle estimates could previously "ratchet" downward. To prevent this, `relay_estimate_hi` and `relay_seed_rate` are now **fill-anchored** (derived from the TENSION/catch-up phase demand), making them immune to the ratchet failure mode. This means **calibration no longer needs long COMPRESSION dwells** to succeed. This resolves the capture tension and fully aligns with the never-COMPRESSION intended steady state.
+In bimodal prints (where slow features are paired with very fast features, but COMPRESSION dwells are rare due to the intended neutral lean), duty-cycle estimates could previously "ratchet" downward. To prevent this, `relay_estimate_hi` is now **fill-anchored** (derived from the TENSION/catch-up phase demand), making it immune to the ratchet failure mode. This means **calibration no longer needs long COMPRESSION dwells** to succeed. This resolves the capture tension and fully aligns with the never-COMPRESSION intended steady state.
+
+**Cold-Start Seed Directional Asymmetry (D13)**
+The cold-start fallback seed is now sourced from `relay_estimate_lo` (not the baseline) with a very short `relay_seed_warmup_ms`. This handles the asymmetric cost of startup errors: a low-feed error safely bridges via the bounded catch-up anchor, while a high-feed error would risk an unrecoverable buffer wall slam. The standalone `relay_seed_rate` knob was therefore removed.
 
 The analyzer emits a coverage verdict:
 

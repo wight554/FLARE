@@ -984,7 +984,6 @@ def test_relay_duty_recommendation_is_deterministic():
         assert content1 == content2, (content1, content2)
         assert "relay_estimate_lo" in content1, content1
         assert "relay_estimate_hi" in content1, content1
-        assert "relay_seed_rate" in content1, content1
     return "relay duty recommendations are byte-stable"
 
 
@@ -1095,7 +1094,6 @@ def test_relay_d12_ratchet():
     current = analyze.DEFAULTS.copy()
     current["relay_estimate_lo"] = 100.0
     current["relay_estimate_hi"] = 1600.0
-    current["relay_seed_rate"] = 1600.0
     current["baseline_rate"] = 1600.0
 
     # Simulate a run with heavy fill (2000) but short/zero relieve.
@@ -1129,15 +1127,13 @@ def test_relay_d12_ratchet():
     
     lo, _, _ = recs["relay_estimate_lo"]
     hi, _, _ = recs["relay_estimate_hi"]
-    seed, _, _ = recs["relay_seed_rate"]
 
-    # Before D12 fix, hi and seed collapsed < 1000 due to blended duty cycles.
-    # After fix, hi should be near 2200 * 1.10 = 2420, seed near 2200.
+    # Before D12 fix, hi collapsed < 1000 due to blended duty cycles.
+    # After fix, hi should be near 2200 * 1.10 = 2420.
     assert lo < 200.0, f"lo={lo} (should track the slow feature)"
     assert hi >= 2000.0, f"hi={hi} collapsed (ratchet defect present)"
-    assert seed >= 1800.0, f"seed={seed} collapsed (ratchet defect present)"
 
-    return "D12 fix: hi/seed track fill_rates, lo tracks blended estimates"
+    return "D12 fix: hi tracks fill_rates, lo tracks blended estimates"
 
 
 def test_relay_d12_real_capture():
@@ -1158,7 +1154,6 @@ def test_relay_d12_real_capture():
         "baseline_rate": 1600.0,
         "relay_estimate_lo": 100.0,
         "relay_estimate_hi": 1600.0,
-        "relay_seed_rate": 1600.0,
     }
 
     def review(path, cur):
@@ -1166,26 +1161,21 @@ def test_relay_d12_real_capture():
         r = analyze.relay_duty_recommendations(runs, dict(cur))
         return {k: r[k][0] for k in (
             "relay_estimate_lo", "relay_estimate_hi",
-            "relay_seed_rate", "baseline_rate")}
+            "baseline_rate")}
 
     r1 = review(RELAY_REVIEW1, current)
     r2 = review(RELAY_REVIEW2, r1)  # apply round-1 output, then re-review
 
-    # Anti-ratchet core: hi/seed monotone non-decreasing round-over-round.
+    # Anti-ratchet core: hi monotone non-decreasing round-over-round.
     assert r2["relay_estimate_hi"] >= r1["relay_estimate_hi"], (
         f"hi ratcheted DOWN {r1['relay_estimate_hi']:.0f} -> "
         f"{r2['relay_estimate_hi']:.0f} (D12 defect present)")
-    assert r2["relay_seed_rate"] >= r1["relay_seed_rate"], (
-        f"seed ratcheted DOWN {r1['relay_seed_rate']:.0f} -> "
-        f"{r2['relay_seed_rate']:.0f}")
 
     # Lands near true demand (fill_p90 ~2200), not the collapsed 612/137.
     assert r1["relay_estimate_hi"] >= 2200.0, (
         f"round1 hi={r1['relay_estimate_hi']:.0f} below fill-anchor floor")
     assert 1500.0 <= r2["relay_estimate_hi"] <= 4000.0, (
         f"round2 hi={r2['relay_estimate_hi']:.0f} out of sane band")
-    assert r2["relay_seed_rate"] >= 1800.0, (
-        f"round2 seed={r2['relay_seed_rate']:.0f} collapsed")
     assert 2050.0 <= r2["baseline_rate"] <= 2300.0, (
         f"round2 base={r2['baseline_rate']:.0f} != fill_p90 ~2193")
     assert r1["relay_estimate_lo"] < 200.0 and r2["relay_estimate_lo"] < 200.0, (

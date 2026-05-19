@@ -108,8 +108,7 @@ run_current:
 # relay_estimate_hi: 1600             # Offline upper bound for relay estimate (mm/min).
 # relay_confidence_cycles: 8          # Paired switch cycles required before estimator is trusted.
 # relay_confidence_window_ms: 60000   # Recency window for the paired-cycle confidence gate.
-# relay_seed_rate: 1600               # Cold-start fallback seed from offline relay baseline (mm/min).
-# relay_seed_warmup_ms: 20000         # Seed window; exits on EST-warm or first confidence.
+# relay_seed_warmup_ms: 2000          # Seed window; exits on EST-warm or first confidence.
 # relay_min_flip_mm: 0.0              # Optional distance hysteresis for relay flips; 0.0 keeps time-only.
 
 # ─── Drift Observer & TENSION-Risk Telemetry ─────────────────────────────────

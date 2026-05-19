@@ -1796,7 +1796,7 @@ void sync_tick(uint32_t now_ms) {
             if (use_estimate) {
                 demand_sps = g_relay_estimate_sps;
             } else if (relay_seed_active(now_ms)) {
-                demand_sps = RELAY_SEED_SPS > 0 ? RELAY_SEED_SPS : relay_base;
+                demand_sps = RELAY_ESTIMATE_LO_SPS;
             } else {
                 demand_sps = (int)extruder_est_sps;
             }

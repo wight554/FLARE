@@ -230,7 +230,6 @@ extern int   RELAY_ESTIMATE_LO_SPS;
 extern int   RELAY_ESTIMATE_HI_SPS;
 extern int   RELAY_CONFIDENCE_CYCLES;
 extern int   RELAY_CONFIDENCE_WINDOW_MS;
-extern int   RELAY_SEED_SPS;
 extern int   RELAY_SEED_WARMUP_MS;
 extern float RELAY_MIN_FLIP_MM;
 #define BUF_DRIFT_CLAMP_LIMIT_MM 8.0f

@@ -152,8 +152,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `RELAY_CONF_WINDOW_MS` | `relay_confidence_window_ms` | Recency window for relay confidence pairs | 60000 |
 | _(config only)_ | `relay_estimate_lo` | Offline lower bound for relay duty estimate (mm/min) | 100 |
 | _(config only)_ | `relay_estimate_hi` | Offline upper bound for relay duty estimate (mm/min) | 1600 |
-| _(config only)_ | `relay_seed_rate` | Cold-start relay fallback seed from offline analyzer (mm/min) | 1600 |
-| _(config only)_ | `relay_seed_warmup_ms` | Max seed warmup window; exits earlier on EST warm or estimator confidence | 20000 |
+| _(config only)_ | `relay_seed_warmup_ms` | Max seed warmup window; exits earlier on EST warm or estimator confidence | 2000 |
 | _(config only)_ | `relay_min_flip_mm` | Optional distance hysteresis for type-D flips; 0.0 keeps time-only `BUF_HYST` behavior | 0.0 |
 | `VAR_BLEND_FRAC` | `buf_variance_blend_frac` | Max variance-aware blend fraction (0.0=OFF) | 0.0 |
 | `VAR_BLEND_REF_MM` | `buf_variance_blend_ref_mm` | Sigma value at which blend distrust saturates | 1.0 |
