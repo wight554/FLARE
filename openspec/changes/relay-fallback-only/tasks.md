@@ -90,16 +90,30 @@
 
 ## 6. Validation + closeout
 
-- [ ] 6.1 Full host check green: `ninja -C build_local`,
+- [x] 6.1 Full host check green: `ninja -C build_local`,
   `py_compile scripts/*.py`, `test_gen_config.py`, non-relay
   `test_flare_analyze.py`; non-relay parity byte-identical.
+
+  2026-05-19: Green host gate: `ninja -C build_local`,
+  `python3 -m py_compile scripts/*.py`, `python3
+  scripts/test_gen_config.py`, `python3 scripts/test_flare_analyze.py`.
+  Fixed-seed analyzer parity against pre-docs commit `4a4dd68` was
+  byte-identical for representative non-relay patch outputs.
 - [ ] 6.2 On-hw smoke: flash; `GET` confirms removed keys gone +
   `RDE` absent from `?:`; sync auto-arms (`SM:1`); a vase and the cube
   run fallback-class (low TENSION, BP off the +12.5 wall). Capture +
   record.
-- [ ] 6.3 `openspec validate relay-fallback-only --type change
+
+  2026-05-19: Pending physical hardware gate. Host build is ready for
+  flash; on-hardware print/capture not run in this session.
+- [x] 6.3 `openspec validate relay-fallback-only --type change
   --strict` green. Commit + push to main. Update memory
   `relay-confident-estimator-bimodal-bangbang` (REMOVE executed).
+
+  2026-05-19: `openspec validate relay-fallback-only --type change
+  --strict` green. Implementation/docs commits pushed to `main` through
+  `fd83393`; closeout task update commit follows. Cavemem write API was
+  not available in this session, so memory update remains a handoff note.
 - [ ] 6.4 Archive `relay-confident-path-keep-or-remove` and
   `relay-confidence-gate-harden` once this lands and is hw-smoked
   (their verdict/decisions are now realized).
