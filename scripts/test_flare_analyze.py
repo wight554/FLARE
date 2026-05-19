@@ -29,7 +29,7 @@ HIGH_SIGMA_A = os.path.join(REPO_ROOT, "tests/fixtures/high_sigma_run_a.csv")
 HIGH_SIGMA_B = os.path.join(REPO_ROOT, "tests/fixtures/high_sigma_run_b.csv")
 
 FIELDS = [
-    "ts_ms", "zone", "bp_mm", "sigma_mm", "est_sps", "rt_mm", "cf",
+    "ts_ms", "zone", "bp_mm", "sigma_mm", "est_mm_min", "rt_mm", "cf",
     "tension_dwell_ms", "cb", "nc", "vb", "bpv_mm", "feature", "v_fil", "MM",
 ]
 
@@ -101,7 +101,7 @@ def row(ts, feature="Outer_wall", v_fil=1660, est=1600, bp=-3.0, rt=-3.0, sigma=
         "zone": "NEUTRAL",
         "bp_mm": str(bp),
         "sigma_mm": str(sigma),
-        "est_sps": str(est),
+        "est_mm_min": str(est),
         "rt_mm": str(rt),
         "cf": "0.95",
         "tension_dwell_ms": "0",
@@ -457,7 +457,7 @@ def test_neutral_creep_timeout_default_when_insufficient_data():
             "zone": zone,
             "bp_mm": "-3.0",
             "sigma_mm": "0.2",
-            "est_sps": "1000",
+            "est_mm_min": "1000",
             "rt_mm": "-3.0",
             "cf": "0.95",
             "tension_dwell_ms": "0",
@@ -989,28 +989,28 @@ def test_relay_duty_recommendation_is_deterministic():
 def _relay_run_with_transitions(low_rate, high_rate, n_cycles_each):
     """Build a synthetic relay run with n_cycles_each fill/relieve pairs
     at each of two demand rates (low_rate and high_rate mm/min).
-    Uses post-normalization field names (est_sps, zone) as relay_duty_coverage
+    Uses post-normalization field names (est_mm_min, zone) as relay_duty_coverage
     operates on already-normalized rows."""
     rows = []
     ts = 0
     for _i in range(n_cycles_each):
         # low-demand cycle
-        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "TENSION", "est_sps": str(low_rate)})
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "TENSION", "est_mm_min": str(low_rate)})
         ts += 200
-        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(low_rate)})
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_mm_min": str(low_rate)})
         ts += 200
-        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "COMPRESSION", "est_sps": str(low_rate)})
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "COMPRESSION", "est_mm_min": str(low_rate)})
         ts += 200
-        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(low_rate)})
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_mm_min": str(low_rate)})
         ts += 200
         # high-demand cycle
-        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "TENSION", "est_sps": str(high_rate)})
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "TENSION", "est_mm_min": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(high_rate)})
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_mm_min": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "COMPRESSION", "est_sps": str(high_rate)})
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "COMPRESSION", "est_mm_min": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(high_rate)})
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "est_mm_min": str(high_rate)})
         ts += 200
     return [{"path": "relay_run.csv", "rows": rows}]
 
@@ -1033,13 +1033,13 @@ def test_relay_coverage_verdict_warn_undersample():
     ts = 0
     high_rate = 2000
     for _i in range(6):
-        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "TENSION", "est_sps": str(high_rate)})
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "TENSION", "est_mm_min": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(high_rate)})
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "NEUTRAL", "est_mm_min": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "COMPRESSION", "est_sps": str(high_rate)})
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "COMPRESSION", "est_mm_min": str(high_rate)})
         ts += 200
-        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "NEUTRAL", "est_sps": str(high_rate)})
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "NEUTRAL", "est_mm_min": str(high_rate)})
         ts += 200
     runs = [{"path": "relay_run.csv", "rows": rows}]
     current = analyze.DEFAULTS.copy()
@@ -1053,9 +1053,9 @@ def test_relay_coverage_verdict_warn_undersample():
 def test_relay_fallback_not_clamped_by_lohi():
     """D11(a) rollback proof: unconfident fallback demand is NOT clamped by [lo,hi].
 
-    With relay_estimate_lo=500 and relay_estimate_hi=600, extruder_est_sps=900,
+    With relay_estimate_lo=500 and relay_estimate_hi=600, extruder_est_mm_min=900,
     and confidence unreachable (0 cycles), the NEUTRAL feed must be derived from
-    extruder_est_sps * RELAY_NEUTRAL_FRAC (clamped only to [SYNC_MIN, relay_base]),
+    extruder_est_mm_min * RELAY_NEUTRAL_FRAC (clamped only to [SYNC_MIN, relay_base]),
     NOT pinned to hi=600.
 
     We test this indirectly via relay_duty_recommendations (no relay transitions

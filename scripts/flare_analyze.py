@@ -137,7 +137,7 @@ def read_csv_runs(paths):
                 "_run": idx,
                 "_path": path,
                 "ts_ms": row.get("wall_ts") or row.get("ts_ms"),
-                "est_sps": row.get("EST") or row.get("est_sps"),
+                "est_mm_min": row.get("EST") or row.get("est_mm_min"),
                 "mm_rate": row.get("MM") or row.get("mm_rate") or row.get("sync_mm_min"),
                 "v_fil": row.get("v_fil") or row.get("v_fil"),
                 "bp_mm": row.get("BP") or row.get("bp_mm"),
@@ -703,7 +703,7 @@ def relay_duty_recommendations(runs, current):
         for row in run["rows"]:
             ts = to_float(row.get("ts_ms"), -1.0)
             zone = row.get("zone")
-            rate = to_float(row.get("est_sps"), math.nan)
+            rate = to_float(row.get("est_mm_min"), math.nan)
             if ts < 0.0 or math.isnan(rate):
                 if ts >= 0.0:
                     prev_ts = ts
@@ -785,7 +785,7 @@ def relay_duty_coverage(runs, current):
         for row in run["rows"]:
             ts = to_float(row.get("ts_ms"), -1.0)
             zone = row.get("zone")
-            rate = to_float(row.get("est_sps"), math.nan)
+            rate = to_float(row.get("est_mm_min"), math.nan)
             if ts < 0.0 or math.isnan(rate):
                 if ts >= 0.0:
                     prev_ts = ts
