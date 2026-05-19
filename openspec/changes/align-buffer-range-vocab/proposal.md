@@ -13,16 +13,16 @@ half/full ambiguity and lets us ship EMU Sync defaults verbatim.
 
 - **BREAKING** Rename config.ini + serial SET/GET keys to Happy Hare
   full-range semantics, keeping the terse existing `buf_` prefix:
-  - `buf_half_travel_mm` → `buf_sense_span_mm` (semantics flip:
+  - `buf_half_travel_mm` → `buf_switch_span_mm` (semantics flip:
     HALF → FULL switch-to-switch distance)
   - `buf_size_mm` → `buf_max_travel_mm` (already full; rename only)
   - SET/GET tokens `BUF_HALF_TRAVEL`/`BUF_TRAVEL`/`BUF_SIZE` →
-    `BUF_SENSE_SPAN` / `BUF_MAX_TRAVEL`.
+    `BUF_SWITCH_SPAN` / `BUF_MAX_TRAVEL`.
     No legacy aliases (personal project, commit-to-main).
 - Adopt full-range vocabulary only at the config.ini + serial boundary;
   convert full → internal half once at ingest (`range / 2`). Internal
   `sync.c` half-based geometry math is untouched.
-- Set defaults per EMU Sync: `buf_sense_span_mm = 10`
+- Set defaults per EMU Sync: `buf_switch_span_mm = 10`
   (→ internal half `5`), `buf_max_travel_mm = 25`. This also
   corrects the `7.8` half artifact.
 - No relay-law, estimator, or `sync-state-model` behavior changes — vocabulary
@@ -33,10 +33,10 @@ half/full ambiguity and lets us ship EMU Sync defaults verbatim.
 ### New Capabilities
 - `buffer-geometry-vocabulary`: buffer-travel units contract with full-range
   semantics aligned to Happy Hare / EMU Sync —
-  `buf_sense_span_mm` (switch-to-switch sensing span) / `buf_max_travel_mm`
+  `buf_switch_span_mm` (switch-to-switch sensing span) / `buf_max_travel_mm`
   (total mechanical travel) config + serial vocabulary, full→half ingest
   conversion, EMU Sync default values, and the clamp relationship between
-  sense-span and max-travel.
+  switch-span and max-travel.
 
 ### Modified Capabilities
 (none — the change *complies with* the existing `persistence-contract`
@@ -53,7 +53,7 @@ No requirement-level behavior changes.)
 - Config/settings loader + `gen_config.py` — key-name mapping; flash
   settings-store field mapping.
 - `firmware/src/protocol.c` — SET (`:634-657`) and GET (`:793`, `:811`) key
-  tokens (`BUF_SENSE_SPAN`/`BUF_MAX_TRAVEL`) + clamp wiring (`buf_sense_span_mm` clamps
+  tokens (`BUF_SWITCH_SPAN`/`BUF_MAX_TRAVEL`) + clamp wiring (`buf_switch_span_mm` clamps
   against `buf_max_travel_mm`).
 - `firmware/src/sync.c` — only if macro identifiers change at callsites
   (`buf_physical_half_travel_mm` / `buf_threshold_mm` and consumers); math

@@ -47,7 +47,7 @@ DEFAULTS = {
     "ramp_tick_ms": "5",
 
     # Buffer Sync
-    "buf_sense_span_mm": "10",
+    "buf_switch_span_mm": "10",
     "buf_hyst_ms": "30",
     "sync_ramp_up_rate": "40",
     "sync_ramp_dn_rate": "80",
@@ -442,7 +442,7 @@ def main():
         f"#define CONF_RAMP_TICK_MS       {get('ramp_tick_ms')}",
         "",
         "// --- Buffer Sync ---",
-        f"#define CONF_BUF_SENSE_SPAN_MM {get_float('buf_sense_span_mm')}f",
+        f"#define CONF_BUF_SWITCH_SPAN_MM {get_float('buf_switch_span_mm')}f",
         f"#define CONF_BUF_HYST_MS        {get('buf_hyst_ms')}",
         f"#define CONF_SYNC_RAMP_UP_SPS   {mm_min_to_sps(get('sync_ramp_up_rate'), l1)}",
         f"#define CONF_SYNC_RAMP_DN_SPS   {mm_min_to_sps(get('sync_ramp_dn_rate'), l1)}",

@@ -35,7 +35,7 @@ typedef struct {
     int auto_mode;
     int cutter_settle_ms;
     int dist_in_out, dist_out_y, dist_y_buf, buf_body_len, buf_max_travel_mm;
-    float buf_sense_span_mm;
+    float buf_switch_span_mm;
     int buf_hyst_ms, buf_predict_thr_ms;
     int baseline_sps;
     float baseline_alpha;
@@ -128,7 +128,7 @@ static uint32_t crc32_buf(const uint8_t *data, size_t len) {
     return ~crc;
 }
 
-static float buf_sense_span_half_from_full(float span_mm, int max_travel_mm) {
+static float buf_switch_span_half_from_full(float span_mm, int max_travel_mm) {
     float max_span_mm = (float)max_travel_mm;
     if (max_span_mm < 2.0f) max_span_mm = 2.0f;
     return clamp_f(span_mm, 2.0f, max_span_mm) * 0.5f;
@@ -161,7 +161,7 @@ void settings_defaults(void) {
     DIST_Y_BUF = CONF_DIST_Y_BUF;
     BUF_BODY_LEN = CONF_BUF_BODY_LEN;
     BUF_MAX_TRAVEL_MM = clamp_i(CONF_BUF_MAX_TRAVEL_MM, 10, 1000);
-    BUF_SENSE_SPAN_HALF_MM = buf_sense_span_half_from_full(CONF_BUF_SENSE_SPAN_MM, BUF_MAX_TRAVEL_MM);
+    BUF_SWITCH_SPAN_HALF_MM = buf_switch_span_half_from_full(CONF_BUF_SWITCH_SPAN_MM, BUF_MAX_TRAVEL_MM);
     BUF_HYST_MS = CONF_BUF_HYST_MS;
     EST_ALPHA_MIN = CONF_EST_ALPHA_MIN;
     EST_ALPHA_MAX = CONF_EST_ALPHA_MAX;
@@ -299,7 +299,7 @@ void settings_save(void) {
     s.reload_join_delay_ms = RELOAD_JOIN_DELAY_MS;
     s.auto_mode = AUTO_MODE;
     s.auto_preload = AUTO_PRELOAD ? 1 : 0;
-    s.buf_sense_span_mm = BUF_SENSE_SPAN_HALF_MM * 2.0f;
+    s.buf_switch_span_mm = BUF_SWITCH_SPAN_HALF_MM * 2.0f;
     s.dist_in_out = DIST_IN_OUT;
     s.dist_out_y = DIST_OUT_Y;
     s.dist_y_buf = DIST_Y_BUF;
@@ -479,7 +479,7 @@ void settings_load(void) {
     AUTO_MODE = s->auto_mode;
     AUTO_PRELOAD = (s->auto_preload != 0);
     BUF_MAX_TRAVEL_MM = clamp_i(s->buf_max_travel_mm, 10, 1000);
-    BUF_SENSE_SPAN_HALF_MM = buf_sense_span_half_from_full(s->buf_sense_span_mm, BUF_MAX_TRAVEL_MM);
+    BUF_SWITCH_SPAN_HALF_MM = buf_switch_span_half_from_full(s->buf_switch_span_mm, BUF_MAX_TRAVEL_MM);
     DIST_IN_OUT = s->dist_in_out;
     DIST_OUT_Y = s->dist_out_y;
     DIST_Y_BUF = s->dist_y_buf;

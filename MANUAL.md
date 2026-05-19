@@ -114,7 +114,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `DIST_OUT_Y` | `dist_out_y` | Distance between OUT sensor and Y-splitter | 100 |
 | `DIST_Y_BUF` | `dist_y_buf` | Distance between Y-splitter and buffer entry | 300 |
 | `BUF_BODY_LEN`| `buf_body_len`| Physical length of the buffer body/tube | 200 |
-| `BUF_SENSE_SPAN` | `buf_sense_span_mm` | Full switch-to-switch sensing span for the type-D buffer sensor | 10 |
+| `BUF_SWITCH_SPAN` | `buf_switch_span_mm` | Full switch-to-switch sensing span for the type-D buffer sensor | 10 |
 | `BUF_MAX_TRAVEL` | `buf_max_travel_mm` | Full mechanical buffer travel | 25 |
 
 ### Speeds & Rates (mm/min)
@@ -141,7 +141,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `SYNC_KP_RATE` | `sync_kp_rate` | Proportional reserve-correction window around the virtual buffer target | 900 |
 | `EST_ALPHA_MIN`| `est_alpha_min` | Estimator responsiveness for slow drifts | 0.12 |
 | `EST_ALPHA_MAX`| `est_alpha_max` | Estimator responsiveness for sharp jumps | 0.65 |
-| `SYNC_RESERVE_PCT` | `sync_reserve_pct` | Normal-sync reserve target as % of half `BUF_SENSE_SPAN` toward compression | 35 |
+| `SYNC_RESERVE_PCT` | `sync_reserve_pct` | Normal-sync reserve target as % of half `BUF_SWITCH_SPAN` toward compression | 35 |
 | `COMPRESSION_BIAS_FRAC` | `sync_compression_bias_frac` | Scalar fallback compression-side setpoint shift when no flow schedule is configured (0.0 to 0.7) | 0.0 |
 | `NEUTRAL_CREEP_TIMEOUT_MS` | `neutral_creep_timeout_ms` | Neutral-dwell wait before creep activates | 0 |
 | `NEUTRAL_CREEP_RATE` | `neutral_creep_rate_sps_per_s` | Creep ramp slope (SPS/s) | 0 |
@@ -211,7 +211,7 @@ and any ephemeral live segment ratchet. `GET:` / `SET:` / `SV:` / `LD:` for
 `BASELINE_RATE` operate on the configured bootstrap target.
 
 Pre-rename half-travel and size serial tokens are removed; use full-range
-`BUF_SENSE_SPAN` and `BUF_MAX_TRAVEL`.
+`BUF_SWITCH_SPAN` and `BUF_MAX_TRAVEL`.
 
 ### Cutter / Servo
 | Parameter | `config.ini` Key | Description | Default |
@@ -232,7 +232,7 @@ after `SS:`; `HD` appears with the core sync fields near `SM`.
 
 | Field | Unit | Description |
 |-------|------|-------------|
-| `RT` | mm (signed) | Reserve target position. Negative = compression side. Set by `SYNC_RESERVE_PCT`, active flow-schedule bias (or scalar `COMPRESSION_BIAS_FRAC` fallback), and half of `BUF_SENSE_SPAN`. |
+| `RT` | mm (signed) | Reserve target position. Negative = compression side. Set by `SYNC_RESERVE_PCT`, active flow-schedule bias (or scalar `COMPRESSION_BIAS_FRAC` fallback), and half of `BUF_SWITCH_SPAN`. |
 | `HD` | bool | Sync HOLD state from `HD:1` / `HD:0`. |
 | `CB` | % (int) | Active compression bias fraction × 100 after flow-schedule lookup. |
 | `NC` | SPS | Neutral-zone creep component added to target rate |

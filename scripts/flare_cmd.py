@@ -82,7 +82,7 @@ DUMP_PARAMS = [
     ("RAMP_TICK_MS",      "ramp_tick_ms",            False),
     ("PRE_RAMP_RATE",     "pre_ramp_rate",           False),
     # --- Buffer sync ---
-    ("BUF_SENSE_SPAN",    "buf_sense_span_mm",       False),
+    ("BUF_SWITCH_SPAN",    "buf_switch_span_mm",       False),
     ("BUF_HYST",          "buf_hyst_ms",             False),
     ("SYNC_UP_RATE",      "sync_ramp_up_rate",       False),
     ("SYNC_DN_RATE",      "sync_ramp_dn_rate",       False),
@@ -167,7 +167,7 @@ SECTION_BREAKS = {
     "driver_tbl":          "# ─── TMC Chopper (per-lane) ────────────────────────────────────────────────",
     "feed_rate":           "# ─── Speeds (mm/min) ───────────────────────────────────────────────────────",
     "motion_startup_ms":   "# ─── Motion / Ramp ─────────────────────────────────────────────────────────",
-    "buf_sense_span_mm":   "# ─── Buffer Sync ───────────────────────────────────────────────────────────",
+    "buf_switch_span_mm":   "# ─── Buffer Sync ───────────────────────────────────────────────────────────",
     "sync_tension_dwell_stop_ms": "# ─── Tension Hardening ───────────────────────────────────────────",
     "sync_reserve_integral_gain": "# ─── Integral Centering & Confidence ───────────────────────────",
     "est_alpha_min":       "# ─── Smarter Sync (Estimator) ─────────────────────────────────────────────",

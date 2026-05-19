@@ -275,7 +275,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
         if (L->retract_deadline_ms == 0) {
             if (L->unload_sensor_latch && !L->unload_to_in) {
                 float moved_mm = L->task_dist_mm - L->dist_at_out_mm;
-                if (moved_mm >= BUF_SENSE_SPAN_HALF_MM) {
+                if (moved_mm >= BUF_SWITCH_SPAN_HALF_MM) {
                     L->task_dist_mm = L->dist_at_out_mm;
                     L->unload_sensor_latch = false;
 

@@ -206,7 +206,7 @@ extern int SYNC_TICK_MS;
 extern int PRE_RAMP_SPS;
 extern int BUF_HYST_MS;
 extern int BUF_PREDICT_THR_MS;
-extern float BUF_SENSE_SPAN_HALF_MM;
+extern float BUF_SWITCH_SPAN_HALF_MM;
 extern int SYNC_AUTO_STOP_MS;
 extern int SYNC_TENSION_DWELL_STOP_MS;
 extern int SYNC_TENSION_RAMP_DELAY_MS;

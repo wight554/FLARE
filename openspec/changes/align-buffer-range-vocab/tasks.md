@@ -1,26 +1,26 @@
 ## 1. Firmware rename + ingest conversion
 
 - [x] 1.1 `firmware/include/tune.h`: rename `CONF_BUF_HALF_TRAVEL_MM` →
-  `CONF_BUF_SENSE_SPAN_MM` (default `10`), `CONF_BUF_SIZE_MM` →
+  `CONF_BUF_SWITCH_SPAN_MM` (default `10`), `CONF_BUF_SIZE_MM` →
   `CONF_BUF_MAX_TRAVEL_MM` (default `25`); rename backing vars/macros.
-- [x] 1.2 Add single full→half ingest conversion `half = buf_sense_span_mm / 2`
+- [x] 1.2 Add single full→half ingest conversion `half = buf_switch_span_mm / 2`
   at the value-ingest boundary; keep internal half-based representation.
   Verify it is applied exactly once (no double `/2`).
 - [x] 1.3 `firmware/src/sync.c`: update only the macro/var identifiers at
   callsites (`buf_physical_half_travel_mm`, `buf_threshold_mm`, consumers
   `:305-372`, `:427`, `:1286`); change NO formula or call graph.
 - [x] 1.4 `firmware/src/protocol.c`: SET (`:634-657`) + GET (`:793`, `:811`)
-  tokens → `BUF_SENSE_SPAN` / `BUF_MAX_TRAVEL`, full-range values; remove
+  tokens → `BUF_SWITCH_SPAN` / `BUF_MAX_TRAVEL`, full-range values; remove
   `BUF_HALF_TRAVEL` / `BUF_TRAVEL` / `BUF_SIZE` (no aliases).
-- [x] 1.5 Implement clamp relationship: `buf_sense_span_mm ∈
+- [x] 1.5 Implement clamp relationship: `buf_switch_span_mm ∈
   [2.0, buf_max_travel_mm]`, `buf_max_travel_mm ∈ [10, 1000]`; setting
-  `buf_max_travel_mm` re-clamps `buf_sense_span_mm` so internal
+  `buf_max_travel_mm` re-clamps `buf_switch_span_mm` so internal
   `half ≤ buf_max_travel_mm/2`.
 
 ## 2. Config + persistence flow
 
 - [x] 2.1 `config.ini` (and `config.ini.example` if present): replace
-  `buf_half_travel_mm: 7.8` → `buf_sense_span_mm: 10`,
+  `buf_half_travel_mm: 7.8` → `buf_switch_span_mm: 10`,
   `buf_size_mm: 22` → `buf_max_travel_mm: 25`.
 - [x] 2.2 Update `gen_config.py` / config loader key mapping; make unknown
   legacy keys a hard error (resolve design Open Question — add guard if it
@@ -31,8 +31,8 @@
 ## 3. Docs + regression
 
 - [x] 3.1 Update docs referencing old keys (README / AGENTS / BUILD_FLASH /
-  operator tuning guide) to `buf_sense_span_mm` / `buf_max_travel_mm`.
-- [x] 3.2 `TEST_CASES.md`: add regression entry — `buf_sense_span_mm=10 ⇒
+  operator tuning guide) to `buf_switch_span_mm` / `buf_max_travel_mm`.
+- [x] 3.2 `TEST_CASES.md`: add regression entry — `buf_switch_span_mm=10 ⇒
   internal half=5`, type-D relay trace unchanged vs pre-rename half=5 build.
 
 ## 4. Validation
@@ -53,4 +53,4 @@
 - [x] 5.1 Commit + push to main (single milestone).
 - [x] 5.2 Hand back to `relay-buffer-control-2switch` 4.2: record the
   known-good baseline (CATCHUP=1.30/NEUTRAL=1.25) under the corrected
-  `buf_sense_span_mm` default.
+  `buf_switch_span_mm` default.

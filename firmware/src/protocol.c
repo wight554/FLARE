@@ -74,7 +74,7 @@ static bool live_tune_locked_param(const char *param) {
            !strcmp(param, "BUF_VARIANCE_BLEND_REF_MM");
 }
 
-static float buf_sense_span_half_from_full(float span_mm, int max_travel_mm) {
+static float buf_switch_span_half_from_full(float span_mm, int max_travel_mm) {
     float max_span_mm = (float)max_travel_mm;
     if (max_span_mm < 2.0f) max_span_mm = 2.0f;
     return clamp_f(span_mm, 2.0f, max_span_mm) * 0.5f;
@@ -637,8 +637,8 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "RAMP_STEP_RATE")) RAMP_STEP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 1, 10000));
         else if (!strcmp(base_param, "RAMP_TICK_MS")) RAMP_TICK_MS = clamp_i(iv, 1, 1000);
         else if (!strcmp(base_param, "PRE_RAMP_RATE")) PRE_RAMP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, 50000));
-        else if (!strcmp(base_param, "BUF_SENSE_SPAN")) {
-            BUF_SENSE_SPAN_HALF_MM = buf_sense_span_half_from_full(fv, BUF_MAX_TRAVEL_MM);
+        else if (!strcmp(base_param, "BUF_SWITCH_SPAN")) {
+            BUF_SWITCH_SPAN_HALF_MM = buf_switch_span_half_from_full(fv, BUF_MAX_TRAVEL_MM);
         }
         else if (!strcmp(base_param, "BUF_HYST")) BUF_HYST_MS = clamp_i(iv, 5, 500);
         else if (!strcmp(base_param, "BUF_PREDICT_THR_MS")) BUF_PREDICT_THR_MS = clamp_i(iv, 0, 10000);
@@ -658,8 +658,8 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "BUF_MAX_TRAVEL")) {
             BUF_MAX_TRAVEL_MM = clamp_i(iv, 10, 1000);
             float max_half = (float)BUF_MAX_TRAVEL_MM * 0.5f;
-            if (BUF_SENSE_SPAN_HALF_MM > max_half) BUF_SENSE_SPAN_HALF_MM = max_half;
-            if (BUF_SENSE_SPAN_HALF_MM < 1.0f) BUF_SENSE_SPAN_HALF_MM = 1.0f;
+            if (BUF_SWITCH_SPAN_HALF_MM > max_half) BUF_SWITCH_SPAN_HALF_MM = max_half;
+            if (BUF_SWITCH_SPAN_HALF_MM < 1.0f) BUF_SWITCH_SPAN_HALF_MM = 1.0f;
         }
         else if (!strcmp(base_param, "JOIN_RATE")) JOIN_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
         else if (!strcmp(base_param, "PRESS_RATE")) PRESS_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
@@ -795,7 +795,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "RAMP_STEP_RATE")) snprintf(out, sizeof(out), "RAMP_STEP_RATE:%.1f", (double)sps_to_mm_per_min_idx(RAMP_STEP_SPS, idx));
         else if (!strcmp(param, "RAMP_TICK_MS")) snprintf(out, sizeof(out), "RAMP_TICK_MS:%d", RAMP_TICK_MS);
         else if (!strcmp(param, "PRE_RAMP_RATE")) snprintf(out, sizeof(out), "PRE_RAMP_RATE:%.1f", (double)sps_to_mm_per_min_idx(PRE_RAMP_SPS, idx));
-        else if (!strcmp(param, "BUF_SENSE_SPAN")) snprintf(out, sizeof(out), "BUF_SENSE_SPAN:%.3f", (double)(BUF_SENSE_SPAN_HALF_MM * 2.0f));
+        else if (!strcmp(param, "BUF_SWITCH_SPAN")) snprintf(out, sizeof(out), "BUF_SWITCH_SPAN:%.3f", (double)(BUF_SWITCH_SPAN_HALF_MM * 2.0f));
         else if (!strcmp(param, "BUF_HYST")) snprintf(out, sizeof(out), "BUF_HYST:%d", BUF_HYST_MS);
         else if (!strcmp(param, "BUF_PREDICT_THR_MS")) snprintf(out, sizeof(out), "BUF_PREDICT_THR_MS:%d", BUF_PREDICT_THR_MS);
         else if (!strcmp(param, "AUTO_PRELOAD")) snprintf(out, sizeof(out), "AUTO_PRELOAD:%d", AUTO_PRELOAD ? 1 : 0);

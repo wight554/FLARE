@@ -23,9 +23,9 @@ was read as a full distance (flagged in `relay-buffer-control-2switch` 4.2).
 ## Goals / Non-Goals
 
 **Goals:**
-- Config + serial vocabulary uses full-range semantics: `buf_sense_span_mm`
+- Config + serial vocabulary uses full-range semantics: `buf_switch_span_mm`
   (full switch-to-switch), `buf_max_travel_mm` (full max travel).
-- Ship EMU Sync defaults verbatim: `buf_sense_span_mm = 10`, `buf_max_travel_mm = 25`.
+- Ship EMU Sync defaults verbatim: `buf_switch_span_mm = 10`, `buf_max_travel_mm = 25`.
 - Internal half-based `sync.c` math stays byte-for-byte equivalent in
   behavior (only the *source* of the half value changes).
 - Clean rename, no legacy key aliases (personal project, commit-to-main).
@@ -35,15 +35,15 @@ was read as a full distance (flagged in `relay-buffer-control-2switch` 4.2).
 - No flash settings struct-layout version bump beyond what a field
   rename/default-change requires.
 - No type-P (analog) path change; parity reasoning must hold unchanged.
-- Not retuning `buf_sense_span_mm`/`buf_max_travel_mm` to this rig — `10`/`25` are the
+- Not retuning `buf_switch_span_mm`/`buf_max_travel_mm` to this rig — `10`/`25` are the
   EMU Sync reference defaults; rig-specific calibration is separate.
 
 ## Decisions
 
 ### D1 — Adopt full-range at the boundary, convert once at ingest
 
-`buf_sense_span_mm` is FULL switch-to-switch. Internal code wants HALF. Convert
-`half = buf_sense_span_mm / 2` exactly once, where the value enters the firmware
+`buf_switch_span_mm` is FULL switch-to-switch. Internal code wants HALF. Convert
+`half = buf_switch_span_mm / 2` exactly once, where the value enters the firmware
 (config ingest / SET handler), and keep the existing internal half-based
 representation and call graph.
 
@@ -63,20 +63,20 @@ representation and call graph.
 `buf_size_mm` was already FULL max travel; `buf_max_travel_mm` is a pure rename,
 no unit conversion. `buf_max_travel_mm = 25` (was `22`) is a default change only.
 
-### D3 — Names: `buf_sense_span_mm` / `buf_max_travel_mm`
+### D3 — Names: `buf_switch_span_mm` / `buf_max_travel_mm`
 
 Keep the terse existing `buf_` config prefix rather than the literal
 `sync_feedback_buffer_range`. The *semantics* (full-range) are the Happy
 Hare alignment that matters; the long literal string is not. Shorter keys
 stay consistent with the rest of `config.ini` and the serial token style.
-Serial tokens: `BUF_SENSE_SPAN`, `BUF_MAX_TRAVEL`.
+Serial tokens: `BUF_SWITCH_SPAN`, `BUF_MAX_TRAVEL`.
 
 ### D4 — Clamp relationship preserved in full-range terms
 
 Today: `buf_half_travel_mm ∈ [1.0, buf_size_mm/2]`; setting `buf_size_mm`
-re-clamps half. Restated: `buf_sense_span_mm ∈ [2.0, buf_max_travel_mm]`,
+re-clamps half. Restated: `buf_switch_span_mm ∈ [2.0, buf_max_travel_mm]`,
 `buf_max_travel_mm ∈ [10, 1000]` (old `[5,1000]` ×2 lower bound to keep
-`buf_sense_span_mm ≥ 2`). Setting `buf_max_travel_mm` re-clamps `buf_sense_span_mm` so the
+`buf_switch_span_mm ≥ 2`). Setting `buf_max_travel_mm` re-clamps `buf_switch_span_mm` so the
 derived internal half never exceeds `buf_max_travel_mm/2`. Invariant after
 ingest is identical to today: `1.0 ≤ half ≤ buf_max_travel_mm/2`.
 
@@ -96,7 +96,7 @@ avoids the half/full ambiguity lingering behind an alias.
   stale `config.ini` is caught at build, not at runtime.
 - **Off-by-2× error in the ingest conversion** (forgetting `/2`, or
   applying it twice) → Single conversion point (D1); add a regression note
-  in `TEST_CASES.md` asserting `buf_sense_span_mm=10 ⇒ internal half=5` and the
+  in `TEST_CASES.md` asserting `buf_switch_span_mm=10 ⇒ internal half=5` and the
   type-D relay trace is unchanged vs the pre-rename half=5 build.
 - **GET now reports full-range while operators muscle-memory expect half**
   → Acceptable and intended; this *is* the alignment. Operator tuning-guide
@@ -140,21 +140,21 @@ avoids the half/full ambiguity lingering behind an alias.
 ### Edit Plan
 
 - Boundary naming:
-  - Config key `buf_sense_span_mm` is full range; generated macro
-    `CONF_BUF_SENSE_SPAN_MM` remains full range.
-  - Runtime variable `BUF_SENSE_SPAN_HALF_MM` stores the internal half value
+  - Config key `buf_switch_span_mm` is full range; generated macro
+    `CONF_BUF_SWITCH_SPAN_MM` remains full range.
+  - Runtime variable `BUF_SWITCH_SPAN_HALF_MM` stores the internal half value
     used by existing geometry math.
   - Config key/runtime max `buf_max_travel_mm` / `BUF_MAX_TRAVEL_MM` map
     one-to-one to old total travel.
 - Ingest conversion:
   - Add a small full-range clamp helper at each ingest boundary
     (`settings_defaults`, `settings_load`, protocol SET): clamp full
-    `buf_sense_span_mm` to `[2.0, buf_max_travel_mm]`, then assign
-    `BUF_SENSE_SPAN_HALF_MM = full / 2.0f`.
-  - Save/GET report full range as `BUF_SENSE_SPAN_HALF_MM * 2.0f`; no extra
+    `buf_switch_span_mm` to `[2.0, buf_max_travel_mm]`, then assign
+    `BUF_SWITCH_SPAN_HALF_MM = full / 2.0f`.
+  - Save/GET report full range as `BUF_SWITCH_SPAN_HALF_MM * 2.0f`; no extra
     ingest conversion there.
 - Persistence:
-  - Rename settings fields to `buf_sense_span_mm` and `buf_max_travel_mm`.
+  - Rename settings fields to `buf_switch_span_mm` and `buf_max_travel_mm`.
   - Bump `SETTINGS_VERSION` from 50 to 51 so old flash blobs reset to EMU
     Sync defaults.
 - Config/scripts:

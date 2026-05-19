@@ -201,7 +201,7 @@ zone and converts the switch-threshold travel into an estimated arm velocity.
 Combined with the MMU speed averaged during that dwell, this yields an
 instantaneous extruder-rate estimate.
 
-- `BUF_SENSE_SPAN / 2` is the switch distance from `NEUTRAL`.
+- `BUF_SWITCH_SPAN / 2` is the switch distance from `NEUTRAL`.
 - `BUF_MAX_TRAVEL / 2` is the physical half-travel used to clamp the virtual
   position beyond the switch.
 - `NEUTRAL→TENSION`, `TENSION→NEUTRAL`, `NEUTRAL→COMPRESSION`, `COMPRESSION→NEUTRAL` use the switch
@@ -263,7 +263,7 @@ draw and commanded MMU feed inside the physical travel envelope.
 
 The normal sync target is not `NEUTRAL`. It is a buffered-reserve target on the
 compression side set by `SYNC_RESERVE_PCT`, expressed as a percentage of
-half of `BUF_SENSE_SPAN`. The effective flow-schedule bias is
+half of `BUF_SWITCH_SPAN`. The effective flow-schedule bias is
 `max(SYNC_COMPRESSION_BIAS_FRAC, schedule_bias)`, so a schedule can deepen reserve
 but cannot reduce it below the scalar safety cushion. Firmware also keeps a
 small built-in center guard on top of that percentage target so steady sync
@@ -295,7 +295,7 @@ collapse recovery, fast brake, and fault-hold behavior keep full authority.
 FLARE supports **neutral-zone creep** for active wall-seek. If the arm dwells in the `NEUTRAL` zone longer than `NEUTRAL_CREEP_TIMEOUT_MS`, a synthetic push velocity is gradually added (`NEUTRAL_CREEP_RATE`) to gently force the arm back to the compression wall to restore confidence. This creep is capped by `NEUTRAL_CREEP_CAP` (% of the measured extruder rate) and resets immediately if the arm reaches an endstop.
 
 The `RT:` and `RD:` fields in `?:` status expose the current reserve target
-and deadband in mm, so tuning of `SYNC_RESERVE_PCT`, `BUF_SENSE_SPAN`, and
+and deadband in mm, so tuning of `SYNC_RESERVE_PCT`, `BUF_SWITCH_SPAN`, and
 `SYNC_KP_RATE` can be observed in real time. `TT:` and `CT:` expose how long
 the arm has been continuously pinned at the tension or compression endstop. `CW:`
 shows estimated time-to-compression-wall in ms (99999 when not applicable).
