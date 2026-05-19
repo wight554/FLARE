@@ -1222,6 +1222,12 @@ def open_serial(port: str, baud: int):
 
 
 def setup_klipper_motion(args):
+    if not getattr(args, "klipper_uds", None):
+        if getattr(args, "klipper_mode", "auto") == "on":
+            print("flare_live_tuner: --klipper-uds is required when --klipper-mode is 'on'", file=sys.stderr)
+            sys.exit(1)
+        return None, None, {}, False
+
     if KlipperApiClient is None or SegmentMatcher is None:
         msg = "Klipper motion tracker module is unavailable"
         if args.klipper_mode == "on":
@@ -1506,7 +1512,7 @@ def main() -> None:
     ap.add_argument("--commit-on-idle", action="store_true", help="On print idle, emit /tmp/flare-patch.ini and exit")
     ap.add_argument("--commit-on-finish", action="store_true", help="Exit immediately on FINISH marker (no idle wait); implies commit if locked buckets exist")
     ap.add_argument("--klipper-log", help="Tail klippy.log for FLARE_TUNE marker echoes while tuning")
-    ap.add_argument("--klipper-uds", default=DEFAULT_UDS_PATH, help="Klipper API Unix socket path")
+    ap.add_argument("--klipper-uds", default=None, help="Klipper API Unix socket path")
     ap.add_argument(
         "--klipper-mode",
         choices=("auto", "on"),
