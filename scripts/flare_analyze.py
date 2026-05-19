@@ -742,6 +742,142 @@ def relay_duty_recommendations(runs, current):
     }
 
 
+# Minimum paired duty cycles per demand bucket for a PASS verdict.
+RELAY_COVERAGE_MIN_BUCKET_CYCLES = 4
+
+
+def relay_duty_coverage(runs, current):
+    """Compute per-bucket relay duty coverage and return a PASS/WARN verdict.
+
+    Splits paired duty-cycle estimates into a low-demand and a high-demand
+    bucket at the median.  Reports per-bucket sample counts and names each
+    deficiency so the user knows exactly what to capture next.
+
+    Returns a dict:
+      {
+        "verdict": "PASS" | "WARN",
+        "reasons": [str, ...],          # empty on PASS
+        "low_bucket_n": int,
+        "high_bucket_n": int,
+        "total_cycles": int,
+        "detail": str,
+      }
+    This is a pure function of the inputs; same CSVs → same dict.
+    """
+    estimates = []
+    fill_rates = []
+
+    for run in runs:
+        phase = None
+        travel = 0.0
+        weighted_rate = 0.0
+        weight_ms = 0.0
+        last_fill = None
+        last_relieve = None
+        prev_ts = None
+        prev_rate = 0.0
+        prev_zone = None
+
+        def _finish(phase=None, travel=0.0, weighted_rate=0.0, weight_ms=0.0,
+                    last_fill=None, last_relieve=None):
+            return phase, travel, weighted_rate, weight_ms, last_fill, last_relieve
+
+        for row in run["rows"]:
+            ts = to_float(row.get("ts_ms"), -1.0)
+            zone = row.get("zone")
+            rate = to_float(row.get("mm_rate"), math.nan)
+            if ts < 0.0 or math.isnan(rate):
+                if ts >= 0.0:
+                    prev_ts = ts
+                prev_zone = zone
+                continue
+            if prev_ts is not None and prev_ts >= 0.0 and phase is not None:
+                dt = max(0.0, ts - prev_ts)
+                travel += abs(prev_rate) * dt / 60000.0
+                weighted_rate += abs(prev_rate) * dt
+                weight_ms += dt
+            if zone != prev_zone:
+                if zone in ("COMPRESSION", "TENSION"):
+                    # finish old phase
+                    if phase is not None and weight_ms > 0.0:
+                        rec = {"travel": travel, "rate": weighted_rate / weight_ms}
+                        if phase == "fill":
+                            last_fill = rec
+                            fill_rates.append(rec["rate"])
+                        elif phase == "relieve":
+                            last_relieve = rec
+                        if last_fill and last_relieve:
+                            dl = last_fill["travel"]
+                            dh = last_relieve["travel"]
+                            total = dl + dh
+                            if total > 0.001:
+                                fh = clamp(dh / total, 0.0, 1.0)
+                                estimates.append(
+                                    (1.0 - fh) * last_relieve["rate"] + fh * last_fill["rate"]
+                                )
+                        travel = 0.0
+                        weighted_rate = 0.0
+                        weight_ms = 0.0
+                    phase = "relieve" if zone == "COMPRESSION" else "fill"
+            prev_ts = ts
+            prev_rate = rate
+            prev_zone = zone
+
+    total = len(estimates)
+    if total == 0:
+        return {
+            "verdict": "WARN",
+            "reasons": ["no paired relay cycles found; print with type-D relay active"],
+            "low_bucket_n": 0,
+            "high_bucket_n": 0,
+            "total_cycles": 0,
+            "detail": "0 paired relay cycles",
+        }
+
+    mid = median(estimates)
+    low_bucket = [e for e in estimates if e <= mid]
+    high_bucket = [e for e in estimates if e > mid]
+    low_n = len(low_bucket)
+    high_n = len(high_bucket)
+
+    reasons = []
+    min_n = RELAY_COVERAGE_MIN_BUCKET_CYCLES
+    if low_n < min_n:
+        reasons.append(
+            f"low-demand bucket under-sampled ({low_n}/{min_n} cycles) "
+            "→ print slower or with more low-speed features"
+        )
+    if high_n < min_n:
+        reasons.append(
+            f"high-demand bucket under-sampled ({high_n}/{min_n} cycles) "
+            "→ print faster or with more high-speed features (taller object preferred)"
+        )
+
+    # Detect no-spread: all estimates within 5 % of the median (no constant-baseline segments).
+    spread = (max(estimates) - min(estimates)) / max(mid, 1.0) if total >= 2 else 0.0
+    if spread < 0.05 and total >= 2:
+        reasons.append(
+            "no constant-baseline segment detected "
+            "(all estimates within 5 % of median) "
+            "→ use a single purpose-built model with sustained slow and fast sections"
+        )
+
+    verdict = "PASS" if not reasons else "WARN"
+    detail = (
+        f"{total} paired relay cycles, "
+        f"low_bucket={low_n}, high_bucket={high_n}, "
+        f"spread={spread * 100:.1f}%"
+    )
+    return {
+        "verdict": verdict,
+        "reasons": reasons,
+        "low_bucket_n": low_n,
+        "high_bucket_n": high_n,
+        "total_cycles": total,
+        "detail": detail,
+    }
+
+
 def compute_recommendations(rows, runs, state_buckets, current, mode, include_stale=False, force=False):
     recommendations = recommend_for_subset(runs, rows, state_buckets, current, mode, force, include_stale)
     relay = relay_duty_recommendations(runs, current)
@@ -988,7 +1124,7 @@ def format_value(key, value):
     return f"{int(round(value))}"
 
 
-def write_patch(path, runs, rows, state_buckets, current, recommendations, gate, banner="", contributors=None):
+def write_patch(path, runs, rows, state_buckets, current, recommendations, gate, banner="", contributors=None, relay_coverage=None):
     locked = locked_bucket_labels(state_buckets)
     rejected = gate and not gate["pass"]
     with open(path, "w") as fh:
@@ -1048,6 +1184,13 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
                     fh.write(f"# - {reason}\n")
         else:
             fh.write("# Acceptance gate: NOT RUN\n")
+        if relay_coverage is not None:
+            fh.write(
+                f"# Relay coverage: {relay_coverage['verdict']} "
+                f"({relay_coverage['detail']})\n"
+            )
+            for reason in relay_coverage.get("reasons", []):
+                fh.write(f"# - {reason}\n")
         fh.write("# WARNING: do not blindly apply; review against config.ini first.\n\n")
         fh.write("[flare_review]\n")
         fh.write("# Each line: current_value -> suggested_value (confidence)\n")
@@ -1081,6 +1224,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
         fh.write("#   python3 scripts/gen_config.py\n")
         fh.write("#   ninja -C build_local\n")
         fh.write("#   bash scripts/flash_flare.sh\n")
+
 
 
 def run(args):
@@ -1193,7 +1337,10 @@ def run(args):
         for key, (_value, conf, _detail) in recommendations.items()
         if key in DEFAULTS and conf != "DEFAULT" and entries
     }
-    write_patch(args.out, runs, rows, state_buckets, current, recommendations, gate, banner=banner, contributors=contributors)
+    # Only emit relay coverage when relay recommendations were computed.
+    relay_has_recs = "relay_estimate_lo" in recommendations or "relay_seed_rate" in recommendations
+    relay_cov = relay_duty_coverage(runs, current) if relay_has_recs else None
+    write_patch(args.out, runs, rows, state_buckets, current, recommendations, gate, banner=banner, contributors=contributors, relay_coverage=relay_cov)
     if zero_locked_state and args.mode == "safe" and not force:
         print("refused: no LOCKED buckets in state file", file=sys.stderr)
         print(f"[*] Wrote refused review patch to {args.out}", file=sys.stderr)

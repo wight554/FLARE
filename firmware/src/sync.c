@@ -1801,14 +1801,18 @@ void sync_tick(uint32_t now_ms) {
                 demand_sps = (int)extruder_est_sps;
             }
 
-            int lo = RELAY_ESTIMATE_LO_SPS;
-            int hi = RELAY_ESTIMATE_HI_SPS;
-            if (hi < lo) hi = lo;
-            demand_sps = clamp_i(demand_sps, lo, hi);
+            /* D11(a): [lo,hi] gates only the confident estimator path.
+             * Fallback and cold-start seed are clamped only to
+             * [SYNC_MIN, relay_base] — byte-identical to the archived
+             * relay-buffer-control-2switch round-2 build. */
+            if (use_estimate) {
+                int lo = RELAY_ESTIMATE_LO_SPS;
+                int hi = RELAY_ESTIMATE_HI_SPS;
+                if (hi < lo) hi = lo;
+                demand_sps = clamp_i(demand_sps, lo, hi);
+            }
 
             int neutral = (int)((float)demand_sps * RELAY_NEUTRAL_FRAC);
-            if (neutral < lo) neutral = lo;
-            if (neutral > hi) neutral = hi;
             if (neutral < SYNC_MIN_SPS) neutral = SYNC_MIN_SPS;
             if (neutral > relay_base) neutral = relay_base;
             target_sps = neutral;

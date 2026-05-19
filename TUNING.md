@@ -180,6 +180,40 @@ In a healthy low-flip cycle, `RDE:0` is normal. Few switch flips mean the
 fallback is doing its job; the estimator is a recovery arbitrator for disturbed
 cycles, not the steady-state driver.
 
+### Relay Calibration Methodology
+
+The analyzer needs paired low-demand and high-demand duty cycles. **Use one
+purpose-built model**, a single print that sustains both extremes long enough
+for the analyzer to fill both buckets:
+
+- Sustain the slowest intended demand (outer walls, small layer) long enough
+  to observe several TENSION→NEUTRAL→COMPRESSION→NEUTRAL cycles.
+- Sustain the fastest intended demand (infill, tall feature, high flow) long
+  enough to observe several more cycles.
+- Step between them at feature boundaries (realistic worst case for the
+  estimator to adapt).
+
+The preferred form is a **speed-banded tower**: alternating speed zones printed
+back-to-back in a single run. This fills the low and high buckets cheaply, and
+the feature-boundary steps between zones exercise the estimator's recovery path.
+
+The analyzer emits a coverage verdict:
+
+- `Relay coverage: PASS` — both low-demand and high-demand buckets are
+  adequately sampled; the recommendation is ready to apply.
+- `Relay coverage: WARN` — one or both buckets are under-sampled. The warning
+  names exactly what to add: print slower / faster / taller.
+
+**Anti-patterns** — do not use these:
+
+- **Three separate prints (slow + fast + combined)**: redundant; the combined
+  run contains no additional calibration signal that the slow and fast runs
+  do not already provide.
+- **Many different models printed one-by-one**: uncontrolled — no constant
+  baseline, different path geometries introduce hidden demand variation. This
+  is the no-constant-baseline trap; the analyzer will flag it with a
+  "no constant-baseline segment detected" WARN.
+
 Known limitation: this change does not alter the `BUF_COMPRESSION ->
 SYNC_MIN_RATE` branch. The round-2 end-of-print COMPRESSION grind at draw near
 zero is accepted here as print-tail only, already arrested by

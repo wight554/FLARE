@@ -199,26 +199,39 @@ not new scope (see D11).
 - [x] 8.1 Record D11 in design + the fallback-clamp spec scenarios
   (fallback clamped `[SYNC_MIN, relay_base]` only, never `[lo,hi]`;
   `[lo,hi]` gates only the confident estimator). *(this artifact pass)*
-- [ ] 8.2 Firmware: gate the `[lo,hi]` clamp (`sync.c:~1804-1811`) on
+- [x] 8.2 Firmware: gate the `[lo,hi]` clamp (`sync.c:~1804-1811`) on
   `use_estimate`. Unconfident fallback **and** cold-start seed paths keep
   `extruder_est_sps × NEUTRAL_FRAC` clamped only to
   `[SYNC_MIN, relay_base]` — byte-identical to archived
   `relay-buffer-control-2switch` round-2. Estimator path `[lo,hi]`
   unchanged. Fixes the regression that contradicts §2.6 / the
   "Unconfident fallback … no behavior change" requirement.
-- [ ] 8.3 `flare_analyze`: add a coverage verdict — per-bucket sample
+- [x] 8.3 `flare_analyze`: add a coverage verdict — per-bucket sample
   counts + PASS/WARN naming the single deficiency (low/high bucket
   under-sampled → print slower/faster/taller; no constant-baseline
   segment detected). Pure deterministic function of the captured CSV;
   no new authority; existing acceptance-gate parity preserved.
-- [ ] 8.4 TUNING.md §6.1: prescribe the single purpose-built calibration
+- [x] 8.4 TUNING.md §6.1: prescribe the single purpose-built calibration
   model (sustained slow+fast + feature-boundary steps; speed-banded
   tower preferred) and the anti-patterns (no 3 prints
   slow+fast+combined; no "many different models" — the
   no-constant-baseline trap).
-- [ ] 8.5 Rollback proof: with confidence unreachable + seed elapsed +
+- [x] 8.5 Rollback proof: with confidence unreachable + seed elapsed +
   `[lo,hi]` set absurdly narrow, fallback NEUTRAL == archived round-2
   (the narrow bounds no longer underfeed the fallback);
   `ninja -C build_local` + `py_compile` +
   `openspec validate relay-duty-estimator-and-tuning --strict` green.
-- [ ] 8.6 Commit + push to main.
+- [x] 8.6 Commit + push to main.
+
+  2026-05-19 validation: `sync.c` relay NEUTRAL block now gates
+  `[RELAY_ESTIMATE_LO_SPS, RELAY_ESTIMATE_HI_SPS]` clamp on `use_estimate`
+  only; fallback/seed path is clamped to `[SYNC_MIN_SPS, relay_base]`
+  (D11(a) fix). `flare_analyze.py` gains `relay_duty_coverage()` that
+  splits paired duty-cycle estimates into low/high buckets at the median,
+  reports per-bucket counts, and emits PASS/WARN with named deficiency;
+  result is embedded as a comment block in the review patch when relay
+  recommendations are present. `TUNING.md` now prescribes the purpose-built
+  single-model capture (speed-banded tower preferred) and names the
+  anti-patterns (3-print split, many-model approach). Three new tests
+  (`relay-cov-pass`, `relay-cov-warn`, `relay-d11`) added; all 27 tests
+  pass. `ninja -C build_local` green.

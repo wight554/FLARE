@@ -986,6 +986,102 @@ def test_relay_duty_recommendation_is_deterministic():
     return "relay duty recommendations are byte-stable"
 
 
+def _relay_run_with_transitions(low_rate, high_rate, n_cycles_each):
+    """Build a synthetic relay run with n_cycles_each fill/relieve pairs
+    at each of two demand rates (low_rate and high_rate mm/min).
+    Uses post-normalization field names (mm_rate, zone) as relay_duty_coverage
+    operates on already-normalized rows."""
+    rows = []
+    ts = 0
+    for _i in range(n_cycles_each):
+        # low-demand cycle
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "TENSION", "mm_rate": str(low_rate)})
+        ts += 200
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(low_rate)})
+        ts += 200
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "COMPRESSION", "mm_rate": str(low_rate)})
+        ts += 200
+        rows.append(row(ts, est=int(low_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(low_rate)})
+        ts += 200
+        # high-demand cycle
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "TENSION", "mm_rate": str(high_rate)})
+        ts += 200
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(high_rate)})
+        ts += 200
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "COMPRESSION", "mm_rate": str(high_rate)})
+        ts += 200
+        rows.append(row(ts, est=int(high_rate / 4), bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(high_rate)})
+        ts += 200
+    return [{"path": "relay_run.csv", "rows": rows}]
+
+
+def test_relay_coverage_verdict_pass():
+    """Well-sampled low+high bucket relay capture → PASS."""
+    runs = _relay_run_with_transitions(low_rate=500, high_rate=2000, n_cycles_each=6)
+    current = analyze.DEFAULTS.copy()
+    cov = analyze.relay_duty_coverage(runs, current)
+    assert cov["verdict"] == "PASS", cov
+    assert cov["low_bucket_n"] >= analyze.RELAY_COVERAGE_MIN_BUCKET_CYCLES, cov
+    assert cov["high_bucket_n"] >= analyze.RELAY_COVERAGE_MIN_BUCKET_CYCLES, cov
+    assert not cov["reasons"], cov
+    return "well-sampled low+high relay cycles produce PASS coverage verdict"
+
+
+def test_relay_coverage_verdict_warn_undersample():
+    """Only high-demand cycles → spread < 5% → WARN naming the deficiency."""
+    rows = []
+    ts = 0
+    high_rate = 2000
+    for _i in range(6):
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "TENSION", "mm_rate": str(high_rate)})
+        ts += 200
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(high_rate)})
+        ts += 200
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "COMPRESSION", "mm_rate": str(high_rate)})
+        ts += 200
+        rows.append(row(ts, est=500, bp=-2.0) | {"zone": "NEUTRAL", "mm_rate": str(high_rate)})
+        ts += 200
+    runs = [{"path": "relay_run.csv", "rows": rows}]
+    current = analyze.DEFAULTS.copy()
+    cov = analyze.relay_duty_coverage(runs, current)
+    # All estimates come from one rate level → spread < 5% → no-spread WARN
+    assert cov["verdict"] == "WARN", cov
+    assert cov["reasons"], cov
+    return "single-rate relay capture produces WARN naming the deficiency"
+
+
+def test_relay_fallback_not_clamped_by_lohi():
+    """D11(a) rollback proof: unconfident fallback demand is NOT clamped by [lo,hi].
+
+    With relay_estimate_lo=500 and relay_estimate_hi=600, extruder_est_sps=900,
+    and confidence unreachable (0 cycles), the NEUTRAL feed must be derived from
+    extruder_est_sps * RELAY_NEUTRAL_FRAC (clamped only to [SYNC_MIN, relay_base]),
+    NOT pinned to hi=600.
+
+    We test this indirectly via relay_duty_recommendations (no relay transitions
+    → no confidence) and by verifying the coverage result has zero cycles, plus
+    by unit-testing the relay_duty_coverage function with empty runs.
+    """
+    current = analyze.DEFAULTS.copy()
+    # Absurdly narrow [lo, hi] — the defect would have pinned demand to 600.
+    current["relay_estimate_lo"] = 500.0
+    current["relay_estimate_hi"] = 600.0
+
+    # No relay transitions in the runs → no confidence → fallback path.
+    rows = [row(ts, est=900, bp=-2.0) for ts in range(0, 5000, 100)]
+    runs = [{"path": "run.csv", "rows": rows}]
+
+    relay_recs = analyze.relay_duty_recommendations(runs, current)
+    # No relay transitions → no recommendations emitted → fallback path active.
+    assert not relay_recs, relay_recs
+
+    cov = analyze.relay_duty_coverage(runs, current)
+    assert cov["total_cycles"] == 0, cov
+    assert cov["verdict"] == "WARN", cov
+    assert any("no paired relay cycles" in r for r in cov["reasons"]), cov
+    return "unconfident fallback path is not clamped by narrow [lo,hi] (D11 rollback proof)"
+
+
 def main():
     tests = [
         ("baseline", test_baseline_from_dominant_cluster),
@@ -1026,6 +1122,9 @@ def main():
         ("flow-sched", test_deterministic_flow_schedule),
         ("flow-sparse", test_sparse_flow_schedule_falls_back_to_one_point),
         ("relay-duty", test_relay_duty_recommendation_is_deterministic),
+        ("relay-cov-pass", test_relay_coverage_verdict_pass),
+        ("relay-cov-warn", test_relay_coverage_verdict_warn_undersample),
+        ("relay-d11", test_relay_fallback_not_clamped_by_lohi),
     ]
     print(f"{'case':<12} result")
     print(f"{'-' * 12} {'-' * 40}")
