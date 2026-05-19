@@ -47,31 +47,33 @@ aliases.
 ## Why FLARE Exists
 
 [Happy Hare](https://github.com/moggieuk/Happy-Hare/) is the mature,
-host-integrated path for Klipper MMUs. It is a Klipper extension plus
-Moonraker component and macros, with broad support for ERCF, Tradrack, Box
-Turtle, Night Owl, QuattroBox, 3MS, KMS, ViViD, custom machines, runtime
-gate/tool mapping, Spoolman, native Mainsail/Fluidd MMU panels, and
-KlipperScreen.
+host-integrated path for Klipper MMUs. It is implemented as a Klipper
+extension, a Moonraker component, and a set of macros and configuration files.
+It supports a wide range of MMU designs, including ERCF, Tradrack, Box Turtle,
+Night Owl, QuattroBox, 3MS, KMS, ViViD, and custom machines. It also provides
+runtime gate/tool mapping, Spoolman integration, native Mainsail/Fluidd MMU
+panels, and KlipperScreen support.
 
-FLARE was built for a narrower job: make a dual-lane ERB v2.0 controller own
-the reload/MMU state machine in firmware. Klipper can still drive it, but the
-normal interface is just a small USB serial protocol (`T:`, `TC:`, `LO:`,
-`UL:`, `SET:`, `GET:`, `?:`). That keeps host integration simple and avoids
-making every lane decision a Klipper macro/API round trip.
+FLARE was developed for a narrower goal: allow a dual-lane ERB v2.0 controller
+to own the reload/MMU state machine in firmware. Klipper can still command the
+controller, but the normal integration surface is a small USB serial protocol
+(`T:`, `TC:`, `LO:`, `UL:`, `SET:`, `GET:`, `?:`). This keeps host integration
+simple and avoids routing every lane decision through Klipper macros or API
+callbacks.
 
-The main reason to use FLARE instead of Happy Hare is autonomous RELOAD:
-two spools can act like an "infinite" paired supply, and the controller can
-switch/follow on runout without a Klipper plugin or host-side recovery flow.
-This is useful when the goal is redundancy and continuous feed first, not a
-universal multi-material ecosystem.
+The main reason to use FLARE instead of Happy Hare is autonomous RELOAD. Two
+spools can be treated as a redundant paired supply, and the controller can
+switch to the standby lane on runout without a Klipper plugin or host-side
+recovery flow. This is useful when the priority is continuous feed and runout
+redundancy rather than a universal multi-material ecosystem.
 
-The tradeoff is scope. Happy Hare has richer UI and recovery surfaces, broader
-MMU and board support, Spoolman/gate mapping, and stronger host context. Its
-sync logic can see Klipper extruder movement directly. FLARE does not know the
-printer's exact commanded extruder baseline; it estimates from buffer behavior
-and compensates with firmware-side control. That keeps the design standalone,
-but it is less flexible and currently focused on exactly two lanes on the
-tested RP2040 board.
+The tradeoff is scope. Happy Hare has a richer UI and recovery workflow,
+broader MMU and board support, Spoolman/gate mapping, and stronger host
+context. Its sync logic can observe Klipper extruder movement directly. FLARE
+does not know the printer's exact commanded extruder baseline; it estimates
+motion from buffer behavior and compensates with firmware-side control. That
+keeps the design standalone, but it makes FLARE less flexible and currently
+limits the supported configuration to two lanes on the tested RP2040 board.
 
 A future web UI is possible, but serial ownership needs care. A second process
 reading the FLARE serial port would block Klipper's helper, so a UI would

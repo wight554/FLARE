@@ -13,3 +13,7 @@
 - Reviewed FLARE README, BEHAVIOR, KLIPPER, MANUAL, task workflow, and project
   architecture specs.
 - Docs-only README/OpenSpec change; no firmware build required.
+
+2026-05-20 follow-up:
+- Revised README comparison prose to use normal project documentation wording
+  rather than compressed session shorthand.
