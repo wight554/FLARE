@@ -175,9 +175,9 @@ caveat; the time-based `BUF_HYST_MS` is the supported chatter guard.
 `SET:`/`GET:` parameters (and appear in `flare_cmd.py --dump`) for field
 experiments without a reflash. The collapse-ramp keys shape the
 deep-COMPRESSION / print-end stop; defaults (250 / 3 / 600) already give
-a graceful taper once the gate-harden keeps the buffer off the wall —
-softening them on-hw only added pre-stop chatter, so leave them unless a
-specific machine shows an abrupt stop.
+a graceful taper with the fallback relay law keeping the buffer off the
+wall — softening them on-hw only added pre-stop chatter, so leave them
+unless a specific machine shows an abrupt stop.
 
 Tune only from real print behavior:
 
