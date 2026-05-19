@@ -162,6 +162,8 @@ DUMP_PARAMS = [
     ("SERVO_CLOSE",       "servo_close_us",          False),
     ("SERVO_BLOCK",       "servo_block_us",          False),
     ("SERVO_SETTLE",      "servo_settle_ms",         False),
+    ("CUT_FEED_MS",       "cut_feed_timeout_ms",     False),
+    ("CUT_SETTLE_MS",     "cut_settle_timeout_ms",   False),
     ("CUT_FEED",          "cut_feed_mm",             False),
     ("CUT_LEN",           "cut_length_mm",           False),
     ("CUT_AMT",           "cut_amount",              False),

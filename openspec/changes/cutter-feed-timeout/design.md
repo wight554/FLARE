@@ -41,6 +41,8 @@ Alternative: derive timeout as `feed_active_ms + constant_margin` inside `cutter
 
 Mirrors `TC_CUT_MS`. Short, unambiguous. GET/SET clamps: `CUT_FEED_MS` → `[1000, 120000]`; `CUT_SETTLE_MS` → `[500, 10000]`.
 
+Implementation note: `SET:` updates runtime values only; persistence remains via explicit `SV:`. This matches the existing `TC_CUT_MS` protocol pattern and keeps flash writes behind the activity-gated persistence command.
+
 ### Default `cut_feed_timeout_ms = 30000` ms
 
 Covers `CUT_FEED_MM` up to ~300 mm at minimum feed rate (100 mm/min → 180 s is beyond physical reality; 30 s at 600 mm/min covers 300 mm). Large enough to never spuriously fire in practice, small enough to not hang the cutter indefinitely on a real jam.

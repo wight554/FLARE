@@ -20,15 +20,19 @@
 
 ## 3. protocol.c — GET/SET + dump
 
-- [ ] 3.1 Add `SET:` handler for `CUT_FEED_MS`: `CUT_TIMEOUT_FEED_MS = clamp_i(iv, 1000, 120000);` followed by `settings_save();` (mirror `TC_CUT_MS` pattern).
-- [ ] 3.2 Add `SET:` handler for `CUT_SETTLE_MS`: `CUT_TIMEOUT_SETTLE_MS = clamp_i(iv, 500, 10000);` followed by `settings_save();`.
-- [ ] 3.3 Add `GET:` handlers (both lane-scoped and global) for `CUT_FEED_MS` and `CUT_SETTLE_MS` returning `CUT_FEED_MS:<value>` and `CUT_SETTLE_MS:<value>`.
-- [ ] 3.4 `ninja -C build_local` green.
+- [x] 3.1 Add `SET:` handler for `CUT_FEED_MS`: `CUT_TIMEOUT_FEED_MS = clamp_i(iv, 1000, 120000);` followed by `settings_save();` (mirror `TC_CUT_MS` pattern).
+- [x] 3.2 Add `SET:` handler for `CUT_SETTLE_MS`: `CUT_TIMEOUT_SETTLE_MS = clamp_i(iv, 500, 10000);` followed by `settings_save();`.
+- [x] 3.3 Add `GET:` handlers (both lane-scoped and global) for `CUT_FEED_MS` and `CUT_SETTLE_MS` returning `CUT_FEED_MS:<value>` and `CUT_SETTLE_MS:<value>`.
+- [x] 3.4 `ninja -C build_local` green.
+
+  Implementation note 2026-05-20: handlers follow the actual `TC_CUT_MS` pattern (`SET:` updates runtime; `SV:` persists) instead of calling `settings_save()` directly, preserving activity-gated flash writes. Validation: `ninja -C build_local` passed.
 
 ## 4. flare_cmd.py — dump entries
 
-- [ ] 4.1 Add `GET:CUT_FEED_MS` and `GET:CUT_SETTLE_MS` to the `--dump` section of `scripts/flare_cmd.py` alongside existing cutter dump entries.
-- [ ] 4.2 `python3 -m py_compile scripts/*.py` green.
+- [x] 4.1 Add `GET:CUT_FEED_MS` and `GET:CUT_SETTLE_MS` to the `--dump` section of `scripts/flare_cmd.py` alongside existing cutter dump entries.
+- [x] 4.2 `python3 -m py_compile scripts/*.py` green.
+
+  Validation 2026-05-20: `python3 -m py_compile scripts/*.py` passed.
 
 ## 5. MANUAL.md — documentation
 
