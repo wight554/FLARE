@@ -692,8 +692,16 @@ static buf_state_t buf_read_stable(uint32_t now_ms) {
     }
 
     if ((now_ms - g_buf_pending_since_ms) >= (uint32_t)BUF_HYST_MS) {
+        /* G2(b): never gate the egress flip from a zero-feed state.
+         * Type-D COMPRESSION commands MMU SYNC_MIN, so no motor travel
+         * accrues there; gating the flip OUT of COMPRESSION on
+         * g_relay_flip_travel_since_mm deadlocks the relay (cannot leave
+         * a stopped state because leaving it is what produces the travel
+         * the guard demands). The distance hysteresis applies only to
+         * actuator-moving transitions (NEUTRAL<->TENSION). */
         if (BUF_SENSOR_TYPE == 0 && RELAY_MIN_FLIP_MM > 0.0f &&
-            raw != BUF_FAULT && g_relay_flip_travel_since_mm < RELAY_MIN_FLIP_MM) {
+            raw != BUF_FAULT && g_buf_stable_state != BUF_COMPRESSION &&
+            g_relay_flip_travel_since_mm < RELAY_MIN_FLIP_MM) {
             return g_buf_stable_state;
         }
         g_buf_stable_state = g_buf_pending_state;

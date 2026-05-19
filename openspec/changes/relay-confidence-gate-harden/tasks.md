@@ -48,18 +48,23 @@
   travel that COMPRESSION=SYNC_MIN suppresses → automatic sync froze
   on hardware). Reverted default to `0.0`; `test_gen_config` asserts
   `0.0`; example annotated; committed `307fa11`. See design G2.
-- [ ] 3.1 **Guard rework — option (b), chosen (design G2).** Gated on §4
-  (G1-only hw test must pass first). `sync.c:695`: skip the
-  distance-hysteresis guard when the *current stable state* is a
-  zero-feed state (type-D COMPRESSION / any `SYNC_MIN`-commanding
-  branch); apply it only to actuator-moving transitions
-  (NEUTRAL↔TENSION). Add a host/unit check that a COMPRESSION→\* flip is
-  never suppressed by the guard.
-- [ ] 3.2 Re-enable a non-zero `relay_min_flip_mm` default (provisional
-  ≈0.5 mm, final on-hw) now that (b) prevents the deadlock; host build +
-  `py_compile` + `test_gen_config` green.
-- [ ] 3.3 On-hw confirm: automatic sync engages, no COMPRESSION freeze,
-  guard demonstrably damps NEUTRAL↔TENSION chatter vs §4 baseline.
+- [x] 3.1 **Guard rework — option (b) (design G2).** `sync.c:695`:
+  added `g_buf_stable_state != BUF_COMPRESSION` to the suppression
+  condition so the egress flip from the zero-feed COMPRESSION state is
+  never gated; hysteresis applies only to actuator-moving
+  NEUTRAL↔TENSION. Code comment documents the deadlock rationale.
+  (Host unit check folded into on-hw §3.3 — no firmware logic-test
+  harness exists; `ninja -C build_local` link-green.)
+- [x] 3.2 Re-enabled the `relay_min_flip_mm` default at 0.5
+  (deadlock-safe under (b)); `gen_config.py` + `config.ini.example`
+  (note updated) + `test_gen_config` assert 0.5. `ninja -C
+  build_local`, `test_gen_config`, `py_compile` green.
+- [ ] 3.3 On-hw confirm: flash the (b) build; automatic sync engages,
+  **no COMPRESSION freeze** (egress flip immediate), guard demonstrably
+  damps NEUTRAL↔TENSION chatter vs the r7 G1-only baseline (expect
+  TENSION %rows / ep-min below r7's 10.9 / 4.4, BPmax still off the
+  12.5 wall). Settings-persistence: post-flash `GET:RELAY_MIN_FLIP_MM`
+  must read 0.5 (else `SET:0.5`+persist; prior 0.0 may be saved).
 
   2026-05-19: Set the provisional anti-chatter default to 0.5 mm in
   config/example/generator and added generated-default coverage in
@@ -77,11 +82,15 @@
 
 ## 4. On-hardware A/B validation (G4, acceptance gate)
 
-- [ ] 4.1 Flash the new defaults. Reprint the fast/bimodal 60×60 cube;
-  capture steady-state; run the analyzer + the compare metrics
-  (TENSION %rows, ep/min, BPmax, RDE active %). Assert r6-class:
-  `BPmax` off the physical empty wall, no persistent mid-print TENSION,
-  shallow cycle. Tune §2.1 / §3.1 values here and record finals.
+- [x] 4.1 **G1-only bimodal hw test PASS (r7, 2026-05-19).** Shipped
+  default `relay_confidence_window_ms=1000`, `min_flip=0.0`,
+  collapse-ramp defaults. r7 vs the r6 SET-hack proof: TENSION %rows
+  16.0→**10.9**, ep/min 6.3→**4.4**, ep dur p50 1.45→1.31, `BPmax`
+  5.09→**5.1** (off the 12.5 empty wall), `RDE1%` 0.0 (fallback
+  drives). Relay coverage PASS (126 cyc, 63/63 buckets); baseline/hi
+  2400 stable, no ratchet, lo→423. The hardware validation the
+  archived 7.5 never did for the confident path. Residual 10.9 %
+  TENSION is the G2 anti-chatter target (§3.3).
 - [ ] 4.2 Print a slow-only (~300–600 mm/min) model with the new
   defaults; assert no startup COMPRESSION slam, no fault, completes.
 - [ ] 4.3 Record both captures + the A/B table vs the archived §0.1

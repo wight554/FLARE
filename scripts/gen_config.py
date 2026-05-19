@@ -85,7 +85,7 @@ DEFAULTS = {
     "relay_confidence_cycles": "8",
     "relay_confidence_window_ms": "1000",
     "relay_seed_warmup_ms": "2000",
-    "relay_min_flip_mm": "0.0",
+    "relay_min_flip_mm": "0.5",
     "relay_collapse_delay_ms": "250",
     "relay_collapse_ramp_mult": "3",
     "relay_collapse_cap_ms": "600",
