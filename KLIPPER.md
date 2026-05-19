@@ -141,8 +141,8 @@ gcode:
 ```
 
 Keep the tip-forming wiggle section inside `HD:1` / `HD:0` HOLD. Small wiggles
-interact with the buffer travel (`BUF_HALF_TRAVEL`, measured 7.8 mm on the
-reference build); HOLD suppresses sync and negative-sync following while leaving
+interact with the buffer sensing span (`BUF_SENSE_SPAN`, default 10 mm full
+range); HOLD suppresses sync and negative-sync following while leaving
 basic buffer stabilization available. The final `GEAR_RETRACT` is intentionally
 outside HOLD so negative sync can follow it. With that split,
 `POST_PRINT_STAB_DELAY_MS=0` is acceptable because the long retract should be

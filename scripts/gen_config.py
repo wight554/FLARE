@@ -47,7 +47,7 @@ DEFAULTS = {
     "ramp_tick_ms": "5",
 
     # Buffer Sync
-    "buf_half_travel_mm": "7.8",
+    "buf_sense_span_mm": "10",
     "buf_hyst_ms": "30",
     "sync_ramp_up_rate": "40",
     "sync_ramp_dn_rate": "80",
@@ -152,7 +152,7 @@ DEFAULTS = {
     "dist_out_y": "100",
     "dist_y_buf": "300",
     "buf_body_len": "200",
-    "buf_size_mm": "22",
+    "buf_max_travel_mm": "25",
 }
 
 
@@ -176,6 +176,37 @@ def read_flat_ini(path):
     return params, cfg
 
 
+def valid_config_key(key):
+    if key in DEFAULTS or key in MANDATORY:
+        return True
+    for suffix in ("_l1", "_l2"):
+        base_key = key[:-len(suffix)]
+        if key.endswith(suffix) and (base_key in DEFAULTS or base_key in MANDATORY):
+            return True
+    return False
+
+
+def validate_known_keys(cfg, config_path):
+    unknown = []
+    for key in cfg.defaults():
+        if not valid_config_key(key):
+            unknown.append(key)
+
+    for section in cfg.sections():
+        raw_section = getattr(cfg, "_sections", {}).get(section, {})
+        for key in raw_section:
+            if key == "__name__":
+                continue
+            if section == "flow_schedule.v1" and key.startswith("point"):
+                continue
+            if not valid_config_key(key):
+                unknown.append(f"{section}.{key}")
+
+    if unknown:
+        print(f"Error: unknown config key(s) in {config_path}: {', '.join(unknown)}")
+        sys.exit(1)
+
+
 def parse_gear_ratio(s):
     ratio = 1.0
     for part in s.split(","):
@@ -195,6 +226,7 @@ def main():
         sys.exit(1)
 
     raw, cfg = read_flat_ini(config_path)
+    validate_known_keys(cfg, config_path)
     params = {**DEFAULTS, **raw}
 
     def get(key):
@@ -410,7 +442,7 @@ def main():
         f"#define CONF_RAMP_TICK_MS       {get('ramp_tick_ms')}",
         "",
         "// --- Buffer Sync ---",
-        f"#define CONF_BUF_HALF_TRAVEL_MM {get_float('buf_half_travel_mm')}f",
+        f"#define CONF_BUF_SENSE_SPAN_MM {get_float('buf_sense_span_mm')}f",
         f"#define CONF_BUF_HYST_MS        {get('buf_hyst_ms')}",
         f"#define CONF_SYNC_RAMP_UP_SPS   {mm_min_to_sps(get('sync_ramp_up_rate'), l1)}",
         f"#define CONF_SYNC_RAMP_DN_SPS   {mm_min_to_sps(get('sync_ramp_dn_rate'), l1)}",
@@ -517,7 +549,7 @@ def main():
         f"#define CONF_DIST_OUT_Y             {get('dist_out_y')}",
         f"#define CONF_DIST_Y_BUF             {get('dist_y_buf')}",
         f"#define CONF_BUF_BODY_LEN           {get('buf_body_len')}",
-        f"#define CONF_BUF_SIZE_MM            {get('buf_size_mm')}",
+        f"#define CONF_BUF_MAX_TRAVEL_MM      {get('buf_max_travel_mm')}",
         "",
     ]
 

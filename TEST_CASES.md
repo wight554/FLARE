@@ -175,6 +175,14 @@ Make sure settings layout and persistence behavior stay internally consistent.
 - `config.ini.example`
 - `scripts/gen_config.py`
 
+#### Buffer Range Vocabulary Regression
+
+When buffer geometry naming changes, verify `buf_sense_span_mm=10` generates a
+full-range `CONF_BUF_SENSE_SPAN_MM` of `10` and an internal half-span of `5`.
+The type-D relay trace should match the pre-rename half-span-5 build for the
+same physical switch spacing. Type-P analog behavior should remain unchanged
+for equal geometry because only the half-span ingest source changes.
+
 ### F. Protocol And Documentation Surface Review
 
 #### Goal

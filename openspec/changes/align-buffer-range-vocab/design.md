@@ -114,8 +114,65 @@ avoids the half/full ambiguity lingering behind an alias.
    docs, `TEST_CASES.md`.
 4. Rollback = revert commit (single milestone, commit-to-main).
 
+## Apply Plan (2026-05-19)
+
+### Source Inventory
+
+- `scripts/gen_config.py`: defaults still expose `buf_half_travel_mm=7.8`
+  and `buf_size_mm=22`; generated macros are `CONF_BUF_HALF_TRAVEL_MM` and
+  `CONF_BUF_SIZE_MM`. The parser currently accepts unknown flat keys by
+  merging `raw` into defaults, so stale pre-rename config keys would be
+  silently accepted unless an explicit guard is added.
+- `firmware/src/main.c` / `firmware/include/controller_shared.h`: runtime
+  globals are `BUF_HALF_TRAVEL_MM` and `BUF_SIZE_MM`.
+- `firmware/src/settings_store.c`: `SETTINGS_VERSION=50`; `settings_t`
+  persists `buf_half_travel_mm` and `buf_size_mm`; defaults/load/save clamp
+  the half value against total travel.
+- `firmware/src/protocol.c`: SET accepts `BUF_HALF_TRAVEL`/`BUF_TRAVEL` and
+  `BUF_SIZE`; GET emits the same legacy tokens.
+- `firmware/src/sync.c` and `firmware/src/motion.c`: geometry consumers use
+  the internal half value and total max travel. Math should stay unchanged
+  after identifier rename.
+- Docs with old keys/tokens: `MANUAL.md`, `BEHAVIOR.md`, `KLIPPER.md`,
+  `config.ini.example`, `scripts/flare_cmd.py`, plus local ignored
+  `config.ini` for build input.
+
+### Edit Plan
+
+- Boundary naming:
+  - Config key `buf_sense_span_mm` is full range; generated macro
+    `CONF_BUF_SENSE_SPAN_MM` remains full range.
+  - Runtime variable `BUF_SENSE_SPAN_HALF_MM` stores the internal half value
+    used by existing geometry math.
+  - Config key/runtime max `buf_max_travel_mm` / `BUF_MAX_TRAVEL_MM` map
+    one-to-one to old total travel.
+- Ingest conversion:
+  - Add a small full-range clamp helper at each ingest boundary
+    (`settings_defaults`, `settings_load`, protocol SET): clamp full
+    `buf_sense_span_mm` to `[2.0, buf_max_travel_mm]`, then assign
+    `BUF_SENSE_SPAN_HALF_MM = full / 2.0f`.
+  - Save/GET report full range as `BUF_SENSE_SPAN_HALF_MM * 2.0f`; no extra
+    ingest conversion there.
+- Persistence:
+  - Rename settings fields to `buf_sense_span_mm` and `buf_max_travel_mm`.
+  - Bump `SETTINGS_VERSION` from 50 to 51 so old flash blobs reset to EMU
+    Sync defaults.
+- Config/scripts:
+  - Update defaults and `CONF_*` emission in `gen_config.py`.
+  - Add unknown-key validation, allowing known defaults, per-lane `_l1/_l2`
+    overrides, and `flow_schedule.v1` `point*` rows. Old keys become hard
+    errors.
+  - Update tracked `config.ini.example`, script dump mappings, and local
+    ignored `config.ini` so build generation works.
+- Validation:
+  - Regenerate ignored `firmware/include/tune.h` from local `config.ini`.
+  - Build, py_compile, OpenSpec validate, all-spec validate, and grep for
+    legacy identifiers in tracked live surfaces (excluding this change's own
+    proposal/design/spec/tasks where old terms are the required history).
+
 ## Open Questions
 
-- Does `gen_config.py` hard-error on unknown keys, or silently pass them
-  through? Confirm during apply; if it silently passes, add an explicit
-  unknown-key guard so a stale `config.ini` fails the build.
+- Resolved during apply: `gen_config.py` used to pass unknown flat keys through.
+  This change adds explicit key validation, with allowances for known defaults,
+  per-lane `_l1`/`_l2` overrides, and `flow_schedule.v1` `point*` rows. Stale
+  pre-rename geometry keys now fail generation as unknown config keys.

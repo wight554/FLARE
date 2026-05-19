@@ -14,7 +14,7 @@
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 50u
+#define SETTINGS_VERSION 51u
 
 typedef struct {
     uint32_t magic;
@@ -34,8 +34,8 @@ typedef struct {
     int autoload_max_mm;
     int auto_mode;
     int cutter_settle_ms;
-    int dist_in_out, dist_out_y, dist_y_buf, buf_body_len, buf_size_mm;
-    float buf_half_travel_mm;
+    int dist_in_out, dist_out_y, dist_y_buf, buf_body_len, buf_max_travel_mm;
+    float buf_sense_span_mm;
     int buf_hyst_ms, buf_predict_thr_ms;
     int baseline_sps;
     float baseline_alpha;
@@ -128,6 +128,12 @@ static uint32_t crc32_buf(const uint8_t *data, size_t len) {
     return ~crc;
 }
 
+static float buf_sense_span_half_from_full(float span_mm, int max_travel_mm) {
+    float max_span_mm = (float)max_travel_mm;
+    if (max_span_mm < 2.0f) max_span_mm = 2.0f;
+    return clamp_f(span_mm, 2.0f, max_span_mm) * 0.5f;
+}
+
 void settings_defaults(void) {
     FEED_SPS = CONF_FEED_SPS;
     REV_SPS = CONF_REV_SPS;
@@ -154,8 +160,8 @@ void settings_defaults(void) {
     DIST_OUT_Y = CONF_DIST_OUT_Y;
     DIST_Y_BUF = CONF_DIST_Y_BUF;
     BUF_BODY_LEN = CONF_BUF_BODY_LEN;
-    BUF_SIZE_MM = CONF_BUF_SIZE_MM;
-    BUF_HALF_TRAVEL_MM = clamp_f(CONF_BUF_HALF_TRAVEL_MM, 1.0f, (float)BUF_SIZE_MM / 2.0f);
+    BUF_MAX_TRAVEL_MM = clamp_i(CONF_BUF_MAX_TRAVEL_MM, 10, 1000);
+    BUF_SENSE_SPAN_HALF_MM = buf_sense_span_half_from_full(CONF_BUF_SENSE_SPAN_MM, BUF_MAX_TRAVEL_MM);
     BUF_HYST_MS = CONF_BUF_HYST_MS;
     EST_ALPHA_MIN = CONF_EST_ALPHA_MIN;
     EST_ALPHA_MAX = CONF_EST_ALPHA_MAX;
@@ -293,12 +299,12 @@ void settings_save(void) {
     s.reload_join_delay_ms = RELOAD_JOIN_DELAY_MS;
     s.auto_mode = AUTO_MODE;
     s.auto_preload = AUTO_PRELOAD ? 1 : 0;
-    s.buf_half_travel_mm = BUF_HALF_TRAVEL_MM;
+    s.buf_sense_span_mm = BUF_SENSE_SPAN_HALF_MM * 2.0f;
     s.dist_in_out = DIST_IN_OUT;
     s.dist_out_y = DIST_OUT_Y;
     s.dist_y_buf = DIST_Y_BUF;
     s.buf_body_len = BUF_BODY_LEN;
-    s.buf_size_mm = BUF_SIZE_MM;
+    s.buf_max_travel_mm = BUF_MAX_TRAVEL_MM;
     s.buf_hyst_ms = BUF_HYST_MS;
     s.buf_predict_thr_ms = BUF_PREDICT_THR_MS;
     s.baseline_sps = g_baseline_target_sps;
@@ -472,14 +478,12 @@ void settings_load(void) {
     RELOAD_JOIN_DELAY_MS = s->reload_join_delay_ms;
     AUTO_MODE = s->auto_mode;
     AUTO_PRELOAD = (s->auto_preload != 0);
-    float buf_physical_half_mm = (float)s->buf_size_mm / 2.0f;
-    if (buf_physical_half_mm < 1.0f) buf_physical_half_mm = 1.0f;
-    BUF_HALF_TRAVEL_MM = clamp_f(s->buf_half_travel_mm, 1.0f, buf_physical_half_mm);
+    BUF_MAX_TRAVEL_MM = clamp_i(s->buf_max_travel_mm, 10, 1000);
+    BUF_SENSE_SPAN_HALF_MM = buf_sense_span_half_from_full(s->buf_sense_span_mm, BUF_MAX_TRAVEL_MM);
     DIST_IN_OUT = s->dist_in_out;
     DIST_OUT_Y = s->dist_out_y;
     DIST_Y_BUF = s->dist_y_buf;
     BUF_BODY_LEN = s->buf_body_len;
-    BUF_SIZE_MM = s->buf_size_mm;
     BUF_HYST_MS = s->buf_hyst_ms;
     BUF_PREDICT_THR_MS = s->buf_predict_thr_ms;
     g_baseline_target_sps = motion_clamp_rate_sps(s->baseline_sps);

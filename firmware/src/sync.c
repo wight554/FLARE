@@ -265,15 +265,15 @@ static lane_t *pick_boot_stabilize_lane(void) {
 }
 
 static float buf_physical_half_travel_mm(void) {
-    float physical_half = (BUF_SIZE_MM > 0) ? ((float)BUF_SIZE_MM * 0.5f) : BUF_HALF_TRAVEL_MM;
+    float physical_half = (BUF_MAX_TRAVEL_MM > 0) ? ((float)BUF_MAX_TRAVEL_MM * 0.5f) : BUF_SENSE_SPAN_HALF_MM;
     if (physical_half < 1.0f) physical_half = 1.0f;
-    if (physical_half < BUF_HALF_TRAVEL_MM) physical_half = BUF_HALF_TRAVEL_MM;
+    if (physical_half < BUF_SENSE_SPAN_HALF_MM) physical_half = BUF_SENSE_SPAN_HALF_MM;
     return physical_half;
 }
 
 static float buf_threshold_mm(void) {
     float physical_half = buf_physical_half_travel_mm();
-    float threshold = BUF_HALF_TRAVEL_MM;
+    float threshold = BUF_SENSE_SPAN_HALF_MM;
     if (threshold < 1.0f) threshold = 1.0f;
     if (threshold > physical_half) threshold = physical_half;
     return threshold;

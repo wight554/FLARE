@@ -68,6 +68,11 @@
     buffer at zero draw, cf. §6.2) are not frac-fixable → defer to
     `relay-duty-estimator-and-tuning` §0 / estimator scope.
 
+    2026-05-19 handback from `align-buffer-range-vocab`: corrected geometry
+    defaults are now `buf_sense_span_mm=10` (internal half-span 5) and
+    `buf_max_travel_mm=25`. Resume 4.2 with the known-good next pair
+    **`CATCHUP=1.30`, `NEUTRAL=1.25`** under that corrected default.
+
 ## 5. Polarity fix (post-retest)
 
 - [x] 5.1 Hardware showed inverted polarity (ADVANCE=empty,

@@ -75,7 +75,7 @@ run_current:
 # global_max_rate: 4000         # absolute ceiling for every commanded motor rate (mm/min)
 # sync_kp_rate: 900
 # sync_overshoot_pct: 150        # Trailing-side trim as % of sync correction (0..200)
-# sync_reserve_pct: 35           # Reserve target as % of BUF_HALF_TRAVEL toward compression
+# sync_reserve_pct: 35           # Reserve target as % of half the BUF_SENSE_SPAN toward compression
 # sync_auto_stop_ms: 5000          # Auto-mode only: tail-assist timeout in COMPRESSION,
                                    # or normal sync timeout only after COMPRESSION
                                    # recovery has already hit the minimum floor.
@@ -164,8 +164,8 @@ run_current:
 # dist_out_y: 100             # Distance from OUT sensor to Y-splitter
 # dist_y_buf: 300             # Distance from Y-splitter to buffer entry
 # buf_body_len: 200           # Total physical length of buffer body
-# buf_half_travel_mm: 7.8     # Distance from NEUTRAL to switch trip, not total half-travel
-# buf_size_mm: 22             # Total travel distance of buffer arm
+# buf_sense_span_mm: 10       # Full switch-to-switch sensing span
+# buf_max_travel_mm: 25       # Full mechanical buffer travel
 
 # ─── Sync-Feedback Sensor ─────────────────────────────────────────────────────
 # Happy Hare types: D=0 (Dual two-switch), P=1 (Proportional analog).

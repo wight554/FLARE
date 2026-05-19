@@ -82,7 +82,7 @@ DUMP_PARAMS = [
     ("RAMP_TICK_MS",      "ramp_tick_ms",            False),
     ("PRE_RAMP_RATE",     "pre_ramp_rate",           False),
     # --- Buffer sync ---
-    ("BUF_HALF_TRAVEL",   "buf_half_travel_mm",      False),
+    ("BUF_SENSE_SPAN",    "buf_sense_span_mm",       False),
     ("BUF_HYST",          "buf_hyst_ms",             False),
     ("SYNC_UP_RATE",      "sync_ramp_up_rate",       False),
     ("SYNC_DN_RATE",      "sync_ramp_dn_rate",       False),
@@ -124,7 +124,7 @@ DUMP_PARAMS = [
     ("DIST_OUT_Y",        "dist_out_y",              False),
     ("DIST_Y_BUF",        "dist_y_buf",              False),
     ("BUF_BODY_LEN",      "buf_body_len",            False),
-    ("BUF_SIZE",          "buf_size_mm",             False),
+    ("BUF_MAX_TRAVEL",    "buf_max_travel_mm",       False),
     # --- Sync-Feedback Sensor ---
     ("BUF_SENSOR",        "buf_sensor_type",         False),
     ("BUF_ANALOG_NEUTRAL", "buf_analog_neutral",             False),
@@ -167,7 +167,7 @@ SECTION_BREAKS = {
     "driver_tbl":          "# ─── TMC Chopper (per-lane) ────────────────────────────────────────────────",
     "feed_rate":           "# ─── Speeds (mm/min) ───────────────────────────────────────────────────────",
     "motion_startup_ms":   "# ─── Motion / Ramp ─────────────────────────────────────────────────────────",
-    "buf_half_travel_mm":  "# ─── Buffer Sync ───────────────────────────────────────────────────────────",
+    "buf_sense_span_mm":   "# ─── Buffer Sync ───────────────────────────────────────────────────────────",
     "sync_tension_dwell_stop_ms": "# ─── Tension Hardening ───────────────────────────────────────────",
     "sync_reserve_integral_gain": "# ─── Integral Centering & Confidence ───────────────────────────",
     "est_alpha_min":       "# ─── Smarter Sync (Estimator) ─────────────────────────────────────────────",
