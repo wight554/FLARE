@@ -9,12 +9,14 @@
 
 ## 2. settings_store.c — struct + save/load + version bump
 
-- [ ] 2.1 Add `int cutter_feed_timeout_ms` and `int cutter_settle_timeout_ms` fields to `settings_t` in `settings_store.c`.
-- [ ] 2.2 In `settings_defaults()`: add `CUT_TIMEOUT_FEED_MS = CONF_CUT_FEED_MS;` and `CUT_TIMEOUT_SETTLE_MS = CONF_CUT_SETTLE_MS;` (mirrors the pattern for `CUT_FEED_SPS` etc.).
-- [ ] 2.3 In `settings_save()`: add `s.cutter_feed_timeout_ms = CUT_TIMEOUT_FEED_MS;` and `s.cutter_settle_timeout_ms = CUT_TIMEOUT_SETTLE_MS;`.
-- [ ] 2.4 In `settings_load()`: add `CUT_TIMEOUT_FEED_MS = s->cutter_feed_timeout_ms;` and `CUT_TIMEOUT_SETTLE_MS = s->cutter_settle_timeout_ms;`. (Remove existing lone `CUT_TIMEOUT_SETTLE_MS = s->cutter_settle_ms;` line — that field is being superseded.)
-- [ ] 2.5 Bump `SETTINGS_VERSION` by 1. Grep for current value first. Confirm `_Static_assert(sizeof(settings_t) <= 512, ...)` still passes.
-- [ ] 2.6 `ninja -C build_local` green.
+- [x] 2.1 Add `int cutter_feed_timeout_ms` and `int cutter_settle_timeout_ms` fields to `settings_t` in `settings_store.c`.
+- [x] 2.2 In `settings_defaults()`: add `CUT_TIMEOUT_FEED_MS = CONF_CUT_FEED_MS;` and `CUT_TIMEOUT_SETTLE_MS = CONF_CUT_SETTLE_MS;` (mirrors the pattern for `CUT_FEED_SPS` etc.).
+- [x] 2.3 In `settings_save()`: add `s.cutter_feed_timeout_ms = CUT_TIMEOUT_FEED_MS;` and `s.cutter_settle_timeout_ms = CUT_TIMEOUT_SETTLE_MS;`.
+- [x] 2.4 In `settings_load()`: add `CUT_TIMEOUT_FEED_MS = s->cutter_feed_timeout_ms;` and `CUT_TIMEOUT_SETTLE_MS = s->cutter_settle_timeout_ms;`. (Remove existing lone `CUT_TIMEOUT_SETTLE_MS = s->cutter_settle_ms;` line — that field is being superseded.)
+- [x] 2.5 Bump `SETTINGS_VERSION` by 1. Grep for current value first. Confirm `_Static_assert(sizeof(settings_t) <= 512, ...)` still passes.
+- [x] 2.6 `ninja -C build_local` green.
+
+  Validation 2026-05-20: current `SETTINGS_VERSION` was `54`; bumped to `55`; `ninja -C build_local` passed.
 
 ## 3. protocol.c — GET/SET + dump
 

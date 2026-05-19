@@ -14,7 +14,7 @@
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 54u
+#define SETTINGS_VERSION 55u
 
 typedef struct {
     uint32_t magic;
@@ -33,7 +33,6 @@ typedef struct {
     int reload_join_delay_ms;
     int autoload_max_mm;
     int auto_mode;
-    int cutter_settle_ms;
     int dist_in_out, dist_out_y, dist_y_buf, buf_body_len, buf_max_travel_mm;
     float buf_switch_span_mm;
     int buf_hyst_ms, buf_predict_thr_ms;
@@ -47,6 +46,7 @@ typedef struct {
     int servo_settle_ms;
     int cut_feed_sps;
     int cut_feed_mm, cut_length_mm, cut_amount;
+    int cutter_feed_timeout_ms, cutter_settle_timeout_ms;
 
     int tc_timeout_cut_ms;
     int tc_timeout_th_ms;
@@ -202,6 +202,8 @@ void settings_defaults(void) {
     CUT_FEED_MM = CONF_CUT_FEED_MM;
     CUT_LENGTH_MM = CONF_CUT_LENGTH_MM;
     CUT_AMOUNT = CONF_CUT_AMOUNT;
+    CUT_TIMEOUT_FEED_MS = CONF_CUT_FEED_MS;
+    CUT_TIMEOUT_SETTLE_MS = CONF_CUT_SETTLE_MS;
 
     TC_TIMEOUT_CUT_MS = CONF_TC_TIMEOUT_CUT_MS;
     TC_TIMEOUT_TH_MS = CONF_TC_TIMEOUT_TH_MS;
@@ -341,6 +343,8 @@ void settings_save(void) {
     s.cut_feed_mm = CUT_FEED_MM;
     s.cut_length_mm = CUT_LENGTH_MM;
     s.cut_amount = CUT_AMOUNT;
+    s.cutter_feed_timeout_ms = CUT_TIMEOUT_FEED_MS;
+    s.cutter_settle_timeout_ms = CUT_TIMEOUT_SETTLE_MS;
 
     s.tc_timeout_cut_ms = TC_TIMEOUT_CUT_MS;
     s.tc_timeout_th_ms = TC_TIMEOUT_TH_MS;
@@ -365,7 +369,6 @@ void settings_save(void) {
     s.compression_sps = COMPRESSION_SPS;
 
     s.reload_mode = (bool)RELOAD_MODE;
-    s.cutter_settle_ms = CUT_TIMEOUT_SETTLE_MS;
     for (int i = 0; i < NUM_LANES; i++) {
         s.follow_timeout_ms[i] = FOLLOW_TIMEOUT_MS[i];
     }
@@ -544,6 +547,8 @@ void settings_load(void) {
     CUT_FEED_MM = s->cut_feed_mm;
     CUT_LENGTH_MM = s->cut_length_mm;
     CUT_AMOUNT = s->cut_amount;
+    CUT_TIMEOUT_FEED_MS = s->cutter_feed_timeout_ms;
+    CUT_TIMEOUT_SETTLE_MS = s->cutter_settle_timeout_ms;
 
     TC_TIMEOUT_CUT_MS = s->tc_timeout_cut_ms;
     TC_TIMEOUT_TH_MS = s->tc_timeout_th_ms;
@@ -589,7 +594,6 @@ void settings_load(void) {
     NEUTRAL_CREEP_CAP_FRAC = clamp_i(s->neutral_creep_cap_frac, 0, 100);
 
     RELOAD_MODE = s->reload_mode ? 1 : 0;
-    CUT_TIMEOUT_SETTLE_MS = s->cutter_settle_ms;
     JOIN_SPS = s->join_sps;
     PRESS_SPS = s->press_sps;
     COMPRESSION_SPS = s->compression_sps;
