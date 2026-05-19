@@ -166,3 +166,19 @@ time-based behavior so default behavior is unchanged.
 - **WHEN** distance-hysteresis is configured with a minimum flip travel
 - **THEN** a relay state flip is suppressed until at least that filament
   travel has accumulated since the last flip
+
+### Requirement: Happy Hare relief-fraction snap remains reference-only
+
+The Happy Hare relief-fraction snap SHALL be recorded as a formulation
+reference only. FLARE SHALL NOT ship blind analog changes from that reference
+without the deferred analog rig (`pending-analog-rig` /
+`relay-buffer-control-2switch` task 7.3). Any future analog port MUST also
+honor the Happy Hare polarity inversion (`+1 = compression` in HH,
+`+1 = tension` in FLARE).
+
+#### Scenario: No blind analog snap port
+
+- **WHEN** this relay estimator change is implemented
+- **THEN** the type-P analog path remains behavior-identical
+- **AND** the Happy Hare relief-fraction snap is present only as a documented
+  reference note

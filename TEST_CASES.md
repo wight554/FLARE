@@ -647,10 +647,39 @@ contact, during a real print.
 - No `EV:SYNC:FAULT_HOLD` from normal COMPRESSION/TENSION contact; no
   5 s pause → TENSION-slam pattern.
 - Cycle leans compression (more time compression side); no underextrusion.
-- Tune `SYNC_RELAY_CATCHUP_FRAC` (increase if it starves) and
-  `SYNC_RELAY_NEUTRAL_FRAC` (lower for less compression lean, raise for more)
+- Tune `relay_catchup_frac` / `RELAY_CATCHUP_FRAC` (increase if it starves)
+  and `relay_neutral_frac` / `RELAY_NEUTRAL_FRAC` (lower for less compression lean, raise for more)
   until the cycle is slow and benign.
 - `BUF_SENSOR_TYPE != 0` (type P analog, P=1) behavior unchanged.
+
+---
+
+### relay-duty-estimator: Type-D Estimate/Fallback Regression
+
+#### Goal
+
+Validate the relay duty estimator without changing the safety-critical
+TENSION/COMPRESSION relay branches.
+
+#### Steps
+
+1. Flash firmware with `BUF_SENSOR_TYPE=0`, `relay_catchup_frac: 1.30`,
+   `relay_neutral_frac: 1.25`, and analyzer-provided `relay_estimate_lo`,
+   `relay_estimate_hi`, `relay_seed_rate`.
+2. Capture `?:` status or tuner CSV through a disturbed relay cycle with
+   repeated TENSION/COMPRESSION flips.
+3. Run `scripts/flare_analyze.py` twice on the same CSV and compare output.
+4. Repeat a quiet low-flip run with the confidence gate unreachable or stale.
+
+#### Expected Result
+
+- `BUF_TENSION` still commands `relay_base * RELAY_CATCHUP_FRAC`; `BUF_COMPRESSION`
+  still commands `SYNC_MIN_SPS`.
+- `RDE:1` appears only after enough recent paired cycles; `RDCF` rises with
+  paired transitions and decays/stales back to fallback.
+- `RDV` remains within `relay_estimate_lo` / `relay_estimate_hi`.
+- Quiet steady state can stay `RDE:0`; this is not a fault.
+- Same CSV input produces byte-identical relay analyzer recommendations.
 
 ---
 

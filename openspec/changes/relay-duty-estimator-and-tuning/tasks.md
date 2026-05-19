@@ -127,40 +127,59 @@
   current `BUF_HYST_MS` behavior. When set, stable type-D flips are held
   until commanded MMU travel since the last accepted flip reaches the
   configured distance.
-- [ ] 5.2 Capture HH relief-fraction snap as a reference note in the
+- [x] 5.2 Capture HH relief-fraction snap as a reference note in the
   `relay-duty-estimator` spec/design only (analog, no rig — not shipped).
+
+  2026-05-19 validation: `relay-duty-estimator` spec records the HH
+  relief-fraction snap as reference-only and keeps type-P analog unchanged
+  pending the deferred analog rig.
 
 ## 6. Docs (T3/T4)
 
-- [ ] 6.1 TUNING.md: add the type-D relay-law tuning section —
+- [x] 6.1 TUNING.md: add the type-D relay-law tuning section —
   config keys, relay capture/analyze loop, runtime estimator (estimate vs
   fallback, reading confidence). State knobs are config-driven, not
   compile-time.
-- [ ] 6.2 TUNING.md: fix stale status token `TB` → `CB` (verify against
+- [x] 6.2 TUNING.md: fix stale status token `TB` → `CB` (verify against
   `protocol.c:197` emission).
-- [ ] 6.3 Record the Happy Hare polarity-inversion landmine where the
+- [x] 6.3 Record the Happy Hare polarity-inversion landmine where the
   analog reference is cited (`+1=compression` HH vs `+1=tension` FLARE —
   flip every sign on any analog port); cross-link
   `relay-buffer-control-2switch` task 7.3.
-- [ ] 6.4 Note in this change's artifacts that
+- [x] 6.4 Note in this change's artifacts that
   `relay-buffer-control-2switch` 7.2 was decided **A** (neutral_creep
   intended-inert telemetry, kept) and is **honored, not reopened** here
   (§3.2); 7.3 was split to `pending-analog-rig`. Do not edit the
   archived change's files.
-- [ ] 6.5 Record the D10(c) accepted-limitation: the 4.2 round-2
+- [x] 6.5 Record the D10(c) accepted-limitation: the 4.2 round-2
   end-of-print COMPRESSION `SYNC_MIN`-grind is out of scope (D1 forbids
   COMPRESSION-branch edits; print-tail, draw≈0, auto-stop-handled, no
   quality impact). State it in TUNING.md / the `relay-duty-estimator`
   spec; cross-link, do not silently drop.
 
+  2026-05-19 validation: `TUNING.md` now documents type-D relay config,
+  capture/analyze, `RDE`/`RDCF`/`RDV`, low-flip fallback semantics, HH
+  polarity inversion, and the D10(c) COMPRESSION-tail limitation. `TB` is
+  corrected to `CB`. `MANUAL.md` documents relay parameters and status
+  fields. The change spec preserves neutral_creep as a separate telemetry
+  slot per 7.2-A and records the HH relief-snap as reference-only.
+
 ## 7. Validation + closeout
 
-- [ ] 7.1 `ninja -C build_local` green; `python3 -m py_compile scripts/*.py`.
-- [ ] 7.2 `openspec validate relay-duty-estimator-and-tuning --strict`.
-- [ ] 7.3 Analog parity reasoning recorded: `BUF_SENSOR_TYPE != 0`
+- [x] 7.1 `ninja -C build_local` green; `python3 -m py_compile scripts/*.py`.
+- [x] 7.2 `openspec validate relay-duty-estimator-and-tuning --strict`.
+- [x] 7.3 Analog parity reasoning recorded: `BUF_SENSOR_TYPE != 0`
   untouched / byte-identical.
-- [ ] 7.4 `TEST_CASES.md`: relay duty-estimator regression entry
+- [x] 7.4 `TEST_CASES.md`: relay duty-estimator regression entry
   (estimate path, fallback path, bounds clamp, determinism).
+
+  2026-05-19 validation: `python3 -m py_compile scripts/*.py`,
+  `ninja -C build_local`, and
+  `openspec validate relay-duty-estimator-and-tuning --strict` pass.
+  `TEST_CASES.md` has a relay duty-estimator regression entry covering
+  estimate/fallback/bounds/determinism. Type-P analog behavior remains
+  code-untouched by the relay estimator path (`BUF_SENSOR_TYPE != 0` gates
+  all new relay estimator and distance-hysteresis behavior).
 - [ ] 7.5 On-Pi A/B vs the §0.1 baseline: cycle stays slow/shallow/
   never-TENSION; tune via the new config keys; record results.
 - [ ] 7.6 Commit + push to main.

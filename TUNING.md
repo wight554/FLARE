@@ -88,6 +88,11 @@ printer pulls material at changing speeds.
 - Type D uses the two-level / hysteretic relay control law. Type P uses the
   analog PD/EKF reserve control law. The sensor type and the control law are
   separate: keep the `D=0` / `P=1` value contract when changing sensor mode.
+  Happy Hare uses the opposite sign convention for analog work
+  (`+1 = compression`, `-1 = tension`); FLARE uses `+1 = tension`,
+  `-1 = compression`. Any future analog port from the `audit-sync-polarity`
+  D4 reference must flip every sign. The no-rig analog debt is tracked by
+  `relay-buffer-control-2switch` task 7.3 / `pending-analog-rig`.
 - `baseline_rate` is the starting sync feed rate when no flow schedule is
   configured.
 - `sync_compression_bias_frac` shifts the target slightly toward the compression side
@@ -108,6 +113,78 @@ runout-looking sync faults.
 Bad tuning is noisy or one-sided: the buffer stays pinned, `FAULT_HOLD` appears
 often, `cannot_refill` or `cannot_relieve` repeats, or different prints produce
 wildly different recommendations.
+
+## Type-D Relay Duty Tuning
+
+For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`, D=0), FLARE uses the
+two-level relay law:
+
+- `BUF_TENSION`: refill at `baseline_rate * relay_catchup_frac`.
+- `BUF_COMPRESSION`: back off to `SYNC_MIN_RATE`.
+- `BUF_NEUTRAL`: use the duty estimator when confident; otherwise use the
+  proven fallback `extruder_est_sps * relay_neutral_frac`.
+
+The knobs live in `config.ini`, not in `sync.c` defines:
+
+```ini
+relay_catchup_frac: 1.30
+relay_neutral_frac: 1.25
+relay_estimate_lo: 100
+relay_estimate_hi: 1600
+relay_confidence_cycles: 8
+relay_confidence_window_ms: 60000
+relay_seed_rate: 1600
+relay_seed_warmup_ms: 20000
+relay_min_flip_mm: 0.0
+```
+
+`RELAY_CATCHUP_FRAC`, `RELAY_NEUTRAL_FRAC`, `RELAY_CONF_CYCLES`, and
+`RELAY_CONF_WINDOW_MS` are runtime-safe `SET:`/`GET:` parameters for field
+experiments. The estimator bounds and seed are config/flash values from the
+offline analyzer.
+
+Capture relay data with CSV enabled so switch transitions and commanded feed
+are present:
+
+```bash
+python3 scripts/flare_live_tuner.py \
+  --port "$FLARE_PORT" \
+  --state ~/flare-state/buckets-${MACHINE_ID}.json \
+  --machine-id "$MACHINE_ID" \
+  --csv-out ~/flare-state/relay-${MACHINE_ID}.csv
+```
+
+Then run the analyzer:
+
+```bash
+python3 scripts/flare_analyze.py \
+  --in ~/flare-state/relay-${MACHINE_ID}.csv \
+  --out ~/flare-state/relay-review.ini \
+  --mode aggressive \
+  --config config.ini
+```
+
+When relay transitions are present, the review patch can include
+`baseline_rate` as the relay base plus `relay_estimate_lo`,
+`relay_estimate_hi`, and `relay_seed_rate`. Same input CSVs produce the same
+relay recommendations.
+
+Status fields for relay diagnosis:
+
+- `RDE`: `1` when NEUTRAL is using the estimate, `0` when using fallback.
+- `RDCF`: relay estimator confidence percent.
+- `RDV`: current relay duty estimate in mm/min.
+- `NC`: unchanged neutral-creep telemetry; kept intentionally separate.
+
+In a healthy low-flip cycle, `RDE:0` is normal. Few switch flips mean the
+fallback is doing its job; the estimator is a recovery arbitrator for disturbed
+cycles, not the steady-state driver.
+
+Known limitation: this change does not alter the `BUF_COMPRESSION ->
+SYNC_MIN_RATE` branch. The round-2 end-of-print COMPRESSION grind at draw near
+zero is accepted here as print-tail only, already arrested by
+`RELIEF_PAUSE`/`BUF_STAB`, and out of scope because changing it would reopen
+the validated COMPRESSION safety branch.
 
 ## If Behavior Is Scary (Do This First)
 
@@ -363,10 +440,11 @@ python3 scripts/flare_cmd.py --port "$FLARE_PORT" "?:"
 Useful fields:
 
 - `BL`: active baseline after schedule lookup and any temporary live lift.
-- `TB`: active compression bias as percent.
+- `CB`: active compression bias as percent.
 - `RT`: reserve target; negative means compression side.
 - `BP` / `BPV`: current/effective buffer position.
 - `EST`: live flow estimate.
+- `RDE` / `RDCF` / `RDV`: relay duty-estimator path, confidence, and value.
 - `SYNC_REFILL_MM`: accumulated refill effort during the current episode.
 - `SYNC_RELIEVE_MM`: accumulated relieve effort during the current episode.
 
