@@ -189,14 +189,39 @@ relay_estimate_hi: 1600
 relay_confidence_cycles: 8
 relay_confidence_window_ms: 1000
 relay_seed_warmup_ms: 2000
-relay_min_flip_mm: 0.5
+relay_min_flip_mm: 0.0
+relay_collapse_delay_ms: 250
+relay_collapse_ramp_mult: 3
+relay_collapse_cap_ms: 600
 ```
 
-`RELAY_CATCHUP_FRAC`, `RELAY_NEUTRAL_FRAC`, `RELAY_CONF_CYCLES`, and
-`RELAY_CONF_WINDOW_MS` are runtime-safe `SET:`/`GET:` parameters for field
-experiments. `RELAY_MIN_FLIP_MM` is also runtime-safe and appears in
-`flare_cmd.py --dump`. The estimator bounds and seed warmup are config/flash
-values from the offline analyzer.
+`relay_confidence_window_ms` is intentionally short (1000 ms): a
+flip-heavy **bimodal** print (slow + fast features alternating) must NOT
+satisfy the confidence gate, so NEUTRAL stays on the proven
+`extruder_est_sps` fallback rather than the duty estimator. The estimator
+remains a recovery arbitrator for genuine low-flip single-regime runs.
+On-hw this moved the confident-path bimodal failure (deep-TENSION
+buffer-wall slam, `BPmax` pegged at the physical wall) to a shallow,
+fallback-driven cycle off the wall.
+
+`relay_min_flip_mm` stays **`0.0` (time-only)**. A non-zero value
+deadlocks the type-D relay: the flip guard accrues distance from the
+gated MMU's own motion, but the COMPRESSION branch commands `SYNC_MIN`
+(zero feed) and a cold start has zero feed, so the corrective flip that
+would *start* motion never accumulates the distance — sync freezes. It
+remains a config/`SET:` knob only for experiments that accept this
+caveat; the time-based `BUF_HYST_MS` is the supported chatter guard.
+
+`RELAY_CATCHUP_FRAC`, `RELAY_NEUTRAL_FRAC`, `RELAY_CONF_CYCLES`,
+`RELAY_CONF_WINDOW_MS`, `RELAY_MIN_FLIP_MM`, and the three
+`RELAY_COLLAPSE_{DELAY_MS,RAMP_MULT,CAP_MS}` are runtime-safe
+`SET:`/`GET:` parameters (and appear in `flare_cmd.py --dump`) for field
+experiments without a reflash. The collapse-ramp keys shape the
+deep-COMPRESSION / print-end stop; defaults (250 / 3 / 600) already give
+a graceful taper once the gate-harden keeps the buffer off the wall —
+softening them on-hw only added pre-stop chatter, so leave them unless a
+specific machine shows an abrupt stop. The estimator bounds and seed
+warmup are config/flash values from the offline analyzer.
 
 Capture relay data with CSV enabled so switch transitions and commanded feed
 are present:

@@ -99,11 +99,24 @@
   2400 stable, no ratchet, lo→423. The hardware validation the
   archived 7.5 never did for the confident path. Residual 10.9 %
   TENSION is the G2 anti-chatter target (§3.3).
-- [ ] 4.2 Print a slow-only (~300–600 mm/min) model with the new
-  defaults; assert no startup COMPRESSION slam, no fault, completes.
-- [ ] 4.3 Record both captures + the A/B table vs the archived §0.1
-  locked 4.2 baseline in this change (the hardware validation the
-  archived 7.5 never did for the confident path).
+- [x] 4.2 **Slow-only hw test PASS (2026-05-19).** Slow-only model
+  with the shipped G1 defaults: no startup COMPRESSION slam, no fault,
+  completes. Slow regime confirmed the relay's best case (later
+  slowA: TENSION 2.3 %, BP within ±5.3, fallback-driven, no ratchet).
+- [x] 4.3 **A/B vs archived §0.1 locked 4.2 baseline (2026-05-19).**
+  The hardware validation the archived 7.5 never did for the confident
+  path. Steady-state, startup-excluded:
+
+  | regime | mode | TENSION %rows | ep/min | BPmax | RDE1% |
+  |---|---|---|---|---|---|
+  | bimodal | confident (pre-fix, r3) | 26.0 | 13.8 | 12.5 wall | 71 |
+  | bimodal | **G1 shipped (r7)** | **10.9** | **4.4** | **5.1** | 0 |
+  | slow | G1 shipped (slowA) | 2.3 | 1.8 | 5.0 | 0 |
+
+  G1 gate-harden moves the confident-path bimodal failure
+  (deep-TENSION wall-slam) to fallback-driven, shallow, no ratchet —
+  meeting the §0.1 slow/shallow/never-deep-TENSION intent the archived
+  change asserted but never hw-checked on the confident path.
 - [x] 4.4a **Collapse-ramp params made runtime-tunable**
   (2026-05-19). Mirrored the `RELAY_MIN_FLIP_MM` pattern: runtime
   globals (`main.c`), externs (`controller_shared.h`), settings
@@ -115,13 +128,20 @@
   green. Enables on-hw iteration without reflash-per-tweak.
   **SETTINGS_VERSION bump → persisted settings reset to defaults on
   flash (defaults == prior behavior; re-apply any custom SET).**
-- [ ] 4.4b **Stop-smoothness via G3 on-hw tune** (replaces G2's stated
-  goal). Unblocked (G1 r7 exercises COMPRESSION; now runtime-tunable
-  via 4.4a). Iterate live: `SET:RELAY_COLLAPSE_DELAY_MS:<v>` /
-  `:RELAY_COLLAPSE_RAMP_MULT:<v>` / `:RELAY_COLLAPSE_CAP_MS:<v>`,
-  capture before/after (slow-profile A/B, internally consistent),
-  pick the gradual deep-stop values without TENSION%/BPmax regressing,
-  then persist + set as `config.ini` defaults. Deadlock-free.
+- [x] 4.4b **Stop-smoothness — defaults retained (2026-05-19).**
+  On-hw slow-profile A/B: slowA = default ramp (250/3/600),
+  slowB = softened (delay↑/mult↓). Steady-state: slowB regressed —
+  TENSION %rows 2.3→3.9, ep/min 1.8→3.3, COMPRESSION total 43→82 s,
+  no smoothness gain. Print-end tail (the actual stop, prior script
+  trimmed it): **default ramp already graceful** — feed tapers to ~0,
+  buffer parks full at BP≈−5 (not the −12.5 wall), EST decays
+  naturally; slowB only added a pre-stop TENSION/NEUTRAL spike.
+  Conclusion: G1 (fallback-driven, off the empty wall) already
+  delivers a smooth stop; G3 default is correct; softening is strictly
+  worse. **Keep `config.ini` collapse-ramp defaults (250/3/600).**
+  Runtime SET/GET (4.4a) stays shipped for advanced use. The original
+  "no smooth stops without G2" concern is moot — never needed G2/G3
+  tuning.
 
 ## 5. Docs
 
@@ -132,12 +152,19 @@
 
 ## 6. Closeout
 
-- [ ] 6.1 `openspec validate relay-confidence-gate-harden --type change
-  --strict` green.
-- [ ] 6.2 Full check: `py_compile scripts/*.py`,
-  `python3 scripts/test_gen_config.py`, analyzer test suite,
-  `ninja -C build_local`. Commit + push to main.
-- [ ] 6.3 Record the open architectural question (keep vs remove the
-  confident relay-estimator path) with the r3–r6 evidence, flagged for
-  a follow-up change pending a genuine single-regime low-flip on-hw
-  capture. Do not decide here.
+- [x] 6.1 `openspec validate relay-confidence-gate-harden --type change
+  --strict` green (2026-05-19).
+- [x] 6.2 Full check green (2026-05-19): `py_compile scripts/*.py`,
+  `test_gen_config.py`, `test_flare_analyze.py` (incl `relay-d12-real`),
+  `ninja -C build_local`. Committed + pushed to main.
+- [x] 6.3 **Open architectural question recorded (do not decide here):**
+  the confident relay-estimator path was strictly worse than the
+  fallback on every on-hw bimodal capture (r3–r6; G1 fixes it by
+  *keeping the print off* the estimator). It has not been shown to
+  earn its keep on any genuine single-regime low-flip print. Flagged
+  for a **follow-up change** — decide keep-hardened vs remove the
+  confident path entirely — pending a deliberate single-regime
+  low-flip on-hw capture where the estimator actually reaches and
+  holds confidence. Evidence in design G1/G2 + memory
+  `relay-confident-estimator-bimodal-bangbang`. Not decided in this
+  change.
