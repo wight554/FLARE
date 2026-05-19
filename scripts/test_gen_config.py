@@ -61,7 +61,9 @@ def test_scalar_config_emits_one_point():
     assert macro_int(text, "CONF_RELAY_COLLAPSE_CAP_MS") == 600
     assert macro_int(text, "CONF_RELAY_CONFIDENCE_CYCLES") == 8
     assert macro_int(text, "CONF_RELAY_CONFIDENCE_WINDOW_MS") == 1000
-    assert macro_float(text, "CONF_RELAY_MIN_FLIP_MM") == 0.5
+    # 0.0 = time-only (safe default). Non-zero deadlocks the type-D relay
+    # against COMPRESSION=SYNC_MIN until the G2 guard is reworked.
+    assert macro_float(text, "CONF_RELAY_MIN_FLIP_MM") == 0.0
 
 
 def test_schedule_section_sorts_points():

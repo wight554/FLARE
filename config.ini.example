@@ -109,7 +109,12 @@ run_current:
 # relay_confidence_cycles: 8          # Paired switch cycles required before estimator is trusted.
 # relay_confidence_window_ms: 1000    # Recency window for the paired-cycle confidence gate.
 # relay_seed_warmup_ms: 2000          # Seed window; exits on EST-warm or first confidence.
-# relay_min_flip_mm: 0.5              # Distance hysteresis for relay flips; 0.0 keeps time-only.
+# relay_min_flip_mm: 0.0              # Distance hysteresis for relay flips; 0.0 keeps time-only.
+                                     # NOTE: a non-zero value deadlocks the type-D relay against the
+                                     # COMPRESSION=SYNC_MIN stop (no motor travel while stopped -> flip
+                                     # out of COMPRESSION never accumulates the distance). Needs the
+                                     # G2 guard rework before any non-zero default. See change
+                                     # relay-confidence-gate-harden design G2.
 # relay_collapse_delay_ms: 250        # Delay before deep-COMPRESSION collapse ramp engages.
 # relay_collapse_ramp_mult: 3         # Down-ramp multiplier after collapse delay.
 # relay_collapse_cap_ms: 600          # Max collapse ramp window.
