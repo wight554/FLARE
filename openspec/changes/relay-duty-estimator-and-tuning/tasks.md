@@ -36,49 +36,62 @@
 
 ## 2. Firmware duty-cycle estimator (D2/D3/D4)
 
-- [ ] 2.1 Add per-state filament-travel accumulators reset on each
+- [x] 2.1 Add per-state filament-travel accumulators reset on each
   TENSION↔COMPRESSION flip; pair completed opposite segments into duty
   cycles. Use commanded-feed (steps/s) space, FLARE sign
   (`+1=tension/-1=compression`) — NOT Happy Hare RD space or sign.
-- [ ] 2.2 Compute `fh = dh/(dl+dh)`, `v_est = (1-fh)·v_low + fh·v_high`;
+- [x] 2.2 Compute `fh = dh/(dl+dh)`, `v_est = (1-fh)·v_low + fh·v_high`;
   fix the per-phase feed measurement as instantaneous-commanded or
   dwell-averaged and document it (must be deterministic for §4 parity).
-- [ ] 2.3 Confidence gate: minimum paired cycles within a recency window
+- [x] 2.3 Confidence gate: minimum paired cycles within a recency window
   (seed from HH `autotune_cert_window=8` analogue, value config-driven).
-- [ ] 2.4 In the relay override (`sync.c:~1622-1634`) replace ONLY the
+- [x] 2.4 In the relay override (`sync.c:~1622-1634`) replace ONLY the
   `BUF_NEUTRAL` target with `clamp(v_est, lo, hi)` when confident;
   `BUF_TENSION`/`BUF_COMPRESSION` branches untouched.
-- [ ] 2.5 Apply the existing never-TENSION compression lean AFTER the
+- [x] 2.5 Apply the existing never-TENSION compression lean AFTER the
   estimate, BEFORE existing ramp/clamp (order: estimate → lean → clamp
   `[lo,hi]` → ramp/clamp).
-- [ ] 2.6 Unconfident/stale → fall back to
+- [x] 2.6 Unconfident/stale → fall back to
   `extruder_est_sps × SYNC_RELAY_NEUTRAL_FRAC` (frac = locked **1.25**)
   with no feed discontinuity. Per D10(a) this is the *normal* steady
   state in a good low-flip cycle, not an error path — do not treat
   unconfident as a fault.
-- [ ] 2.7 D10(b) cold-start seed: at print start / boot, seed the
+- [x] 2.7 D10(b) cold-start seed: at print start / boot, seed the
   fallback feed from the offline relay baseline (`relay_seed` /
   `relay_base` / `[lo,hi]` midpoint) instead of cold `extruder_est_sps`,
   for a warmup window (exit on EST-warm or first-confident). Targets the
   deferred 4.2 round-2 startup-bangbang. No flash persistence.
-- [ ] 2.8 Estimator + seed state volatile only — assert no flash write
+- [x] 2.8 Estimator + seed state volatile only — assert no flash write
   path is reachable from estimator/seed updates.
 - [ ] 2.9 Host build + captured status snapshot: with confidence gate
   unreachable AND seed window elapsed, steady-state behavior ==
   archived `relay-buffer-control-2switch` round-2 (rollback proof).
 
+  2026-05-19 validation: `ninja -C build_local` and
+  `python3 -m py_compile scripts/*.py` pass. Estimator state lives in
+  `sync.c` static RAM only; update paths do not call `settings_save()` or
+  any flash API. Per-phase measurement is dwell-averaged commanded SPS
+  weighted by commanded MMU travel. Type-D TENSION remains
+  `relay_base * RELAY_CATCHUP_FRAC`; COMPRESSION remains `SYNC_MIN_SPS`;
+  only NEUTRAL selects estimate vs seeded/fixed fallback.
+
 ## 3. Telemetry + neutral_creep resolution (D5)
 
-- [ ] 3.1 Add status/telemetry: estimate-vs-fallback flag + confidence
+- [x] 3.1 Add status/telemetry: estimate-vs-fallback flag + confidence
   value.
-- [ ] 3.2 `neutral_creep` (`sync.c:395-428`): **leave intact** per the
+- [x] 3.2 `neutral_creep` (`sync.c:395-428`): **leave intact** per the
   committed 7.2-A disposition (intended-inert telemetry, kept computing,
   not removed — commit `a78d864`). Do NOT delete it or evict its slot.
   Estimator estimate/confidence telemetry (3.1) is a **separate new**
   status field. Add a code comment cross-linking 7.2-A so it is not
   re-flagged as dead.
-- [ ] 3.3 Update `protocol.c` / any host parsers in lockstep; host build +
+- [x] 3.3 Update `protocol.c` / any host parsers in lockstep; host build +
   `py_compile` green.
+
+  2026-05-19 validation: status appends `RDE` (estimate flag), `RDCF`
+  (relay confidence percent), and `RDV` (estimate mm/min). `NC` remains
+  unchanged, with a D5 code comment. Existing host status parsers are
+  generic key/value readers; no parser-specific update needed.
 
 ## 4. Deterministic offline relay analyzer (D7)
 
@@ -95,9 +108,14 @@
 
 ## 5. Anti-chatter option (D8, secondary)
 
-- [ ] 5.1 Add optional distance-hysteresis flip guard alongside
+- [x] 5.1 Add optional distance-hysteresis flip guard alongside
   `BUF_HYST_MS`; config-selectable; default = existing time-based
   (behavior unchanged when unset).
+
+  2026-05-19 validation: `relay_min_flip_mm` defaults to `0.0`, preserving
+  current `BUF_HYST_MS` behavior. When set, stable type-D flips are held
+  until commanded MMU travel since the last accepted flip reaches the
+  configured distance.
 - [ ] 5.2 Capture HH relief-fraction snap as a reference note in the
   `relay-duty-estimator` spec/design only (analog, no rig — not shipped).
 

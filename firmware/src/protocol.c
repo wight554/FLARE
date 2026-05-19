@@ -108,7 +108,7 @@ static bool cmd_event_permitted(void) {
 static void cmd_write_line(const char *prefix, const char *type, const char *data, bool best_effort) {
     if (best_effort && !cmd_event_permitted()) return;
 
-    char line[512];
+    char line[768];
     int len;
     if (data && *data) len = snprintf(line, sizeof(line), "%s%s:%s\n", prefix, type, data);
     else len = snprintf(line, sizeof(line), "%s%s\n", prefix, type);
@@ -146,7 +146,7 @@ static void status_dump(void) {
     }
     flow_param_t active_flow_param = flow_param((int)extruder_est_sps);
 
-    char b[512];
+    char b[768];
     int blen = snprintf(b, sizeof(b),
         "LN:%d,TC:%s,L1T:%s,L2T:%s,"
         "I1:%d,O1:%d,I2:%d,O2:%d,"
@@ -204,7 +204,7 @@ static void status_dump(void) {
         }
         snprintf(b + blen, sizeof(b) - (size_t)blen,
             ",RT:%.2f,RD:%.2f,TT:%u,CT:%u,CW:%u,EA:%u,SK:%u,CF:%.2f,RI:%.2f,RC:%d,ES:%.2f,EC:%d"
-            ",BPR:%.2f,BPD:%.2f,BPN:%d,TPX:%d,RDC:%d,CB:%d,NC:%d,VB:%d,BPV:%d,MK:%u:%s"
+            ",BPR:%.2f,BPD:%.2f,BPN:%d,TPX:%d,RDC:%d,CB:%d,NC:%d,RDE:%d,RDCF:%d,RDV:%.1f,VB:%d,BPV:%d,MK:%u:%s"
             ",SYNC_REFILL_MM:%d,SYNC_RELIEVE_MM:%d",
             (double)sync_reserve_target_mm(),
             (double)sync_reserve_deadband_mm(),
@@ -225,6 +225,9 @@ static void status_dump(void) {
             rdc,
             (active_flow_param.bias_milli + 5) / 10,
             sync_neutral_creep_sps(),
+            sync_relay_using_estimate(),
+            sync_relay_confidence_pct(),
+            (double)sps_to_mm_per_min(sync_relay_estimate_sps()),
             (int)(BUF_VARIANCE_BLEND_FRAC * 100.0f),
             (int)(g_buf_pos * 100.0f),
             g_marker_seq,

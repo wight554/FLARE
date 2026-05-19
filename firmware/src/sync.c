@@ -61,6 +61,8 @@
 #define SYNC_RECENT_NEGATIVE_HOLD_MS 900u
 #define SYNC_POSITIVE_RELAUNCH_DAMP_NUM 1
 #define SYNC_POSITIVE_RELAUNCH_DAMP_DEN 4
+#define RELAY_PAIR_HISTORY_LEN 64
+#define RELAY_EST_WARM_MIN_MS 3000u
 
 sync_state_t g_sync_state = SYNC_OFF;
 bool sync_auto_started = false;
@@ -106,6 +108,32 @@ static float g_bp_drift_correction_applied_mm = 0.0f;
 static uint32_t g_tension_pin_ts[TENSION_PIN_WINDOW_LEN] = {0};
 static int g_tension_pin_ts_idx = 0;
 static uint32_t g_tension_risk_emit_ms = 0;
+typedef enum {
+    RELAY_PHASE_UNKNOWN = 0,
+    RELAY_PHASE_FILL,
+    RELAY_PHASE_RELIEVE,
+} relay_phase_t;
+
+typedef struct {
+    float travel_mm;
+    float sps_weighted;
+    float weight_ms;
+} relay_phase_accum_t;
+
+static relay_phase_t g_relay_phase = RELAY_PHASE_UNKNOWN;
+static relay_phase_accum_t g_relay_phase_accum = {0};
+static bool g_relay_have_fill = false;
+static bool g_relay_have_relieve = false;
+static relay_phase_accum_t g_relay_last_fill = {0};
+static relay_phase_accum_t g_relay_last_relieve = {0};
+static uint32_t g_relay_pair_ts[RELAY_PAIR_HISTORY_LEN] = {0};
+static int g_relay_pair_idx = 0;
+static int g_relay_estimate_sps = 0;
+static float g_relay_confidence = 0.0f;
+static bool g_relay_using_estimate = false;
+static uint32_t g_relay_seed_started_ms = 0;
+static uint32_t g_relay_seed_until_ms = 0;
+static float g_relay_flip_travel_since_mm = 0.0f;
 
 /* buf_signal_t — canonical signal produced by the active sensor each tick. */
 buf_signal_t g_buf_signal = {0};
@@ -156,7 +184,132 @@ static buf_state_t g_buf_pending_state = BUF_NEUTRAL;
 static uint32_t g_buf_pending_since_ms = 0;
 static float g_buf_physical_entry_pos_mm = 0.0f;
 
+static int lane_motion_sps(lane_t *L);
 static void buf_update(buf_state_t new_state, uint32_t now_ms);
+
+static void relay_estimator_reset(void) {
+    g_relay_phase = RELAY_PHASE_UNKNOWN;
+    g_relay_phase_accum = (relay_phase_accum_t){0};
+    g_relay_have_fill = false;
+    g_relay_have_relieve = false;
+    g_relay_last_fill = (relay_phase_accum_t){0};
+    g_relay_last_relieve = (relay_phase_accum_t){0};
+    memset(g_relay_pair_ts, 0, sizeof(g_relay_pair_ts));
+    g_relay_pair_idx = 0;
+    g_relay_estimate_sps = 0;
+    g_relay_confidence = 0.0f;
+    g_relay_using_estimate = false;
+    g_relay_seed_started_ms = 0;
+    g_relay_seed_until_ms = 0;
+    g_relay_flip_travel_since_mm = 0.0f;
+}
+
+static void relay_estimator_begin_seed(uint32_t now_ms) {
+    if (BUF_SENSOR_TYPE != 0 || RELAY_SEED_WARMUP_MS <= 0) {
+        g_relay_seed_started_ms = 0;
+        g_relay_seed_until_ms = 0;
+        return;
+    }
+    g_relay_seed_started_ms = now_ms;
+    g_relay_seed_until_ms = now_ms + (uint32_t)RELAY_SEED_WARMUP_MS;
+}
+
+static int relay_recent_pair_count(uint32_t now_ms) {
+    uint32_t window_ms = (RELAY_CONFIDENCE_WINDOW_MS > 0)
+        ? (uint32_t)RELAY_CONFIDENCE_WINDOW_MS : 60000u;
+    int count = 0;
+    for (int i = 0; i < RELAY_PAIR_HISTORY_LEN; i++) {
+        uint32_t ts = g_relay_pair_ts[i];
+        if (ts != 0 && (now_ms - ts) <= window_ms) count++;
+    }
+    return count;
+}
+
+static bool relay_estimator_confident(uint32_t now_ms) {
+    int threshold = clamp_i(RELAY_CONFIDENCE_CYCLES, 1, RELAY_PAIR_HISTORY_LEN);
+    int recent = relay_recent_pair_count(now_ms);
+    g_relay_confidence = clamp_f((float)recent / (float)threshold, 0.0f, 1.0f);
+    return recent >= threshold && g_relay_estimate_sps > 0;
+}
+
+static void relay_estimator_update_confidence(uint32_t now_ms) {
+    (void)relay_estimator_confident(now_ms);
+}
+
+static void relay_estimator_complete_phase(relay_phase_t phase, uint32_t now_ms) {
+    if (phase == RELAY_PHASE_UNKNOWN || g_relay_phase_accum.weight_ms <= 0.0f) return;
+
+    if (phase == RELAY_PHASE_FILL) {
+        g_relay_last_fill = g_relay_phase_accum;
+        g_relay_have_fill = true;
+    } else if (phase == RELAY_PHASE_RELIEVE) {
+        g_relay_last_relieve = g_relay_phase_accum;
+        g_relay_have_relieve = true;
+    }
+
+    if (g_relay_have_fill && g_relay_have_relieve) {
+        float dl = g_relay_last_fill.travel_mm;
+        float dh = g_relay_last_relieve.travel_mm;
+        float total = dl + dh;
+        if (total > 0.001f) {
+            float v_low = g_relay_last_relieve.sps_weighted / g_relay_last_relieve.weight_ms;
+            float v_high = g_relay_last_fill.sps_weighted / g_relay_last_fill.weight_ms;
+            float fh = clamp_f(dh / total, 0.0f, 1.0f);
+            float v_est = (1.0f - fh) * v_low + fh * v_high;
+            int lo = RELAY_ESTIMATE_LO_SPS;
+            int hi = RELAY_ESTIMATE_HI_SPS;
+            if (hi < lo) hi = lo;
+            g_relay_estimate_sps = clamp_i((int)(v_est + 0.5f), lo, hi);
+            g_relay_pair_ts[g_relay_pair_idx] = now_ms;
+            g_relay_pair_idx = (g_relay_pair_idx + 1) % RELAY_PAIR_HISTORY_LEN;
+            relay_estimator_update_confidence(now_ms);
+        }
+    }
+}
+
+static void relay_estimator_accumulate(lane_t *A, uint32_t elapsed_ms) {
+    if (BUF_SENSOR_TYPE != 0 || elapsed_ms == 0 || g_relay_phase == RELAY_PHASE_UNKNOWN) return;
+    int sps = lane_motion_sps(A);
+    if (sps < 0) sps = -sps;
+    float dt_ms = (float)elapsed_ms;
+    float mm = 0.0f;
+    if (A) {
+        int idx = lane_to_idx(A->lane_id);
+        if (idx < 0 || idx >= NUM_LANES) idx = 0;
+        mm = (float)sps * (dt_ms / 1000.0f) * MM_PER_STEP[idx];
+    }
+    g_relay_phase_accum.travel_mm += fabsf(mm);
+    g_relay_phase_accum.sps_weighted += (float)sps * dt_ms;
+    g_relay_phase_accum.weight_ms += dt_ms;
+}
+
+static bool relay_seed_active(uint32_t now_ms) {
+    if (g_relay_seed_until_ms == 0 || RELAY_SEED_WARMUP_MS <= 0) return false;
+    if ((int32_t)(now_ms - g_relay_seed_until_ms) >= 0) return false;
+    if (relay_estimator_confident(now_ms)) return false;
+
+    bool est_warm = g_relay_seed_started_ms != 0 &&
+                    (now_ms - g_relay_seed_started_ms) >= RELAY_EST_WARM_MIN_MS &&
+                    extruder_est_last_update_ms != 0 &&
+                    (now_ms - extruder_est_last_update_ms) < SYNC_EST_FRESH_MS &&
+                    extruder_est_sps >= (float)RELAY_ESTIMATE_LO_SPS;
+    return !est_warm;
+}
+
+static void relay_estimator_on_transition(buf_state_t new_state, uint32_t now_ms) {
+    if (BUF_SENSOR_TYPE != 0) return;
+
+    if (new_state == BUF_COMPRESSION) {
+        relay_estimator_complete_phase(RELAY_PHASE_FILL, now_ms);
+        g_relay_phase = RELAY_PHASE_RELIEVE;
+        g_relay_phase_accum = (relay_phase_accum_t){0};
+    } else if (new_state == BUF_TENSION) {
+        relay_estimator_complete_phase(RELAY_PHASE_RELIEVE, now_ms);
+        g_relay_phase = RELAY_PHASE_FILL;
+        g_relay_phase_accum = (relay_phase_accum_t){0};
+    }
+    g_relay_flip_travel_since_mm = 0.0f;
+}
 
 static int flow_sched_len_clamped(void) {
     if (g_flow_sched_len < 1) return 1;
@@ -392,6 +545,8 @@ float sync_compression_wall_time_ms(lane_t *L) {
 }
 
 static void neutral_creep_update(buf_state_t s, lane_t *A, uint32_t now_ms) {
+    /* D5/relay-buffer-control-2switch 7.2-A: keep neutral_creep as
+     * intended-inert telemetry; relay duty telemetry is separate. */
     if (g_sync_state != SYNC_ACTIVE || NEUTRAL_CREEP_TIMEOUT_MS == 0 || NEUTRAL_CREEP_RATE_SPS_PER_S == 0) {
         g_neutral_creep_sps = 0;
         return;
@@ -537,6 +692,10 @@ static buf_state_t buf_read_stable(uint32_t now_ms) {
     }
 
     if ((now_ms - g_buf_pending_since_ms) >= (uint32_t)BUF_HYST_MS) {
+        if (BUF_SENSOR_TYPE == 0 && RELAY_MIN_FLIP_MM > 0.0f &&
+            raw != BUF_FAULT && g_relay_flip_travel_since_mm < RELAY_MIN_FLIP_MM) {
+            return g_buf_stable_state;
+        }
         g_buf_stable_state = g_buf_pending_state;
         g_buf_pending_since_ms = 0;
     }
@@ -812,6 +971,7 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     g_buf_pos_sigma_accum_mm = 0.0f;
     g_buf_sigma_mm = 0.0f;
     g_buf_est_fallback_emitted = false;
+    relay_estimator_on_transition(new_state, now_ms);
     
     g_sync_refill_effort_mm = 0.0f;
     g_sync_relieve_effort_mm = 0.0f;
@@ -931,6 +1091,7 @@ void sync_set_state(sync_state_t new_state) {
     g_sync_relieve_effort_mm = 0.0f;
     g_sync_cannot_refill_warned = false;
     g_sync_cannot_relieve_warned = false;
+    if (new_state == SYNC_ACTIVE) relay_estimator_begin_seed(g_now_ms);
 }
 
 void sync_relief_pause(void) {
@@ -974,6 +1135,7 @@ void sync_disable(bool reset_estimator) {
     memset(g_tension_pin_ts, 0, sizeof(g_tension_pin_ts));
     g_tension_pin_ts_idx = 0;
     g_tension_risk_emit_ms = 0;
+    relay_estimator_reset();
 
     if (reset_estimator) {
         extruder_est_sps = 0.0f;
@@ -1120,6 +1282,8 @@ void buf_sensor_tick(uint32_t now_ms) {
             uint8_t idx = (active_lane == 2) ? 1 : 0;
             float delta_mm = (float)lane_motion_sps(A) * ((float)elapsed_ms / 1000.0f) * MM_PER_STEP[idx];
             g_sync_mmu_total_mm += delta_mm;
+            g_relay_flip_travel_since_mm += fabsf(delta_mm);
+            relay_estimator_accumulate(A, elapsed_ms);
 
             if (g_buf.state == BUF_TENSION) {
                 g_sync_refill_effort_mm += delta_mm;
@@ -1621,15 +1785,34 @@ void sync_tick(uint32_t now_ms) {
      *    baseline floor, floored at SYNC_MIN. */
     if (BUF_SENSOR_TYPE == 0) {
         int relay_base = baseline_control_floor_sps();
+        g_relay_using_estimate = false;
         if (s == BUF_TENSION) {
             target_sps = (int)((float)relay_base * RELAY_CATCHUP_FRAC);
         } else if (s == BUF_COMPRESSION) {
             target_sps = SYNC_MIN_SPS;
         } else {
-            int neutral = (int)((float)extruder_est_sps * RELAY_NEUTRAL_FRAC);
+            bool use_estimate = relay_estimator_confident(now_ms);
+            int demand_sps;
+            if (use_estimate) {
+                demand_sps = g_relay_estimate_sps;
+            } else if (relay_seed_active(now_ms)) {
+                demand_sps = RELAY_SEED_SPS > 0 ? RELAY_SEED_SPS : relay_base;
+            } else {
+                demand_sps = (int)extruder_est_sps;
+            }
+
+            int lo = RELAY_ESTIMATE_LO_SPS;
+            int hi = RELAY_ESTIMATE_HI_SPS;
+            if (hi < lo) hi = lo;
+            demand_sps = clamp_i(demand_sps, lo, hi);
+
+            int neutral = (int)((float)demand_sps * RELAY_NEUTRAL_FRAC);
+            if (neutral < lo) neutral = lo;
+            if (neutral > hi) neutral = hi;
             if (neutral < SYNC_MIN_SPS) neutral = SYNC_MIN_SPS;
-            if (neutral > relay_base)   neutral = relay_base;
+            if (neutral > relay_base) neutral = relay_base;
             target_sps = neutral;
+            g_relay_using_estimate = use_estimate;
         }
     }
 
@@ -1786,4 +1969,17 @@ float sync_bp_drift_correction_applied_mm(void) {
 
 int sync_neutral_creep_sps(void) {
     return g_neutral_creep_sps;
+}
+
+int sync_relay_using_estimate(void) {
+    return g_relay_using_estimate ? 1 : 0;
+}
+
+int sync_relay_confidence_pct(void) {
+    relay_estimator_update_confidence(g_now_ms);
+    return clamp_i((int)(g_relay_confidence * 100.0f + 0.5f), 0, 100);
+}
+
+int sync_relay_estimate_sps(void) {
+    return g_relay_estimate_sps;
 }

@@ -55,6 +55,9 @@ float sync_bp_drift_ewma_mm(void);
 int   sync_bp_drift_samples(void);
 int   sync_tension_pin_window_count(uint32_t now_ms);
 float sync_bp_drift_correction_applied_mm(void);
+int sync_relay_using_estimate(void);
+int sync_relay_confidence_pct(void);
+int sync_relay_estimate_sps(void);
 
 extern float g_sync_refill_effort_mm;
 extern float g_sync_relieve_effort_mm;
