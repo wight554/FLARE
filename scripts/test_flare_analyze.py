@@ -30,7 +30,7 @@ HIGH_SIGMA_B = os.path.join(REPO_ROOT, "tests/fixtures/high_sigma_run_b.csv")
 
 FIELDS = [
     "ts_ms", "zone", "bp_mm", "sigma_mm", "est_sps", "rt_mm", "cf",
-    "tension_dwell_ms", "cb", "nc", "vb", "bpv_mm", "feature", "v_fil",
+    "tension_dwell_ms", "cb", "nc", "vb", "bpv_mm", "feature", "v_fil", "MM",
 ]
 
 
@@ -935,6 +935,57 @@ def test_sparse_flow_schedule_falls_back_to_one_point():
     return "sparse schedule emission falls back to scalar-equivalent point"
 
 
+def test_relay_duty_recommendation_is_deterministic():
+    with tempfile.TemporaryDirectory() as td:
+        csv_path = os.path.join(td, "relay.csv")
+        config = os.path.join(td, "config.ini")
+        write_config(config)
+
+        rows = []
+        ts = 0
+        zone_rate = [
+            ("NEUTRAL", 0),
+            ("TENSION", 2000),
+            ("NEUTRAL", 2000),
+            ("COMPRESSION", 100),
+            ("NEUTRAL", 100),
+            ("TENSION", 2000),
+        ]
+        for _cycle in range(4):
+            for zone, rate in zone_rate:
+                rows.append(row(ts, est=900, bp=-2.0, rt=-2.5) | {"zone": zone, "MM": str(rate)})
+                ts += 100
+        write_csv(csv_path, rows)
+
+        out1 = os.path.join(td, "relay1.patch")
+        out2 = os.path.join(td, "relay2.patch")
+        args = SimpleNamespace(
+            inputs=[csv_path],
+            out=out1,
+            mode="aggressive",
+            state=None,
+            config=config,
+            acceptance_gate=False,
+            include_stale=False,
+            force=False,
+            commit_watermark=False,
+            keys=None,
+        )
+        assert analyze.run(args) == 0
+        args.out = out2
+        assert analyze.run(args) == 0
+
+        with open(out1) as fh:
+            content1 = fh.read()
+        with open(out2) as fh:
+            content2 = fh.read()
+        assert content1 == content2, (content1, content2)
+        assert "relay_estimate_lo" in content1, content1
+        assert "relay_estimate_hi" in content1, content1
+        assert "relay_seed_rate" in content1, content1
+    return "relay duty recommendations are byte-stable"
+
+
 def main():
     tests = [
         ("baseline", test_baseline_from_dominant_cluster),
@@ -974,6 +1025,7 @@ def main():
         ("determ", test_deterministic_baseline),
         ("flow-sched", test_deterministic_flow_schedule),
         ("flow-sparse", test_sparse_flow_schedule_falls_back_to_one_point),
+        ("relay-duty", test_relay_duty_recommendation_is_deterministic),
     ]
     print(f"{'case':<12} result")
     print(f"{'-' * 12} {'-' * 40}")

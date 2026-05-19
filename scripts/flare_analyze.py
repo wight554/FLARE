@@ -47,6 +47,16 @@ DEFAULTS = {
     "buf_variance_blend_frac": 0.5,
     "buf_variance_blend_ref_mm": 1.0,
 }
+RELAY_DEFAULTS = {
+    "relay_catchup_frac": 1.30,
+    "relay_neutral_frac": 1.25,
+    "relay_estimate_lo": 100.0,
+    "relay_estimate_hi": 1600.0,
+    "relay_confidence_cycles": 8.0,
+    "relay_confidence_window_ms": 60000.0,
+    "relay_seed_rate": 1600.0,
+}
+CONFIG_DEFAULTS = {**DEFAULTS, **RELAY_DEFAULTS}
 
 
 def bin_v_fil(v):
@@ -84,7 +94,7 @@ def stdev(values):
 
 
 def read_config(path):
-    values = DEFAULTS.copy()
+    values = CONFIG_DEFAULTS.copy()
     if not path or not os.path.exists(path):
         return values
     with open(path) as fh:
@@ -120,16 +130,20 @@ def read_csv_runs(paths):
         normalized = []
         for row in rows:
             # Map flare_live_tuner.py CsvEmitter output
+            zone = row.get("BUF") or row.get("zone")
+            if zone == "MID":
+                zone = "NEUTRAL"
             norm = {
                 "_run": idx,
                 "_path": path,
                 "ts_ms": row.get("wall_ts") or row.get("ts_ms"),
                 "est_sps": row.get("EST") or row.get("est_sps"),
+                "mm_rate": row.get("MM") or row.get("mm_rate") or row.get("sync_mm_min"),
                 "v_fil": row.get("v_fil") or row.get("v_fil"),
                 "bp_mm": row.get("BP") or row.get("bp_mm"),
                 "bpv_frac": row.get("BPV") or row.get("bpv"),
                 "rt_mm": row.get("RT") or row.get("rt_mm"),
-                "zone": row.get("BUF") or row.get("zone"),
+                "zone": zone,
                 "feature": row.get("feature") or row.get("feature", ""),
                 "sigma_mm": row.get("sigma_mm"),
                 "nc": row.get("nc") or row.get("nc", "0"),
@@ -192,7 +206,8 @@ def force_qualifying_labels(state_buckets, include_stale=False):
             continue
         if int(raw.get("n", 0)) < 50:
             continue
-        if to_float(raw.get("cumulative_neutral_s")) < 10.0:
+        neutral_s = to_float(raw.get("cumulative_neutral_s"), 10.0)
+        if neutral_s < 10.0:
             continue
         if bucket_noise_ratio(raw) > NOISE_RATIO_THR:
             continue
@@ -645,8 +660,94 @@ def recommend_for_subset(runs_subset, rows_subset, state_buckets, current, mode,
     }
 
 
+def relay_duty_recommendations(runs, current):
+    """Compute type-D relay duty recommendations from status CSV rows."""
+    estimates = []
+    fill_rates = []
+
+    for run in runs:
+        phase = None
+        travel = 0.0
+        weighted_rate = 0.0
+        weight_ms = 0.0
+        last_fill = None
+        last_relieve = None
+        prev_ts = None
+        prev_rate = 0.0
+        prev_zone = None
+
+        def finish_phase():
+            nonlocal phase, travel, weighted_rate, weight_ms, last_fill, last_relieve
+            if phase is None or weight_ms <= 0.0:
+                return
+            rec = {
+                "travel": travel,
+                "rate": weighted_rate / weight_ms,
+            }
+            if phase == "fill":
+                last_fill = rec
+                fill_rates.append(rec["rate"])
+            elif phase == "relieve":
+                last_relieve = rec
+            if last_fill and last_relieve:
+                dl = last_fill["travel"]
+                dh = last_relieve["travel"]
+                total = dl + dh
+                if total > 0.001:
+                    fh = clamp(dh / total, 0.0, 1.0)
+                    estimates.append((1.0 - fh) * last_relieve["rate"] + fh * last_fill["rate"])
+            travel = 0.0
+            weighted_rate = 0.0
+            weight_ms = 0.0
+
+        for row in run["rows"]:
+            ts = to_float(row.get("ts_ms"), -1.0)
+            zone = row.get("zone")
+            rate = to_float(row.get("mm_rate"), math.nan)
+            if ts < 0.0 or math.isnan(rate):
+                if ts >= 0.0:
+                    prev_ts = ts
+                prev_zone = zone
+                continue
+            if prev_ts is not None and prev_ts >= 0.0 and phase is not None:
+                dt = max(0.0, ts - prev_ts)
+                travel += abs(prev_rate) * dt / 60000.0
+                weighted_rate += abs(prev_rate) * dt
+                weight_ms += dt
+            if zone != prev_zone:
+                if zone == "COMPRESSION":
+                    finish_phase()
+                    phase = "relieve"
+                elif zone == "TENSION":
+                    finish_phase()
+                    phase = "fill"
+            prev_ts = ts
+            prev_rate = rate
+            prev_zone = zone
+
+    if not estimates:
+        return {}
+
+    conf = confidence(len(estimates), 8, 3)
+    detail = f"{len(estimates)} paired relay cycles"
+    lo = max(1.0, percentile(estimates, 10) * 0.90)
+    hi = max(lo, percentile(estimates, 90) * 1.10)
+    seed = median(estimates)
+    relay_base = max(current["baseline_rate"], percentile(fill_rates, 90) if fill_rates else seed)
+    return {
+        "baseline_rate": (relay_base, conf, detail),
+        "relay_estimate_lo": (lo, conf, detail),
+        "relay_estimate_hi": (hi, conf, detail),
+        "relay_seed_rate": (seed, conf, detail),
+    }
+
+
 def compute_recommendations(rows, runs, state_buckets, current, mode, include_stale=False, force=False):
-    return recommend_for_subset(runs, rows, state_buckets, current, mode, force, include_stale)
+    recommendations = recommend_for_subset(runs, rows, state_buckets, current, mode, force, include_stale)
+    relay = relay_duty_recommendations(runs, current)
+    if relay:
+        recommendations.update(relay)
+    return recommendations
 
 
 def raw_consistency_by_run(runs):
@@ -876,7 +977,13 @@ def acceptance_gate(rows, runs, state_buckets, current, mode="safe", force=False
 
 
 def format_value(key, value):
-    if key in ("sync_compression_bias_frac", "buf_variance_blend_frac", "buf_variance_blend_ref_mm"):
+    if key in (
+        "sync_compression_bias_frac",
+        "buf_variance_blend_frac",
+        "buf_variance_blend_ref_mm",
+        "relay_catchup_frac",
+        "relay_neutral_frac",
+    ):
         return f"{value:.3f}"
     return f"{int(round(value))}"
 
@@ -944,7 +1051,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
         fh.write("# WARNING: do not blindly apply; review against config.ini first.\n\n")
         fh.write("[flare_review]\n")
         fh.write("# Each line: current_value -> suggested_value (confidence)\n")
-        for key in DEFAULTS:
+        for key in recommendations:
             suggested, conf, detail = recommendations[key]
             line_conf = "REJECTED" if rejected else conf
             fh.write(
@@ -953,7 +1060,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
             )
         if contributors:
             fh.write("\n[flare_contributors]\n")
-            for key in DEFAULTS:
+            for key in recommendations:
                 _suggested, conf, _detail = recommendations[key]
                 if conf == "DEFAULT":
                     continue
@@ -1084,7 +1191,7 @@ def run(args):
     contributors = {
         key: entries
         for key, (_value, conf, _detail) in recommendations.items()
-        if conf != "DEFAULT" and entries
+        if key in DEFAULTS and conf != "DEFAULT" and entries
     }
     write_patch(args.out, runs, rows, state_buckets, current, recommendations, gate, banner=banner, contributors=contributors)
     if zero_locked_state and args.mode == "safe" and not force:
@@ -1110,9 +1217,9 @@ def run(args):
         machine_meta = data.setdefault(args.machine_id, {}).setdefault("_meta", {})
         last_commit = machine_meta.setdefault("last_commit_values", {})
         now_ts = int(time.time())
-        keys_to_update = [k.strip() for k in args.keys.split(",")] if args.keys else list(DEFAULTS.keys())
+        keys_to_update = [k.strip() for k in args.keys.split(",")] if args.keys else list(recommendations.keys())
         for key in keys_to_update:
-            if key in DEFAULTS:
+            if key in recommendations:
                 rec = recommendations[key][0]
                 last_commit[key] = {
                     "value": rec,

@@ -95,16 +95,27 @@
 
 ## 4. Deterministic offline relay analyzer (D7)
 
-- [ ] 4.1 Extend capture (if needed) so switch-flip timestamps + commanded
+- [x] 4.1 Extend capture (if needed) so switch-flip timestamps + commanded
   feed are present in the CSV for relay runs.
-- [ ] 4.2 `flare_analyze`: compute the same duty statistics offline;
+- [x] 4.2 `flare_analyze`: compute the same duty statistics offline;
   emit recommended `relay_base` + estimator `[lo, hi]` into the existing
   `config.ini`/flow-schedule emit. Pure function of inputs.
-- [ ] 4.3 Determinism test: same input CSVs → identical relay
+- [x] 4.3 Determinism test: same input CSVs → identical relay
   recommendation (byte-stable).
-- [ ] 4.4 Acceptance-gate parity test: existing non-relay inputs produce
+- [x] 4.4 Acceptance-gate parity test: existing non-relay inputs produce
   unchanged schedule + FAIL/WARN/PASS verdict.
-- [ ] 4.5 `python3 -m py_compile scripts/*.py`; analyzer/test suite green.
+- [x] 4.5 `python3 -m py_compile scripts/*.py`; analyzer/test suite green.
+
+  2026-05-19 validation: `flare_live_tuner.py` CSV now records `MM` plus
+  relay telemetry (`RDE`/`RDCF`/`RDV`) so zone-transition timestamps and
+  commanded feed are in relay captures. `flare_analyze.py` emits
+  deterministic relay recommendations (`baseline_rate` as relay base,
+  `relay_estimate_lo`, `relay_estimate_hi`, `relay_seed_rate`) only when
+  relay transition data exists, preserving non-relay patch shape. Added a
+  byte-stability relay-duty regression and kept existing acceptance-gate /
+  flow-schedule parity tests green. Also normalized historical `MID` rows to
+  `NEUTRAL` and treated missing legacy `cumulative_neutral_s` as mature in
+  force-mode fixtures so existing rigor tests keep exercising old captures.
 
 ## 5. Anti-chatter option (D8, secondary)
 
