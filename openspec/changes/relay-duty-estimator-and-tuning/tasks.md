@@ -182,4 +182,10 @@
   all new relay estimator and distance-hysteresis behavior).
 - [ ] 7.5 On-Pi A/B vs the §0.1 baseline: cycle stays slow/shallow/
   never-TENSION; tune via the new config keys; record results.
-- [ ] 7.6 Commit + push to main.
+- [x] 7.6 Commit + push to main.
+
+  2026-05-19 validation: implementation and docs were committed and pushed
+  to `main` through `fb3e7cc` (`sync: move relay knobs to config`,
+  `sync: add relay duty estimator`, `tuning: analyze relay duty cycles`,
+  `docs: describe relay duty tuning`). Remaining unchecked tasks require
+  hardware/status capture rather than more local code changes.
