@@ -157,6 +157,27 @@ or settings layout. Generated defaults must remain byte-for-byte
 equivalent in effective collapse timing: delay 250 ms, ramp multiplier
 3, cap 600 ms.
 
+### 2026-05-19 G1/G2 provisional relay defaults
+
+Files:
+- `config.ini` + `config.ini.example`: keep
+  `relay_confidence_cycles` at 8, shorten
+  `relay_confidence_window_ms` to the r6-proven 1000 ms clamp floor,
+  and enable `relay_min_flip_mm` at 0.5 mm as the smallest documented
+  provisional anti-chatter value.
+- `scripts/gen_config.py`: move the same generated defaults so missing
+  config keys still produce the hardened gate and non-zero flip guard.
+- `scripts/test_gen_config.py`: assert generated defaults for cycles,
+  window, and min-flip so future default drift is caught.
+- `openspec/changes/relay-confidence-gate-harden/tasks.md`: mark
+  tasks 2.1-3.2 after validation passes.
+
+Risk/invariant: no edit to `firmware/src/sync.c` relay branch behavior
+or analyzer logic in this step. Values remain inside existing protocol
+clamps (`RELAY_CONF_CYCLES` 1-64, `RELAY_CONF_WINDOW_MS` 1000-300000,
+`RELAY_MIN_FLIP_MM` 0.0-100.0). These are provisional defaults pending
+the hardware A/B in section 4.
+
 ## Open Questions
 
 - **Keep vs remove the confident relay-estimator path.** r3–r6 show the

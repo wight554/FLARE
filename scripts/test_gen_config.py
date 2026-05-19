@@ -42,6 +42,13 @@ def macro_int(text, name):
     return int(match.group(1))
 
 
+def macro_float(text, name):
+    match = re.search(rf"#define {name}\s+(-?\d+(?:\.\d+)?)f?", text)
+    if not match:
+        raise AssertionError(f"missing macro {name}")
+    return float(match.group(1))
+
+
 def test_scalar_config_emits_one_point():
     text = generate(BASE_CONFIG)
     baseline = macro_int(text, "CONF_BASELINE_SPS")
@@ -52,6 +59,9 @@ def test_scalar_config_emits_one_point():
     assert macro_int(text, "CONF_RELAY_COLLAPSE_DELAY_MS") == 250
     assert macro_int(text, "CONF_RELAY_COLLAPSE_RAMP_MULT") == 3
     assert macro_int(text, "CONF_RELAY_COLLAPSE_CAP_MS") == 600
+    assert macro_int(text, "CONF_RELAY_CONFIDENCE_CYCLES") == 8
+    assert macro_int(text, "CONF_RELAY_CONFIDENCE_WINDOW_MS") == 1000
+    assert macro_float(text, "CONF_RELAY_MIN_FLIP_MM") == 0.5
 
 
 def test_schedule_section_sorts_points():

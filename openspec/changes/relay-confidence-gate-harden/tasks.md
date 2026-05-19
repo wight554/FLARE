@@ -24,24 +24,40 @@
 
 ## 2. Confidence-gate hardened default (G1, primary fix)
 
-- [ ] 2.1 Change `relay_confidence_cycles` and/or
+- [x] 2.1 Change `relay_confidence_cycles` and/or
   `relay_confidence_window_ms` defaults (`config.ini:67-68`,
   `gen_config.py:85-86`, `config.ini.example`) to the least-aggressive
   setting that keeps the bimodal cube unconfident. Provisional from r6
   (window 1000 ms); final value fixed in §4 on-hw. Keep within
   `protocol.c` clamp ranges (cycles 1–64, window 1000–300000).
-- [ ] 2.2 Confirm no control-law / analyzer edit: `sync.c:1786-1820`
+- [x] 2.2 Confirm no control-law / analyzer edit: `sync.c:1786-1820`
   branches and the D12 fill-anchor analyzer are untouched; only the
   gate defaults move. `ninja -C build_local` green.
 
+  2026-05-19: Kept `relay_confidence_cycles` at 8 and changed
+  `relay_confidence_window_ms` default to the r6-proven 1000 ms clamp
+  floor in config/example/generator. No relay control-law branch or
+  analyzer file changed in this step. Validation green: `python3
+  scripts/test_gen_config.py`, `python3 -m py_compile scripts/*.py`,
+  `ninja -C build_local`.
+
 ## 3. Anti-chatter default (G2)
 
-- [ ] 3.1 Set a non-zero `relay_min_flip_mm` default (`config.ini`,
+- [x] 3.1 Set a non-zero `relay_min_flip_mm` default (`config.ini`,
   `config.ini.example`, `gen_config.py`); provisional ≈0.5–1 mm, final
   in §4. Assert `0.0` still compiles to behavior-identical
   (time-based) path (`sync.c:695`).
-- [ ] 3.2 Host build + `py_compile` green; generated header carries the
+- [x] 3.2 Host build + `py_compile` green; generated header carries the
   new default.
+
+  2026-05-19: Set the provisional anti-chatter default to 0.5 mm in
+  config/example/generator and added generated-default coverage in
+  `scripts/test_gen_config.py`. The `sync.c:695` guard remains
+  `RELAY_MIN_FLIP_MM > 0.0f`, so `0.0` still compiles to the prior
+  time-only path. Validation green: `python3 scripts/gen_config.py`,
+  `python3 scripts/test_gen_config.py`, `python3 -m py_compile
+  scripts/*.py`, `ninja -C build_local`; generated local `tune.h`
+  carries `CONF_RELAY_MIN_FLIP_MM 0.5f`.
 
 ## 4. On-hardware A/B validation (G4, acceptance gate)
 
