@@ -14,7 +14,7 @@
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 53u
+#define SETTINGS_VERSION 54u
 
 typedef struct {
     uint32_t magic;
@@ -98,12 +98,6 @@ typedef struct {
     float est_sigma_hard_cap_mm;
     float relay_catchup_frac;
     float relay_neutral_frac;
-    int relay_estimate_lo_sps;
-    int relay_estimate_hi_sps;
-    int relay_confidence_cycles;
-    int relay_confidence_window_ms;
-    int relay_seed_sps;
-    int relay_seed_warmup_ms;
     float relay_min_flip_mm;
     int   relay_collapse_delay_ms;
     int   relay_collapse_ramp_mult;
@@ -236,12 +230,6 @@ void settings_defaults(void) {
     EST_SIGMA_HARD_CAP_MM = CONF_EST_SIGMA_HARD_CAP_MM;
     RELAY_CATCHUP_FRAC = clamp_f(CONF_RELAY_CATCHUP_FRAC, 0.5f, 3.0f);
     RELAY_NEUTRAL_FRAC = clamp_f(CONF_RELAY_NEUTRAL_FRAC, 0.5f, 3.0f);
-    RELAY_ESTIMATE_LO_SPS = motion_clamp_rate_sps(CONF_RELAY_ESTIMATE_LO_SPS);
-    RELAY_ESTIMATE_HI_SPS = motion_clamp_rate_sps(CONF_RELAY_ESTIMATE_HI_SPS);
-    if (RELAY_ESTIMATE_HI_SPS < RELAY_ESTIMATE_LO_SPS) RELAY_ESTIMATE_HI_SPS = RELAY_ESTIMATE_LO_SPS;
-    RELAY_CONFIDENCE_CYCLES = clamp_i(CONF_RELAY_CONFIDENCE_CYCLES, 1, 64);
-    RELAY_CONFIDENCE_WINDOW_MS = clamp_i(CONF_RELAY_CONFIDENCE_WINDOW_MS, 1000, 300000);
-    RELAY_SEED_WARMUP_MS = clamp_i(CONF_RELAY_SEED_WARMUP_MS, 0, 300000);
     RELAY_MIN_FLIP_MM = clamp_f(CONF_RELAY_MIN_FLIP_MM, 0.0f, 100.0f);
     RELAY_COLLAPSE_DELAY_MS = clamp_i(CONF_RELAY_COLLAPSE_DELAY_MS, 0, 5000);
     RELAY_COLLAPSE_RAMP_MULT = clamp_i(CONF_RELAY_COLLAPSE_RAMP_MULT, 1, 16);
@@ -392,11 +380,6 @@ void settings_save(void) {
     s.est_sigma_hard_cap_mm = EST_SIGMA_HARD_CAP_MM;
     s.relay_catchup_frac = RELAY_CATCHUP_FRAC;
     s.relay_neutral_frac = RELAY_NEUTRAL_FRAC;
-    s.relay_estimate_lo_sps = RELAY_ESTIMATE_LO_SPS;
-    s.relay_estimate_hi_sps = RELAY_ESTIMATE_HI_SPS;
-    s.relay_confidence_cycles = RELAY_CONFIDENCE_CYCLES;
-    s.relay_confidence_window_ms = RELAY_CONFIDENCE_WINDOW_MS;
-    s.relay_seed_warmup_ms = RELAY_SEED_WARMUP_MS;
     s.relay_min_flip_mm = RELAY_MIN_FLIP_MM;
     s.relay_collapse_delay_ms = RELAY_COLLAPSE_DELAY_MS;
     s.relay_collapse_ramp_mult = RELAY_COLLAPSE_RAMP_MULT;
@@ -589,12 +572,6 @@ void settings_load(void) {
     EST_SIGMA_HARD_CAP_MM = clamp_f(s->est_sigma_hard_cap_mm, 0.5f, 5.0f);
     RELAY_CATCHUP_FRAC = clamp_f(s->relay_catchup_frac, 0.5f, 3.0f);
     RELAY_NEUTRAL_FRAC = clamp_f(s->relay_neutral_frac, 0.5f, 3.0f);
-    RELAY_ESTIMATE_LO_SPS = motion_clamp_rate_sps(s->relay_estimate_lo_sps);
-    RELAY_ESTIMATE_HI_SPS = motion_clamp_rate_sps(s->relay_estimate_hi_sps);
-    if (RELAY_ESTIMATE_HI_SPS < RELAY_ESTIMATE_LO_SPS) RELAY_ESTIMATE_HI_SPS = RELAY_ESTIMATE_LO_SPS;
-    RELAY_CONFIDENCE_CYCLES = clamp_i(s->relay_confidence_cycles, 1, 64);
-    RELAY_CONFIDENCE_WINDOW_MS = clamp_i(s->relay_confidence_window_ms, 1000, 300000);
-    RELAY_SEED_WARMUP_MS = clamp_i(s->relay_seed_warmup_ms, 0, 300000);
     RELAY_MIN_FLIP_MM = clamp_f(s->relay_min_flip_mm, 0.0f, 100.0f);
     RELAY_COLLAPSE_DELAY_MS = clamp_i(s->relay_collapse_delay_ms, 0, 5000);
     RELAY_COLLAPSE_RAMP_MULT = clamp_i(s->relay_collapse_ramp_mult, 1, 16);

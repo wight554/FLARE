@@ -70,8 +70,6 @@ static bool live_tune_locked_param(const char *param) {
            !strcmp(param, "NEUTRAL_CREEP_CAP_FRAC") ||
            !strcmp(param, "RELAY_CATCHUP_FRAC") ||
            !strcmp(param, "RELAY_NEUTRAL_FRAC") ||
-           !strcmp(param, "RELAY_CONF_CYCLES") ||
-           !strcmp(param, "RELAY_CONF_WINDOW_MS") ||
            !strcmp(param, "RELAY_MIN_FLIP_MM") ||
            !strcmp(param, "RELAY_COLLAPSE_DELAY_MS") ||
            !strcmp(param, "RELAY_COLLAPSE_RAMP_MULT") ||
@@ -208,7 +206,7 @@ static void status_dump(void) {
         }
         snprintf(b + blen, sizeof(b) - (size_t)blen,
             ",RT:%.2f,RD:%.2f,TT:%u,CT:%u,CW:%u,EA:%u,SK:%u,CF:%.2f,RI:%.2f,RC:%d,ES:%.2f,EC:%d"
-            ",BPR:%.2f,BPD:%.2f,BPN:%d,TPX:%d,RDC:%d,CB:%d,NC:%d,RDE:%d,RDCF:%d,RDV:%.1f,VB:%d,BPV:%d,MK:%u:%s"
+            ",BPR:%.2f,BPD:%.2f,BPN:%d,TPX:%d,RDC:%d,CB:%d,NC:%d,VB:%d,BPV:%d,MK:%u:%s"
             ",SYNC_REFILL_MM:%d,SYNC_RELIEVE_MM:%d",
             (double)sync_reserve_target_mm(),
             (double)sync_reserve_deadband_mm(),
@@ -229,9 +227,6 @@ static void status_dump(void) {
             rdc,
             (active_flow_param.bias_milli + 5) / 10,
             sync_neutral_creep_sps(),
-            sync_relay_using_estimate(),
-            sync_relay_confidence_pct(),
-            (double)sps_to_mm_per_min(sync_relay_estimate_sps()),
             (int)(BUF_VARIANCE_BLEND_FRAC * 100.0f),
             (int)(g_buf_pos * 100.0f),
             g_marker_seq,
@@ -749,8 +744,6 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "EST_FALLBACK_THR")) EST_FALLBACK_CF_THRESHOLD = clamp_f(fv, 0.0f, 0.5f);
         else if (!strcmp(base_param, "RELAY_CATCHUP_FRAC")) RELAY_CATCHUP_FRAC = clamp_f(fv, 0.5f, 3.0f);
         else if (!strcmp(base_param, "RELAY_NEUTRAL_FRAC")) RELAY_NEUTRAL_FRAC = clamp_f(fv, 0.5f, 3.0f);
-        else if (!strcmp(base_param, "RELAY_CONF_CYCLES")) RELAY_CONFIDENCE_CYCLES = clamp_i(iv, 1, 64);
-        else if (!strcmp(base_param, "RELAY_CONF_WINDOW_MS")) RELAY_CONFIDENCE_WINDOW_MS = clamp_i(iv, 1000, 300000);
         else if (!strcmp(base_param, "RELAY_MIN_FLIP_MM")) RELAY_MIN_FLIP_MM = clamp_f(fv, 0.0f, 100.0f);
         else if (!strcmp(base_param, "RELAY_COLLAPSE_DELAY_MS")) RELAY_COLLAPSE_DELAY_MS = clamp_i(iv, 0, 5000);
         else if (!strcmp(base_param, "RELAY_COLLAPSE_RAMP_MULT")) RELAY_COLLAPSE_RAMP_MULT = clamp_i(iv, 1, 16);
@@ -878,8 +871,6 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "EST_FALLBACK_THR")) snprintf(out, sizeof(out), "EST_FALLBACK_THR:%.3f", (double)EST_FALLBACK_CF_THRESHOLD);
         else if (!strcmp(param, "RELAY_CATCHUP_FRAC")) snprintf(out, sizeof(out), "RELAY_CATCHUP_FRAC:%.3f", (double)RELAY_CATCHUP_FRAC);
         else if (!strcmp(param, "RELAY_NEUTRAL_FRAC")) snprintf(out, sizeof(out), "RELAY_NEUTRAL_FRAC:%.3f", (double)RELAY_NEUTRAL_FRAC);
-        else if (!strcmp(param, "RELAY_CONF_CYCLES")) snprintf(out, sizeof(out), "RELAY_CONF_CYCLES:%d", RELAY_CONFIDENCE_CYCLES);
-        else if (!strcmp(param, "RELAY_CONF_WINDOW_MS")) snprintf(out, sizeof(out), "RELAY_CONF_WINDOW_MS:%d", RELAY_CONFIDENCE_WINDOW_MS);
         else if (!strcmp(param, "RELAY_MIN_FLIP_MM")) snprintf(out, sizeof(out), "RELAY_MIN_FLIP_MM:%.3f", (double)RELAY_MIN_FLIP_MM);
         else if (!strcmp(param, "RELAY_COLLAPSE_DELAY_MS")) snprintf(out, sizeof(out), "RELAY_COLLAPSE_DELAY_MS:%d", RELAY_COLLAPSE_DELAY_MS);
         else if (!strcmp(param, "RELAY_COLLAPSE_RAMP_MULT")) snprintf(out, sizeof(out), "RELAY_COLLAPSE_RAMP_MULT:%d", RELAY_COLLAPSE_RAMP_MULT);

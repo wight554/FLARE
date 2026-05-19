@@ -1,41 +1,56 @@
 ## 1. Firmware: NEUTRAL = fallback only (R1/R2)
 
-- [ ] 1.1 `sync.c` relay block (~1786-1820): replace NEUTRAL selection
+- [x] 1.1 `sync.c` relay block (~1786-1820): replace NEUTRAL selection
   with the unconditional fallback
   `clamp(extruder_est_sps, SYNC_MIN, relay_base) · RELAY_NEUTRAL_FRAC`.
   Delete the `use_estimate` branch, `g_relay_estimate_sps`, the
   `[lo,hi]` clamp, and seed selection. TENSION/COMPRESSION branches
   untouched.
-- [ ] 1.2 Delete estimator machinery: `relay_estimator_accumulate`,
+- [x] 1.2 Delete estimator machinery: `relay_estimator_accumulate`,
   `relay_estimator_complete_phase`, `relay_estimator_confident`, the
   `v_est` blend (~257-258), duty/travel accumulators, pair-history,
   confidence gate (~228-231), `relay_seed_active`. Grep-confirm no
   remaining callers.
-- [ ] 1.3 `ninja -C build_local` green; diff the relay block to confirm
+- [x] 1.3 `ninja -C build_local` green; diff the relay block to confirm
   **only** the confident path was removed (catch-up / COMPRESSION /
   fallback expression byte-identical).
 
+  2026-05-19: Removed firmware duty-estimator state, confidence gate,
+  seed path, estimate telemetry helpers, and `[lo,hi]` NEUTRAL branch.
+  `rg` confirms no firmware/config generator/dump references to removed
+  estimator keys or `RDE`/`RDCF`/`RDV`. `ninja -C build_local` green.
+
 ## 2. Telemetry shrink (R3, BREAKING)
 
-- [ ] 2.1 `protocol.c`: remove `RDE`/`RDCF`/`RDV` from the status
+- [x] 2.1 `protocol.c`: remove `RDE`/`RDCF`/`RDV` from the status
   string and any estimate/confidence `SET:`/`GET:` + name-list
   entries. Keep `BUF`/`BP`/`EST`/`NC`/etc.
-- [ ] 2.2 `flare_cmd.py`: drop the `RDE`/`RDCF`/`RDV` and removed-key
+- [x] 2.2 `flare_cmd.py`: drop the `RDE`/`RDCF`/`RDV` and removed-key
   dump entries. Host build + `py_compile` green; status parses.
+
+  2026-05-19: Removed status fields from `protocol.c`, removed live
+  SET/GET and dump entries for relay confidence keys, and removed relay
+  estimator columns from the live tuner CSV header. `python3 -m
+  py_compile scripts/*.py` green.
 
 ## 3. Config + settings removal (R5, BREAKING)
 
-- [ ] 3.1 Remove `relay_estimate_lo`, `relay_estimate_hi`,
+- [x] 3.1 Remove `relay_estimate_lo`, `relay_estimate_hi`,
   `relay_confidence_cycles`, `relay_confidence_window_ms`,
   `relay_seed_warmup_ms` from `config.ini`, `config.ini.example`,
   `gen_config.py` defaults + `CONF_*` emit. Keep
   `relay_catchup_frac`/`relay_neutral_frac`/`relay_min_flip_mm`/
   `relay_collapse_*`.
-- [ ] 3.2 `settings_store.c`: remove the deleted relay fields
+- [x] 3.2 `settings_store.c`: remove the deleted relay fields
   (struct/apply/save/load); bump `SETTINGS_VERSION`. Document the
   persisted-settings reset.
-- [ ] 3.3 `test_gen_config.py`: drop assertions for removed macros;
+- [x] 3.3 `test_gen_config.py`: drop assertions for removed macros;
   `gen_config.py` + `test_gen_config.py` + `ninja` green.
+
+  2026-05-19: Removed deleted config keys/default macros, removed
+  persisted settings fields, bumped `SETTINGS_VERSION` 53 -> 54, and
+  retained fallback/collapse/min-flip keys. `python3
+  scripts/test_gen_config.py` and `ninja -C build_local` green.
 
 ## 4. Analyzer subtraction with parity (R4)
 

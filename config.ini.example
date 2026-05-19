@@ -101,14 +101,9 @@ run_current:
 # est_low_cf_warn_threshold: 0.5       # EV:BUF,EST_LOW_CF fires when confidence < this.
 # est_fallback_cf_threshold: 0.2       # Integral freezes when confidence < this.
 
-# ─── Type-D Relay Duty Estimator ────────────────────────────────────────────
+# ─── Type-D Relay Fallback Law ──────────────────────────────────────────────
 # relay_catchup_frac: 1.30            # TENSION refill multiplier in type-D relay mode.
 # relay_neutral_frac: 1.25            # NEUTRAL fallback/lean multiplier in type-D relay mode.
-# relay_estimate_lo: 100              # Offline lower bound for relay estimate (mm/min).
-# relay_estimate_hi: 1600             # Offline upper bound for relay estimate (mm/min).
-# relay_confidence_cycles: 8          # Paired switch cycles required before estimator is trusted.
-# relay_confidence_window_ms: 1000    # Recency window for the paired-cycle confidence gate.
-# relay_seed_warmup_ms: 2000          # Seed window; exits on EST-warm or first confidence.
 # relay_min_flip_mm: 0.0              # Distance hysteresis for relay flips; 0.0 keeps time-only.
                                      # NON-ZERO BLOCKED: gating a flip on the actuator's own motor
                                      # travel deadlocks any flip whose acceptance is what starts the
