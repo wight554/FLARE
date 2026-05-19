@@ -14,7 +14,7 @@
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 51u
+#define SETTINGS_VERSION 52u
 
 typedef struct {
     uint32_t magic;
@@ -96,6 +96,15 @@ typedef struct {
     float sync_reserve_integral_clamp_mm;
     int   sync_reserve_integral_decay_ms;
     float est_sigma_hard_cap_mm;
+    float relay_catchup_frac;
+    float relay_neutral_frac;
+    int relay_estimate_lo_sps;
+    int relay_estimate_hi_sps;
+    int relay_confidence_cycles;
+    int relay_confidence_window_ms;
+    int relay_seed_sps;
+    int relay_seed_warmup_ms;
+    float relay_min_flip_mm;
 
     int   buf_drift_ewma_tau_ms;
     int   buf_drift_min_samples;
@@ -222,6 +231,16 @@ void settings_defaults(void) {
     SYNC_RESERVE_INTEGRAL_CLAMP_MM = CONF_SYNC_RESERVE_INTEGRAL_CLAMP_MM;
     SYNC_RESERVE_INTEGRAL_DECAY_MS = CONF_SYNC_RESERVE_INTEGRAL_DECAY_MS;
     EST_SIGMA_HARD_CAP_MM = CONF_EST_SIGMA_HARD_CAP_MM;
+    RELAY_CATCHUP_FRAC = clamp_f(CONF_RELAY_CATCHUP_FRAC, 0.5f, 3.0f);
+    RELAY_NEUTRAL_FRAC = clamp_f(CONF_RELAY_NEUTRAL_FRAC, 0.5f, 3.0f);
+    RELAY_ESTIMATE_LO_SPS = motion_clamp_rate_sps(CONF_RELAY_ESTIMATE_LO_SPS);
+    RELAY_ESTIMATE_HI_SPS = motion_clamp_rate_sps(CONF_RELAY_ESTIMATE_HI_SPS);
+    if (RELAY_ESTIMATE_HI_SPS < RELAY_ESTIMATE_LO_SPS) RELAY_ESTIMATE_HI_SPS = RELAY_ESTIMATE_LO_SPS;
+    RELAY_CONFIDENCE_CYCLES = clamp_i(CONF_RELAY_CONFIDENCE_CYCLES, 1, 64);
+    RELAY_CONFIDENCE_WINDOW_MS = clamp_i(CONF_RELAY_CONFIDENCE_WINDOW_MS, 1000, 300000);
+    RELAY_SEED_SPS = motion_clamp_rate_sps(CONF_RELAY_SEED_SPS);
+    RELAY_SEED_WARMUP_MS = clamp_i(CONF_RELAY_SEED_WARMUP_MS, 0, 300000);
+    RELAY_MIN_FLIP_MM = clamp_f(CONF_RELAY_MIN_FLIP_MM, 0.0f, 100.0f);
     BUF_DRIFT_EWMA_TAU_MS = CONF_BUF_DRIFT_EWMA_TAU_MS;
     BUF_DRIFT_MIN_SAMPLES = CONF_BUF_DRIFT_MIN_SAMPLES;
     BUF_DRIFT_APPLY_THR_MM = CONF_BUF_DRIFT_APPLY_THR_MM;
@@ -366,6 +385,15 @@ void settings_save(void) {
     s.sync_reserve_integral_clamp_mm = SYNC_RESERVE_INTEGRAL_CLAMP_MM;
     s.sync_reserve_integral_decay_ms = SYNC_RESERVE_INTEGRAL_DECAY_MS;
     s.est_sigma_hard_cap_mm = EST_SIGMA_HARD_CAP_MM;
+    s.relay_catchup_frac = RELAY_CATCHUP_FRAC;
+    s.relay_neutral_frac = RELAY_NEUTRAL_FRAC;
+    s.relay_estimate_lo_sps = RELAY_ESTIMATE_LO_SPS;
+    s.relay_estimate_hi_sps = RELAY_ESTIMATE_HI_SPS;
+    s.relay_confidence_cycles = RELAY_CONFIDENCE_CYCLES;
+    s.relay_confidence_window_ms = RELAY_CONFIDENCE_WINDOW_MS;
+    s.relay_seed_sps = RELAY_SEED_SPS;
+    s.relay_seed_warmup_ms = RELAY_SEED_WARMUP_MS;
+    s.relay_min_flip_mm = RELAY_MIN_FLIP_MM;
     s.buf_drift_ewma_tau_ms = BUF_DRIFT_EWMA_TAU_MS;
     s.buf_drift_min_samples = BUF_DRIFT_MIN_SAMPLES;
     s.buf_drift_apply_thr_mm = BUF_DRIFT_APPLY_THR_MM;
@@ -552,6 +580,16 @@ void settings_load(void) {
     SYNC_RESERVE_INTEGRAL_CLAMP_MM = clamp_f(s->sync_reserve_integral_clamp_mm, 0.0f, 2.0f);
     SYNC_RESERVE_INTEGRAL_DECAY_MS = clamp_i(s->sync_reserve_integral_decay_ms, 0, 60000);
     EST_SIGMA_HARD_CAP_MM = clamp_f(s->est_sigma_hard_cap_mm, 0.5f, 5.0f);
+    RELAY_CATCHUP_FRAC = clamp_f(s->relay_catchup_frac, 0.5f, 3.0f);
+    RELAY_NEUTRAL_FRAC = clamp_f(s->relay_neutral_frac, 0.5f, 3.0f);
+    RELAY_ESTIMATE_LO_SPS = motion_clamp_rate_sps(s->relay_estimate_lo_sps);
+    RELAY_ESTIMATE_HI_SPS = motion_clamp_rate_sps(s->relay_estimate_hi_sps);
+    if (RELAY_ESTIMATE_HI_SPS < RELAY_ESTIMATE_LO_SPS) RELAY_ESTIMATE_HI_SPS = RELAY_ESTIMATE_LO_SPS;
+    RELAY_CONFIDENCE_CYCLES = clamp_i(s->relay_confidence_cycles, 1, 64);
+    RELAY_CONFIDENCE_WINDOW_MS = clamp_i(s->relay_confidence_window_ms, 1000, 300000);
+    RELAY_SEED_SPS = motion_clamp_rate_sps(s->relay_seed_sps);
+    RELAY_SEED_WARMUP_MS = clamp_i(s->relay_seed_warmup_ms, 0, 300000);
+    RELAY_MIN_FLIP_MM = clamp_f(s->relay_min_flip_mm, 0.0f, 100.0f);
     BUF_DRIFT_EWMA_TAU_MS = clamp_i(s->buf_drift_ewma_tau_ms, 5000, 600000);
     BUF_DRIFT_MIN_SAMPLES = clamp_i(s->buf_drift_min_samples, 1, 32);
     BUF_DRIFT_APPLY_THR_MM = clamp_f(s->buf_drift_apply_thr_mm, 0.0f, 5.0f);

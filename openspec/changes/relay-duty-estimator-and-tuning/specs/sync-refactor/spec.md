@@ -41,16 +41,17 @@ unchanged.
 - **THEN** the target is `relay_base × SYNC_RELAY_CATCHUP_FRAC` or
   `SYNC_MIN_SPS` respectively, exactly as in `relay-buffer-control-2switch`
 
-### Requirement: neutral_creep is resolved not left inert
+### Requirement: neutral_creep remains intended-inert telemetry
 
-This change SHALL resolve the previously telemetry-only `neutral_creep`
-long-NEUTRAL anti-drift path, which MUST NOT remain as computed-but-unused
-dead code afterward: either its compute and protocol slot are removed, or
-its protocol slot is repurposed for estimator telemetry, because the duty
-estimator subsumes its anti-drift role.
+This change SHALL honor the committed `relay-buffer-control-2switch` 7.2-A
+disposition: `neutral_creep` remains computed and emitted as intended-inert
+telemetry. Estimator estimate/confidence telemetry SHALL be added as a
+separate status field and SHALL NOT delete, reuse, or evict the existing
+`neutral_creep` protocol slot.
 
-#### Scenario: No dead neutral_creep compute remains
+#### Scenario: neutral_creep slot is preserved
 
 - **WHEN** the firmware is built after this change
-- **THEN** `neutral_creep` is either removed or actively used for
-  estimator/confidence telemetry, with no inert computed-but-unused path
+- **THEN** `neutral_creep` is still computed and emitted in its existing
+  telemetry slot
+- **AND** relay duty-estimator telemetry is emitted separately

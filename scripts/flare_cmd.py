@@ -112,6 +112,10 @@ DUMP_PARAMS = [
     ("EST_SIGMA_CAP",     "est_sigma_hard_cap_mm",     False),
     ("EST_LOW_CF_THR",    "est_low_cf_warn_threshold", False),
     ("EST_FALLBACK_THR",  "est_fallback_cf_threshold", False),
+    ("RELAY_CATCHUP_FRAC", "relay_catchup_frac",       False),
+    ("RELAY_NEUTRAL_FRAC", "relay_neutral_frac",       False),
+    ("RELAY_CONF_CYCLES", "relay_confidence_cycles",   False),
+    ("RELAY_CONF_WINDOW_MS", "relay_confidence_window_ms", False),
     # --- Smarter Sync ---
     ("EST_ALPHA_MIN",     "est_alpha_min",           False),
     ("EST_ALPHA_MAX",     "est_alpha_max",           False),

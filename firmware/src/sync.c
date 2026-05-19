@@ -50,12 +50,10 @@
  * the buffer leans to the full/COMPRESSION reserve side and never reaches
  * TENSION (never starve). These three fracs (x baseline control floor)
  * are the primary on-hardware type-D relay-law tuning knobs.
- * CATCHUP scales the fixed baseline-anchored refill (TENSION/empty).
- * NEUTRAL scales the demand-tracking (EST) NEUTRAL feed: ~1.0 = match extruder
+ * RELAY_CATCHUP_FRAC scales the fixed baseline-anchored refill (TENSION/empty).
+ * RELAY_NEUTRAL_FRAC scales the demand-tracking (EST) NEUTRAL feed: ~1.0 = match extruder
  * (long dwell), >1 = gentle full/COMPRESSION-reserve lean. COMPRESSION/full
  * feed is fixed at SYNC_MIN (stop) so the buffer drains off the wall. */
-#define SYNC_RELAY_CATCHUP_FRAC 1.45f
-#define SYNC_RELAY_NEUTRAL_FRAC     1.10f
 #define ENDSTOP_PER_UNIT_SIGMA_MM 0.025f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_START_MM_MIN 1000.0f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_FULL_MM_MIN 1400.0f
@@ -1624,11 +1622,11 @@ void sync_tick(uint32_t now_ms) {
     if (BUF_SENSOR_TYPE == 0) {
         int relay_base = baseline_control_floor_sps();
         if (s == BUF_TENSION) {
-            target_sps = (int)((float)relay_base * SYNC_RELAY_CATCHUP_FRAC);
+            target_sps = (int)((float)relay_base * RELAY_CATCHUP_FRAC);
         } else if (s == BUF_COMPRESSION) {
             target_sps = SYNC_MIN_SPS;
         } else {
-            int neutral = (int)((float)extruder_est_sps * SYNC_RELAY_NEUTRAL_FRAC);
+            int neutral = (int)((float)extruder_est_sps * RELAY_NEUTRAL_FRAC);
             if (neutral < SYNC_MIN_SPS) neutral = SYNC_MIN_SPS;
             if (neutral > relay_base)   neutral = relay_base;
             target_sps = neutral;

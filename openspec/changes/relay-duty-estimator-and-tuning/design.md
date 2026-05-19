@@ -276,3 +276,53 @@ unreachable (or a config kill-switch) reverts to the exact
   first-confident — decide in step 3, on-Pi-tunable in step 8.
 - (D5 resolved: 7.2-A is committed; neutral_creep stays, telemetry is a
   new field — no open question.)
+
+## Implementation Plan (2026-05-19)
+
+### OpenSpec artifacts
+
+- Fix `specs/sync-refactor/spec.md` so the `neutral_creep` requirement matches
+  D5 / tasks 3.2 / proposal: keep the existing intended-inert telemetry and
+  add estimator telemetry separately.
+- Preserve tasks history by marking completed items only after validation.
+
+### Config and runtime parameter path
+
+- Update `config.ini`, `config.ini.example`, and `scripts/gen_config.py` with
+  relay catch-up, neutral lean, estimator bounds, confidence threshold/window,
+  cold-start seed, seed warmup, and optional distance hysteresis.
+- Add matching runtime globals in `main.c` / `controller_shared.h`, persist
+  them in `settings_store.c`, and bump `SETTINGS_VERSION` because `settings_t`
+  changes.
+- Add `SET:` / `GET:` only for runtime-safe relay fractions and confidence
+  threshold/window; keep estimate bounds and seed values config/flash-only.
+  Update `scripts/flare_cmd.py` dump surface for runtime-safe keys.
+- Risk: keep locked 4.2 defaults (`1.30` / `1.25`) and remove stale
+  `SYNC_RELAY_*_FRAC` defines.
+
+### Firmware estimator and telemetry
+
+- In `sync.c`, add volatile type-D relay estimator state updated from stable
+  TENSION/COMPRESSION transitions and commanded-feed dwell averages.
+- Replace only the `BUF_NEUTRAL` relay target with estimated demand when
+  confident; leave `BUF_TENSION` catch-up and `BUF_COMPRESSION` stop
+  branches unchanged.
+- Apply neutral lean after estimate, clamp to offline `[lo, hi]`, then use the
+  existing clamp/ramp path. Fallback remains `extruder_est_sps * relay neutral`
+  and cold-start can seed from offline config until EST warms or estimator
+  confidence appears.
+- Add status helpers / protocol fields for estimate-vs-fallback and
+  confidence; leave `neutral_creep` intact with a D5 code comment.
+- Risk: type-P analog path must remain behavior-identical; estimator state
+  must not call flash persistence.
+
+### Analyzer, docs, validation
+
+- Extend `scripts/flare_analyze.py` deterministically for relay duty
+  recommendations and add tests for byte-stable relay output plus non-relay
+  parity.
+- Update `TUNING.md`, `MANUAL.md`, `TEST_CASES.md`, and relevant specs with
+  relay keys, telemetry, HH polarity inversion, and D10(c) accepted
+  COMPRESSION-grind limitation.
+- Validate with generated config test, `python3 -m py_compile scripts/*.py`,
+  analyzer tests, firmware build, and strict OpenSpec validation before commit.

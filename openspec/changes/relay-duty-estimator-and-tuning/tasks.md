@@ -11,20 +11,28 @@
 
 ## 1. Config-key migration (no behavior change)
 
-- [ ] 1.1 Add `config.ini` keys: relay catch-up, relay NEUTRAL frac,
+- [x] 1.1 Add `config.ini` keys: relay catch-up, relay NEUTRAL frac,
   `relay_estimate_lo`, `relay_estimate_hi`, estimator confidence window +
   threshold, `relay_seed` (D10b cold-start seed source). Defaults =
   **the locked 4.2 baseline: catch-up `1.30`, NEUTRAL `1.25`** (NOT the
   old 1.45/1.10 `#define`s — those are the rejected round-1 pair).
-- [ ] 1.2 Wire keys through `gen_config.py` into the generated tune header
+- [x] 1.2 Wire keys through `gen_config.py` into the generated tune header
   (mirror `baseline_rate` / `sync_compression_bias_frac` pattern).
-- [ ] 1.3 Delete the legacy `SYNC_RELAY_*_FRAC` `#define`s in `sync.c`;
+- [x] 1.3 Delete the legacy `SYNC_RELAY_*_FRAC` `#define`s in `sync.c`;
   consume generated values. Mark runtime-safe knobs as `SET:` params;
   keep safety bounds flash-only.
-- [ ] 1.4 `gen_config.py` test + `ninja -C build_local` green; status
+- [x] 1.4 `gen_config.py` test + `ninja -C build_local` green; status
   snapshot identical to the **locked-baseline build** (1.30/1.25 → behavior
   byte-identical to archived `relay-buffer-control-2switch` round-2).
-- [ ] 1.5 `config.ini.example` updated; stale `#define` references gone.
+- [x] 1.5 `config.ini.example` updated; stale `#define` references gone.
+
+  2026-05-19 validation: `python3 scripts/gen_config.py`,
+  `python3 scripts/test_gen_config.py`, `python3 -m py_compile scripts/*.py`,
+  and `ninja -C build_local` pass. Runtime-safe relay fractions/confidence
+  gates have `SET:`/`GET:` + `flare_cmd.py --dump` parity; estimator bounds
+  and seed keys remain config/flash-only. Code no longer defines
+  `SYNC_RELAY_*_FRAC`; `sync.c` consumes generated runtime globals whose
+  defaults are the locked 1.30/1.25 pair.
 
 ## 2. Firmware duty-cycle estimator (D2/D3/D4)
 

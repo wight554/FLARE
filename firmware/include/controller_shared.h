@@ -224,6 +224,15 @@ extern int   SYNC_RESERVE_INTEGRAL_DECAY_MS;
 extern float EST_SIGMA_HARD_CAP_MM;
 extern float EST_LOW_CF_WARN_THRESHOLD;
 extern float EST_FALLBACK_CF_THRESHOLD;
+extern float RELAY_CATCHUP_FRAC;
+extern float RELAY_NEUTRAL_FRAC;
+extern int   RELAY_ESTIMATE_LO_SPS;
+extern int   RELAY_ESTIMATE_HI_SPS;
+extern int   RELAY_CONFIDENCE_CYCLES;
+extern int   RELAY_CONFIDENCE_WINDOW_MS;
+extern int   RELAY_SEED_SPS;
+extern int   RELAY_SEED_WARMUP_MS;
+extern float RELAY_MIN_FLIP_MM;
 #define BUF_DRIFT_CLAMP_LIMIT_MM 8.0f
 extern int   BUF_DRIFT_EWMA_TAU_MS;
 extern int   BUF_DRIFT_MIN_SAMPLES;
