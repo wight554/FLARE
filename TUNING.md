@@ -151,6 +151,15 @@ two-level relay law:
 - `BUF_NEUTRAL`: use `extruder_est_sps * relay_neutral_frac`, clamped to the
   normal `[SYNC_MIN_RATE, baseline_rate]` fallback range.
 
+NEUTRAL is **always** driven by the extruder-speed fallback — there is no
+confidence gate or duty estimator. The estimator path was removed after
+on-hardware validation showed it causes the buffer to ride the physical empty
+wall on bimodal (fast/slow alternating) prints: the estimator collapses under
+flip-heavy traffic → NEUTRAL chronically underfeeds → 26–43 % of rows in
+`BUF_TENSION`, `BP` pegged at the +12.5 mm wall. The fallback keeps `BP` off
+the wall (`BPmax` ≈ 5 mm, shallow within the ±5 mm switch span) on both slow
+and bimodal loads.
+
 The knobs live in `config.ini`, not in `sync.c` defines:
 
 ```ini

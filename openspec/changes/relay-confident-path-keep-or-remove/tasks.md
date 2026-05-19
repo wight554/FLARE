@@ -19,11 +19,19 @@
   reproducible slicer constraints in K1: one continuous wall, no
   infill/top, constant body speed, no adaptive/feature speed variation,
   body height long enough for steady-state confidence.
-- [ ] 2.2 Print it with the estimator able to reach confidence
+- [x] 2.2 Print it with the estimator able to reach confidence
   (`SET:RELAY_CONF_WINDOW_MS:<large>` + `SET:RELAY_CONF_CYCLES:<low>`);
   capture CSV. Confirm `RDE1%` materially > 0 over a sustained span
   (vs bimodal r7 = 0%). If confidence is unreachable, record that as
   REMOVE-leaning evidence (K1 scenario) and skip to §4.
+
+  2026-05-20: SUPERSEDED. K2 §3.2 captured the confident arm
+  (`CYCLES:2`+`WINDOW_MS:300000`, vase 60 mm³/s) — confidence was
+  reached and held (`RDE1%` 57.5), satisfying the K1 intent.
+  Confidence being reachable made the K3 verdict worse (REMOVE), not
+  better. The estimator protocol keys (`RELAY_CONF_WINDOW_MS` /
+  `RELAY_CONF_CYCLES`) were subsequently removed by relay-fallback-only.
+  This task is closed.
 
 ## 3. Forced A/B in that regime (K2)
 

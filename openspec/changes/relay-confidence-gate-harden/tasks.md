@@ -145,10 +145,18 @@
 
 ## 5. Docs
 
-- [ ] 5.1 TUNING.md relay section: hardened gate defaults, the
+- [x] 5.1 TUNING.md relay section: hardened gate defaults, the
   `relay_min_flip_mm` knob, the collapse-ramp config keys, and the
   bimodal deep-TENSION failure-mode note. Keep copy-paste commands
   script-verified.
+
+  2026-05-20: Added "always fallback-driven" declaration and bimodal
+  deep-TENSION failure-mode note to the Type-D Relay Fallback Tuning
+  section in TUNING.md. Note covers: no confidence gate, estimator
+  removed, bimodal collapse root cause (26–43% TENSION rows, BPmax
+  +12.5 wall vs fallback BPmax ~5 mm). Collapse-ramp keys and
+  relay_min_flip_mm caveat were already present from relay-fallback-only
+  5.1.
 
 ## 6. Closeout
 
