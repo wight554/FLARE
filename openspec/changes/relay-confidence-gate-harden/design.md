@@ -130,6 +130,33 @@ Rollback: every lever is a config default — restore prior
 `relay_confidence_*`, set `relay_min_flip_mm:0`, collapse-ramp keys ==
 old constants → exact pre-change behavior, no firmware revert.
 
+## Implementation Plan
+
+### 2026-05-19 G3 collapse-ramp config surface
+
+Files:
+- `config.ini` + `config.ini.example`: add
+  `relay_collapse_delay_ms`, `relay_collapse_ramp_mult`, and
+  `relay_collapse_cap_ms` beside the type-D relay knobs, with defaults
+  equal to the current firmware constants (250 / 3 / 600).
+- `scripts/gen_config.py`: add the three defaults and emit integer
+  `CONF_RELAY_COLLAPSE_*` macros into `tune.h`.
+- `firmware/src/sync.c`: keep the existing local
+  `SYNC_COMPRESSION_COLLAPSE_*` names, but source them from generated
+  macros instead of literals so behavior remains identical.
+- `scripts/test_gen_config.py`: assert default macro values and an
+  override case so both fallback defaults and explicit config values are
+  covered.
+- `openspec/changes/relay-confidence-gate-harden/tasks.md`: mark
+  tasks 1.1-1.3 complete after `py_compile`, `test_gen_config`, and
+  `ninja -C build_local` pass.
+
+Risk/invariant: this unit must not touch relay confidence defaults,
+`relay_min_flip_mm`, the runtime relay control law, analyzer behavior,
+or settings layout. Generated defaults must remain byte-for-byte
+equivalent in effective collapse timing: delay 250 ms, ramp multiplier
+3, cap 600 ms.
+
 ## Open Questions
 
 - **Keep vs remove the confident relay-estimator path.** r3–r6 show the

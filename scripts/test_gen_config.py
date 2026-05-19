@@ -49,6 +49,9 @@ def test_scalar_config_emits_one_point():
     assert macro_int(text, "CONF_FLOW_SCHED_CAP") == 8
     assert macro_int(text, "CONF_FLOW_SCHED_LEN") == 1
     assert f"{{{baseline}, {baseline}, 250}}" in text
+    assert macro_int(text, "CONF_RELAY_COLLAPSE_DELAY_MS") == 250
+    assert macro_int(text, "CONF_RELAY_COLLAPSE_RAMP_MULT") == 3
+    assert macro_int(text, "CONF_RELAY_COLLAPSE_CAP_MS") == 600
 
 
 def test_schedule_section_sorts_points():
@@ -65,9 +68,22 @@ point0: 6000, 7000, 0.30
     assert "{{6000, 7000, 300}, {12000, 13000, 400}}" in text
 
 
+def test_relay_collapse_config_overrides_defaults():
+    text = generate(BASE_CONFIG + """
+relay_collapse_delay_ms: 375
+relay_collapse_ramp_mult: 2
+relay_collapse_cap_ms: 800
+""")
+
+    assert macro_int(text, "CONF_RELAY_COLLAPSE_DELAY_MS") == 375
+    assert macro_int(text, "CONF_RELAY_COLLAPSE_RAMP_MULT") == 2
+    assert macro_int(text, "CONF_RELAY_COLLAPSE_CAP_MS") == 800
+
+
 def main():
     test_scalar_config_emits_one_point()
     test_schedule_section_sorts_points()
+    test_relay_collapse_config_overrides_defaults()
     print("gen_config schedule tests PASS")
 
 

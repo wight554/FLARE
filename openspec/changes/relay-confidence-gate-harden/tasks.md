@@ -1,17 +1,26 @@
 ## 1. Collapse-ramp config surface (G3, zero behavior change first)
 
-- [ ] 1.1 Add config keys for the deep-COMPRESSION collapse-ramp:
+- [x] 1.1 Add config keys for the deep-COMPRESSION collapse-ramp:
   `relay_collapse_delay_ms`, `relay_collapse_ramp_mult`,
   `relay_collapse_cap_ms` in `config.ini`, `config.ini.example`,
   `scripts/gen_config.py` defaults. Defaults **equal current constants**
   (250 / 3 / 600).
-- [ ] 1.2 `gen_config.py` emits matching `#define`s into the generated
+- [x] 1.2 `gen_config.py` emits matching `#define`s into the generated
   tune header; `firmware/src/sync.c:19-21` consumes the generated values
   instead of literal `#define`s. No behavior change.
-- [ ] 1.3 `python3 scripts/test_gen_config.py` updated for the new keys;
+- [x] 1.3 `python3 scripts/test_gen_config.py` updated for the new keys;
   `python3 -m py_compile scripts/*.py` + `ninja -C build_local` green;
   status snapshot byte-identical to pre-change (defaults == old
   constants).
+
+  2026-05-19: Added generator defaults and `CONF_RELAY_COLLAPSE_*`
+  macros, wired `sync.c` collapse constants to generated values, and
+  added default/override coverage in `scripts/test_gen_config.py`.
+  Validation green: `python3 scripts/gen_config.py`,
+  `python3 scripts/test_gen_config.py`, `python3 -m py_compile
+  scripts/*.py`, `ninja -C build_local`. Effective firmware defaults
+  remain delay 250 ms / ramp multiplier 3 / cap 600 ms, so the collapse
+  ramp behavior and status-facing values are unchanged.
 
 ## 2. Confidence-gate hardened default (G1, primary fix)
 
