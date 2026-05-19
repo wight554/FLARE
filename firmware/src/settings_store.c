@@ -14,7 +14,7 @@
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 52u
+#define SETTINGS_VERSION 53u
 
 typedef struct {
     uint32_t magic;
@@ -105,6 +105,9 @@ typedef struct {
     int relay_seed_sps;
     int relay_seed_warmup_ms;
     float relay_min_flip_mm;
+    int   relay_collapse_delay_ms;
+    int   relay_collapse_ramp_mult;
+    int   relay_collapse_cap_ms;
 
     int   buf_drift_ewma_tau_ms;
     int   buf_drift_min_samples;
@@ -240,6 +243,9 @@ void settings_defaults(void) {
     RELAY_CONFIDENCE_WINDOW_MS = clamp_i(CONF_RELAY_CONFIDENCE_WINDOW_MS, 1000, 300000);
     RELAY_SEED_WARMUP_MS = clamp_i(CONF_RELAY_SEED_WARMUP_MS, 0, 300000);
     RELAY_MIN_FLIP_MM = clamp_f(CONF_RELAY_MIN_FLIP_MM, 0.0f, 100.0f);
+    RELAY_COLLAPSE_DELAY_MS = clamp_i(CONF_RELAY_COLLAPSE_DELAY_MS, 0, 5000);
+    RELAY_COLLAPSE_RAMP_MULT = clamp_i(CONF_RELAY_COLLAPSE_RAMP_MULT, 1, 16);
+    RELAY_COLLAPSE_CAP_MS = clamp_i(CONF_RELAY_COLLAPSE_CAP_MS, 0, 5000);
     BUF_DRIFT_EWMA_TAU_MS = CONF_BUF_DRIFT_EWMA_TAU_MS;
     BUF_DRIFT_MIN_SAMPLES = CONF_BUF_DRIFT_MIN_SAMPLES;
     BUF_DRIFT_APPLY_THR_MM = CONF_BUF_DRIFT_APPLY_THR_MM;
@@ -392,6 +398,9 @@ void settings_save(void) {
     s.relay_confidence_window_ms = RELAY_CONFIDENCE_WINDOW_MS;
     s.relay_seed_warmup_ms = RELAY_SEED_WARMUP_MS;
     s.relay_min_flip_mm = RELAY_MIN_FLIP_MM;
+    s.relay_collapse_delay_ms = RELAY_COLLAPSE_DELAY_MS;
+    s.relay_collapse_ramp_mult = RELAY_COLLAPSE_RAMP_MULT;
+    s.relay_collapse_cap_ms = RELAY_COLLAPSE_CAP_MS;
     s.buf_drift_ewma_tau_ms = BUF_DRIFT_EWMA_TAU_MS;
     s.buf_drift_min_samples = BUF_DRIFT_MIN_SAMPLES;
     s.buf_drift_apply_thr_mm = BUF_DRIFT_APPLY_THR_MM;
@@ -587,6 +596,9 @@ void settings_load(void) {
     RELAY_CONFIDENCE_WINDOW_MS = clamp_i(s->relay_confidence_window_ms, 1000, 300000);
     RELAY_SEED_WARMUP_MS = clamp_i(s->relay_seed_warmup_ms, 0, 300000);
     RELAY_MIN_FLIP_MM = clamp_f(s->relay_min_flip_mm, 0.0f, 100.0f);
+    RELAY_COLLAPSE_DELAY_MS = clamp_i(s->relay_collapse_delay_ms, 0, 5000);
+    RELAY_COLLAPSE_RAMP_MULT = clamp_i(s->relay_collapse_ramp_mult, 1, 16);
+    RELAY_COLLAPSE_CAP_MS = clamp_i(s->relay_collapse_cap_ms, 0, 5000);
     BUF_DRIFT_EWMA_TAU_MS = clamp_i(s->buf_drift_ewma_tau_ms, 5000, 600000);
     BUF_DRIFT_MIN_SAMPLES = clamp_i(s->buf_drift_min_samples, 1, 32);
     BUF_DRIFT_APPLY_THR_MM = clamp_f(s->buf_drift_apply_thr_mm, 0.0f, 5.0f);

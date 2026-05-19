@@ -117,6 +117,9 @@ DUMP_PARAMS = [
     ("RELAY_CONF_CYCLES", "relay_confidence_cycles",   False),
     ("RELAY_CONF_WINDOW_MS", "relay_confidence_window_ms", False),
     ("RELAY_MIN_FLIP_MM", "relay_min_flip_mm",         False),
+    ("RELAY_COLLAPSE_DELAY_MS", "relay_collapse_delay_ms", False),
+    ("RELAY_COLLAPSE_RAMP_MULT", "relay_collapse_ramp_mult", False),
+    ("RELAY_COLLAPSE_CAP_MS", "relay_collapse_cap_ms",  False),
     # --- Smarter Sync ---
     ("EST_ALPHA_MIN",     "est_alpha_min",           False),
     ("EST_ALPHA_MAX",     "est_alpha_max",           False),

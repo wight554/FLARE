@@ -232,6 +232,9 @@ extern int   RELAY_CONFIDENCE_CYCLES;
 extern int   RELAY_CONFIDENCE_WINDOW_MS;
 extern int   RELAY_SEED_WARMUP_MS;
 extern float RELAY_MIN_FLIP_MM;
+extern int   RELAY_COLLAPSE_DELAY_MS;
+extern int   RELAY_COLLAPSE_RAMP_MULT;
+extern int   RELAY_COLLAPSE_CAP_MS;
 #define BUF_DRIFT_CLAMP_LIMIT_MM 8.0f
 extern int   BUF_DRIFT_EWMA_TAU_MS;
 extern int   BUF_DRIFT_MIN_SAMPLES;

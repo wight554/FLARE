@@ -73,6 +73,9 @@ static bool live_tune_locked_param(const char *param) {
            !strcmp(param, "RELAY_CONF_CYCLES") ||
            !strcmp(param, "RELAY_CONF_WINDOW_MS") ||
            !strcmp(param, "RELAY_MIN_FLIP_MM") ||
+           !strcmp(param, "RELAY_COLLAPSE_DELAY_MS") ||
+           !strcmp(param, "RELAY_COLLAPSE_RAMP_MULT") ||
+           !strcmp(param, "RELAY_COLLAPSE_CAP_MS") ||
            !strcmp(param, "VAR_BLEND_FRAC") ||
            !strcmp(param, "BUF_VARIANCE_BLEND_FRAC") ||
            !strcmp(param, "VAR_BLEND_REF_MM") ||
@@ -749,6 +752,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "RELAY_CONF_CYCLES")) RELAY_CONFIDENCE_CYCLES = clamp_i(iv, 1, 64);
         else if (!strcmp(base_param, "RELAY_CONF_WINDOW_MS")) RELAY_CONFIDENCE_WINDOW_MS = clamp_i(iv, 1000, 300000);
         else if (!strcmp(base_param, "RELAY_MIN_FLIP_MM")) RELAY_MIN_FLIP_MM = clamp_f(fv, 0.0f, 100.0f);
+        else if (!strcmp(base_param, "RELAY_COLLAPSE_DELAY_MS")) RELAY_COLLAPSE_DELAY_MS = clamp_i(iv, 0, 5000);
+        else if (!strcmp(base_param, "RELAY_COLLAPSE_RAMP_MULT")) RELAY_COLLAPSE_RAMP_MULT = clamp_i(iv, 1, 16);
+        else if (!strcmp(base_param, "RELAY_COLLAPSE_CAP_MS")) RELAY_COLLAPSE_CAP_MS = clamp_i(iv, 0, 5000);
         else if (!strcmp(base_param, "BUF_DRIFT_TAU_MS")) BUF_DRIFT_EWMA_TAU_MS = clamp_i(iv, 5000, 600000);
         else if (!strcmp(base_param, "BUF_DRIFT_MIN_SMP")) BUF_DRIFT_MIN_SAMPLES = clamp_i(iv, 1, 32);
         else if (!strcmp(base_param, "BUF_DRIFT_THR_MM")) BUF_DRIFT_APPLY_THR_MM = clamp_f(fv, 0.0f, 5.0f);
@@ -875,6 +881,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "RELAY_CONF_CYCLES")) snprintf(out, sizeof(out), "RELAY_CONF_CYCLES:%d", RELAY_CONFIDENCE_CYCLES);
         else if (!strcmp(param, "RELAY_CONF_WINDOW_MS")) snprintf(out, sizeof(out), "RELAY_CONF_WINDOW_MS:%d", RELAY_CONFIDENCE_WINDOW_MS);
         else if (!strcmp(param, "RELAY_MIN_FLIP_MM")) snprintf(out, sizeof(out), "RELAY_MIN_FLIP_MM:%.3f", (double)RELAY_MIN_FLIP_MM);
+        else if (!strcmp(param, "RELAY_COLLAPSE_DELAY_MS")) snprintf(out, sizeof(out), "RELAY_COLLAPSE_DELAY_MS:%d", RELAY_COLLAPSE_DELAY_MS);
+        else if (!strcmp(param, "RELAY_COLLAPSE_RAMP_MULT")) snprintf(out, sizeof(out), "RELAY_COLLAPSE_RAMP_MULT:%d", RELAY_COLLAPSE_RAMP_MULT);
+        else if (!strcmp(param, "RELAY_COLLAPSE_CAP_MS")) snprintf(out, sizeof(out), "RELAY_COLLAPSE_CAP_MS:%d", RELAY_COLLAPSE_CAP_MS);
         else if (!strcmp(param, "BUF_DRIFT_TAU_MS")) snprintf(out, sizeof(out), "BUF_DRIFT_TAU_MS:%d", BUF_DRIFT_EWMA_TAU_MS);
         else if (!strcmp(param, "BUF_DRIFT_MIN_SMP")) snprintf(out, sizeof(out), "BUF_DRIFT_MIN_SMP:%d", BUF_DRIFT_MIN_SAMPLES);
         else if (!strcmp(param, "BUF_DRIFT_THR_MM")) snprintf(out, sizeof(out), "BUF_DRIFT_THR_MM:%.3f", (double)BUF_DRIFT_APPLY_THR_MM);

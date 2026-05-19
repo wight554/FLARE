@@ -104,13 +104,24 @@
 - [ ] 4.3 Record both captures + the A/B table vs the archived §0.1
   locked 4.2 baseline in this change (the hardware validation the
   archived 7.5 never did for the confident path).
-- [ ] 4.4 **Stop-smoothness via G3 (replaces G2's stated goal).**
-  Unblocked now that G1 (r7) stabilized the buffer and the COMPRESSION
-  path is exercised. On-hw tune the collapse-ramp config keys
-  (`relay_collapse_delay_ms` ↑ / `relay_collapse_ramp_mult` ↓ /
-  `relay_collapse_cap_ms`) for a gradual print-end / deep-COMPRESSION
-  stop; capture before/after, record finals. Deadlock-free (no flip
-  gating). Defaults unchanged until a value is validated.
+- [x] 4.4a **Collapse-ramp params made runtime-tunable**
+  (2026-05-19). Mirrored the `RELAY_MIN_FLIP_MM` pattern: runtime
+  globals (`main.c`), externs (`controller_shared.h`), settings
+  field+apply+save+load (`settings_store.c`, `SETTINGS_VERSION`
+  52→53), `SET:`/`GET:` + name-list (`protocol.c`), `flare_cmd.py
+  --dump`. `sync.c:19-21` macros now alias the runtime vars (defaults
+  from `CONF_*`, unchanged). Clamps: delay/cap `[0,5000]` ms, ramp_mult
+  `[1,16]`. `ninja -C build_local`, `test_gen_config`, `py_compile`
+  green. Enables on-hw iteration without reflash-per-tweak.
+  **SETTINGS_VERSION bump → persisted settings reset to defaults on
+  flash (defaults == prior behavior; re-apply any custom SET).**
+- [ ] 4.4b **Stop-smoothness via G3 on-hw tune** (replaces G2's stated
+  goal). Unblocked (G1 r7 exercises COMPRESSION; now runtime-tunable
+  via 4.4a). Iterate live: `SET:RELAY_COLLAPSE_DELAY_MS:<v>` /
+  `:RELAY_COLLAPSE_RAMP_MULT:<v>` / `:RELAY_COLLAPSE_CAP_MS:<v>`,
+  capture before/after (slow-profile A/B, internally consistent),
+  pick the gradual deep-stop values without TENSION%/BPmax regressing,
+  then persist + set as `config.ini` defaults. Deadlock-free.
 
 ## 5. Docs
 
