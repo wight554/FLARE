@@ -68,3 +68,10 @@
 - Kept shared implementation to purge/blob/brush X-sweep logic only.
 - Revalidated `klipper/flare_mmu.cfg` Jinja brace balance (`71/71`),
   `python3 -m py_compile scripts/*.py`, and `ninja -C build_local`.
+
+2026-05-20 TC unload log follow-up:
+- Added `M400` after `_FLARE_TIP_FORMING` before `HD:0` so all tip-forming
+  moves finish inside HOLD.
+- Added `M400` after `G1 E-{gear_retract}` before `TC:{lane}` so firmware
+  unload does not begin until Klipper has physically retracted filament from
+  the extruder gears.

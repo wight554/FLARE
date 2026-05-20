@@ -180,3 +180,15 @@ None — scope fully decided in exploration phase.
   distance guidance.
 - Replace purge-chute tips with a concrete `_FLARE_PURGE` implementation note
   and list the variables operators need to tune.
+
+## Runtime Log Follow-up
+
+Observed Klipper log showed `TC:` starting firmware unload immediately after
+tip forming and gear retract were queued, then failing with
+`EV:UNLOAD_BLOCKED` / `EV:TC:ERROR:UNLOAD_TIMEOUT`. Root cause: the macro did
+not force Klipper's motion queue to drain before `HD:0` or `TC:` shell calls.
+
+Fix: add `M400` after `_FLARE_TIP_FORMING` before `HD:0`, and after
+`G1 E-{gear_retract}` before `TC:{lane}`. This keeps the tip-forming moves
+inside HOLD and ensures the extruder has released the old filament before
+firmware starts lane unload.

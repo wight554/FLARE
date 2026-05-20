@@ -124,7 +124,9 @@ range); HOLD suppresses sync and negative-sync following while leaving
 basic buffer stabilization available. The final `GEAR_RETRACT` is intentionally
 outside HOLD so negative sync can follow it. With that split,
 `POST_PRINT_STAB_DELAY_MS=0` is acceptable because the long retract should be
-followed immediately.
+followed immediately. `_FLARE_CHANGE_LANE` uses `M400` before releasing HOLD
+and again before `TC:` so queued extruder moves finish before FLARE starts
+firmware unload.
 
 > **Temperature management:** `gcode_shell_command` holds the Klipper scheduler
 > while the shell process runs — heaters stay regulated, but no additional G-code
