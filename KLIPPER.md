@@ -132,27 +132,20 @@ The include provides `_FLARE_VARS`, `_FLARE_TIP_FORMING_DEFAULTS`,
 applies `RELOAD_MODE` from `_FLARE_VARS`.
 
 Tune the distances and temperatures in `_FLARE_VARS`. In particular,
-`dist_filament_park` must stay less than `dist_extruder_to_meltzone`, because
-the hotend load distance is derived from their difference. The
-[LH-Stinger Pico MMU toolhead distance calibration guide](https://github.com/lhndo/LH-Stinger/wiki/Pico-MMU#toolhead-distance-calibration)
-uses the same distance variable names, so you can copy those measurements into
-`_FLARE_VARS`. The same link is also included as a comment at the top of
-`klipper/flare_mmu.cfg` for printer-side tuning.
+`dist_filament_park` (defaulting to `11` mm to park filament closer to the gears than the hotend) must stay less than `dist_extruder_to_meltzone`, because the hotend load distance is derived from their difference. 
+`dist_sensor_to_synced_move` (default `8.0` mm) is the distance from the filament sensor towards the extruder gears. When loading, the MMU drives the filament alone past the sensor by this distance using the ignore-buffer command:
+`MV:<dist_sensor_to_synced_move>:<speed_hub_to_extruder * 60>:I`. 
+Then, a synchronized G1 E move is performed by Klipper to grab and park the filament:
+`G1 E{sync_dist} F{v.purge_speed * 60}`, where `sync_dist` is derived as `(dist_sensor_to_extruder - dist_sensor_to_synced_move) + (dist_filament_park * 1.1)` (with a 10% buffer for slippage). Because sync mode is enabled, the MMU automatically follows this G1 E move, completing a seamless handoff.
 
-`FLARE_TEST_TIP_FORMING` follows the LH-Stinger `SP_TEST_MANUAL_TIP_FORMING`
-flow: it accepts tip-forming override parameters, loads the hotend, simulates a
-print pause, runs `_FLARE_TIP_FORMING`, then retracts in two stages so the
-formed tip can be removed and inspected.
+The [LH-Stinger Pico MMU toolhead distance calibration guide](https://github.com/lhndo/LH-Stinger/wiki/Pico-MMU#toolhead-distance-calibration) uses the same distance variable names, so you can copy those measurements into `_FLARE_VARS`. The same link is also included as a comment at the top of `klipper/flare_mmu.cfg` for printer-side tuning.
+
+`FLARE_TEST_TIP_FORMING` follows the LH-Stinger `SP_TEST_MANUAL_TIP_FORMING` flow: it accepts tip-forming override parameters, loads the hotend, simulates a print pause, runs `_FLARE_TIP_FORMING`, then retracts in two stages so the formed tip can be removed and inspected.
 
 Tip forming uses a finite FLARE reverse move before the final park retract:
-`MV:-<derived distance>:<slow feed>:I`. The `I` option tells firmware to ignore
-buffer state during that exact move, so it can pull the old lane clear of the
-toolhead gears/bowden exit without reacting to temporary compression or
-tension. The distance is derived from `_FLARE_VARS` as
+`MV:-<derived distance>:<slow feed>:I`. The `I` option tells firmware to ignore buffer state during that exact move, so it can pull the old lane clear of the toolhead gears/bowden exit without reacting to temporary compression or tension. The distance is derived from `_FLARE_VARS` as
 `dist_sensor_to_extruder + dist_extruder_to_meltzone +
-dist_meltzone_to_nozzle_tip`. Tune `dist_meltzone_to_nozzle_tip` to your hotend
-geometry; it is 46 mm in the shared example. The later printer-side gear retract
-is not mirrored by another FLARE `MV:` and runs at
+dist_meltzone_to_nozzle_tip`. Tune `dist_meltzone_to_nozzle_tip` to your hotend geometry; it is 46 mm in the shared example. The later printer-side gear retract is not mirrored by another FLARE `MV:` and runs at
 `speed_hub_to_extruder * 60` (`50 mm/s` by default, matching LH-Stinger).
 
 > **Temperature management:** `gcode_shell_command` holds the Klipper scheduler

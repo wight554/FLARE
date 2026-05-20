@@ -45,7 +45,7 @@ extruder, MMU, and toolhead state.
 - **AND** calls `flare_cmd.py TC:lane` without explicit `TS:` or `SM:` helper commands
 - **AND** arms delayed toolhead-sensor polling before `TC:`
 - **AND** loads/picks up the new filament into the extruder only after the
-  sensor reports filament detected again
+  sensor reports filament detected again via a two-stage approach: MMU alone push past the sensor (`MV:{dist_sensor_to_synced_move}:I`), followed by a synchronized grab and park move (`G1 E{sync_dist}`)
 
 ### Requirement: Reusable Toolhead Unload Macro
 The include SHALL provide a standalone `FLARE_UNLOAD_TOOLHEAD` macro.
