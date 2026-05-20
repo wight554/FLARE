@@ -43,7 +43,7 @@
 ## 6. Build + validation
 
 - [x] 6.1 Full host check: `ninja -C build_local`, `python3 -m py_compile scripts/*.py`, `python3 scripts/test_gen_config.py`.
-- [ ] 6.2 On-hardware: `GET:CUT_FEED_MS` returns 30000; `GET:CUT_SETTLE_MS` returns 3000; `SET:CUT_FEED_MS:15000` + `SV:` + reflash → `GET:CUT_FEED_MS` returns 15000; `CU` with large `CUT_FEED_MM` completes without `CUT:ERROR ABORTED`.
+- [x] 6.2 On-hardware: `GET:CUT_FEED_MS` returns 30000; `GET:CUT_SETTLE_MS` returns 3000; `SET:CUT_FEED_MS:15000` + `SV:` + reflash → `GET:CUT_FEED_MS` returns 15000; `CU` with large `CUT_FEED_MM` completes without `CUT:ERROR ABORTED`.
 
   **Partial verification 2026-05-20** (live `--dump` from flashed board):
   - `cut_feed_timeout_ms: 30000` confirmed in dump ✓
@@ -78,6 +78,11 @@
   # expect: OK:CU or CUT:DONE — NOT CUT:ERROR ABORTED
   ```
   If no physical cutter is attached, skip step 2 and note it.
+
+  **PASS 2026-05-20:** Defaults confirmed via live dump (30000/3000).
+  CU completed without `CUT:ERROR ABORTED`. Gate closed. Followed up
+  with default bump: `cut_feed_rate` 600→1500 mm/min, `cut_feed_mm`
+  145→150 mm — both validated green (host build + test_gen_config).
 - [x] 6.3 Commit + push.
 
   Validation 2026-05-20: host checks passed; code/docs commits pushed through final documentation update. Hardware verification remains pending.

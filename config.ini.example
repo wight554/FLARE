@@ -153,8 +153,8 @@ run_current:
 # servo_settle_ms: 500
 # cut_feed_timeout_ms: 30000
 # cut_settle_timeout_ms: 3000
-# cut_feed_rate: 600
-# cut_feed_mm: 145
+# cut_feed_rate: 1500
+# cut_feed_mm: 150
 # cut_length_mm: 10
 # cut_amount: 1
 

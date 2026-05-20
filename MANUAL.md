@@ -221,7 +221,7 @@ Pre-rename half-travel and size serial tokens are removed; use full-range
 |-----------|------------------|-------------|---------|
 | `UNLOAD_CUT` | `unload_cut` | Cut during unload sequences when the cutter is enabled | 0 |
 | `SERVO_BLOCK` | `servo_block_us` | Servo block position used between cutter phases | 950 |
-| `CUT_FEED_RATE` | `cut_feed_rate` | Motor speed (mm/min) during cutter feed; ramped from zero — lower if motor stalls | 600 |
+| `CUT_FEED_RATE` | `cut_feed_rate` | Motor speed (mm/min) during cutter feed; ramped from zero — lower if motor stalls | 1500 |
 | `CUT_FEED_MS` | `cut_feed_timeout_ms` | Safety timeout for the cutter motor feed phase. Runtime range: 1000-120000 ms. Raise when long `CUT_FEED` distances would exceed the default. | 30000 |
 | `CUT_SETTLE_MS` | `cut_settle_timeout_ms` | Safety timeout for cutter servo settle phases. Runtime range: 500-10000 ms. Must exceed `SERVO_SETTLE` for normal cutter phases to complete. | 3000 |
 
