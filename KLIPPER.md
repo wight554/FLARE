@@ -122,7 +122,8 @@ Copy `klipper/flare_mmu.cfg` into your Klipper config directory and include it:
 ```
 
 The include provides `_FLARE_VARS`, `_FLARE_TIP_FORMING_DEFAULTS`,
-`_FLARE_TIP_FORMING`, `_FLARE_LOAD_HOTEND`, `_FLARE_PURGE`,
+`_FLARE_TIP_FORMING`, `_FLARE_LOAD_HOTEND`, `_FLARE_HEAT_HOTEND`,
+`_FLARE_PURGE`,
 `_FLARE_TC_STATE`, `_FLARE_ARM_TC_LOAD`, `_FLARE_ON_TOOLHEAD_RUNOUT`,
 `_FLARE_ON_TOOLHEAD_INSERT`, `_FLARE_CHANGE_LANE`, `_FLARE_POST_TC_LOAD`,
 `_FLARE_TC_FAILED`, `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`, `FLARE_CUT`,
@@ -164,40 +165,26 @@ toolhead-sensor gate owns post-TC hotend loading. Firmware-side TC errors are
 logged as `EV:TC:ERROR:*`; `_FLARE_TC_FAILED` reports sensor-gate timeout if
 the new filament never reaches the configured toolhead sensor.
 
-### Purge chute example
+### Purge
+
+`_FLARE_PURGE` follows the simple LH-Stinger `_SP_PURGE` shape: it takes a
+`PURGE` amount, extrudes that amount at `purge_speed`, then performs a small
+0.4 mm retract. It also calls `_FLARE_HEAT_HOTEND`, which ports the
+LH-Stinger heat check: if the current hotend target is below
+`min_extrude_temp`, it heats to `load_temp` before purging. Add your own park
+macro at the `# use your park macro` comment if your printer needs purge
+parking. The shared macro does not include purge-chute parking or brush logic.
 
 The [LH-Stinger Mini Purge Shute](https://github.com/lhndo/LH-Stinger/tree/main/User_Mods/Other/Mini%20Purge%20Shute%20-%20%40LH)
-is a good reference for a compact passive purge chute with a brush. FLARE's
-`_FLARE_PURGE` macro includes the compatible implementation: by default it
-performs a plain relative extruder purge; when `use_chute` is enabled it parks
-through your printer-specific hook, splits large purges into smaller blobs,
-retracts between blobs, runs brush wipes, and restores fan/G-code state.
-
-Edit these variables in `_FLARE_PURGE` after installing the chute:
-
-```ini
-variable_use_chute: 1
-variable_park_x: 0.0          # nozzle center over chute/PTFE tube
-variable_brush_left_x: 0.0    # left edge of brush stroke
-variable_brush_speed: 150.0
-variable_brush_cycles: 4
-variable_brush_pause_ms: 1000
-variable_min_purge: 30.0       # chute mode only
-variable_max_blob_size: 80.0   # chute mode only
-variable_fan_speed: -1        # -1 keeps current fan speed; 0-255 overrides
-variable_retract: 0.4
-```
-
-Inside `_FLARE_PURGE`, replace the commented `# _FLARE_PURGE_PARK` hook with
-your own safe park macro or explicit Z/XY moves. The shared example only moves
-X between `park_x` and `brush_left_x` because Y/Z parking is printer-specific.
+is still a good manual reference for users who want to add their own chute
+parking and brush moves around `_FLARE_PURGE`.
 
 Keep `purge_len` and `purge_speed` in `_FLARE_VARS` as the normal post-load
 flush volume and extrusion speed in mm/s. The macro multiplies by 60 for
 Klipper `F` feedrates, so `purge_speed: 30.0` means 30 mm/s, not F30.
 `_FLARE_LOAD_HOTEND` calls
 `_FLARE_PURGE PURGE={v.purge_len}` after the three-stage meltzone approach, so
-the purge chute flow is part of `T1` / `T2` toolchanges without adding slicer
+the plain purge flow is part of `T1` / `T2` toolchanges without adding slicer
 commands.
 
 ---

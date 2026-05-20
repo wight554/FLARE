@@ -73,7 +73,7 @@ at the toolhead sensor. Sequence is purely sequential:
 TC: (blocks)
 → PICKUP: G1 E{dist_sensor_to_extruder * 1.2}
 → _FLARE_LOAD_HOTEND: 3-stage meltzone approach
-→ _FLARE_PURGE: optional plain purge or chute hook/brush purge
+→ _FLARE_PURGE: simple plain purge and small retract
 ```
 
 No `[delayed_gcode]` polling needed. SP's approach is the same
@@ -114,9 +114,12 @@ Mirrors SP `_SP_LOAD_HOTEND` approach distances (50% fast / 25% normal /
 which is the remaining gap from park position to meltzone — same formula
 as SP so ported values work immediately.
 
-Purge extrusion lives in `_FLARE_PURGE` so operators can use the default
-plain purge or enable Mini Purge Shute-style park hook/brush moves without changing
-the meltzone approach sequence.
+Purge extrusion lives in `_FLARE_PURGE` as a simple SP-style purge/retract
+helper. `_FLARE_PURGE` calls `_FLARE_HEAT_HOTEND`, which mirrors SP's heat
+check: if no explicit temp is provided and the extruder target is below the
+minimum extrusion temperature, heat to `load_temp` before purging. Users who
+need a purge chute can wrap or replace purge parking manually in their printer
+config; the shared macro only leaves a `# use your park macro` comment.
 
 ### D9 — FLARE_TEST_TIP_FORMING
 
@@ -173,18 +176,18 @@ None — scope fully decided in exploration phase.
 
 ### klipper/flare_mmu.cfg
 - Split purge extrusion out of `_FLARE_LOAD_HOTEND` into `_FLARE_PURGE`.
-- Add Mini Purge Shute-compatible optional park hook/brush settings to
-  `_FLARE_PURGE` while keeping default behavior equivalent to the old inline
-  purge when chute parking is disabled.
+- Keep `_FLARE_PURGE` simple: `PURGE` amount, `purge_speed` feed, and a small
+  retract, matching the upstream `_SP_PURGE` core without chute-specific logic.
+- Port `_SP_HEAT_HOTEND` as `_FLARE_HEAT_HOTEND` and call it before purge.
 - Risk: `_FLARE_CHANGE_LANE` already saves/restores G-code state; `_FLARE_PURGE`
-  must preserve relative extrusion and avoid requiring chute coordinates unless
-  enabled.
+  must preserve relative extrusion and leave chute parking/brush moves to user
+  wrappers.
 
 ### KLIPPER.md
 - Add the LH-Stinger toolhead distance calibration link near `_FLARE_VARS`
   distance guidance.
-- Replace purge-chute tips with a concrete `_FLARE_PURGE` implementation note
-  and list the variables operators need to tune.
+- Document `_FLARE_PURGE` as the simple shared purge macro and keep
+  LH-Stinger Mini Purge Shute link as a manual hardware reference.
 
 ## Runtime Log Follow-up
 

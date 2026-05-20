@@ -76,24 +76,25 @@ meltzone in three stages (50% fast / 25% normal / 25% slow) and call
 - **WHEN** `variable_purge_len: 0`
 - **THEN** no purge extrusion is performed after meltzone approach
 
-### Requirement: Purge helper supports plain and chute purge
+### Requirement: Purge helper is simple plain purge
 `_FLARE_PURGE` SHALL own purge extrusion separately from `_FLARE_LOAD_HOTEND`.
-It SHALL support a default plain relative extrusion purge and an optional
-Mini Purge Shute-style mode that exposes a printer-specific park hook,
-splits large purges into blob cycles, retracts between blobs, brushes, and
-restores fan/G-code state.
+It SHALL implement the simple upstream `_SP_PURGE` core shape: purge the
+requested relative extrusion amount at `purge_speed`, then perform a small
+0.4 mm retract. It SHALL call `_FLARE_HEAT_HOTEND` before purge extrusion and
+leave a comment placeholder for user-provided park macros. Purge chute parking,
+blob splitting, and brush moves SHALL be left to user-provided wrapper macros.
 
 #### Scenario: Default plain purge
-- **WHEN** `_FLARE_PURGE PURGE=30` is called with `use_chute: 0`
+- **WHEN** `_FLARE_PURGE PURGE=30` is called
 - **THEN** it extrudes 30 mm at `_FLARE_VARS.purge_speed * 60` without XY
   parking
+- **AND** it retracts 0.4 mm at 35 mm/s after the purge
 
-#### Scenario: Chute purge enabled
-- **WHEN** `_FLARE_PURGE PURGE=120` is called with `use_chute: 1`
-- **THEN** it provides a commented purge-park hook, breaks the purge into blob
-  cycles no larger than `max_blob_size`, retracts between blobs, performs brush
-  strokes between `brush_left_x` and `park_x`, and restores saved fan/G-code
-  state
+#### Scenario: Purge verifies hotend temperature
+- **WHEN** `_FLARE_PURGE PURGE=30` is called while the extruder target is below
+  `_FLARE_VARS.min_extrude_temp`
+- **THEN** `_FLARE_HEAT_HOTEND` heats to `_FLARE_VARS.load_temp` and waits
+  before purge extrusion starts
 
 ### Requirement: Toolchange macro with derived gear retract
 `_FLARE_CHANGE_LANE` SHALL execute the full toolchange sequence: tip forming

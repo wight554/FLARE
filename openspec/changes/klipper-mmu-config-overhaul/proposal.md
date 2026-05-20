@@ -14,7 +14,8 @@ integration.
   - `[gcode_macro _FLARE_TIP_FORMING_DEFAULTS]` tuning block (cooldown / dip / park params)
   - `[gcode_macro _FLARE_TIP_FORMING]` — full tip-forming sequence (cooldown, dip, park)
   - `[gcode_macro _FLARE_LOAD_HOTEND]` — 3-stage meltzone approach after TC:
-  - `[gcode_macro _FLARE_PURGE]` — separate purge helper with optional Mini Purge Shute-style park hook and brush moves
+  - `[gcode_macro _FLARE_HEAT_HOTEND]` — SP-style heat check before purge/load extrusion
+  - `[gcode_macro _FLARE_PURGE]` — separate simple purge helper
   - `[gcode_macro _FLARE_CHANGE_LANE]` — tip forming with `MV:...:I` MMU retract → gear retract → nonblocking TC: → sensor-gated pickup/load hotend
   - `[gcode_macro T1]` / `[gcode_macro T2]`
   - `[gcode_macro FLARE_LOAD]` / `[gcode_macro FLARE_UNLOAD]` / `[gcode_macro FLARE_CUT]`
@@ -23,7 +24,7 @@ integration.
 - **REMOVED** from Klipper config examples: `FLARE_PRELOAD`, `FLARE_CUT_BARE`, `FLARE_CUT_TEST`
 - **REMOVED** from `KLIPPER.md`: buffer sync tuning section, calibration prints section, telemetry/tuning section, gcode_marker reference — all replaced with a pointer to `TUNING.md`
 - **MODIFIED** `KLIPPER.md` toolhead sensor section: Option A kept (sensor wiring), Option B collapsed to a brief note (it is automatic, not a user choice)
-- **MODIFIED** `KLIPPER.md` toolchange macros section: points to `flare_mmu.cfg` instead of inline snippets, references LH-Stinger distance calibration, and documents the Mini Purge Shute-compatible `_FLARE_PURGE` setup
+- **MODIFIED** `KLIPPER.md` toolchange macros section: points to `flare_mmu.cfg` instead of inline snippets, references LH-Stinger distance calibration, and documents simple `_FLARE_PURGE` behavior
 
 ## Capabilities
 

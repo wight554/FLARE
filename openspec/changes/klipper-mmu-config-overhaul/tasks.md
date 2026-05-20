@@ -201,3 +201,12 @@
   `pause_push_speed=10.0`, `cooldown_pull_speed=80.0`,
   `cooldown_secondary_moves=1`, `dip_melt_gap=2.5`, `dip_pause=3`,
   `park_speed=140.0`.
+
+2026-05-21 simple purge correction:
+- Removed built-in `use_chute` / brush / blob-splitting logic from
+  `_FLARE_PURGE`.
+- Kept `_FLARE_PURGE` as a simple SP-style purge helper: relative purge at
+  `purge_speed * 60`, then `G0 E-0.4 F{35*60}`. Purge chute support is manual
+  for users who need it.
+- Added a `# use your park macro` comment instead of implementing parking.
+- Ported `_SP_HEAT_HOTEND` as `_FLARE_HEAT_HOTEND` and call it before purge.
