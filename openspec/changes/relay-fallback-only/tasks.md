@@ -204,6 +204,11 @@
   --strict` green. Implementation/docs commits pushed to `main` through
   `fd83393`; closeout task update commit follows. Cavemem write API was
   not available in this session, so memory update remains a handoff note.
-- [ ] 6.4 Archive `relay-confident-path-keep-or-remove` and
+- [x] 6.4 Archive `relay-confident-path-keep-or-remove` and
   `relay-confidence-gate-harden` once this lands and is hw-smoked
   (their verdict/decisions are now realized).
+
+  2026-05-20: Moved to
+  `openspec/changes/archive/2026-05-20-relay-confidence-gate-harden`
+  and `openspec/changes/archive/2026-05-20-relay-confident-path-keep-or-remove`.
+  All tasks in both changes were complete or superseded.
