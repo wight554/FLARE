@@ -55,9 +55,16 @@
 2026-05-20 purge follow-up:
 - Split purge extrusion into `_FLARE_PURGE`; `_FLARE_LOAD_HOTEND` now calls
   `_FLARE_PURGE PURGE={v.purge_len}` after the meltzone approach.
-- Added Mini Purge Shute-compatible optional park/brush variables and logic to
+- Added Mini Purge Shute-compatible optional park hook and brush logic to
   `_FLARE_PURGE`.
 - Added the LH-Stinger toolhead distance calibration link to `KLIPPER.md` and
   documented the `_FLARE_PURGE` tuning variables.
 - Revalidated `klipper/flare_mmu.cfg` Jinja brace balance (`73/73`),
+  `python3 -m py_compile scripts/*.py`, and `ninja -C build_local`.
+
+2026-05-20 chute park hook follow-up:
+- Replaced generic Y/Z chute parking variables with comments telling operators
+  to include their own purge park macro or explicit safe moves.
+- Kept shared implementation to purge/blob/brush X-sweep logic only.
+- Revalidated `klipper/flare_mmu.cfg` Jinja brace balance (`71/71`),
   `python3 -m py_compile scripts/*.py`, and `ninja -C build_local`.

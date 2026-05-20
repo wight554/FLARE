@@ -70,7 +70,7 @@ at the toolhead sensor. Sequence is purely sequential:
 TC: (blocks)
 → PICKUP: G1 E{dist_sensor_to_extruder * 1.2}
 → _FLARE_LOAD_HOTEND: 3-stage meltzone approach
-→ _FLARE_PURGE: optional plain purge or chute park/brush purge
+→ _FLARE_PURGE: optional plain purge or chute hook/brush purge
 ```
 
 No `[delayed_gcode]` polling needed. SP's approach is the same
@@ -112,7 +112,7 @@ which is the remaining gap from park position to meltzone — same formula
 as SP so ported values work immediately.
 
 Purge extrusion lives in `_FLARE_PURGE` so operators can use the default
-plain purge or enable Mini Purge Shute-style park/brush moves without changing
+plain purge or enable Mini Purge Shute-style park hook/brush moves without changing
 the meltzone approach sequence.
 
 ### D9 — FLARE_TEST_TIP_FORMING
@@ -168,7 +168,7 @@ None — scope fully decided in exploration phase.
 
 ### klipper/flare_mmu.cfg
 - Split purge extrusion out of `_FLARE_LOAD_HOTEND` into `_FLARE_PURGE`.
-- Add Mini Purge Shute-compatible optional park/brush settings to
+- Add Mini Purge Shute-compatible optional park hook/brush settings to
   `_FLARE_PURGE` while keeping default behavior equivalent to the old inline
   purge when chute parking is disabled.
 - Risk: `_FLARE_CHANGE_LANE` already saves/restores G-code state; `_FLARE_PURGE`

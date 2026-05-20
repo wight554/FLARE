@@ -67,8 +67,9 @@ meltzone in three stages (50% fast / 25% normal / 25% slow) and call
 ### Requirement: Purge helper supports plain and chute purge
 `_FLARE_PURGE` SHALL own purge extrusion separately from `_FLARE_LOAD_HOTEND`.
 It SHALL support a default plain relative extrusion purge and an optional
-Mini Purge Shute-style mode that parks the toolhead, splits large purges into
-blob cycles, retracts between blobs, brushes, and restores fan/G-code state.
+Mini Purge Shute-style mode that exposes a printer-specific park hook,
+splits large purges into blob cycles, retracts between blobs, brushes, and
+restores fan/G-code state.
 
 #### Scenario: Default plain purge
 - **WHEN** `_FLARE_PURGE PURGE=30` is called with `use_chute: 0`
@@ -76,9 +77,10 @@ blob cycles, retracts between blobs, brushes, and restores fan/G-code state.
 
 #### Scenario: Chute purge enabled
 - **WHEN** `_FLARE_PURGE PURGE=120` is called with `use_chute: 1`
-- **THEN** it parks at the configured chute coordinates, breaks the purge into
-  blob cycles no larger than `max_blob_size`, retracts between blobs, performs
-  brush strokes, and restores saved fan/G-code state
+- **THEN** it provides a commented purge-park hook, breaks the purge into blob
+  cycles no larger than `max_blob_size`, retracts between blobs, performs brush
+  strokes between `brush_left_x` and `park_x`, and restores saved fan/G-code
+  state
 
 ### Requirement: Toolchange macro with derived gear retract
 `_FLARE_CHANGE_LANE` SHALL execute the full toolchange sequence: HD:1 →

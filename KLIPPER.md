@@ -142,16 +142,14 @@ The [LH-Stinger Mini Purge Shute](https://github.com/lhndo/LH-Stinger/tree/main/
 is a good reference for a compact passive purge chute with a brush. FLARE's
 `_FLARE_PURGE` macro includes the compatible implementation: by default it
 performs a plain relative extruder purge; when `use_chute` is enabled it parks
-the toolhead over the chute, splits large purges into smaller blobs, retracts
-between blobs, runs brush wipes, and restores fan/G-code state.
+through your printer-specific hook, splits large purges into smaller blobs,
+retracts between blobs, runs brush wipes, and restores fan/G-code state.
 
 Edit these variables in `_FLARE_PURGE` after installing the chute:
 
 ```ini
 variable_use_chute: 1
 variable_park_x: 0.0          # nozzle center over chute/PTFE tube
-variable_park_y: 0.0          # chute Y position
-variable_park_z_hop: 0.0      # optional relative Z hop before XY park
 variable_brush_left_x: 0.0    # left edge of brush stroke
 variable_brush_speed: 150.0
 variable_brush_cycles: 4
@@ -161,6 +159,10 @@ variable_max_blob_size: 80.0   # chute mode only
 variable_fan_speed: -1        # -1 keeps current fan speed; 0-255 overrides
 variable_retract: 0.4
 ```
+
+Inside `_FLARE_PURGE`, replace the commented `# _FLARE_PURGE_PARK` hook with
+your own safe park macro or explicit Z/XY moves. The shared example only moves
+X between `park_x` and `brush_left_x` because Y/Z parking is printer-specific.
 
 Keep `purge_len` and `purge_spd` in `_FLARE_VARS` as the normal post-load flush
 volume and extrusion feedrate. `_FLARE_LOAD_HOTEND` calls
