@@ -27,10 +27,11 @@ Toolchange macros (`_FLARE_TC`) SHALL coordinate the extruder, MMU, and toolhead
 
 #### Scenario: Full TC Macro
 - **WHEN** a toolchange is triggered
-- **THEN** Klipper enables `RA:1` retract assist before tip forming
-- **AND** keeps retract assist active through the tip-forming park retract and
-  the long gear-clear retract
-- **AND** clears retract assist with `RA:0` before `TC:`
+- **THEN** Klipper enables `RA:1` retract assist gate before tip forming
+- **AND** clears retract assist with `RA:0` after tip forming drains
+- **AND** starts `MV:-gear_retract:gear_retract_spd` before the long
+  gear-clear printer retract
+- **AND** calls `TC:` only after the gear-clear printer retract drains
 - **AND** calls `flare_cmd.py TC:lane` without explicit `TS:` or `SM:` helper commands
 - **AND** waits for `EV:TC:DONE`
 - **AND** loads/picks up the new filament into the extruder

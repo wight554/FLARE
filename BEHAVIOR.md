@@ -158,21 +158,20 @@ stored value.
 
 ## Retract Assist — `RA:<0|1>`
 
-`RA:1` arms a fast bidirectional assist for printer-side retract windows,
-primarily Klipper tip forming and gear-clear retracts. Normal `sync_tick`
-behavior and the post-print `BUFFER_SERVICE_NEG_SYNC` service are suppressed
-while retract assist is active.
+`RA:1` arms a quiet retract gate for printer-side tip-forming moves. Normal
+`sync_tick` behavior and the post-print `BUFFER_SERVICE_NEG_SYNC` service are
+suppressed while retract assist is active, and firmware does not react to
+buffer-side changes during the gated window.
 
-During each buffer sensor tick, firmware reads the raw buffer state:
+`RA:0` releases the gate and immediately attempts the existing
+`BUFFER_SERVICE_NEG_SYNC` path once. If the buffer is already in
+`BUF_COMPRESSION` and the controller is idle, FLARE starts reverse buffer
+service without waiting for an idle dwell. Klipper can also start an explicit
+`MV:-distance:feed` move after `RA:0` for known long fast retracts such as the
+gear-clear move before `TC:`.
 
-- `BUF_COMPRESSION`: active lane reverses immediately at `GLOBAL_MAX_RATE`
-- `BUF_TENSION`: active lane feeds forward immediately at `REV_RATE`
-- `BUF_NEUTRAL` / `BUF_FAULT`: only the `TASK_RETRACT_ASSIST` lane task stops
-
-The assist task bypasses the normal lane acceleration ramp so response time is
-bounded by sensor debounce and the main loop, not sync tick timing. `RA:0`
-releases the mode. `TS:1`, `TC:`, `UL:`, `UM:`, and other explicit lane-motion
-commands also clear retract assist before starting their own motion.
+`TS:1`, `TC:`, `UL:`, `UM:`, and other explicit lane-motion commands also clear
+retract assist before starting their own motion.
 
 ---
 

@@ -130,3 +130,17 @@
   retract and the post-tip gear-clear retract, then sends `RA:0` before `TC:`.
 - Revalidated `klipper/flare_mmu.cfg` Jinja brace balance (`95/95`),
   `python3 -m py_compile scripts/*.py`, and `ninja -C build_local`.
+
+2026-05-20 quiet gate + MV correction:
+- Changed `RA:1` from reactive buffer-following into a quiet gate: sync and
+  post-print negative sync are suppressed, and firmware does not react to
+  buffer changes while RA is active.
+- Explicit `RA:0` now immediately attempts the existing
+  `BUFFER_SERVICE_NEG_SYNC` path once, so any compression accumulated during
+  tip forming can begin reversing without waiting for an idle dwell. Automatic
+  RA clears before TC/load/unload/move remain quiet so they do not start
+  competing buffer service before those motion commands take ownership.
+- Reintroduced explicit `MV:-gear_retract:gear_retract_spd` before the
+  post-tip gear-clear printer retract; RA is released before this MV/G1 pair.
+- Revalidated `klipper/flare_mmu.cfg` Jinja brace balance (`97/97`),
+  `python3 -m py_compile scripts/*.py`, and `ninja -C build_local`.

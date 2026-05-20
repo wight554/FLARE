@@ -84,7 +84,7 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `?:` | Status | **Full Status** — returns all sensors, tasks, and rates. |
 | `VR:` | Version| **Version** — returns firmware version. |
 | `TS:<0\|1>`| OK | **Toolhead Sensor** — report toolhead filament status (sent by host). |
-| `RA:<0\|1>`| OK | **Retract Assist** — `RA:1` arms fast bidirectional buffer assist during printer-side retracts; `RA:0` releases it. `TS:1`, `TC:`, `UL:`, and other motion commands auto-clear assist. |
+| `RA:<0\|1>`| OK | **Retract Assist Gate** — `RA:1` suppresses sync and buffer reaction during printer-side tip forming; `RA:0` releases it and immediately attempts reverse buffer service if compressed. `TS:1`, `TC:`, `UL:`, and other motion commands auto-clear assist. |
 | `SM:<0\|1>`| OK | **Sync Mode** — manually toggle buffer sync. |
 | `BI:<0\|1>`| OK | **Buffer Invert** — invert buffer endstop logic. |
 | `MARK:<tag>` | `OK:MARK` | **Telemetry Marker** — stores a short host marker in firmware. Subsequent status replies expose it as `MK:<seq>:<tag>`. |
@@ -239,7 +239,7 @@ after `SS:`; `RA` appears with the core sync fields near `SM`.
 | Field | Unit | Description |
 |-------|------|-------------|
 | `RT` | mm (signed) | Reserve target position. Negative = compression side. Set by `SYNC_RESERVE_PCT`, active flow-schedule bias (or scalar `COMPRESSION_BIAS_FRAC` fallback), and half of `BUF_SWITCH_SPAN`. |
-| `RA` | bool | Retract-assist state from `RA:1` / `RA:0`. |
+| `RA` | bool | Retract-assist gate state from `RA:1` / `RA:0`. |
 | `CB` | % (int) | Active compression bias fraction × 100 after flow-schedule lookup. |
 | `NC` | SPS | Neutral-zone creep component added to target rate |
 | `VB` | % (int) | Variance blend distrust percentage |

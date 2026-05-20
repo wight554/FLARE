@@ -373,3 +373,36 @@ Implementation plan:
 ### Documentation and specs
 - Update `KLIPPER.md`, `MANUAL.md`, `BEHAVIOR.md`, and relevant OpenSpec specs
   to describe `RA:` retract assist rather than `HD:` hold/negative sync.
+
+## Quiet Retract Gate + MV Follow-up
+
+Hardware feedback showed reactive retract assist is still too fast to behave
+well during tip forming: firmware should not chase buffer edges while the
+printer is doing local meltzone/tip-shaping moves. Instead, use an explicit
+quiet gate plus explicit `MV` motion.
+
+Implementation plan:
+
+### firmware/include/controller_shared.h + firmware/src/toolchange.c
+- Remove `TASK_RETRACT_ASSIST`; `RA` becomes a sync lifecycle gate only, not a
+  lane task.
+
+### firmware/src/sync.c
+- Keep `SYNC_RETRACT_ASSIST` as the `RA:1` state, but make it passive:
+  suppress normal sync and post-print `BUFFER_SERVICE_NEG_SYNC`, and do not
+  react to buffer changes while enabled.
+- On `RA:0`, leave `SYNC_RETRACT_ASSIST`, stop no lane task, then immediately
+  attempt `BUFFER_SERVICE_NEG_SYNC` once. If the buffer is already in
+  `BUF_COMPRESSION` and the controller is idle, FLARE starts its existing
+  negative-sync reverse service without waiting for the next idle dwell.
+
+### klipper/flare_mmu.cfg
+- Keep `RA:1` only across `_FLARE_TIP_FORMING`.
+- After tip-forming `M400`, send `RA:0` so firmware can react immediately to
+  any accumulated buffer compression.
+- Before the explicit gear-clear printer retract, start `MV:-gear_retract`
+  at `gear_retract_spd` so the old lane follows that known long fast retract.
+
+### Documentation and specs
+- Update RA docs/specs from "firmware reacts during RA" to "firmware stays
+  quiet during RA and reacts immediately when RA is released".

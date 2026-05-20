@@ -28,8 +28,7 @@ typedef enum {
     TASK_FEED,
     TASK_UNLOAD,
     TASK_LOAD_FULL,
-    TASK_MOVE,
-    TASK_RETRACT_ASSIST
+    TASK_MOVE
 } task_t;
 
 typedef enum {

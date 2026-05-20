@@ -535,7 +535,8 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
     } else if (!strcmp(cmd, "RA")) {
         int v = atoi(p);
         if (v == 0 || v == 1) {
-            sync_retract_assist_set(v == 1);
+            if (v == 1) sync_retract_assist_set(true);
+            else sync_retract_assist_release(now_ms);
             cmd_reply("OK", NULL);
         } else {
             cmd_reply("ER", "ARG");

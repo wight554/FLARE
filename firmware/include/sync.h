@@ -24,6 +24,7 @@ typedef struct {
 
 void sync_set_state(sync_state_t new_state);
 void sync_retract_assist_set(bool enabled);
+void sync_retract_assist_release(uint32_t now_ms);
 bool sync_retract_assist_enabled(void);
 void sync_relief_pause(void);
 void sync_fault_hold(void);

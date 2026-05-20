@@ -955,37 +955,6 @@ void sync_set_state(sync_state_t new_state) {
     g_sync_cannot_relieve_warned = false;
 }
 
-static void retract_assist_stop_task(lane_t *A) {
-    if (A && A->task == TASK_RETRACT_ASSIST) lane_stop(A);
-}
-
-static void retract_assist_drive(lane_t *A, bool forward, int sps, uint32_t now_ms) {
-    if (!A || sps <= 0) return;
-    sps = motion_clamp_rate_sps(sps);
-    if (sps <= 0) return;
-
-    if (A->task != TASK_RETRACT_ASSIST) {
-        if (A->task != TASK_IDLE && A->task != TASK_FEED) return;
-        if (A->task == TASK_FEED) lane_stop(A);
-        A->task = TASK_RETRACT_ASSIST;
-        A->fault = FAULT_NONE;
-        A->task_limit_mm = 0.0f;
-        A->task_dist_mm = 0.0f;
-        A->last_dist_tick_ms = now_ms;
-        A->motion_started_ms = now_ms;
-        A->task_started_ms = now_ms;
-        A->dry_spin_ms = 0;
-        A->buf_tension_since_ms = 0;
-    }
-
-    A->target_sps = sps;
-    A->current_sps = sps;
-    A->ramp_last_tick_ms = now_ms;
-    motor_enable(&A->m, true);
-    motor_set_dir(&A->m, forward);
-    motor_set_rate_sps(&A->m, sps);
-}
-
 void sync_retract_assist_set(bool enabled) {
     lane_t *A = lane_ptr(active_lane);
     if (enabled) {
@@ -997,29 +966,19 @@ void sync_retract_assist_set(bool enabled) {
         if (A && A->task == TASK_FEED) lane_stop(A);
     } else {
         if (g_sync_state == SYNC_RETRACT_ASSIST) sync_set_state(SYNC_OFF);
-        retract_assist_stop_task(A);
+    }
+}
+
+void sync_retract_assist_release(uint32_t now_ms) {
+    bool was_active = (g_sync_state == SYNC_RETRACT_ASSIST);
+    sync_retract_assist_set(false);
+    if (was_active) {
+        (void)buffer_stabilize_start_internal(now_ms, true, BUFFER_SERVICE_NEG_SYNC);
     }
 }
 
 bool sync_retract_assist_enabled(void) {
     return g_sync_state == SYNC_RETRACT_ASSIST;
-}
-
-static void sync_retract_assist_tick(uint32_t now_ms) {
-    if (!sync_retract_assist_enabled()) return;
-
-    lane_t *A = lane_ptr(active_lane);
-    if (!A) return;
-    if (A->task != TASK_IDLE && A->task != TASK_FEED && A->task != TASK_RETRACT_ASSIST) return;
-
-    buf_state_t raw = buf_state_raw();
-    if (raw == BUF_COMPRESSION) {
-        retract_assist_drive(A, false, GLOBAL_MAX_SPS, now_ms);
-    } else if (raw == BUF_TENSION) {
-        retract_assist_drive(A, true, REV_SPS, now_ms);
-    } else {
-        retract_assist_stop_task(A);
-    }
 }
 
 void sync_relief_pause(void) {
@@ -1036,8 +995,6 @@ void sync_fault_hold(void) {
 }
 
 void sync_disable(bool reset_estimator) {
-    lane_t *A = lane_ptr(active_lane);
-    retract_assist_stop_task(A);
     sync_set_state(SYNC_OFF);
     sync_auto_started = false;
     sync_tail_assist_active = false;
@@ -1189,8 +1146,6 @@ static void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t
 }
 
 void buf_sensor_tick(uint32_t now_ms) {
-    sync_retract_assist_tick(now_ms);
-
     uint32_t elapsed_ms = now_ms - buf_pos_last_ms;
     bool do_pos = elapsed_ms >= (uint32_t)SYNC_TICK_MS;
     if (do_pos) buf_pos_last_ms = now_ms;

@@ -63,12 +63,12 @@ state, and SHALL recover conservatively without host involvement.
   interval
 - **THEN** the controller recovers conservatively without any host command
 
-### Requirement: Retract Assist Is Fast And Non-Destructive
+### Requirement: Retract Assist Gate Is Quiet And Non-Destructive
 The host `RA` retract-assist command SHALL place the controller in
 `SYNC_RETRACT_ASSIST`: normal closed-loop sync off, post-print negative sync
-suppressed, controller state preserved, learning paused, and a dedicated
-fast lane task available for printer-side retract windows. It SHALL NOT
-destructively reset estimator/drift/sigma.
+suppressed, controller state preserved, and learning paused. It SHALL NOT
+react to buffer changes while the gate is active, and SHALL NOT destructively
+reset estimator/drift/sigma.
 
 #### Scenario: Host requests retract assist
 - **WHEN** the host sends `RA:1`
@@ -76,16 +76,16 @@ destructively reset estimator/drift/sigma.
 - **AND** closed-loop sync and post-print negative sync stop
 - **AND** estimator/drift/sigma state is preserved
 
-#### Scenario: Retract assist reacts to buffer sides
-- **WHEN** retract assist is active during printer-side retracts
-- **THEN** `BUF_COMPRESSION` immediately reverses the active lane
-- **AND** `BUF_TENSION` immediately feeds the active lane forward
-- **AND** `BUF_NEUTRAL` stops only the retract-assist lane task
+#### Scenario: Retract assist ignores buffer sides while active
+- **WHEN** retract assist is active during printer-side tip forming
+- **THEN** `BUF_COMPRESSION`, `BUF_TENSION`, and `BUF_NEUTRAL` do not start
+  firmware buffer-following motion
 
 #### Scenario: Host clears retract assist
 - **WHEN** the host sends `RA:0`
-- **THEN** the controller leaves `SYNC_RETRACT_ASSIST` and stops
-  `TASK_RETRACT_ASSIST`
+- **THEN** the controller leaves `SYNC_RETRACT_ASSIST`
+- **AND** immediately attempts post-print negative sync once so an already
+  compressed buffer can start reversing without an idle dwell
 
 ### Requirement: Full-Bias Invariant Preserved
 The reserve/full-biased buffer target (between NEUTRAL and COMPRESSION) SHALL remain
