@@ -81,10 +81,8 @@ Wire a microswitch or optical sensor to a free GPIO on the printer MCU. Add to
 switch_pin: ^!toolhead:PA0   ; adjust pin and MCU name
 pause_on_runout: False
 insert_gcode:
-    RUN_SHELL_COMMAND CMD=flare PARAMS="TS:1"
     _FLARE_ON_TOOLHEAD_INSERT
 runout_gcode:
-    RUN_SHELL_COMMAND CMD=flare PARAMS="TS:0"
     _FLARE_ON_TOOLHEAD_RUNOUT
 ```
 
