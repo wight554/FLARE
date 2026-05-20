@@ -117,10 +117,12 @@ the meltzone approach sequence.
 
 ### D9 — FLARE_TEST_TIP_FORMING
 
-Port of `SP_TEST_MANUAL_TIP_FORMING`. Simplified: no `FORCE_MOVE` or
-synced MMU motor call (FLARE drives its own motor via TC:; test is
-extruder-only). Sequence: load hotend → simulate print → tip form →
-retract to clear gears → RESPOND to inspect.
+Port of `SP_TEST_MANUAL_TIP_FORMING`. The macro accepts the same tip-forming
+override parameters, writes them into `_FLARE_TIP_FORMING_DEFAULTS`, then runs:
+load hotend → simulate print → pause retract → tip form → staged unload for
+hand inspection. The upstream `FORCE_MOVE` sync stage is represented as a
+normal relative extruder retract so the shared config does not require Klipper
+`force_move` to be enabled.
 
 ## Risks / Trade-offs
 

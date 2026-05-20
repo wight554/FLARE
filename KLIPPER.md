@@ -134,7 +134,13 @@ Tune the distances and temperatures in `_FLARE_VARS`. In particular,
 the hotend load distance is derived from their difference. The
 [LH-Stinger Pico MMU toolhead distance calibration guide](https://github.com/lhndo/LH-Stinger/wiki/Pico-MMU#toolhead-distance-calibration)
 uses the same distance variable names, so you can copy those measurements into
-`_FLARE_VARS`.
+`_FLARE_VARS`. The same link is also included as a comment at the top of
+`klipper/flare_mmu.cfg` for printer-side tuning.
+
+`FLARE_TEST_TIP_FORMING` follows the LH-Stinger `SP_TEST_MANUAL_TIP_FORMING`
+flow: it accepts tip-forming override parameters, loads the hotend, simulates a
+print pause, runs `_FLARE_TIP_FORMING`, then retracts in two stages so the
+formed tip can be removed and inspected.
 
 Tip forming uses a finite FLARE reverse move before the final park retract:
 `MV:-<derived distance>:<slow feed>:I`. The `I` option tells firmware to ignore

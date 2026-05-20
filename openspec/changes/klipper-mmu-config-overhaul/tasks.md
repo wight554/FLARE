@@ -161,3 +161,12 @@
 - Multiplied pickup, meltzone approach, test-load, and purge extrusion
   feedrates by 60 so Klipper receives mm/min `F` values. This prevents
   `purge_spd: 30.0` from becoming `F30` / 0.5 mm/s.
+
+2026-05-21 test macro port correction:
+- Added the LH-Stinger toolhead distance calibration URL as a comment in
+  `klipper/flare_mmu.cfg`, not only in `KLIPPER.md`.
+- Reworked `FLARE_TEST_TIP_FORMING` to follow the upstream
+  `SP_TEST_MANUAL_TIP_FORMING` structure: parameter overrides update
+  `_FLARE_TIP_FORMING_DEFAULTS`, print simulation uses a separate pause
+  retract, and post-tip inspection uses staged extruder unload with a final
+  60 mm pull.

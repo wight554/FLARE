@@ -126,13 +126,20 @@ persisted flash default when running standalone.
 ### Requirement: Tip forming test macro
 `FLARE_TEST_TIP_FORMING` SHALL allow manual tip quality testing without
 a full toolchange by loading the hotend, simulating a print pause, running
-tip forming, and retracting for inspection — no MMU motor moves required.
+tip forming, and retracting for inspection. It SHALL accept SP-style
+tip-forming override parameters and write them into
+`_FLARE_TIP_FORMING_DEFAULTS` before running `_FLARE_TIP_FORMING`.
 
 #### Scenario: Test executes when hotend is hot
 - **WHEN** `FLARE_TEST_TIP_FORMING` is called with hotend above
   `min_extrude_temp`
 - **THEN** sequence runs: load hotend → print simulation → tip forming →
-  retract to clear gears → respond to inspect tip
+  staged extruder unload → respond to inspect tip
+
+#### Scenario: Test macro supports SP-style tuning overrides
+- **WHEN** `FLARE_TEST_TIP_FORMING DIP_MELT_GAP=2 PARK_SPEED=130` is called
+- **THEN** the corresponding `_FLARE_TIP_FORMING_DEFAULTS` variables are
+  updated before `_FLARE_TIP_FORMING` runs
 
 #### Scenario: Test aborts when hotend is cold
 - **WHEN** `FLARE_TEST_TIP_FORMING` is called with hotend below
