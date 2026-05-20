@@ -7,7 +7,10 @@
 
 - [x] 2.1 Build firmware: `ninja -C build_local`
   - 2026-05-20: Build passed.
-- [ ] 2.2 On-hardware: trigger runout with both lanes empty; verify `RELOAD:FAULT NO_FILAMENT` event emitted and `?:` shows `SM:0` without manual `ST`
+- [x] 2.2 On-hardware: trigger runout with both lanes empty; verify `RELOAD:FAULT NO_FILAMENT` event emitted and `?:` shows `SM:0` without manual `ST`
+
+  2026-05-20: PASS — `RELOAD:FAULT NO_FILAMENT` emitted, `SM:0`
+  confirmed without manual `ST:`. Fix verified on hardware.
 
   **Context 2026-05-20** (from live status):
   - Board is flashed with the fix (`sync_disable(true)` before fault).
