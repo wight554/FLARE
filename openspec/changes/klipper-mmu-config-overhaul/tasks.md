@@ -1,6 +1,6 @@
 ## 1. flare_mmu.cfg — variables and boot
 
-- [x] 1.1 Create `klipper/flare_mmu.cfg`. Write `[gcode_macro _FLARE_VARS]` with all variables: `dist_sensor_to_extruder` (20.0), `dist_filament_park` (35.0), `dist_extruder_to_meltzone` (40.0), `tip_length_below_cut` (3.0), `load_temp` (230), `unload_temp` (185), `min_extrude_temp` (180), `purge_len` (30.0), `purge_spd` (450.0), `enable_reload` (1). Include comment that `dist_filament_park` MUST be < `dist_extruder_to_meltzone`.
+- [x] 1.1 Create `klipper/flare_mmu.cfg`. Write `[gcode_macro _FLARE_VARS]` with all variables: `dist_sensor_to_extruder` (20.0), `dist_filament_park` (35.0), `dist_extruder_to_meltzone` (40.0), `tip_length_below_cut` (3.0), `load_temp` (230), `unload_temp` (185), `min_extrude_temp` (180), `purge_len` (30.0), `purge_speed` (450.0), `enable_reload` (1). Include comment that `dist_filament_park` MUST be < `dist_extruder_to_meltzone`.
 - [x] 1.2 Write `[gcode_macro _FLARE_TIP_FORMING_DEFAULTS]` with: `pause_push_dist` (0.5), `pause_push_speed` (30.0), `cooldown_dist` (5.0), `cooldown_pull_speed` (70.0), `cooldown_pause` (0.0), `cooldown_secondary_moves` (0), `dip_melt_gap` (0.0), `dip_speed` (30.0), `dip_pause` (0.0), `park_speed` (130.0).
 - [x] 1.3 Write `[delayed_gcode _FLARE_BOOT]` with `initial_duration: 2`. Body reads `enable_reload` from `_FLARE_VARS`, sends `SET:RELOAD_MODE:{v.enable_reload}` (no `SV:`), logs result via `RESPOND`.
 
@@ -10,11 +10,11 @@
 
 ## 3. flare_mmu.cfg — load hotend macro
 
-- [x] 3.1 Write `[gcode_macro _FLARE_LOAD_HOTEND]`. Read `_FLARE_VARS`. Compute push distance = `dist_extruder_to_meltzone - dist_filament_park - tip_length_below_cut`. Execute 3-stage approach: 50% at `purge_spd * 2`, 25% at `purge_spd`, 25% at `purge_spd * 0.5`. If `purge_len > 0` extrude `purge_len` at `purge_spd`.
+- [x] 3.1 Write `[gcode_macro _FLARE_LOAD_HOTEND]`. Read `_FLARE_VARS`. Compute push distance = `dist_extruder_to_meltzone - dist_filament_park - tip_length_below_cut`. Execute 3-stage approach: 50% at `purge_speed * 2`, 25% at `purge_speed`, 25% at `purge_speed * 0.5`. If `purge_len > 0` extrude `purge_len` at `purge_speed`.
 
 ## 4. flare_mmu.cfg — toolchange macros
 
-- [x] 4.1 Write `[gcode_macro _FLARE_CHANGE_LANE]`. Read `_FLARE_VARS`. Compute `gear_retract = dist_filament_park + dist_sensor_to_extruder + 5`. Sequence: `M400` → `SAVE_GCODE_STATE` → `M83` → `HD:1` → `_FLARE_TIP_FORMING` → `HD:0` → `G1 E-{gear_retract} F7800` → `TC:{LANE}` → `G1 E{dist_sensor_to_extruder * 1.2} F{purge_spd}` → `_FLARE_LOAD_HOTEND` → `RESTORE_GCODE_STATE`.
+- [x] 4.1 Write `[gcode_macro _FLARE_CHANGE_LANE]`. Read `_FLARE_VARS`. Compute `gear_retract = dist_filament_park + dist_sensor_to_extruder + 5`. Sequence: `M400` → `SAVE_GCODE_STATE` → `M83` → `HD:1` → `_FLARE_TIP_FORMING` → `HD:0` → `G1 E-{gear_retract} F7800` → `TC:{LANE}` → `G1 E{dist_sensor_to_extruder * 1.2} F{purge_speed}` → `_FLARE_LOAD_HOTEND` → `RESTORE_GCODE_STATE`.
 - [x] 4.2 Write `[gcode_macro T1]` calling `_FLARE_CHANGE_LANE LANE=1` and `[gcode_macro T2]` calling `_FLARE_CHANGE_LANE LANE=2`.
 - [x] 4.3 Write `[gcode_macro FLARE_LOAD]`, `[gcode_macro FLARE_UNLOAD]`, `[gcode_macro FLARE_CUT]` wrapping `FL:`, `UL:`, `CU:` respectively. Do NOT include `FLARE_PRELOAD`, `FLARE_CUT_BARE`, or `FLARE_CUT_TEST`.
 
@@ -160,7 +160,7 @@
 2026-05-21 purge-speed unit fix:
 - Multiplied pickup, meltzone approach, test-load, and purge extrusion
   feedrates by 60 so Klipper receives mm/min `F` values. This prevents
-  `purge_spd: 30.0` from becoming `F30` / 0.5 mm/s.
+  `purge_speed: 30.0` from becoming `F30` / 0.5 mm/s.
 
 2026-05-21 test macro port correction:
 - Added the LH-Stinger toolhead distance calibration URL as a comment in
