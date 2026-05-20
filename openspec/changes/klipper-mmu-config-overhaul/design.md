@@ -397,12 +397,48 @@ Implementation plan:
   negative-sync reverse service without waiting for the next idle dwell.
 
 ### klipper/flare_mmu.cfg
+Previous RA iteration, superseded by the MV ignore-buffer follow-up below:
 - Keep `RA:1` only across `_FLARE_TIP_FORMING`.
 - After tip-forming `M400`, send `RA:0` so firmware can react immediately to
   any accumulated buffer compression.
-- Before the explicit gear-clear printer retract, start `MV:-gear_retract`
-  at `gear_retract_spd` so the old lane follows that known long fast retract.
+- Before the explicit gear-clear printer retract, start a finite mirror move so
+  the old lane follows that known long fast retract.
 
 ### Documentation and specs
 - Update RA docs/specs from "firmware reacts during RA" to "firmware stays
   quiet during RA and reacts immediately when RA is released".
+
+## MV Ignore-Buffer Follow-up
+
+Printer testing showed the quiet `RA` gate still does not directly solve the
+large printer-side retract during tip forming. A slow finite FLARE reverse move
+works better when it is allowed to ignore buffer state for the duration of that
+move.
+
+Implementation plan:
+
+### firmware/include/controller_shared.h + firmware/src/motion.c
+- Keep `TASK_MOVE`, but add per-task direction tracking so finite moves can
+  enforce buffer safety without reading motor GPIO state back.
+- Add `move_ignore_buffer` as a per-lane flag. When false, forward exact moves
+  fault on buffer compression and reverse exact moves fault on buffer tension.
+  When true, exact moves run to their distance limit without buffer reaction.
+
+### firmware/src/protocol.c + scripts/flare_cmd.py
+- Extend `MV:mm:F[:D]` to accept optional `I` in either optional token slot:
+  `MV:-110:1560:I` or `MV:110:1560:F:I`.
+- Make the host helper wait for `EV:MOVE_DONE` / `EV:FAULT*` for `MV:`.
+- Let `TC:` return after the initial `OK` in the host helper so Klipper's
+  sensor-gated delayed_gcode can run instead of holding the scheduler for the
+  whole firmware toolchange.
+
+### klipper/flare_mmu.cfg
+- Remove `RA:1` / `RA:0` from the shared toolchange macro.
+- Before the final tip-forming park retract, run a finite slow
+  `MV:-<derived distance>:<park speed * 0.2>:I`. Derive the distance from
+  toolhead measurements:
+  `dist_extruder_to_meltzone + dist_filament_park + tip_length_below_cut +
+  tip_forming_mmu_retract_extra`.
+- Keep the explicit printer gear-clear retract, but stop mirroring it with a
+  second FLARE `MV:` because the tip-forming MV has already pulled the old lane
+  clear of the gears/bowden exit.

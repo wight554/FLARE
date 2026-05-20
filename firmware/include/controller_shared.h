@@ -65,10 +65,12 @@ typedef struct lane_s {
     float dist_at_out_mm;
     uint32_t last_dist_tick_ms;
     float dist_at_in_clear_mm;
+    bool task_forward;
     bool prev_in;
     bool unload_to_in;
     bool suppress_unloaded_event;
     bool load_completed;
+    bool move_ignore_buffer;
 } lane_t;
 
 typedef enum {

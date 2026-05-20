@@ -6,8 +6,9 @@ SEND MODE (default):
     python3 scripts/flare_cmd.py [--port PORT] [--timeout S] CMD:PAYLOAD [CMD2 ...]
 
     Sends one or more commands in sequence.  Each command waits for OK:/ER:.
-    Long-running commands (TC:, FL:, UL:, UM:, RL:, CU:, CX:) wait for the
-    corresponding completion event.
+    Long-running commands (FL:, UL:, UM:, RL:, CU:, CX:, MV:) wait for the
+    corresponding completion event. TC: returns after OK so Klipper can run
+    sensor-gated delayed_gcode while firmware toolchange continues.
 
 DUMP MODE:
     python3 scripts/flare_cmd.py [--port PORT] --dump [--raw]
@@ -38,13 +39,13 @@ except ImportError:
 # Commands that must wait for a completion event rather than just OK:
 # ---------------------------------------------------------------------------
 COMPLETION_EVENTS = {
-    'TC': (['EV:TC:DONE'], ['EV:TC:ERROR']),
     'FL': (['EV:LOADED'], ['EV:LOAD_TIMEOUT', 'EV:RUNOUT', 'EV:TC:ERROR']),
     'UL': (['EV:UNLOADED'], ['EV:UNLOAD_TIMEOUT', 'EV:UNLOAD_BLOCKED', 'EV:TC:ERROR']),
     'UM': (['EV:UNLOADED'], ['EV:UNLOAD_TIMEOUT', 'EV:UNLOAD_BLOCKED', 'EV:TC:ERROR']),
     'RL': (['EV:RELOAD:LOADED'], ['EV:TC:ERROR']),
     'CU': (['EV:CUT:DONE'], ['EV:CUT:ERROR']),
     'CX': (['EV:CUT:DONE'], ['EV:CUT:ERROR']),
+    'MV': (['EV:MOVE_DONE'], ['EV:FAULT']),
 }
 
 # ---------------------------------------------------------------------------

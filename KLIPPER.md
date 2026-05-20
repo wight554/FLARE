@@ -35,12 +35,13 @@ sudo usermod -a -G dialout pi   # substitute your username if not 'pi'
 ## Shell command helper — flare_cmd.py
 
 `scripts/flare_cmd.py` sends a single FLARE command and blocks until the
-response arrives. Simple commands (SET:, GET:, T:, SM:, TS:, FD:, ST:,
-…) return on the first `OK:`/`ER:`. Long-running commands (`TC:`, `FL:`,
-`UL:`, `UM:`) wait for their completion event (`EV:TC:DONE`, `EV:LOADED`,
-`EV:UNLOADED`, …) or the corresponding error/timeout event. Exit code is 0 on
-success, 1 on error or timeout. All received lines are printed so Klipper's
-`VERBOSE` output shows them in the Mainsail / Fluidd console.
+response arrives. Simple commands (SET:, GET:, T:, SM:, TS:, FD:, ST:, TC:,
+…) return on the first `OK:`/`ER:`. Long-running commands (`FL:`, `UL:`,
+`UM:`, `MV:`, `CU:`, `CX:`) wait for their completion event (`EV:LOADED`,
+`EV:UNLOADED`, `EV:MOVE_DONE`, …) or the corresponding error/timeout event.
+Exit code is 0 on success, 1 on error or timeout. All received lines are
+printed so Klipper's `VERBOSE` output shows them in the Mainsail / Fluidd
+console.
 
 The helper filename and sample `gcode_shell_command flare` name are the active
 development interface.
@@ -99,18 +100,20 @@ post-TC hotend-load gate uses this Klipper sensor state.
 `TC:<lane>` unloads the current lane (cuts when `UNLOAD_CUT=1` and the cutter
 is enabled), swaps, loads the new lane, and completes when the lane load task
 reports loaded (`TS:1`, `TS_BUF_MS`, or sane buffer geometry).
-`flare_cmd.py` blocks until `EV:TC:DONE` or
-`EV:TC:ERROR`, so Klipper naturally pauses printing during the change.
+`flare_cmd.py` returns after FLARE accepts `TC:`. The shared macro relies on
+the delayed toolhead-sensor gate below for post-TC hotend loading instead of
+holding Klipper inside the shell command.
 The shared `_FLARE_CHANGE_LANE` macro does not place hotend loading after
 `RUN_SHELL_COMMAND` directly. Instead, it arms `_FLARE_TC_STATE`; when the
 toolhead sensor reports runout, `_FLARE_ON_TOOLHEAD_RUNOUT` starts a
 delayed-gcode poll. `_FLARE_POST_TC_LOAD` runs only after the same physical
 toolhead sensor reports filament detected again while TC is pending. If the
-shell command times out but FLARE is still loading, hotend feed waits for the
-sensor rather than starting on timeout.
-If a long unload/cut/load path needs more headroom, raise both the
-`gcode_shell_command flare` timeout and the `--timeout` values in
-`klipper/flare_mmu.cfg`.
+firmware-side TC reports an error, the sensor gate eventually fails rather than
+starting hotend feed on timeout.
+Keep `gcode_shell_command flare.timeout` high enough for blocking helper calls
+such as `MV:`, `FL:`, `UL:`, and `CU:`. `TC:` itself returns after command
+acceptance; tune firmware travel/timeouts (`LOAD_MAX`, `UNLOAD_MAX`,
+`TC_TH_MS`, `TC_Y_MS`) for the actual toolchange path.
 
 Copy `klipper/flare_mmu.cfg` into your Klipper config directory and include it:
 
@@ -133,16 +136,15 @@ the hotend load distance is derived from their difference. The
 uses the same distance variable names, so you can copy those measurements into
 `_FLARE_VARS`.
 
-Keep tip forming inside `RA:1` / `RA:0` retract-assist gate. During that gated
-window FLARE suppresses normal sync and post-print negative sync and does not
-react to buffer changes, so cooldown/dip/park moves stay printer-local. After
-tip forming drains with `M400`, `_FLARE_CHANGE_LANE` sends `RA:0`; firmware
-immediately checks whether the buffer is already compressed and may start the
-existing reverse buffer service. For the explicit fast gear-clear retract,
-`_FLARE_CHANGE_LANE` also starts `MV:-gear_retract:gear_retract_spd` before the
-printer `G1 E-...` move so FLARE follows that known long retract. Tune
-`gear_retract_spd` in `_FLARE_VARS`, and make sure `GLOBAL_MAX_RATE` is high
-enough for `MV:` to reach the requested feed.
+Tip forming uses a finite FLARE reverse move before the final park retract:
+`MV:-<derived distance>:<slow feed>:I`. The `I` option tells firmware to ignore
+buffer state during that exact move, so it can pull the old lane clear of the
+toolhead gears/bowden exit without reacting to temporary compression or
+tension. The distance is derived from `_FLARE_VARS` as
+`dist_extruder_to_meltzone + dist_filament_park + tip_length_below_cut +
+tip_forming_mmu_retract_extra`; tune `tip_forming_mmu_retract_extra` if your
+toolhead needs more or less clearance. The later printer-side gear retract is
+not mirrored by another FLARE `MV:`.
 
 > **Temperature management:** `gcode_shell_command` holds the Klipper scheduler
 > while the shell process runs — heaters stay regulated, but no additional G-code
@@ -150,9 +152,10 @@ enough for `MV:` to reach the requested feed.
 > conservative enough that a jam cannot hold Klipper indefinitely, and tune
 > `TC_TH_MS` / `TC_Y_MS` only for the host-facing wait phases.
 
-If `TC:` returns an error, `flare_cmd.py` exits with code 1.
-`gcode_shell_command` logs the failure; add printer-specific pause/error
-handling around your slicer flow if you want automatic intervention.
+`TC:` returns after firmware accepts the command, then the delayed Klipper
+toolhead-sensor gate owns post-TC hotend loading. Firmware-side TC errors are
+logged as `EV:TC:ERROR:*`; `_FLARE_TC_FAILED` reports sensor-gate timeout if
+the new filament never reaches the configured toolhead sensor.
 
 ### Purge chute example
 

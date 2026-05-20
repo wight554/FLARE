@@ -52,6 +52,23 @@ static bool manual_unload_active(void) {
     return g_manual_unload.state != MANUAL_UNLOAD_IDLE;
 }
 
+static bool parse_mv_option(const char *tok, bool *forward, bool *ignore_buffer) {
+    if (tok[0] == '\0') return true;
+
+    if (!strcmp(tok, "F") || !strcmp(tok, "f") || !strcmp(tok, "+")) {
+        *forward = true;
+    } else if (!strcmp(tok, "R") || !strcmp(tok, "r") ||
+               !strcmp(tok, "B") || !strcmp(tok, "b") ||
+               !strcmp(tok, "-")) {
+        *forward = false;
+    } else if (!strcmp(tok, "I") || !strcmp(tok, "i")) {
+        *ignore_buffer = true;
+    } else {
+        return false;
+    }
+    return true;
+}
+
 static void manual_unload_reset(void) {
     g_manual_unload.state = MANUAL_UNLOAD_IDLE;
     g_manual_unload.lane = NULL;
@@ -467,8 +484,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         float mm = 0.0f;
         float feed_mm_min = 0.0f;
         char dir_tok[8] = {0};
-        int n = sscanf(p, "%f:%f:%7s", &mm, &feed_mm_min, dir_tok);
-        if ((n != 2 && n != 3) || feed_mm_min <= 0.0f) {
+        char ignore_tok[8] = {0};
+        int n = sscanf(p, "%f:%f:%7[^:]:%7s", &mm, &feed_mm_min, dir_tok, ignore_tok);
+        if ((n < 2 || n > 4) || feed_mm_min <= 0.0f) {
             cmd_reply("ER", "ARG");
             return;
         }
@@ -477,17 +495,12 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         sps = clamp_i(sps, 200, 50000);
 
         bool forward = (mm >= 0.0f);
-        if (n == 3) {
-            if (!strcmp(dir_tok, "F") || !strcmp(dir_tok, "f") || !strcmp(dir_tok, "+")) {
-                forward = true;
-            } else if (!strcmp(dir_tok, "R") || !strcmp(dir_tok, "r") ||
-                       !strcmp(dir_tok, "B") || !strcmp(dir_tok, "b") ||
-                       !strcmp(dir_tok, "-")) {
-                forward = false;
-            } else {
-                cmd_reply("ER", "ARG");
-                return;
-            }
+        bool ignore_buffer = false;
+
+        if ((n >= 3 && !parse_mv_option(dir_tok, &forward, &ignore_buffer)) ||
+            (n == 4 && !parse_mv_option(ignore_tok, &forward, &ignore_buffer))) {
+            cmd_reply("ER", "ARG");
+            return;
         }
 
         float limit = mm < 0.0f ? -mm : mm;
@@ -495,10 +508,12 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             cmd_reply("ER", "ARG");
             return;
         }
+
         sync_retract_assist_set(false);
         sync_set_state(SYNC_OFF);
         sync_disable(false);
         lane_start(A, TASK_MOVE, sps, forward, now_ms, limit);
+        A->move_ignore_buffer = ignore_buffer;
         cmd_reply("OK", NULL);
     } else if (!strcmp(cmd, "ST")) {
         tc_abort();

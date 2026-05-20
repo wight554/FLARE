@@ -166,9 +166,10 @@ buffer-side changes during the gated window.
 `RA:0` releases the gate and immediately attempts the existing
 `BUFFER_SERVICE_NEG_SYNC` path once. If the buffer is already in
 `BUF_COMPRESSION` and the controller is idle, FLARE starts reverse buffer
-service without waiting for an idle dwell. Klipper can also start an explicit
-`MV:-distance:feed` move after `RA:0` for known long fast retracts such as the
-gear-clear move before `TC:`.
+service without waiting for an idle dwell. The shared Klipper MMU macro no
+longer uses this gate for tip forming; it uses a finite
+`MV:-distance:feed:I` move to pull the old lane clear while ignoring buffer
+state during that exact move.
 
 `TS:1`, `TC:`, `UL:`, `UM:`, and other explicit lane-motion commands also clear
 retract assist before starting their own motion.

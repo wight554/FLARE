@@ -83,19 +83,19 @@ restores fan/G-code state.
   state
 
 ### Requirement: Toolchange macro with derived gear retract
-`_FLARE_CHANGE_LANE` SHALL execute the full toolchange sequence: RA:1 →
-tip forming → RA:0 → MV gear assist → gear retract (derived) → TC: → PICKUP
-→ load hotend.
+`_FLARE_CHANGE_LANE` SHALL execute the full toolchange sequence: tip forming
+with an ignore-buffer FLARE `MV:` retract → gear retract (derived) →
+nonblocking `TC:` → toolhead-sensor-gated PICKUP → load hotend.
 Gear retract distance SHALL be computed as
 `dist_filament_park + dist_sensor_to_extruder + 5` with no separate
 variable.
 
 #### Scenario: Full toolchange sequence completes
 - **WHEN** `_FLARE_CHANGE_LANE LANE=2` is called during a print
-- **THEN** tip forming executes inside the RA:1/RA:0 quiet gate, `MV:` starts
-  old-lane reverse assist before gear retract, gear retract clears the sensor,
-  `TC:2` completes, PICKUP feeds `dist_sensor_to_extruder * 1.2`, and
-  `_FLARE_LOAD_HOTEND` primes the meltzone
+- **THEN** tip forming runs a derived `MV:-...:I` old-lane retract before the
+  final park move, gear retract clears the sensor, `TC:2` is started, and the
+  delayed toolhead-sensor gate performs PICKUP (`dist_sensor_to_extruder *
+  1.2`) plus `_FLARE_LOAD_HOTEND` when filament is detected again
 
 #### Scenario: PICKUP is zero when sensor_to_extruder is zero
 - **WHEN** `variable_dist_sensor_to_extruder: 0` (TS_BUF_MS fallback)

@@ -171,10 +171,12 @@ void lane_setup(lane_t *L, uint pin_in, uint pin_out, motor_t m, int lane_id, tm
     L->unload_sensor_latch = false;
     L->buf_tension_since_ms = 0;
     L->dist_at_in_clear_mm = 0.0f;
+    L->task_forward = false;
     L->prev_in = false;
     L->unload_to_in = false;
     L->suppress_unloaded_event = false;
     L->load_completed = false;
+    L->move_ignore_buffer = false;
 }
 
 void lane_stop(lane_t *L) {
@@ -187,6 +189,8 @@ void lane_stop(lane_t *L) {
     L->buf_tension_since_ms = 0;
     L->reload_tail_ms = 0;
     L->suppress_unloaded_event = false;
+    L->task_forward = false;
+    L->move_ignore_buffer = false;
     L->current_sps = 0;
     L->target_sps = 0;
     motor_stop(&L->m);
@@ -205,6 +209,8 @@ void lane_start(lane_t *L, task_t t, int sps, bool forward, uint32_t now_ms, flo
     L->dist_at_in_clear_mm = 0.0f;
     L->suppress_unloaded_event = false;
     L->load_completed = false;
+    L->task_forward = forward;
+    L->move_ignore_buffer = false;
 
     L->task_limit_mm = limit_mm;
 
@@ -414,7 +420,19 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
     }
 
     if (L->task == TASK_MOVE) {
-        if (L->task_limit_mm > 0 && L->task_dist_mm >= L->task_limit_mm) {
+        if (!L->move_ignore_buffer) {
+            if (L->task_forward && g_buf.state == BUF_COMPRESSION) {
+                lane_stop(L);
+                L->fault = FAULT_BUF;
+                cmd_event("FAULT:MOVE_COMPRESSION", lane_s);
+            } else if (!L->task_forward && g_buf.state == BUF_TENSION) {
+                lane_stop(L);
+                L->fault = FAULT_BUF;
+                cmd_event("FAULT:MOVE_TENSION", lane_s);
+            }
+        }
+
+        if (L->task == TASK_MOVE && L->task_limit_mm > 0 && L->task_dist_mm >= L->task_limit_mm) {
             lane_stop(L);
             cmd_event("MOVE_DONE", lane_s);
         }

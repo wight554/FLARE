@@ -15,7 +15,7 @@ integration.
   - `[gcode_macro _FLARE_TIP_FORMING]` — full tip-forming sequence (cooldown, dip, park)
   - `[gcode_macro _FLARE_LOAD_HOTEND]` — 3-stage meltzone approach after TC:
   - `[gcode_macro _FLARE_PURGE]` — separate purge helper with optional Mini Purge Shute-style park hook and brush moves
-  - `[gcode_macro _FLARE_CHANGE_LANE]` — RA:1 → tip forming → RA:0 → MV gear assist → gear retract → TC: → pickup → load hotend
+  - `[gcode_macro _FLARE_CHANGE_LANE]` — tip forming with `MV:...:I` MMU retract → gear retract → nonblocking TC: → sensor-gated pickup/load hotend
   - `[gcode_macro T1]` / `[gcode_macro T2]`
   - `[gcode_macro FLARE_LOAD]` / `[gcode_macro FLARE_UNLOAD]` / `[gcode_macro FLARE_CUT]`
   - `[gcode_macro FLARE_TEST_TIP_FORMING]` — manual tip inspection test

@@ -144,3 +144,15 @@
   post-tip gear-clear printer retract; RA is released before this MV/G1 pair.
 - Revalidated `klipper/flare_mmu.cfg` Jinja brace balance (`97/97`),
   `python3 -m py_compile scripts/*.py`, and `ninja -C build_local`.
+
+2026-05-21 MV ignore-buffer + nonblocking TC follow-up:
+- Accepted the user-tested `MV:...:I` direction/ignore-buffer shape and made
+  finite `MV:` report `EV:MOVE_DONE` to the host helper.
+- Removed `RA:1` / `RA:0` from the shared Klipper toolchange macro. Tip
+  forming now starts a derived slow `MV:-...:I` old-lane retract before the
+  final printer park retract.
+- Changed shared Klipper `TC:` shell call to return after command acceptance;
+  `_FLARE_TC_STATE` delayed_gcode remains responsible for sensor-gated
+  post-TC hotend loading.
+- Revalidated `klipper/flare_mmu.cfg` Jinja brace balance (`98/98`),
+  `python3 -m py_compile scripts/*.py`, and `ninja -C build_local`.
