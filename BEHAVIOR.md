@@ -132,6 +132,7 @@ Full automated cycle. Emits phase events at each step.
 
 ```
 TC_IDLE
+  → TC_UNLOAD_WAIT_TH   (wait for TS:0 from host or timeout before lane unload, if TC_TH_MS > 0 and TH:1)
   → TC_UNLOAD_REVERSE   (start TASK_UNLOAD on current lane)
   → TC_UNLOAD_WAIT_OUT  (wait for OUT to clear; lane task is bounded by `UNLOAD_MAX`)
   → TC_UNLOAD_CUT       (if CUTTER=1 and UNLOAD_CUT=1: run cutter sequence)
@@ -139,7 +140,6 @@ TC_IDLE
   → TC_UNLOAD_REVERSE   (post-cut clear)
   → TC_UNLOAD_WAIT_OUT
   → TC_UNLOAD_WAIT_Y    (wait for Y-splitter to clear, if TC_Y_MS > 0)
-  → TC_UNLOAD_WAIT_TH   (wait for TS:0 from host or timeout, if TC_TH_MS > 0)
   → TC_UNLOAD_DONE
   → TC_SWAP             (set active_lane = target)
   → TC_LOAD_START       (clear toolhead state for new lane; check Y-splitter clear; start TASK_LOAD_FULL)

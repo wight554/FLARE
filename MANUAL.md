@@ -69,7 +69,7 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `RL:` | Manual| **Reload Load** — manually triggers RELOAD sync. Pushes active lane to approach and follow a disconnected tail. |
 | `UL:` | Both  | **Unload (Extruder)** — reverse until OUT sensor clears; when `UNLOAD_CUT=1` and the cutter is enabled, clears OUT, cuts, then clears OUT again. Limit: `UNLOAD_MAX`. |
 | `UM:` | Both  | **Unload (MMU)** — reverse until IN sensor clears. If OUT is occupied at entry, first runs the `UL:` clear/cut/clear cycle; if only Y is occupied, it skips the cut. Limit: `UNLOAD_MAX`. |
-| `TC:n` | Manual| **Toolchange** — Unload active lane and load lane `n`. |
+| `TC:n` | Manual| **Toolchange** — If `TH:1` is latched, wait for `TS:0`/`TC_TH_MS`, then unload active lane, cut if enabled, and load lane `n`. |
 | `MV:mm:F[:D]`| Both | **Exact Move** — move `abs(mm)` at `F` mm/min. Direction from sign of `mm` or optional `D` (`F`/`R`/`B`, `+`/`-`). Disables sync. |
 | `FD:` | Both  | **Continuous Feed** — runs forward until `ST:`. |
 | `BS:` | Both  | **Buffer Stabilize** — if the controller is idle, run the buffer neutralization move immediately to bring a dual-endstop buffer back toward `NEUTRAL`. |

@@ -192,3 +192,26 @@ Fix: add `M400` after `_FLARE_TIP_FORMING` before `HD:0`, and after
 `G1 E-{gear_retract}` before `TC:{lane}`. This keeps the tip-forming moves
 inside HOLD and ensures the extruder has released the old filament before
 firmware starts lane unload.
+
+## Firmware TC Ordering Follow-up
+
+User feedback clarified the semantic boundary for `TS:0`: it means the old
+filament left the printer toolhead and FLARE may begin the lane unload. It is
+not permission to swap lanes or feed the target lane.
+
+Implementation plan:
+
+### firmware/src/toolchange.c
+- Move the `TC_UNLOAD_WAIT_TH` gate to the start of a different-lane
+  toolchange when `TC_TH_MS > 0` and `TH:1` is latched.
+- Make `TC_UNLOAD_WAIT_TH` transition into `TC_UNLOAD_REVERSE` after `TS:0`
+  or timeout, so the old lane still performs OUT clear, optional cut, post-cut
+  clear, and hub clear before `TC_SWAP`.
+- Remove the post-unload `TC_UNLOAD_WAIT_TH` transition from
+  `tc_unload_next_after_clear()`.
+- Risk: no-sensor configurations with stale `TH:1` still rely on the existing
+  `TC_TH_MS` timeout fallback before unload starts.
+
+### BEHAVIOR.md + openspec/specs/toolchange-orchestration/spec.md
+- Update the documented TC flow so toolhead clear is an unload-start gate, and
+  target-lane load is only after old-lane unload/cut completion.

@@ -80,3 +80,9 @@
 - Fixed `tc_start()` so `TC:` no longer clears `toolhead_has_filament` at the
   start of unload. `TC_UNLOAD_WAIT_TH` can now wait for a real `TS:0` event
   from the toolhead sensor, or for `TC_TH_MS` timeout, before target lane load.
+
+2026-05-20 firmware TC ordering correction:
+- Reordered `TC_UNLOAD_WAIT_TH` so `TS:0` means old filament has left the
+  printer toolhead and FLARE may start the old-lane unload. Target-lane loading
+  now remains gated by old-lane OUT clear, optional cut, post-cut clear, and
+  Y-splitter clear.

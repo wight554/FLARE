@@ -40,6 +40,8 @@ void tc_start(int target_lane, uint32_t now_ms) {
     g_tc_ctx.phase_start_ms = now_ms;
     if (target_lane == active_lane) {
         g_tc_ctx.state = TC_LOAD_START;
+    } else if (TC_TIMEOUT_TH_MS > 0 && toolhead_has_filament) {
+        g_tc_ctx.state = TC_UNLOAD_WAIT_TH;
     } else {
         g_tc_ctx.state = TC_UNLOAD_REVERSE;
     }
@@ -142,8 +144,7 @@ static void tc_unload_next_after_clear(uint32_t now_ms) {
     if (tc_unload_cut_pending()) {
         g_tc_ctx.state = TC_UNLOAD_CUT;
     } else {
-        g_tc_ctx.state = (TC_TIMEOUT_Y_MS > 0) ? TC_UNLOAD_WAIT_Y :
-                         (TC_TIMEOUT_TH_MS > 0) ? TC_UNLOAD_WAIT_TH : TC_UNLOAD_DONE;
+        g_tc_ctx.state = (TC_TIMEOUT_Y_MS > 0) ? TC_UNLOAD_WAIT_Y : TC_UNLOAD_DONE;
     }
 }
 
@@ -206,7 +207,7 @@ void tc_tick(uint32_t now_ms) {
         case TC_UNLOAD_WAIT_Y:
             if (!on_al(&g_y_split)) {
                 g_tc_ctx.phase_start_ms = now_ms;
-                g_tc_ctx.state = (TC_TIMEOUT_TH_MS > 0) ? TC_UNLOAD_WAIT_TH : TC_UNLOAD_DONE;
+                g_tc_ctx.state = TC_UNLOAD_DONE;
             } else if (age > (uint32_t)TC_TIMEOUT_Y_MS) {
                 tc_enter_error("Y_TIMEOUT");
             }
@@ -214,7 +215,9 @@ void tc_tick(uint32_t now_ms) {
 
         case TC_UNLOAD_WAIT_TH:
             if (!toolhead_has_filament || age > (uint32_t)TC_TIMEOUT_TH_MS) {
-                g_tc_ctx.state = TC_UNLOAD_DONE;
+                set_toolhead_filament(false);
+                g_tc_ctx.phase_start_ms = now_ms;
+                g_tc_ctx.state = TC_UNLOAD_REVERSE;
             }
             break;
 

@@ -10,14 +10,16 @@ The system SHALL orchestrate an automated sequence to swap active lanes without 
 
 #### Scenario: Normal Toolchange
 - **WHEN** `TC:<lane>` is commanded
-- **THEN** the system unloads the current lane until `OUT` clears, executes `UNLOAD_CUT` if `UNLOAD_CUT` is enabled, unloads until `OUT` clears again, waits for Y-splitter clear, waits for toolhead clear when `TC_TH_MS` is enabled, updates `active_lane`, and starts `LOAD_FULL`
+- **THEN** the system waits for toolhead clear when `TC_TH_MS` is enabled and `TH:1` is latched, unloads the current lane until `OUT` clears, executes `UNLOAD_CUT` if `UNLOAD_CUT` is enabled, unloads until `OUT` clears again, waits for Y-splitter clear, updates `active_lane`, and starts `LOAD_FULL`
 - **AND** emits phase events (`TC:CUTTING`, `TC:UNLOADING`, `TC:SWAPPING`, `TC:LOADING`, `TC:DONE`) at boundaries
 
 #### Scenario: Toolhead clear wait is meaningful
 - **WHEN** `TC:<lane>` starts while `TH:1` is latched from the old filament
 - **THEN** the toolchange preserves that state during the unload phase
-- **AND** does not swap/load the target lane until `TS:0` clears `TH` or
+- **AND** does not start the lane unload until `TS:0` clears `TH` or
   `TC_TH_MS` expires
+- **AND** does not swap/load the target lane until the old lane finishes OUT
+  clear, optional cut, post-cut clear, and hub clear
 
 ### Requirement: Manual Cutter Execution
 The host SHALL be able to trigger the exact cutter sequence independently of a full toolchange.
