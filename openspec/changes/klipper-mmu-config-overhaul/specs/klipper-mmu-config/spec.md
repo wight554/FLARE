@@ -16,15 +16,16 @@ that users can activate with a single `[include flare_mmu.cfg]` line in
 `[gcode_macro _FLARE_VARS]` SHALL expose all user-configurable distances
 using the same names as the LH-Stinger Pico MMU wiki
 (`dist_sensor_to_extruder`, `dist_filament_park`,
-`dist_extruder_to_meltzone`) so users following that calibration guide
-can copy measurements directly.
+`dist_extruder_to_meltzone`, `dist_sensor_to_synced_move`) so users following
+that calibration guide can copy measurements directly.
 
 #### Scenario: Distance variable names match SP wiki
 - **WHEN** a user measures distances following the SP toolhead distance
   calibration guide
 - **THEN** they can set `variable_dist_sensor_to_extruder`,
-  `variable_dist_filament_park`, `variable_dist_extruder_to_meltzone` in
-  `_FLARE_VARS` with no name translation required
+  `variable_dist_filament_park`, `variable_dist_extruder_to_meltzone`, and
+  `variable_dist_sensor_to_synced_move` in `_FLARE_VARS` with no name
+  translation required
 
 #### Scenario: dist_filament_park constraint documented
 - **WHEN** `dist_filament_park` is set to a value ≥ `dist_extruder_to_meltzone`

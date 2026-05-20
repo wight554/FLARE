@@ -170,3 +170,10 @@
   `_FLARE_TIP_FORMING_DEFAULTS`, print simulation uses a separate pause
   retract, and post-tip inspection uses staged extruder unload with a final
   60 mm pull.
+
+2026-05-21 synced-distance naming follow-up:
+- Replaced `tip_forming_mmu_retract_extra` with SP-compatible
+  `dist_sensor_to_synced_move`.
+- Derived the ignore-buffer MMU retract as
+  `dist_filament_park + dist_sensor_to_extruder - dist_sensor_to_synced_move
+  + 60`, matching the upstream synced-retract plus final inspection pull shape.

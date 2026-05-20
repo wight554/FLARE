@@ -438,9 +438,9 @@ Implementation plan:
 - Remove `RA:1` / `RA:0` from the shared toolchange macro.
 - Before the final tip-forming park retract, run a finite slow
   `MV:-<derived distance>:<park speed * 0.2>:I`. Derive the distance from
-  toolhead measurements:
-  `dist_extruder_to_meltzone + dist_filament_park + tip_length_below_cut +
-  tip_forming_mmu_retract_extra`.
+  SP-style toolhead measurements:
+  `dist_filament_park + dist_sensor_to_extruder - dist_sensor_to_synced_move
+  + 60`.
 - Keep the explicit printer gear-clear retract, but stop mirroring it with a
   second FLARE `MV:` because the tip-forming MV has already pulled the old lane
   clear of the gears/bowden exit.

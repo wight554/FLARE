@@ -147,10 +147,10 @@ Tip forming uses a finite FLARE reverse move before the final park retract:
 buffer state during that exact move, so it can pull the old lane clear of the
 toolhead gears/bowden exit without reacting to temporary compression or
 tension. The distance is derived from `_FLARE_VARS` as
-`dist_extruder_to_meltzone + dist_filament_park + tip_length_below_cut +
-tip_forming_mmu_retract_extra`; tune `tip_forming_mmu_retract_extra` if your
-toolhead needs more or less clearance. The later printer-side gear retract is
-not mirrored by another FLARE `MV:`.
+`dist_filament_park + dist_sensor_to_extruder - dist_sensor_to_synced_move +
+60`. `dist_sensor_to_synced_move` uses the LH-Stinger distance name for the
+point where synced motion begins; lower values retract farther. The later
+printer-side gear retract is not mirrored by another FLARE `MV:`.
 
 > **Temperature management:** `gcode_shell_command` holds the Klipper scheduler
 > while the shell process runs — heaters stay regulated, but no additional G-code
