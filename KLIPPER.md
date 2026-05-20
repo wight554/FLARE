@@ -133,6 +133,28 @@ If `TC:` returns an error, `flare_cmd.py` exits with code 1.
 `gcode_shell_command` logs the failure; add printer-specific pause/error
 handling around your slicer flow if you want automatic intervention.
 
+### Purge chute example
+
+The [LH-Stinger Mini Purge Shute](https://github.com/lhndo/LH-Stinger/tree/main/User_Mods/Other/Mini%20Purge%20Shute%20-%20%40LH)
+is a good reference for a compact passive purge chute with a brush. FLARE does
+not drive Klipper toolhead parking itself; `_FLARE_LOAD_HOTEND` only advances
+and purges filament through the printer extruder after `TC:` completes. Put
+purge-chute positioning and brush moves in Klipper G-code.
+
+FLARE implementation tips:
+
+- Keep `purge_len` in `_FLARE_VARS` as the required post-load flush volume.
+- Park over the chute before `_FLARE_LOAD_HOTEND`, or replace the final purge
+  move in `_FLARE_LOAD_HOTEND` with a local `_FLARE_PURGE` helper that moves to
+  your chute, extrudes `PURGE={v.purge_len}`, wipes, and returns.
+- Use `SAVE_GCODE_STATE`, `G90`, and `M83` inside any purge helper so XY moves
+  are absolute while extrusion stays relative.
+- Split large purges into smaller blobs if your chute is narrow; add a small
+  retract between blobs to reduce stringing.
+- If using a cutter, keep the `HD:1` / `HD:0` tip-forming window unchanged and
+  do purge-chute motion after `TC:` returns, when the new filament is already at
+  the toolhead path.
+
 ---
 
 ## Manual load / unload
