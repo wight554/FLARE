@@ -1,6 +1,6 @@
 ## 1. flare_mmu.cfg — variables and boot
 
-- [x] 1.1 Create `scripts/flare_mmu.cfg`. Write `[gcode_macro _FLARE_VARS]` with all variables: `dist_sensor_to_extruder` (20.0), `dist_filament_park` (35.0), `dist_extruder_to_meltzone` (40.0), `tip_length_below_cut` (3.0), `load_temp` (230), `unload_temp` (185), `min_extrude_temp` (180), `purge_len` (30.0), `purge_spd` (450.0), `enable_reload` (1). Include comment that `dist_filament_park` MUST be < `dist_extruder_to_meltzone`.
+- [x] 1.1 Create `klipper/flare_mmu.cfg`. Write `[gcode_macro _FLARE_VARS]` with all variables: `dist_sensor_to_extruder` (20.0), `dist_filament_park` (35.0), `dist_extruder_to_meltzone` (40.0), `tip_length_below_cut` (3.0), `load_temp` (230), `unload_temp` (185), `min_extrude_temp` (180), `purge_len` (30.0), `purge_spd` (450.0), `enable_reload` (1). Include comment that `dist_filament_park` MUST be < `dist_extruder_to_meltzone`.
 - [x] 1.2 Write `[gcode_macro _FLARE_TIP_FORMING_DEFAULTS]` with: `pause_push_dist` (0.5), `pause_push_speed` (30.0), `cooldown_dist` (5.0), `cooldown_pull_speed` (70.0), `cooldown_pause` (0.0), `cooldown_secondary_moves` (0), `dip_melt_gap` (0.0), `dip_speed` (30.0), `dip_pause` (0.0), `park_speed` (130.0).
 - [x] 1.3 Write `[delayed_gcode _FLARE_BOOT]` with `initial_duration: 2`. Body reads `enable_reload` from `_FLARE_VARS`, sends `SET:RELOAD_MODE:{v.enable_reload}` (no `SV:`), logs result via `RESPOND`.
 
@@ -33,13 +33,21 @@
 
 ## 7. Validation and commit
 
-- [x] 7.1 `python3 -m py_compile scripts/flare_mmu.cfg 2>/dev/null || true` — Klipper cfg is not Python; instead manually review `flare_mmu.cfg` for Jinja2 syntax: all `{% %}` blocks balanced, all variable names consistent with `_FLARE_VARS` / `_FLARE_TIP_FORMING_DEFAULTS`.
+- [x] 7.1 `python3 -m py_compile klipper/flare_mmu.cfg 2>/dev/null || true` — Klipper cfg is not Python; instead manually review `flare_mmu.cfg` for Jinja2 syntax: all `{% %}` blocks balanced, all variable names consistent with `_FLARE_VARS` / `_FLARE_TIP_FORMING_DEFAULTS`.
 - [x] 7.2 Verify `python3 -m py_compile scripts/*.py` still green (no scripts changed, but confirm).
 - [x] 7.3 Confirm `ninja -C build_local` still green (no firmware changed).
 - [x] 7.4 Commit and push.
 
 2026-05-20 validation:
-- `scripts/flare_mmu.cfg` Jinja scan: `{%` count 45, `%}` count 45; `_FLARE_VARS` and `_FLARE_TIP_FORMING_DEFAULTS` references present; `FLARE_PRELOAD`, `FLARE_CUT_BARE`, `FLARE_CUT_TEST`, and `SV:` absent.
+- `klipper/flare_mmu.cfg` Jinja scan: `{%` count 45, `%}` count 45; `_FLARE_VARS` and `_FLARE_TIP_FORMING_DEFAULTS` references present; `FLARE_PRELOAD`, `FLARE_CUT_BARE`, `FLARE_CUT_TEST`, and `SV:` absent.
 - `python3 -m py_compile scripts/*.py` passed.
 - `ninja -C build_local` passed (`ninja: no work to do.`).
 - Implementation commit pushed: `cd0f07b` (`klipper: add single-include mmu macros`).
+
+2026-05-20 follow-up:
+- Moved `flare_mmu.cfg` from `scripts/` to `klipper/` because it is a Klipper
+  config include, not a host script.
+- Refreshed `KLIPPER.md` and OpenSpec artifact references to
+  `klipper/flare_mmu.cfg`.
+- Revalidated Jinja brace balance, `python3 -m py_compile scripts/*.py`, and
+  `ninja -C build_local`.

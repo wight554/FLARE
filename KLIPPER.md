@@ -99,7 +99,7 @@ reports loaded (`TS:1`, `TS_BUF_MS`, or sane buffer geometry).
 `flare_cmd.py` blocks until `EV:TC:DONE` or
 `EV:TC:ERROR`, so Klipper naturally pauses printing during the change.
 
-Copy `scripts/flare_mmu.cfg` into your Klipper config directory and include it:
+Copy `klipper/flare_mmu.cfg` into your Klipper config directory and include it:
 
 ```ini
 [include flare_mmu.cfg]

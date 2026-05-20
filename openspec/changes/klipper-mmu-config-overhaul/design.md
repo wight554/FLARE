@@ -17,7 +17,7 @@ can port their measurements with zero translation.
 ## Goals / Non-Goals
 
 **Goals:**
-- Single copyable `scripts/flare_mmu.cfg` covering all Klipper-side MMU
+- Single copyable `klipper/flare_mmu.cfg` covering all Klipper-side MMU
   integration (variables, tip forming, load hotend, toolchange, boot init,
   test macro)
 - Variable names match SP wiki (`dist_sensor_to_extruder`,
@@ -136,7 +136,7 @@ None — scope fully decided in exploration phase.
 
 ## Implementation Plan
 
-### scripts/flare_mmu.cfg
+### klipper/flare_mmu.cfg
 - Add a single Klipper include file with `_FLARE_VARS`, `_FLARE_TIP_FORMING_DEFAULTS`,
   `_FLARE_BOOT`, `_FLARE_TIP_FORMING`, `_FLARE_LOAD_HOTEND`,
   `_FLARE_CHANGE_LANE`, `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`,
@@ -147,7 +147,7 @@ None — scope fully decided in exploration phase.
   `_FLARE_VARS` / `_FLARE_TIP_FORMING_DEFAULTS`.
 
 ### KLIPPER.md
-- Replace inline macro examples with `scripts/flare_mmu.cfg` include guidance
+- Replace inline macro examples with `klipper/flare_mmu.cfg` include guidance
   and list the provided macros.
 - Collapse the no-physical-toolhead-sensor path into a brief fallback note.
 - Remove sync tuning, telemetry, calibration print, and removed development

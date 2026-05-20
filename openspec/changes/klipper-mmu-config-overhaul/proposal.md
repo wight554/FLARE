@@ -3,13 +3,13 @@
 KLIPPER.md mixes integration reference, sync tuning, and calibration
 workflows into one file — operators cannot copy a working Klipper config
 in one step, and the tip-forming / load sequence is undocumented. The
-goal is a single ready-to-use `scripts/flare_mmu.cfg` that users drop
+goal is a single ready-to-use `klipper/flare_mmu.cfg` that users drop
 into their printer config, and a slimmed KLIPPER.md that covers only
 integration.
 
 ## What Changes
 
-- **NEW** `scripts/flare_mmu.cfg` — single-include Klipper config covering:
+- **NEW** `klipper/flare_mmu.cfg` — single-include Klipper config covering:
   - `[gcode_macro _FLARE_VARS]` variables block (hardware measurements + temps + purge + reload flag)
   - `[gcode_macro _FLARE_TIP_FORMING_DEFAULTS]` tuning block (cooldown / dip / park params)
   - `[gcode_macro _FLARE_TIP_FORMING]` — full tip-forming sequence (cooldown, dip, park)
@@ -36,6 +36,6 @@ integration.
 
 ## Impact
 
-- `scripts/flare_mmu.cfg` — new file (no firmware changes)
+- `klipper/flare_mmu.cfg` — new file (no firmware changes)
 - `KLIPPER.md` — significant restructure (docs only)
 - No firmware, `config.ini`, `tune.h`, or host script changes

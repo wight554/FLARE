@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Single-file Klipper MMU config
-`scripts/flare_mmu.cfg` SHALL provide a complete Klipper MMU integration
+`klipper/flare_mmu.cfg` SHALL provide a complete Klipper MMU integration
 that users can activate with a single `[include flare_mmu.cfg]` line in
 `printer.cfg`, with no other macro files required.
 
