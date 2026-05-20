@@ -92,3 +92,11 @@
   cutter feed distance, repeat count, servo settles, and slack.
 - Added cutter failure tracking so toolchange reports cutter-side failures
   instead of treating an idle cutter as a successful cut.
+
+2026-05-20 Klipper command wait correction:
+- Raised shared Klipper/helper long-command timeout guidance to 300s and made
+  `flare_mmu.cfg` pass `--timeout 300` for long FLARE commands.
+- Added completion-event waits for `FL:`, `UL:`, and `UM:` in
+  `scripts/flare_cmd.py` to match documented behavior.
+- Added explicit `_FLARE_CHANGE_LANE` log markers around TC completion and
+  hotend loading so console logs show the boundary clearly.

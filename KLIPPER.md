@@ -53,7 +53,7 @@ Add to `printer.cfg`:
 ```ini
 [gcode_shell_command flare]
 command: python3 /home/pi/FLARE/scripts/flare_cmd.py
-timeout: 130.0
+timeout: 300.0
 verbose: True
 ```
 
@@ -98,6 +98,11 @@ is enabled), swaps, loads the new lane, and completes when the lane load task
 reports loaded (`TS:1`, `TS_BUF_MS`, or sane buffer geometry).
 `flare_cmd.py` blocks until `EV:TC:DONE` or
 `EV:TC:ERROR`, so Klipper naturally pauses printing during the change.
+The shared `_FLARE_CHANGE_LANE` macro then logs `TC:<lane> complete; loading
+hotend` and only after that starts local extruder moves in `_FLARE_LOAD_HOTEND`.
+If a long unload/cut/load path needs more headroom, raise both the
+`gcode_shell_command flare` timeout and the `--timeout` values in
+`klipper/flare_mmu.cfg`.
 
 Copy `klipper/flare_mmu.cfg` into your Klipper config directory and include it:
 

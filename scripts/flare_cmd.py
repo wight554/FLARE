@@ -38,6 +38,9 @@ except ImportError:
 # ---------------------------------------------------------------------------
 COMPLETION_EVENTS = {
     'TC': (['EV:TC:DONE'], ['EV:TC:ERROR']),
+    'FL': (['EV:LOADED'], ['EV:LOAD_TIMEOUT', 'EV:RUNOUT', 'EV:TC:ERROR']),
+    'UL': (['EV:UNLOADED'], ['EV:UNLOAD_TIMEOUT', 'EV:UNLOAD_BLOCKED', 'EV:TC:ERROR']),
+    'UM': (['EV:UNLOADED'], ['EV:UNLOAD_TIMEOUT', 'EV:UNLOAD_BLOCKED', 'EV:TC:ERROR']),
     'RL': (['EV:RELOAD:LOADED'], ['EV:TC:ERROR']),
     'CU': (['EV:CUT:DONE'], ['EV:CUT:ERROR']),
     'CX': (['EV:CUT:DONE'], ['EV:CUT:ERROR']),
@@ -398,8 +401,8 @@ def main():
         epilog=__doc__,
     )
     parser.add_argument('--port',    help='Serial port (auto-detected if omitted)')
-    parser.add_argument('--timeout', type=float, default=130.0,
-                        help='Timeout for long-running commands (default: 130 s)')
+    parser.add_argument('--timeout', type=float, default=300.0,
+                        help='Timeout for long-running commands (default: 300 s)')
     parser.add_argument('--dump',    action='store_true',
                         help='Read all parameters from device and print as config.ini')
     parser.add_argument('--raw',     action='store_true',

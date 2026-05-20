@@ -243,3 +243,29 @@ Implementation plan:
 ### Documentation
 - Clarify `TC_CUT_MS` as an outer watchdog minimum; normal sizing follows
   cutter settings.
+
+## Klipper Command Timeout / Phase Logging Follow-up
+
+Runtime log showed `EV:TC:DONE:2` and Klipper's `Command {flare} finished` at
+the same timestamp, which means `flare_cmd.py` did receive and accept the TC
+success event. The confusing part is that `_FLARE_LOAD_HOTEND` performs only
+local extruder/purge moves after TC, so the console has no explicit boundary
+between "firmware TC complete" and "printer hotend loading/purging".
+
+Implementation plan:
+
+### scripts/flare_cmd.py
+- Raise the default long-command timeout from 130s to 300s so long cutter,
+  unload, and load cycles have headroom.
+- Add completion-event waits for `FL:`, `UL:`, and `UM:` to match `KLIPPER.md`
+  and prevent manual wrappers from returning on the initial `OK`.
+
+### klipper/flare_mmu.cfg
+- Pass `--timeout 300` for long FLARE commands from the shared macros.
+- Add `RESPOND` markers before/after `TC:` and before hotend load/purge so logs
+  make the phase boundary obvious.
+- Add `M400` after TC before local extruder moves.
+
+### KLIPPER.md
+- Document `timeout: 300.0` for the shell command and explain that
+  `_FLARE_LOAD_HOTEND` starts only after `EV:TC:DONE`.
