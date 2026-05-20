@@ -136,12 +136,14 @@ uses the same distance variable names, so you can copy those measurements into
 Keep the tip-forming wiggle section inside `HD:1` / `HD:0` HOLD. Small wiggles
 interact with the buffer sensing span (`BUF_SWITCH_SPAN`, default 10 mm full
 range); HOLD suppresses sync and negative-sync following while leaving
-basic buffer stabilization available. The final `GEAR_RETRACT` is intentionally
-outside HOLD so negative sync can follow it. With that split,
-`POST_PRINT_STAB_DELAY_MS=0` is acceptable because the long retract should be
-followed immediately. `_FLARE_CHANGE_LANE` uses `M400` before releasing HOLD
-and again before `TC:` so queued extruder moves finish before FLARE starts
-firmware unload.
+basic buffer stabilization available. Before the final fast gear-clear retract,
+`_FLARE_CHANGE_LANE` starts a FLARE reverse assist with `MV:-distance:feed` so
+the old lane follows the printer extruder retract instead of waiting for the
+buffer to hit the compression switch. Tune `gear_retract_spd`,
+`retract_assist_dist_factor`, and `retract_assist_speed_factor` in
+`_FLARE_VARS`; make sure `GLOBAL_MAX_RATE` is high enough for the assist feed.
+`_FLARE_CHANGE_LANE` uses `M400` before releasing HOLD and again before `TC:`
+so queued extruder moves finish before FLARE starts firmware unload.
 
 > **Temperature management:** `gcode_shell_command` holds the Klipper scheduler
 > while the shell process runs — heaters stay regulated, but no additional G-code

@@ -302,3 +302,29 @@ Implementation plan:
 ### KLIPPER.md
 - Document that post-TC hotend loading is gated by the physical toolhead sensor
   through Klipper delayed-gcode polling, not by shell-command timeout.
+
+## Fast Retract Assist Follow-up
+
+User feedback identified the physical failure during tip-forming handoff: after
+the tip is parked, Klipper performs a long fast extruder retract to clear the
+gears. The buffer cannot react quickly enough, so it can pin at the compression
+side and the following firmware unload sees a blocked path (`UNLOAD_BLOCKED` /
+`UNLOAD_TIMEOUT`).
+
+Implementation plan:
+
+### klipper/flare_mmu.cfg
+- Add configurable retract-assist variables to `_FLARE_VARS`:
+  `gear_retract_spd`, `retract_assist`, `retract_assist_dist_factor`, and
+  `retract_assist_speed_factor`.
+- Before the Klipper `G1 E-{gear_retract}` move, start FLARE active-lane reverse
+  motion with `MV:-<distance>:<feed>` so the MMU follows the printer retract
+  proactively instead of waiting for passive buffer compression recovery.
+- Keep the TC call after the `M400`; if the assist is still active, TC's unload
+  lane start will take ownership of the active lane task.
+- Risk: users need `GLOBAL_MAX_RATE` high enough for the assist feedrate; the
+  default assist is opt-in/on in the shared macro but tunable.
+
+### KLIPPER.md
+- Document the retract assist and the relationship between
+  `gear_retract_spd`, `GLOBAL_MAX_RATE`, and fast gear-clear retracts.

@@ -111,3 +111,9 @@
   `filament_detected` is true again.
 - Added `_FLARE_POST_TC_LOAD` for local extruder feed/purge and
   `_FLARE_TC_FAILED` for sensor-gate timeout.
+
+2026-05-20 fast retract assist:
+- Added `_FLARE_VARS` settings for gear retract speed and retract assist.
+- `_FLARE_CHANGE_LANE` now starts an asynchronous FLARE `MV:-distance:feed`
+  reverse move before Klipper's fast gear-clear retract, so the old lane follows
+  the printer-side retract proactively instead of waiting for buffer compression.
