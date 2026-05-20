@@ -177,3 +177,11 @@
 - Derived the ignore-buffer MMU retract as
   `dist_filament_park + dist_sensor_to_extruder - dist_sensor_to_synced_move
   + 60`, matching the upstream synced-retract plus final inspection pull shape.
+
+2026-05-21 nozzle-tip distance correction:
+- Replaced `dist_sensor_to_synced_move` with `dist_meltzone_to_nozzle_tip`
+  because the MMU assist only needs the maximum physical path from toolhead
+  sensor to nozzle tip.
+- Updated the ignore-buffer MMU retract formula to
+  `dist_sensor_to_extruder + dist_extruder_to_meltzone +
+  dist_meltzone_to_nozzle_tip`.

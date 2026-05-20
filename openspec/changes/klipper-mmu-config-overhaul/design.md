@@ -41,7 +41,10 @@ can port their measurements with zero translation.
 
 Use `dist_sensor_to_extruder`, `dist_filament_park`,
 `dist_extruder_to_meltzone` (with `dist_` prefix) matching the SP wiki
-diagram. Users following LH-Stinger guide can copy values directly.
+diagram. Add `dist_meltzone_to_nozzle_tip` for the extra hotend length needed
+by FLARE's printer-side tip-forming MMU assist. Users following LH-Stinger
+guide can copy the shared values directly and add their hotend nozzle-tip
+length.
 
 Skip SP variables that are MMU-motor-side only (`dist_mmu_to_hub`,
 `dist_hub_to_sensor`, `dist_sensor_to_synced_move`) — FLARE firmware
@@ -437,10 +440,10 @@ Implementation plan:
 ### klipper/flare_mmu.cfg
 - Remove `RA:1` / `RA:0` from the shared toolchange macro.
 - Before the final tip-forming park retract, run a finite slow
-  `MV:-<derived distance>:<park speed * 0.2>:I`. Derive the distance from
-  SP-style toolhead measurements:
-  `dist_filament_park + dist_sensor_to_extruder - dist_sensor_to_synced_move
-  + 60`.
+  `MV:-<derived distance>:<park speed * 0.2>:I`. Derive the maximum needed
+  old-lane MMU retract from the toolhead path:
+  `dist_sensor_to_extruder + dist_extruder_to_meltzone +
+  dist_meltzone_to_nozzle_tip`.
 - Keep the explicit printer gear-clear retract, but stop mirroring it with a
   second FLARE `MV:` because the tip-forming MV has already pulled the old lane
   clear of the gears/bowden exit.
