@@ -126,7 +126,8 @@ The include provides `_FLARE_VARS`, `_FLARE_TIP_FORMING_DEFAULTS`,
 `_FLARE_PURGE`,
 `_FLARE_TC_STATE`, `_FLARE_ARM_TC_LOAD`, `_FLARE_ON_TOOLHEAD_RUNOUT`,
 `_FLARE_ON_TOOLHEAD_INSERT`, `_FLARE_CHANGE_LANE`, `_FLARE_POST_TC_LOAD`,
-`_FLARE_TC_FAILED`, `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`, `FLARE_CUT`,
+`_FLARE_TC_FAILED`, `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`,
+`FLARE_UNLOAD_TOOLHEAD`, `FLARE_CUT`,
 `FLARE_TEST_TIP_FORMING`, and the boot-time `_FLARE_BOOT` delayed gcode that
 applies `RELOAD_MODE` from `_FLARE_VARS`.
 
@@ -201,6 +202,11 @@ gcode:
 description: Unload from extruder (tip past OUT sensor)
 gcode:
     RUN_SHELL_COMMAND CMD=flare PARAMS="UL:"
+
+[gcode_macro FLARE_UNLOAD_TOOLHEAD]
+description: Form filament tip and retract filament past extruder gears
+gcode:
+    FLARE_UNLOAD_TOOLHEAD
 
 [gcode_macro FLARE_CUT]
 description: Perform full filament cut cycle

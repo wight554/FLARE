@@ -40,12 +40,20 @@ extruder, MMU, and toolhead state.
 #### Scenario: Full TC Macro
 - **WHEN** a toolchange is triggered
 - **THEN** Klipper runs a finite `MV:-distance:feed:I` old-lane retract during
-  tip forming so the MMU ignores buffer state only for that exact move
+  tip forming via `FLARE_UNLOAD_TOOLHEAD` so the MMU ignores buffer state only for that exact move
 - **AND** calls `TC:` only after the gear-clear printer retract drains
 - **AND** calls `flare_cmd.py TC:lane` without explicit `TS:` or `SM:` helper commands
 - **AND** arms delayed toolhead-sensor polling before `TC:`
 - **AND** loads/picks up the new filament into the extruder only after the
   sensor reports filament detected again
+
+### Requirement: Reusable Toolhead Unload Macro
+The include SHALL provide a standalone `FLARE_UNLOAD_TOOLHEAD` macro.
+
+#### Scenario: Standalone Unload
+- **WHEN** `FLARE_UNLOAD_TOOLHEAD` is invoked
+- **THEN** it executes `_FLARE_TIP_FORMING` followed by `G1 E-{gear_retract}` to clear the extruder gears
+- **AND** restores the G-code state safely without initiating any subsequent MMU tool change or lane swap
 
 ### Requirement: Toolhead Sensor Optional For TC Completion
 `TC:` load completion SHALL NOT require an explicit host `TS:1` command.
