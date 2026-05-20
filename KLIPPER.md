@@ -140,7 +140,7 @@ Then, a synchronized G1 E move is performed by Klipper to grab and park the fila
 
 The [LH-Stinger Pico MMU toolhead distance calibration guide](https://github.com/lhndo/LH-Stinger/wiki/Pico-MMU#toolhead-distance-calibration) uses the same distance variable names, so you can copy those measurements into `_FLARE_VARS`. The same link is also included as a comment at the top of `klipper/flare_mmu.cfg` for printer-side tuning.
 
-`FLARE_TEST_TIP_FORMING` follows the LH-Stinger `SP_TEST_MANUAL_TIP_FORMING` flow: it accepts tip-forming override parameters, loads the hotend, simulates a print pause, runs `_FLARE_TIP_FORMING`, then retracts in two stages so the formed tip can be removed and inspected.
+`FLARE_TEST_TIP_FORMING` follows the LH-Stinger `SP_TEST_MANUAL_TIP_FORMING` flow: it accepts tip-forming override parameters, loads the hotend, simulates a print pause, runs `FLARE_UNLOAD_TOOLHEAD` (which forms the tip via `_FLARE_TIP_FORMING` and retracts past the extruder gears), then retracts the filament further for manual inspection and removal.
 
 Tip forming uses a finite FLARE reverse move before the final park retract:
 `MV:-<derived distance>:<slow feed>:I`. The `I` option tells firmware to ignore buffer state during that exact move, so it can pull the old lane clear of the toolhead gears/bowden exit without reacting to temporary compression or tension. The distance is derived from `_FLARE_VARS` as
