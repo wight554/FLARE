@@ -217,3 +217,10 @@
 - Updated `KLIPPER.md` documentation to match the new macro call shape.
 - Verified Jinja2 brace balance (`96/96`), Python script compile check, and local firmware build.
 - Committed and pushed to `main` with commit SHA `0c7d320`.
+
+2026-05-21 toolhead sensor TS: events direct send:
+- Added `RUN_SHELL_COMMAND CMD=flare PARAMS="TS:0"` to `_FLARE_ON_TOOLHEAD_RUNOUT`.
+- Added `RUN_SHELL_COMMAND CMD=flare PARAMS="TS:1"` to `_FLARE_ON_TOOLHEAD_INSERT`.
+- Simplified the `printer.cfg` snippet in `KLIPPER.md` by removing the manual `RUN_SHELL_COMMAND` calls from the Klipper sensor blocks.
+- Verified Jinja2 brace balance (`96/96`), Python script compile check, and local firmware build.
+- Committed and pushed to `main` with commit SHA `fc1fee5`.
