@@ -100,3 +100,14 @@
   `scripts/flare_cmd.py` to match documented behavior.
 - Added explicit `_FLARE_CHANGE_LANE` log markers around TC completion and
   hotend loading so console logs show the boundary clearly.
+
+2026-05-20 safe post-TC load correction:
+- Removed direct hotend loading after `RUN_SHELL_COMMAND` in `_FLARE_CHANGE_LANE`
+  because KIAUH `gcode_shell_command` does not abort the macro on subprocess
+  non-zero exit/timeout.
+- Added `_FLARE_TC_STATE`, `_FLARE_ARM_TC_LOAD`,
+  `_FLARE_ON_TOOLHEAD_RUNOUT`, `_FLARE_ON_TOOLHEAD_INSERT`, and delayed
+  `_FLARE_TC_POLL` so Klipper polls the physical toolhead sensor until
+  `filament_detected` is true again.
+- Added `_FLARE_POST_TC_LOAD` for local extruder feed/purge and
+  `_FLARE_TC_FAILED` for sensor-gate timeout.

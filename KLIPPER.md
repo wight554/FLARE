@@ -81,13 +81,16 @@ switch_pin: ^!toolhead:PA0   ; adjust pin and MCU name
 pause_on_runout: False
 insert_gcode:
     RUN_SHELL_COMMAND CMD=flare PARAMS="TS:1"
+    _FLARE_ON_TOOLHEAD_INSERT
 runout_gcode:
     RUN_SHELL_COMMAND CMD=flare PARAMS="TS:0"
+    _FLARE_ON_TOOLHEAD_RUNOUT
 ```
 
-Without a physical sensor: set `dist_sensor_to_extruder: 0` in `_FLARE_VARS`.
-FLARE detects load completion via buffer geometry (`TS_BUF_MS`, default 2000 ms;
-tune to your bowden length with `SET:TS_BUF_MS:<ms>`).
+Set `toolhead_sensor: "toolhead_sensor"` in `_FLARE_VARS` to match the sensor
+name after `filament_switch_sensor `. FLARE firmware can still detect load via
+buffer geometry without a physical sensor, but the shared `flare_mmu.cfg`
+post-TC hotend-load gate uses this Klipper sensor state.
 
 ---
 
@@ -98,8 +101,13 @@ is enabled), swaps, loads the new lane, and completes when the lane load task
 reports loaded (`TS:1`, `TS_BUF_MS`, or sane buffer geometry).
 `flare_cmd.py` blocks until `EV:TC:DONE` or
 `EV:TC:ERROR`, so Klipper naturally pauses printing during the change.
-The shared `_FLARE_CHANGE_LANE` macro then logs `TC:<lane> complete; loading
-hotend` and only after that starts local extruder moves in `_FLARE_LOAD_HOTEND`.
+The shared `_FLARE_CHANGE_LANE` macro does not place hotend loading after
+`RUN_SHELL_COMMAND` directly. Instead, it arms `_FLARE_TC_STATE`; when the
+toolhead sensor reports runout, `_FLARE_ON_TOOLHEAD_RUNOUT` starts a
+delayed-gcode poll. `_FLARE_POST_TC_LOAD` runs only after the same physical
+toolhead sensor reports filament detected again while TC is pending. If the
+shell command times out but FLARE is still loading, hotend feed waits for the
+sensor rather than starting on timeout.
 If a long unload/cut/load path needs more headroom, raise both the
 `gcode_shell_command flare` timeout and the `--timeout` values in
 `klipper/flare_mmu.cfg`.
@@ -112,7 +120,9 @@ Copy `klipper/flare_mmu.cfg` into your Klipper config directory and include it:
 
 The include provides `_FLARE_VARS`, `_FLARE_TIP_FORMING_DEFAULTS`,
 `_FLARE_TIP_FORMING`, `_FLARE_LOAD_HOTEND`, `_FLARE_PURGE`,
-`_FLARE_CHANGE_LANE`, `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`, `FLARE_CUT`,
+`_FLARE_TC_STATE`, `_FLARE_ARM_TC_LOAD`, `_FLARE_ON_TOOLHEAD_RUNOUT`,
+`_FLARE_ON_TOOLHEAD_INSERT`, `_FLARE_CHANGE_LANE`, `_FLARE_POST_TC_LOAD`,
+`_FLARE_TC_FAILED`, `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`, `FLARE_CUT`,
 `FLARE_TEST_TIP_FORMING`, and the boot-time `_FLARE_BOOT` delayed gcode that
 applies `RELOAD_MODE` from `_FLARE_VARS`.
 

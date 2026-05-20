@@ -6,7 +6,8 @@ SEND MODE (default):
     python3 scripts/flare_cmd.py [--port PORT] [--timeout S] CMD:PAYLOAD [CMD2 ...]
 
     Sends one or more commands in sequence.  Each command waits for OK:/ER:.
-    Long-running commands (TC:) wait for the corresponding completion event.
+    Long-running commands (TC:, FL:, UL:, UM:, RL:, CU:, CX:) wait for the
+    corresponding completion event.
 
 DUMP MODE:
     python3 scripts/flare_cmd.py [--port PORT] --dump [--raw]

@@ -269,3 +269,36 @@ Implementation plan:
 ### KLIPPER.md
 - Document `timeout: 300.0` for the shell command and explain that
   `_FLARE_LOAD_HOTEND` starts only after `EV:TC:DONE`.
+
+## Safe Post-TC Callback Follow-up
+
+User clarified the real failure: `_FLARE_LOAD_HOTEND` was placed after
+`RUN_SHELL_COMMAND` in the same Klipper macro, so a shell timeout/error still
+allowed Klipper to continue into hotend loading because the KIAUH
+`gcode_shell_command` extension prints subprocess output but does not abort the
+macro on a non-zero exit status.
+
+Implementation plan:
+
+### scripts/flare_cmd.py
+- Keep completion-event waits for `TC:`, `FL:`, `UL:`, and `UM:`, but do not
+  use transport callbacks. Klipper macro state and the physical toolhead sensor
+  decide when local hotend loading begins.
+
+### klipper/flare_mmu.cfg
+- Remove hotend loading from the direct path after `RUN_SHELL_COMMAND`.
+- Add `_FLARE_TC_STATE`, `_FLARE_ARM_TC_LOAD`,
+  `_FLARE_ON_TOOLHEAD_RUNOUT`, `_FLARE_ON_TOOLHEAD_INSERT`, and delayed
+  `_FLARE_TC_POLL`.
+- Arm pending MMU state before gear retract. When the toolhead sensor runout
+  fires, start a delayed poll like the tangle-detection pattern. The poll checks
+  the physical `filament_switch_sensor` state until it sees filament detected
+  again, then runs `_FLARE_POST_TC_LOAD`.
+- Add `_FLARE_TC_FAILED` so sensor timeout clears the pending state and reports
+  that hotend loading was skipped.
+- Restore G-code state before the long shell command so failure leaves the
+  printer in a sane local state.
+
+### KLIPPER.md
+- Document that post-TC hotend loading is gated by the physical toolhead sensor
+  through Klipper delayed-gcode polling, not by shell-command timeout.
