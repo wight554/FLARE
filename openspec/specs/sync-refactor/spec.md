@@ -160,7 +160,7 @@ time-and-distance cooldown. It SHALL remain non-persistent and up-only; the
 offline analyzer remains the sole persistent baseline/bias authority.
 
 #### Scenario: No learning in non-active states
-- **WHEN** the controller is in `SYNC_OFF`, `SYNC_HOLD`,
+- **WHEN** the controller is in `SYNC_OFF`, `SYNC_RETRACT_ASSIST`,
   `SYNC_RELIEF_PAUSE`, or `SYNC_FAULT_HOLD`, or compression-recovery / fast-brake
   is active
 - **THEN** the live baseline value is not updated

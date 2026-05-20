@@ -28,7 +28,8 @@ typedef enum {
     TASK_FEED,
     TASK_UNLOAD,
     TASK_LOAD_FULL,
-    TASK_MOVE
+    TASK_MOVE,
+    TASK_RETRACT_ASSIST
 } task_t;
 
 typedef enum {
@@ -245,7 +246,6 @@ extern bool AUTO_PRELOAD;
 extern int AUTOLOAD_RETRACT_MM;
 extern bool ENABLE_CUTTER;
 extern bool UNLOAD_CUT;
-extern bool g_sync_hold;
 extern int DIST_IN_OUT;
 extern int DIST_OUT_Y;
 extern int DIST_Y_BUF;

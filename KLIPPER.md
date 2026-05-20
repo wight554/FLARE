@@ -133,17 +133,16 @@ the hotend load distance is derived from their difference. The
 uses the same distance variable names, so you can copy those measurements into
 `_FLARE_VARS`.
 
-Keep the tip-forming wiggle section inside `HD:1` / `HD:0` HOLD. Small wiggles
-interact with the buffer sensing span (`BUF_SWITCH_SPAN`, default 10 mm full
-range); HOLD suppresses sync and negative-sync following while leaving
-basic buffer stabilization available. Before the final fast gear-clear retract,
-`_FLARE_CHANGE_LANE` starts a FLARE reverse assist with `MV:-distance:feed` so
-the old lane follows the printer extruder retract instead of waiting for the
-buffer to hit the compression switch. Tune `gear_retract_spd`,
-`retract_assist_dist_factor`, and `retract_assist_speed_factor` in
-`_FLARE_VARS`; make sure `GLOBAL_MAX_RATE` is high enough for the assist feed.
-`_FLARE_CHANGE_LANE` uses `M400` before releasing HOLD and again before `TC:`
-so queued extruder moves finish before FLARE starts firmware unload.
+Keep the whole tip-forming and gear-clear retract window inside `RA:1` /
+`RA:0` retract-assist mode. During that window FLARE watches the raw buffer
+state and reacts immediately: `BUF_COMPRESSION` reverses the active lane at
+`GLOBAL_MAX_RATE`, `BUF_TENSION` feeds forward at `REV_RATE`, and `BUF_NEUTRAL`
+stops the assist task. This covers the final fast park retract inside
+`_FLARE_TIP_FORMING` and the explicit gear-clear retract after it. Tune
+`gear_retract_spd` in `_FLARE_VARS`, and make sure `GLOBAL_MAX_RATE` is high
+enough for the firmware-side reverse assist. `_FLARE_CHANGE_LANE` uses `M400`
+before clearing `RA:0` and before `TC:` so queued extruder moves finish before
+FLARE starts firmware unload.
 
 > **Temperature management:** `gcode_shell_command` holds the Klipper scheduler
 > while the shell process runs — heaters stay regulated, but no additional G-code

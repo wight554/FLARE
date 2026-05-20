@@ -131,6 +131,7 @@ const char *task_name(task_t t) {
         case TASK_UNLOAD: return "UNLOAD";
         case TASK_LOAD_FULL: return "LOAD_FULL";
         case TASK_MOVE: return "MOVE";
+        case TASK_RETRACT_ASSIST: return "RETRACT_ASSIST";
         default: return "?";
     }
 }

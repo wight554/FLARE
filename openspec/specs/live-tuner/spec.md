@@ -53,7 +53,7 @@ operators and the offline analyzer can observe relief/fault behavior.
 
 #### Scenario: State visible in status
 - **WHEN** status is queried
-- **THEN** the current state (`OFF`/`ACTIVE`/`HOLD`/`RELIEF_PAUSE`/
+- **THEN** the current state (`OFF`/`ACTIVE`/`RETRACT_ASSIST`/`RELIEF_PAUSE`/
   `FAULT_HOLD`) is reported
 
 #### Scenario: Cannot-refill warning

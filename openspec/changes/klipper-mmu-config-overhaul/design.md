@@ -328,3 +328,48 @@ Implementation plan:
 ### KLIPPER.md
 - Document the retract assist and the relationship between
   `gear_retract_spd`, `GLOBAL_MAX_RATE`, and fast gear-clear retracts.
+
+## Retract Assist Mode Follow-up
+
+User feedback identified a flaw in the one-shot `MV:` assist: the
+tip-forming macro itself performs a long fast retract to the park position,
+before the explicit gear-clear retract. Assisting only the final gear-clear
+move still lets the buffer compress and jam during tip-forming.
+
+Implementation plan:
+
+### firmware/include/controller_shared.h + firmware/src/toolchange.c
+- Add `TASK_RETRACT_ASSIST` so status can distinguish fast buffer-assist
+  motion from finite `TASK_MOVE`.
+- Update task-name reporting.
+
+### firmware/include/sync.h + firmware/src/sync.c
+- Replace `SYNC_HOLD` with `SYNC_RETRACT_ASSIST`; no compatibility alias.
+- Rename the exported predicate from hold semantics to retract-assist
+  semantics.
+- Add `sync_retract_assist_set()` and `sync_retract_assist_enabled()`.
+- During retract-assist, poll the raw buffer state each `buf_sensor_tick`:
+  - `BUF_COMPRESSION`: reverse the active lane immediately at `GLOBAL_MAX_SPS`
+  - `BUF_TENSION`: feed the active lane immediately at `REV_SPS`
+  - `BUF_NEUTRAL` / `BUF_FAULT`: stop only `TASK_RETRACT_ASSIST`
+- Start/adjust this task with no normal lane ramp so the response is limited
+  by sensor debounce/main-loop latency rather than sync tick/ramp timing.
+- Do not interfere with other lane tasks except stopping sync-owned
+  `TASK_FEED` when entering retract-assist.
+
+### firmware/src/protocol.c
+- Remove `HD:<0|1>` and `GET:HOLD`.
+- Add `RA:<0|1>` and `GET:RA`.
+- Change status dump field from `HD` to `RA`.
+- Make `TS:1`, `TC:`, `UL:`, `UM:`, `FL:`, `RL:`, `FD:`, `MV:`, and `ST:`
+  clear retract-assist through the new helper before starting their own motion.
+
+### klipper/flare_mmu.cfg
+- Remove one-shot `MV:-distance:feed` assist variables and call.
+- Keep only `gear_retract_spd`.
+- Enable `RA:1` before `_FLARE_TIP_FORMING`; disable `RA:0` only after the
+  post-tip gear-clear retract and its `M400`, right before `TC:`.
+
+### Documentation and specs
+- Update `KLIPPER.md`, `MANUAL.md`, `BEHAVIOR.md`, and relevant OpenSpec specs
+  to describe `RA:` retract assist rather than `HD:` hold/negative sync.

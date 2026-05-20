@@ -2,13 +2,13 @@
 
 ## Purpose
 Durable contract for the explicit sync controller lifecycle state machine
-(`SYNC_OFF`, `SYNC_ACTIVE`, `SYNC_HOLD`, `SYNC_RELIEF_PAUSE`,
+(`SYNC_OFF`, `SYNC_ACTIVE`, `SYNC_RETRACT_ASSIST`, `SYNC_RELIEF_PAUSE`,
 `SYNC_FAULT_HOLD`) and its non-destructive relief/fault behavior, replacing
 ad-hoc destructive disable.
 ## Requirements
 ### Requirement: Explicit Sync Lifecycle States
 The sync controller SHALL maintain a single explicit state among
-`SYNC_OFF`, `SYNC_ACTIVE`, `SYNC_HOLD`, `SYNC_RELIEF_PAUSE`, and
+`SYNC_OFF`, `SYNC_ACTIVE`, `SYNC_RETRACT_ASSIST`, `SYNC_RELIEF_PAUSE`, and
 `SYNC_FAULT_HOLD`. All sync lifecycle behavior SHALL be derived from this
 state rather than independent ad-hoc flags.
 
@@ -63,21 +63,29 @@ state, and SHALL recover conservatively without host involvement.
   interval
 - **THEN** the controller recovers conservatively without any host command
 
-### Requirement: Host Hold Is Non-Destructive
-The host `HD` HOLD command SHALL place the controller in `SYNC_HOLD`: closed
-loop off, buffer-stabilize toward NEUTRAL permitted, controller state preserved,
-learning paused. It SHALL NOT destructively reset estimator/drift/sigma.
+### Requirement: Retract Assist Is Fast And Non-Destructive
+The host `RA` retract-assist command SHALL place the controller in
+`SYNC_RETRACT_ASSIST`: normal closed-loop sync off, post-print negative sync
+suppressed, controller state preserved, learning paused, and a dedicated
+fast lane task available for printer-side retract windows. It SHALL NOT
+destructively reset estimator/drift/sigma.
 
-#### Scenario: Host requests hold
-- **WHEN** the host sends `HD` (sent only while paused/idle, extruder not
-  pulling)
-- **THEN** the controller enters `SYNC_HOLD`
-- **AND** closed-loop sync stops while buffer-stabilize-to-NEUTRAL stays available
+#### Scenario: Host requests retract assist
+- **WHEN** the host sends `RA:1`
+- **THEN** the controller enters `SYNC_RETRACT_ASSIST`
+- **AND** closed-loop sync and post-print negative sync stop
 - **AND** estimator/drift/sigma state is preserved
 
-#### Scenario: Host clears hold
-- **WHEN** the host clears `HD`
-- **THEN** the controller leaves `SYNC_HOLD` and resumes normal lifecycle
+#### Scenario: Retract assist reacts to buffer sides
+- **WHEN** retract assist is active during printer-side retracts
+- **THEN** `BUF_COMPRESSION` immediately reverses the active lane
+- **AND** `BUF_TENSION` immediately feeds the active lane forward
+- **AND** `BUF_NEUTRAL` stops only the retract-assist lane task
+
+#### Scenario: Host clears retract assist
+- **WHEN** the host sends `RA:0`
+- **THEN** the controller leaves `SYNC_RETRACT_ASSIST` and stops
+  `TASK_RETRACT_ASSIST`
 
 ### Requirement: Full-Bias Invariant Preserved
 The reserve/full-biased buffer target (between NEUTRAL and COMPRESSION) SHALL remain
@@ -98,10 +106,10 @@ buffer below the reserve target by design.
 
 ### Requirement: Creep Suppressed In Non-Active States
 `neutral_creep` SHALL be active only in `SYNC_ACTIVE` and SHALL be suppressed in
-`SYNC_HOLD`, `SYNC_RELIEF_PAUSE`, and `SYNC_FAULT_HOLD`.
+`SYNC_RETRACT_ASSIST`, `SYNC_RELIEF_PAUSE`, and `SYNC_FAULT_HOLD`.
 
 #### Scenario: No creep while paused
-- **WHEN** the controller is in `SYNC_HOLD`, `SYNC_RELIEF_PAUSE`, or
+- **WHEN** the controller is in `SYNC_RETRACT_ASSIST`, `SYNC_RELIEF_PAUSE`, or
   `SYNC_FAULT_HOLD`
 - **THEN** `neutral_creep` produces zero added rate
 
@@ -171,4 +179,3 @@ complete without implying FLARE support.
 - **WHEN** the sensor taxonomy is documented
 - **THEN** TO and CO appear with an explicit "not implemented in FLARE"
   note
-

@@ -117,3 +117,16 @@
 - `_FLARE_CHANGE_LANE` now starts an asynchronous FLARE `MV:-distance:feed`
   reverse move before Klipper's fast gear-clear retract, so the old lane follows
   the printer-side retract proactively instead of waiting for buffer compression.
+
+2026-05-20 retract assist mode correction:
+- Replaced the one-shot `MV:` retract helper with firmware `RA:<0|1>` retract
+  assist mode.
+- Removed `HD:<0|1>` / `GET:HOLD` compatibility because FLARE is still in
+  active development.
+- `RA:1` now owns a fast `TASK_RETRACT_ASSIST` response: `BUF_COMPRESSION`
+  reverses the active lane at `GLOBAL_MAX_RATE`, `BUF_TENSION` feeds forward
+  at `REV_RATE`, and `BUF_NEUTRAL` stops only the assist task.
+- `_FLARE_CHANGE_LANE` keeps `RA:1` active across both the tip-forming park
+  retract and the post-tip gear-clear retract, then sends `RA:0` before `TC:`.
+- Revalidated `klipper/flare_mmu.cfg` Jinja brace balance (`95/95`),
+  `python3 -m py_compile scripts/*.py`, and `ninja -C build_local`.
