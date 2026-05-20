@@ -155,6 +155,12 @@ static void tc_start_unload_lane(lane_t *A, uint32_t now_ms) {
     A->suppress_unloaded_event = true;
 }
 
+static uint32_t tc_cut_watchdog_ms(lane_t *A) {
+    uint32_t configured_ms = (TC_TIMEOUT_CUT_MS > 0) ? (uint32_t)TC_TIMEOUT_CUT_MS : 0u;
+    uint32_t expected_ms = cutter_expected_ms(A, true);
+    return (configured_ms > expected_ms) ? configured_ms : expected_ms;
+}
+
 void tc_tick(uint32_t now_ms) {
     uint32_t age = now_ms - g_tc_ctx.phase_start_ms;
     lane_t *A = lane_ptr(active_lane);
@@ -172,10 +178,14 @@ void tc_tick(uint32_t now_ms) {
 
         case TC_UNLOAD_WAIT_CUT:
             if (!cutter_busy()) {
-                g_tc_ctx.unload_cut_done = true;
-                g_tc_ctx.phase_start_ms = now_ms;
-                g_tc_ctx.state = TC_UNLOAD_REVERSE;
-            } else if (age > (uint32_t)TC_TIMEOUT_CUT_MS) {
+                if (cutter_failed()) {
+                    tc_enter_error("CUT_FAILED");
+                } else {
+                    g_tc_ctx.unload_cut_done = true;
+                    g_tc_ctx.phase_start_ms = now_ms;
+                    g_tc_ctx.state = TC_UNLOAD_REVERSE;
+                }
+            } else if (age > tc_cut_watchdog_ms(A)) {
                 tc_enter_error("CUT_TIMEOUT");
             }
             break;

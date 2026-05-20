@@ -148,6 +148,12 @@ TC_IDLE
   → TC_LOAD_DONE        → EV:TC:DONE:<lane>
 ```
 
+`TC_UNLOAD_WAIT_CUT` waits for the cutter state machine to finish. Cutter feed
+and servo phases use their own `CUT_FEED_MS` / `CUT_SETTLE_MS` guards; the
+outer `TC_CUT_MS` watchdog is extended automatically when the configured cutter
+feed distance, repeat count, and servo settle time require longer than the
+stored value.
+
 ---
 
 ## Sync HOLD — `HD:<0|1>`

@@ -215,3 +215,31 @@ Implementation plan:
 ### BEHAVIOR.md + openspec/specs/toolchange-orchestration/spec.md
 - Update the documented TC flow so toolhead clear is an unload-start gate, and
   target-lane load is only after old-lane unload/cut completion.
+
+## Cutter Timeout Follow-up
+
+New runtime log showed `TC:CUTTING` followed by `CUT:FEEDING`, then
+`TC:ERROR:CUT_TIMEOUT` a few seconds later. This points at the outer TC cut
+watchdog expiring while the cutter state machine is still legitimately inside
+its feed/servo sequence. With larger `CUT_FEED` distances or repeat cuts, the
+fixed default `TC_CUT_MS=5000` can be shorter than the configured cutter cycle.
+
+Implementation plan:
+
+### firmware/src/cutter.c + firmware/include/cutter.h
+- Track whether the last cutter run failed, so TC can distinguish `CUT:DONE`
+  from a cutter-side abort.
+- Add a helper that computes expected cutter duration from runtime settings:
+  open settle, feed distance(s), close/reopen settle per cut, final block
+  settle, and slack.
+- Emit specific cutter error reasons for internal cutter timeouts.
+
+### firmware/src/toolchange.c
+- In `TC_UNLOAD_WAIT_CUT`, treat `TC_CUT_MS` as a floor watchdog by comparing
+  against `max(TC_CUT_MS, expected cutter duration)`.
+- If the cutter has stopped due to failure, enter `TC_ERROR` instead of
+  treating idle cutter as successful cut completion.
+
+### Documentation
+- Clarify `TC_CUT_MS` as an outer watchdog minimum; normal sizing follows
+  cutter settings.

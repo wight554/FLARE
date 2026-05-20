@@ -159,6 +159,7 @@ run_current:
 # cut_amount: 1
 
 # ─── Toolchange Timeouts ─────────────────────────────────────────────────────
+# Outer cut watchdog floor; firmware extends it to configured cutter duration.
 # tc_timeout_cut_ms: 5000
 # tc_timeout_th_ms: 3000
 # tc_timeout_y_ms: 5000

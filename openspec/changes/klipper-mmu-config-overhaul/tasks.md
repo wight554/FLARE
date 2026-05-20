@@ -86,3 +86,9 @@
   printer toolhead and FLARE may start the old-lane unload. Target-lane loading
   now remains gated by old-lane OUT clear, optional cut, post-cut clear, and
   Y-splitter clear.
+
+2026-05-20 cutter timeout correction:
+- Made `TC_CUT_MS` an outer watchdog floor that expands to fit configured
+  cutter feed distance, repeat count, servo settles, and slack.
+- Added cutter failure tracking so toolchange reports cutter-side failures
+  instead of treating an idle cutter as a successful cut.

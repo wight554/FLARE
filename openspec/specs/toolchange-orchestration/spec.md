@@ -21,6 +21,13 @@ The system SHALL orchestrate an automated sequence to swap active lanes without 
 - **AND** does not swap/load the target lane until the old lane finishes OUT
   clear, optional cut, post-cut clear, and hub clear
 
+#### Scenario: Cutter watchdog follows cutter configuration
+- **WHEN** `TC:<lane>` runs the unload cutter sequence
+- **THEN** the toolchange cut watchdog allows at least the configured cutter
+  feed distance, repeat count, servo settle phases, and slack
+- **AND** cutter-side timeout failures enter `TC_ERROR` instead of being
+  treated as successful cut completion
+
 ### Requirement: Manual Cutter Execution
 The host SHALL be able to trigger the exact cutter sequence independently of a full toolchange.
 

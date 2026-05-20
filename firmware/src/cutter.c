@@ -35,6 +35,7 @@ typedef struct {
     int repeats_done;
     int current_sps;
     uint32_t ramp_last_ms;
+    bool failed;
 } cutter_ctx_t;
 
 cutter_ctx_t g_cut;
@@ -70,10 +71,32 @@ bool cutter_busy(void) {
     return g_cut.state != CUT_IDLE;
 }
 
+bool cutter_failed(void) {
+    return g_cut.failed;
+}
+
 static uint32_t cut_feed_ms_for_mm(int mm, int idx) {
     float secs = (float)mm / ((float)CUT_FEED_SPS * MM_PER_STEP[idx]);
     if (secs < 0.0f) secs = 0.0f;
     return (uint32_t)(secs * 1000.0f);
+}
+
+uint32_t cutter_expected_ms(lane_t *L, bool enable_feed) {
+    int repeats = CUT_AMOUNT;
+    if (repeats < 1) repeats = 1;
+
+    uint32_t feed_ms = 0;
+    if (L && enable_feed) {
+        int idx = L->lane_id - 1;
+        if (idx < 0 || idx >= NUM_LANES) idx = 0;
+        feed_ms = cut_feed_ms_for_mm(CUT_FEED_MM, idx);
+        if (repeats > 1) {
+            feed_ms += (uint32_t)(repeats - 1) * cut_feed_ms_for_mm(CUT_LENGTH_MM, idx);
+        }
+    }
+
+    uint32_t settle_ms = (uint32_t)SERVO_SETTLE_MS * (uint32_t)((2 * repeats) + 2);
+    return feed_ms + settle_ms + 1000u;
 }
 
 static void cut_begin_feed(uint32_t now_ms, uint32_t window_ms) {
@@ -103,6 +126,7 @@ void cutter_start(lane_t *L, bool enable_feed, uint32_t now_ms) {
 
     g_cut.lane = L;
     g_cut.repeats_done = 0;
+    g_cut.failed = false;
 
     if (L && enable_feed) {
         int idx = L->lane_id - 1;
@@ -126,10 +150,20 @@ void cutter_start(lane_t *L, bool enable_feed, uint32_t now_ms) {
 
 void cutter_abort(void) {
     if (g_cut.state == CUT_IDLE) return;
+    g_cut.failed = true;
     servo_set_us(PIN_SERVO, SERVO_BLOCK_US);
     if (g_cut.lane) motor_stop(&g_cut.lane->m);
     g_cut.state = CUT_IDLE;
     cmd_event("CUT:ERROR", "ABORTED");
+}
+
+static void cutter_fail(const char *reason) {
+    if (g_cut.state == CUT_IDLE) return;
+    g_cut.failed = true;
+    servo_set_us(PIN_SERVO, SERVO_BLOCK_US);
+    if (g_cut.lane) motor_stop(&g_cut.lane->m);
+    g_cut.state = CUT_IDLE;
+    cmd_event("CUT:ERROR", reason);
 }
 
 void cutter_test_us(uint32_t us) {
@@ -162,7 +196,7 @@ void cutter_tick(uint32_t now_ms) {
 
         case CUT_OPEN_WAIT:
             if (age > (uint32_t)CUT_TIMEOUT_SETTLE_MS) {
-                cutter_abort();
+                cutter_fail("OPEN_TIMEOUT");
             } else if (age >= (uint32_t)SERVO_SETTLE_MS) {
                 g_cut.phase_start_ms = now_ms;
                 g_cut.state = CUT_FEEDING;
@@ -190,7 +224,7 @@ void cutter_tick(uint32_t now_ms) {
                 g_cut.phase_start_ms = now_ms;
                 g_cut.state = CUT_CLOSING;
             } else if (age > (uint32_t)CUT_TIMEOUT_FEED_MS) {
-                cutter_abort();
+                cutter_fail("FEED_TIMEOUT");
             }
             break;
 
@@ -202,7 +236,7 @@ void cutter_tick(uint32_t now_ms) {
 
         case CUT_CLOSE_WAIT:
             if (age > (uint32_t)CUT_TIMEOUT_SETTLE_MS) {
-                cutter_abort();
+                cutter_fail("CLOSE_TIMEOUT");
             } else if (age >= (uint32_t)SERVO_SETTLE_MS) {
                 g_cut.phase_start_ms = now_ms;
                 g_cut.state = CUT_REOPENING;
@@ -217,7 +251,7 @@ void cutter_tick(uint32_t now_ms) {
 
         case CUT_REOPEN_WAIT:
             if (age > (uint32_t)CUT_TIMEOUT_SETTLE_MS) {
-                cutter_abort();
+                cutter_fail("REOPEN_TIMEOUT");
             } else if (age >= (uint32_t)SERVO_SETTLE_MS) {
                 g_cut.state = CUT_REPEAT_CHECK;
             }

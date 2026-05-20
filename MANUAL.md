@@ -224,6 +224,7 @@ Pre-rename half-travel and size serial tokens are removed; use full-range
 | `CUT_FEED_RATE` | `cut_feed_rate` | Motor speed (mm/min) during cutter feed; ramped from zero — lower if motor stalls | 1500 |
 | `CUT_FEED_MS` | `cut_feed_timeout_ms` | Safety timeout for the cutter motor feed phase. Runtime range: 1000-120000 ms. Raise when long `CUT_FEED` distances would exceed the default. | 30000 |
 | `CUT_SETTLE_MS` | `cut_settle_timeout_ms` | Safety timeout for cutter servo settle phases. Runtime range: 500-10000 ms. Must exceed `SERVO_SETTLE` for normal cutter phases to complete. | 3000 |
+| `TC_CUT_MS` | `tc_timeout_cut_ms` | Outer toolchange cut watchdog. Firmware treats this as a minimum and extends it to fit configured cutter feed/settle duration. | 5000 |
 
 ### Runtime-only Controls
 | Parameter | Description |
