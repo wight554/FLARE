@@ -403,8 +403,8 @@ def main():
         epilog=__doc__,
     )
     parser.add_argument('--port',    help='Serial port (auto-detected if omitted)')
-    parser.add_argument('--timeout', type=float, default=100.0,
-                        help='Timeout for long-running commands (default: 100 s)')
+    parser.add_argument('--timeout', type=float, default=300.0,
+                        help='Timeout for long-running commands (default: 300 s)')
     parser.add_argument('--dump',    action='store_true',
                         help='Read all parameters from device and print as config.ini')
     parser.add_argument('--raw',     action='store_true',
