@@ -190,3 +190,8 @@
 - Pinned `_FLARE_VARS` defaults from printer testing:
   `dist_sensor_to_extruder=27.0`, `dist_filament_park=30`,
   `dist_extruder_to_meltzone=44.0`, `tip_length_below_cut=3.0`.
+
+2026-05-21 hub-to-extruder speed naming:
+- Replaced `gear_retract_spd` with LH-Stinger-style
+  `speed_hub_to_extruder=50.0` mm/s.
+- Converted gear-clear and final tip-test unload feedrates with `* 60`.

@@ -100,7 +100,8 @@ with an ignore-buffer FLARE `MV:` retract → gear retract (derived) →
 nonblocking `TC:` → toolhead-sensor-gated PICKUP → load hotend.
 Gear retract distance SHALL be computed as
 `dist_filament_park + dist_sensor_to_extruder + 5` with no separate
-variable.
+variable. Gear retract speed SHALL use `_FLARE_VARS.speed_hub_to_extruder`
+converted to Klipper feedrate (`* 60`).
 
 #### Scenario: Full toolchange sequence completes
 - **WHEN** `_FLARE_CHANGE_LANE LANE=2` is called during a print

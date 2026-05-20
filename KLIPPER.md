@@ -150,7 +150,8 @@ tension. The distance is derived from `_FLARE_VARS` as
 `dist_sensor_to_extruder + dist_extruder_to_meltzone +
 dist_meltzone_to_nozzle_tip`. Tune `dist_meltzone_to_nozzle_tip` to your hotend
 geometry; it is 46 mm in the shared example. The later printer-side gear retract
-is not mirrored by another FLARE `MV:`.
+is not mirrored by another FLARE `MV:` and runs at
+`speed_hub_to_extruder * 60` (`50 mm/s` by default, matching LH-Stinger).
 
 > **Temperature management:** `gcode_shell_command` holds the Klipper scheduler
 > while the shell process runs — heaters stay regulated, but no additional G-code
