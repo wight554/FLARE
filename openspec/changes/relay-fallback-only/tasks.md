@@ -121,20 +121,65 @@
     not that it must show `SM:1` at idle.
 
   **Remaining for next agent — print gate:**
-  Run a short vase print and a bimodal cube. During each, poll status:
-  ```bash
-  watch -n 2 "python3 scripts/flare_cmd.py --port /dev/ttyACM0 '?:'"
-  ```
-  Pass criteria (steady-state, startup excluded):
-  - `BUF` cycles through NEUTRAL/TENSION/COMPRESSION, not stuck on one
-  - `BP` stays off the ±12.5 mm physical wall (roughly `|BP| < 10`)
-  - No repeated `TENSION_RISK_HIGH` events
-  - `RDE` is NOT present anywhere in the output (belt-and-suspenders)
-  Capture a CSV with the live tuner for the record:
+  Capture CSVs during a vase print and a bimodal cube:
   ```bash
   python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --machine-id "$MACHINE_ID" --csv-out ~/vase-fallback-smoke.csv
   python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --machine-id "$MACHINE_ID" --csv-out ~/cube-fallback-smoke.csv
   ```
+  Then analyze both with this inline script (same one used for K2 A/B
+  vase captures; auto-isolates steady-state body):
+  ```bash
+  for F in ~/vase-fallback-smoke.csv ~/cube-fallback-smoke.csv; do
+    python3 - "$F" <<'EOF'
+  import csv, sys, os, statistics
+  F = sys.argv[1]
+  if not os.path.exists(F): print(os.path.basename(F), "absent"); sys.exit(0)
+  with open(F) as file: rows = list(csv.DictReader(file))
+  def fl(r, k):
+      try: return float(r.get(k, ""))
+      except: return None
+  allest = [e for e in (fl(r, "EST") for r in rows) if e is not None]
+  if not allest: print(os.path.basename(F), "no EST"); sys.exit(0)
+  p90_idx = min(len(allest) - 1, int(0.9 * len(allest)))
+  thr = 0.70 * sorted(allest)[p90_idx]
+  t0 = fl(rows[0], "wall_ts"); tN = fl(rows[-1], "wall_ts")
+  if t0 is None or tN is None: print(os.path.basename(F), "no wall_ts"); sys.exit(0)
+  start = next((fl(r, "wall_ts") for r in rows if (fl(r, "EST") or 0) >= thr), t0)
+  rows = [r for r in rows if (lambda t: t is not None and t >= start and (tN - t) > 6)(fl(r, "wall_ts"))]
+  N = len(rows)
+  if not N: print(os.path.basename(F), "empty after trim"); sys.exit(0)
+  dur = fl(rows[-1], "wall_ts") - fl(rows[0], "wall_ts")
+  zc = {}
+  for r in rows: zc[r.get("BUF")] = zc.get(r.get("BUF"), 0) + 1
+  eps = []
+  i = 0
+  while i < N:
+      z = rows[i].get("BUF"); j = i
+      while j < N and rows[j].get("BUF") == z: j += 1
+      a = fl(rows[i], "wall_ts"); b = fl(rows[j-1], "wall_ts")
+      eps.append((z, (b - a) if (a is not None and b is not None) else 0.0)); i = j
+  def dist(Z):
+      d = sorted(e[1] for e in eps if e[0] == Z)
+      if not d: return None
+      p90_idx_d = min(len(d) - 1, int(0.9 * len(d)))
+      return dict(n=len(d), p50=round(statistics.median(d), 2), p90=round(d[p90_idx_d], 2), max=round(max(d), 2), total=round(sum(d), 1))
+  rde = [1 if r.get("RDE") == '1' else 0 for r in rows]
+  best = cur = 0
+  for v in rde: cur = cur + 1 if v else 0; best = max(best, cur)
+  bp = [fl(r, "BP") for r in rows if fl(r, "BP") is not None]
+  print(os.path.basename(F), "body_s", round(dur), "rows", N)
+  print("  RDE1%", round(100 * sum(rde) / N, 1), "| longest RDE=1 span ~", round(dur * best / N, 1) if N else 0, "s  (should be 0 — estimator removed)")
+  print("  TENSION %rows", round(100 * zc.get("TENSION", 0) / N, 1), "ep/min", round(60 * sum(1 for e in eps if e[0] == 'TENSION') / dur, 1) if dur else 0)
+  print("  COMPRESSION", dist("COMPRESSION"))
+  print("  BP min/max", round(min(bp), 2) if bp else None, round(max(bp), 2) if bp else None)
+  EOF
+  done
+  ```
+  Pass criteria (steady-state body, startup excluded):
+  - `RDE1%` = 0.0 — estimator removed, no confident path active (PASS = 0, any non-zero = regression)
+  - `TENSION %rows` < ~15 % and `BP max` < 10 mm (off the ±12.5 wall)
+  - Compare against r7 baseline: `TENSION 10.9 %, ep/min 4.4, BPmax 5.1` (bimodal cube)
+  Paste the script output here.
 - [x] 6.3 `openspec validate relay-fallback-only --type change
   --strict` green. Commit + push to main. Update memory
   `relay-confident-estimator-bimodal-bangbang` (REMOVE executed).
