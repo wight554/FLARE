@@ -156,3 +156,9 @@
   post-TC hotend loading.
 - Revalidated `klipper/flare_mmu.cfg` Jinja brace balance (`98/98`),
   `python3 -m py_compile scripts/*.py`, and `ninja -C build_local`.
+
+2026-05-21 purge-speed unit fix:
+- Renamed shared Klipper purge variable to `purge_speed` and treat it as mm/s.
+- Multiplied pickup, meltzone approach, test-load, and purge extrusion
+  feedrates by 60 so Klipper receives mm/min `F` values. This prevents
+  `purge_speed: 30.0` from becoming `F30` / 0.5 mm/s.

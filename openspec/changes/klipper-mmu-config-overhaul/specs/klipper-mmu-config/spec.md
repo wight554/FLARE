@@ -31,6 +31,12 @@ can copy measurements directly.
 - **THEN** a comment in the file warns that `dist_filament_park` MUST be
   less than `dist_extruder_to_meltzone`
 
+#### Scenario: Purge speed is mm/s
+- **WHEN** `_FLARE_VARS.variable_purge_speed` is set to `30.0`
+- **THEN** pickup, meltzone approach, and purge extrusion use Klipper
+  feedrates derived as `purge_speed * 60`, so the effective extrusion speed is
+  30 mm/s rather than F30
+
 ### Requirement: Tip forming macro with cooldown and dip phases
 `_FLARE_TIP_FORMING` SHALL implement the full tip forming sequence
 (post-pause push, cooldown pull, optional secondary moves, optional dip,
@@ -73,7 +79,8 @@ restores fan/G-code state.
 
 #### Scenario: Default plain purge
 - **WHEN** `_FLARE_PURGE PURGE=30` is called with `use_chute: 0`
-- **THEN** it extrudes 30 mm at `_FLARE_VARS.purge_spd` without XY parking
+- **THEN** it extrudes 30 mm at `_FLARE_VARS.purge_speed * 60` without XY
+  parking
 
 #### Scenario: Chute purge enabled
 - **WHEN** `_FLARE_PURGE PURGE=120` is called with `use_chute: 1`
