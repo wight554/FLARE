@@ -132,7 +132,8 @@
   - `RDE` is NOT present anywhere in the output (belt-and-suspenders)
   Capture a CSV with the live tuner for the record:
   ```bash
-  python3 scripts/flare_cmd.py --port /dev/ttyACM0 --csv ~/relay-fallback-smoke.csv
+  python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --machine-id "$MACHINE_ID" --csv-out ~/vase-fallback-smoke.csv
+  python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --machine-id "$MACHINE_ID" --csv-out ~/cube-fallback-smoke.csv
   ```
 - [x] 6.3 `openspec validate relay-fallback-only --type change
   --strict` green. Commit + push to main. Update memory
