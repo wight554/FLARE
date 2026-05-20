@@ -139,10 +139,10 @@ TC_IDLE
   → TC_UNLOAD_REVERSE   (post-cut clear)
   → TC_UNLOAD_WAIT_OUT
   → TC_UNLOAD_WAIT_Y    (wait for Y-splitter to clear, if TC_Y_MS > 0)
-  → TC_UNLOAD_WAIT_TH   (wait for TS:0 from host, if TC_TH_MS > 0)
+  → TC_UNLOAD_WAIT_TH   (wait for TS:0 from host or timeout, if TC_TH_MS > 0)
   → TC_UNLOAD_DONE
   → TC_SWAP             (set active_lane = target)
-  → TC_LOAD_START       (check Y-splitter clear; start TASK_LOAD_FULL)
+  → TC_LOAD_START       (clear toolhead state for new lane; check Y-splitter clear; start TASK_LOAD_FULL)
   → TC_LOAD_WAIT_OUT    (non-stopping checkpoint)
   → TC_LOAD_WAIT_TH     (wait for TASK_LOAD_FULL loaded result; lane task is bounded by `LOAD_MAX`)
   → TC_LOAD_DONE        → EV:TC:DONE:<lane>

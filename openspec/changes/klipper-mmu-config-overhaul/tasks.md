@@ -75,3 +75,8 @@
 - Added `M400` after `G1 E-{gear_retract}` before `TC:{lane}` so firmware
   unload does not begin until Klipper has physically retracted filament from
   the extruder gears.
+
+2026-05-20 firmware TC clear follow-up:
+- Fixed `tc_start()` so `TC:` no longer clears `toolhead_has_filament` at the
+  start of unload. `TC_UNLOAD_WAIT_TH` can now wait for a real `TS:0` event
+  from the toolhead sensor, or for `TC_TH_MS` timeout, before target lane load.

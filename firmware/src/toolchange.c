@@ -38,7 +38,6 @@ void tc_start(int target_lane, uint32_t now_ms) {
     g_tc_ctx.target_lane = target_lane;
     g_tc_ctx.from_lane = active_lane;
     g_tc_ctx.phase_start_ms = now_ms;
-    set_toolhead_filament(false);
     if (target_lane == active_lane) {
         g_tc_ctx.state = TC_LOAD_START;
     } else {
