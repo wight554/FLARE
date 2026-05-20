@@ -10,7 +10,7 @@ integration.
 ## What Changes
 
 - **NEW** `klipper/flare_mmu.cfg` — single-include Klipper config covering:
-  - `[gcode_macro _FLARE_VARS]` variables block (hardware measurements + temps + purge length + purge speed in mm/s + reload flag)
+  - `[gcode_macro _FLARE_VARS]` variables block (hardware measurements + temps + purge length + purge speed + reload flag)
   - `[gcode_macro _FLARE_TIP_FORMING_DEFAULTS]` tuning block (cooldown / dip / park params)
   - `[gcode_macro _FLARE_TIP_FORMING]` — full tip-forming sequence (cooldown, dip, park)
   - `[gcode_macro _FLARE_LOAD_HOTEND]` — 3-stage meltzone approach after TC:

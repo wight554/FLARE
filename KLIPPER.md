@@ -185,9 +185,9 @@ Inside `_FLARE_PURGE`, replace the commented `# _FLARE_PURGE_PARK` hook with
 your own safe park macro or explicit Z/XY moves. The shared example only moves
 X between `park_x` and `brush_left_x` because Y/Z parking is printer-specific.
 
-Keep `purge_len` and `purge_speed` in `_FLARE_VARS` as the normal post-load
+Keep `purge_len` and `purge_spd` in `_FLARE_VARS` as the normal post-load
 flush volume and extrusion speed in mm/s. The macro multiplies by 60 for
-Klipper `F` feedrates, so `purge_speed: 30.0` means 30 mm/s, not F30.
+Klipper `F` feedrates, so `purge_spd: 30.0` means 30 mm/s, not F30.
 `_FLARE_LOAD_HOTEND` calls
 `_FLARE_PURGE PURGE={v.purge_len}` after the three-stage meltzone approach, so
 the purge chute flow is part of `T1` / `T2` toolchanges without adding slicer
