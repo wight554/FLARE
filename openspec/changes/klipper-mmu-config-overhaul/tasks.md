@@ -195,3 +195,9 @@
 - Replaced `gear_retract_spd` with LH-Stinger-style
   `speed_hub_to_extruder=50.0` mm/s.
 - Converted gear-clear and final tip-test unload feedrates with `* 60`.
+
+2026-05-21 tip-forming defaults:
+- Updated `_FLARE_TIP_FORMING_DEFAULTS` from printer testing:
+  `pause_push_speed=10.0`, `cooldown_pull_speed=80.0`,
+  `cooldown_secondary_moves=1`, `dip_melt_gap=2.5`, `dip_pause=3`,
+  `park_speed=140.0`.

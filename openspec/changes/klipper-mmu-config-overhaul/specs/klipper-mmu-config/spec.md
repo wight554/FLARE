@@ -53,13 +53,14 @@ final fast retract to park position) reading parameters from
 - **THEN** macro executes cooldown and park moves, leaves filament at
   `dist_filament_park` from meltzone
 
-#### Scenario: Dip phase skipped when dip_melt_gap is zero
-- **WHEN** `variable_dip_melt_gap: 0.0` in `_FLARE_TIP_FORMING_DEFAULTS`
-- **THEN** dip moves are not executed
+#### Scenario: Dip phase uses tuned defaults
+- **WHEN** `_FLARE_TIP_FORMING` runs with the shared defaults
+- **THEN** it uses `dip_melt_gap=2.5`, `dip_speed=30.0`, and `dip_pause=3`
 
-#### Scenario: Secondary cooldown moves skipped when disabled
-- **WHEN** `variable_cooldown_secondary_moves: 0`
-- **THEN** only the single long pull is executed in the cooldown phase
+#### Scenario: Secondary cooldown moves enabled by default
+- **WHEN** `_FLARE_TIP_FORMING` runs with the shared defaults
+- **THEN** it executes the secondary cooldown moves after the first cooldown
+  pull
 
 ### Requirement: Load hotend macro with 3-stage meltzone approach
 `_FLARE_LOAD_HOTEND` SHALL advance filament from the park position to the
