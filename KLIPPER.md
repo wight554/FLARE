@@ -106,14 +106,17 @@ Copy `klipper/flare_mmu.cfg` into your Klipper config directory and include it:
 ```
 
 The include provides `_FLARE_VARS`, `_FLARE_TIP_FORMING_DEFAULTS`,
-`_FLARE_TIP_FORMING`, `_FLARE_LOAD_HOTEND`, `_FLARE_CHANGE_LANE`, `T1`, `T2`,
-`FLARE_LOAD`, `FLARE_UNLOAD`, `FLARE_CUT`, `FLARE_TEST_TIP_FORMING`, and the
-boot-time `_FLARE_BOOT` delayed gcode that applies `RELOAD_MODE` from
-`_FLARE_VARS`.
+`_FLARE_TIP_FORMING`, `_FLARE_LOAD_HOTEND`, `_FLARE_PURGE`,
+`_FLARE_CHANGE_LANE`, `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`, `FLARE_CUT`,
+`FLARE_TEST_TIP_FORMING`, and the boot-time `_FLARE_BOOT` delayed gcode that
+applies `RELOAD_MODE` from `_FLARE_VARS`.
 
 Tune the distances and temperatures in `_FLARE_VARS`. In particular,
 `dist_filament_park` must stay less than `dist_extruder_to_meltzone`, because
-the hotend load distance is derived from their difference.
+the hotend load distance is derived from their difference. The
+[LH-Stinger Pico MMU toolhead distance calibration guide](https://github.com/lhndo/LH-Stinger/wiki/Pico-MMU#toolhead-distance-calibration)
+uses the same distance variable names, so you can copy those measurements into
+`_FLARE_VARS`.
 
 Keep the tip-forming wiggle section inside `HD:1` / `HD:0` HOLD. Small wiggles
 interact with the buffer sensing span (`BUF_SWITCH_SPAN`, default 10 mm full
@@ -136,24 +139,34 @@ handling around your slicer flow if you want automatic intervention.
 ### Purge chute example
 
 The [LH-Stinger Mini Purge Shute](https://github.com/lhndo/LH-Stinger/tree/main/User_Mods/Other/Mini%20Purge%20Shute%20-%20%40LH)
-is a good reference for a compact passive purge chute with a brush. FLARE does
-not drive Klipper toolhead parking itself; `_FLARE_LOAD_HOTEND` only advances
-and purges filament through the printer extruder after `TC:` completes. Put
-purge-chute positioning and brush moves in Klipper G-code.
+is a good reference for a compact passive purge chute with a brush. FLARE's
+`_FLARE_PURGE` macro includes the compatible implementation: by default it
+performs a plain relative extruder purge; when `use_chute` is enabled it parks
+the toolhead over the chute, splits large purges into smaller blobs, retracts
+between blobs, runs brush wipes, and restores fan/G-code state.
 
-FLARE implementation tips:
+Edit these variables in `_FLARE_PURGE` after installing the chute:
 
-- Keep `purge_len` in `_FLARE_VARS` as the required post-load flush volume.
-- Park over the chute before `_FLARE_LOAD_HOTEND`, or replace the final purge
-  move in `_FLARE_LOAD_HOTEND` with a local `_FLARE_PURGE` helper that moves to
-  your chute, extrudes `PURGE={v.purge_len}`, wipes, and returns.
-- Use `SAVE_GCODE_STATE`, `G90`, and `M83` inside any purge helper so XY moves
-  are absolute while extrusion stays relative.
-- Split large purges into smaller blobs if your chute is narrow; add a small
-  retract between blobs to reduce stringing.
-- If using a cutter, keep the `HD:1` / `HD:0` tip-forming window unchanged and
-  do purge-chute motion after `TC:` returns, when the new filament is already at
-  the toolhead path.
+```ini
+variable_use_chute: 1
+variable_park_x: 0.0          # nozzle center over chute/PTFE tube
+variable_park_y: 0.0          # chute Y position
+variable_park_z_hop: 0.0      # optional relative Z hop before XY park
+variable_brush_left_x: 0.0    # left edge of brush stroke
+variable_brush_speed: 150.0
+variable_brush_cycles: 4
+variable_brush_pause_ms: 1000
+variable_min_purge: 30.0       # chute mode only
+variable_max_blob_size: 80.0   # chute mode only
+variable_fan_speed: -1        # -1 keeps current fan speed; 0-255 overrides
+variable_retract: 0.4
+```
+
+Keep `purge_len` and `purge_spd` in `_FLARE_VARS` as the normal post-load flush
+volume and extrusion feedrate. `_FLARE_LOAD_HOTEND` calls
+`_FLARE_PURGE PURGE={v.purge_len}` after the three-stage meltzone approach, so
+the purge chute flow is part of `T1` / `T2` toolchanges without adding slicer
+commands.
 
 ---
 

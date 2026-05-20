@@ -9,7 +9,8 @@ that users can activate with a single `[include flare_mmu.cfg]` line in
 - **WHEN** user adds `[include flare_mmu.cfg]` to `printer.cfg`
 - **THEN** macros `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`, `FLARE_CUT`,
   `FLARE_TEST_TIP_FORMING`, `_FLARE_CHANGE_LANE`, `_FLARE_TIP_FORMING`,
-  `_FLARE_LOAD_HOTEND` are all available without further configuration
+  `_FLARE_LOAD_HOTEND`, `_FLARE_PURGE` are all available without further
+  configuration
 
 ### Requirement: Variables block with SP-compatible distance names
 `[gcode_macro _FLARE_VARS]` SHALL expose all user-configurable distances
@@ -51,8 +52,8 @@ final fast retract to park position) reading parameters from
 
 ### Requirement: Load hotend macro with 3-stage meltzone approach
 `_FLARE_LOAD_HOTEND` SHALL advance filament from the park position to the
-meltzone in three stages (50% fast / 25% normal / 25% slow) and
-optionally purge.
+meltzone in three stages (50% fast / 25% normal / 25% slow) and call
+`_FLARE_PURGE` when `purge_len` is greater than zero.
 
 #### Scenario: Push distance matches SP formula
 - **WHEN** `_FLARE_LOAD_HOTEND` is called after PICKUP
@@ -62,6 +63,22 @@ optionally purge.
 #### Scenario: Purge skipped when purge_len is zero
 - **WHEN** `variable_purge_len: 0`
 - **THEN** no purge extrusion is performed after meltzone approach
+
+### Requirement: Purge helper supports plain and chute purge
+`_FLARE_PURGE` SHALL own purge extrusion separately from `_FLARE_LOAD_HOTEND`.
+It SHALL support a default plain relative extrusion purge and an optional
+Mini Purge Shute-style mode that parks the toolhead, splits large purges into
+blob cycles, retracts between blobs, brushes, and restores fan/G-code state.
+
+#### Scenario: Default plain purge
+- **WHEN** `_FLARE_PURGE PURGE=30` is called with `use_chute: 0`
+- **THEN** it extrudes 30 mm at `_FLARE_VARS.purge_spd` without XY parking
+
+#### Scenario: Chute purge enabled
+- **WHEN** `_FLARE_PURGE PURGE=120` is called with `use_chute: 1`
+- **THEN** it parks at the configured chute coordinates, breaks the purge into
+  blob cycles no larger than `max_blob_size`, retracts between blobs, performs
+  brush strokes, and restores saved fan/G-code state
 
 ### Requirement: Toolchange macro with derived gear retract
 `_FLARE_CHANGE_LANE` SHALL execute the full toolchange sequence: HD:1 →
