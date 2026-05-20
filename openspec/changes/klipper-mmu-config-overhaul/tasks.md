@@ -36,9 +36,10 @@
 - [x] 7.1 `python3 -m py_compile scripts/flare_mmu.cfg 2>/dev/null || true` — Klipper cfg is not Python; instead manually review `flare_mmu.cfg` for Jinja2 syntax: all `{% %}` blocks balanced, all variable names consistent with `_FLARE_VARS` / `_FLARE_TIP_FORMING_DEFAULTS`.
 - [x] 7.2 Verify `python3 -m py_compile scripts/*.py` still green (no scripts changed, but confirm).
 - [x] 7.3 Confirm `ninja -C build_local` still green (no firmware changed).
-- [ ] 7.4 Commit and push.
+- [x] 7.4 Commit and push.
 
 2026-05-20 validation:
 - `scripts/flare_mmu.cfg` Jinja scan: `{%` count 45, `%}` count 45; `_FLARE_VARS` and `_FLARE_TIP_FORMING_DEFAULTS` references present; `FLARE_PRELOAD`, `FLARE_CUT_BARE`, `FLARE_CUT_TEST`, and `SV:` absent.
 - `python3 -m py_compile scripts/*.py` passed.
 - `ninja -C build_local` passed (`ninja: no work to do.`).
+- Implementation commit pushed: `cd0f07b` (`klipper: add single-include mmu macros`).
