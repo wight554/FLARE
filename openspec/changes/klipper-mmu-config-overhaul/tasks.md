@@ -185,3 +185,8 @@
 - Updated the ignore-buffer MMU retract formula to
   `dist_sensor_to_extruder + dist_extruder_to_meltzone +
   dist_meltzone_to_nozzle_tip`.
+
+2026-05-21 shared distance defaults:
+- Pinned `_FLARE_VARS` defaults from printer testing:
+  `dist_sensor_to_extruder=27.0`, `dist_filament_park=30`,
+  `dist_extruder_to_meltzone=44.0`, `tip_length_below_cut=3.0`.
