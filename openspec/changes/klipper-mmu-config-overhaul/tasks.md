@@ -210,3 +210,10 @@
   for users who need it.
 - Added a `# use your park macro` comment instead of implementing parking.
 - Ported `_SP_HEAT_HOTEND` as `_FLARE_HEAT_HOTEND` and call it before purge.
+
+2026-05-21 reuse toolhead unload in test macro:
+- Refactored `FLARE_TEST_TIP_FORMING` to call `FLARE_UNLOAD_TOOLHEAD` instead of manually calling `_FLARE_TIP_FORMING` and duplicating the gear retract logic.
+- Cleaned up unused `SYNC_RETRACT_DIST` and `SYNC_RETRACT_SPEED` variables from `FLARE_TEST_TIP_FORMING` parameters.
+- Updated `KLIPPER.md` documentation to match the new macro call shape.
+- Verified Jinja2 brace balance (`96/96`), Python script compile check, and local firmware build.
+- Committed and pushed to `main` with commit SHA `0c7d320`.
