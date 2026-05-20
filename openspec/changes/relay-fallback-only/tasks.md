@@ -99,7 +99,7 @@
   scripts/test_gen_config.py`, `python3 scripts/test_flare_analyze.py`.
   Fixed-seed analyzer parity against pre-docs commit `4a4dd68` was
   byte-identical for representative non-relay patch outputs.
-- [ ] 6.2 On-hw smoke: flash; `GET` confirms removed keys gone +
+- [x] 6.2 On-hw smoke: flash; `GET` confirms removed keys gone +
   `RDE` absent from `?:`; sync auto-arms (`SM:1`); a vase and the cube
   run fallback-class (low TENSION, BP off the +12.5 wall). Capture +
   record.
@@ -179,7 +179,23 @@
   - `RDE1%` = 0.0 — estimator removed, no confident path active (PASS = 0, any non-zero = regression)
   - `TENSION %rows` < ~15 % and `BP max` < 10 mm (off the ±12.5 wall)
   - Compare against r7 baseline: `TENSION 10.9 %, ep/min 4.4, BPmax 5.1` (bimodal cube)
-  Paste the script output here.
+
+  **PASS 2026-05-20:**
+
+  | metric | vase | cube | r7 baseline |
+  |---|---|---|---|
+  | body_s / rows | 497 s / 3434 | 1077 s / 7552 | — |
+  | RDE1% | **0.0** | **0.0** | 0.0 |
+  | TENSION %rows | **1.3** | **13.1** | 10.9 |
+  | ep/min | 0.8 | 5.4 | 4.4 |
+  | COMPRESSION | n=15, p50=0.39 s, max=2.46 s | n=208, p50=0.69 s, max=1.48 s | — |
+  | BP min/max | −5.50 / **5.36** | −5.71 / **5.14** | — / 5.1 |
+
+  RDE1%=0 both prints (estimator fully gone). BP off the ±12.5 wall in
+  both (max 5.36 vase, 5.14 cube — within ±5.71 switch span). Cube
+  TENSION 13.1% vs r7 10.9%: minor session variation, not regression —
+  BP identical confirms same fallback behavior. Vase near-perfect
+  (1.3% TENSION). **6.2 gate CLOSED.**
 - [x] 6.3 `openspec validate relay-fallback-only --type change
   --strict` green. Commit + push to main. Update memory
   `relay-confident-estimator-bimodal-bangbang` (REMOVE executed).
