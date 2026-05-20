@@ -133,3 +133,28 @@ retract to clear gears → RESPOND to inspect.
 ## Open Questions
 
 None — scope fully decided in exploration phase.
+
+## Implementation Plan
+
+### scripts/flare_mmu.cfg
+- Add a single Klipper include file with `_FLARE_VARS`, `_FLARE_TIP_FORMING_DEFAULTS`,
+  `_FLARE_BOOT`, `_FLARE_TIP_FORMING`, `_FLARE_LOAD_HOTEND`,
+  `_FLARE_CHANGE_LANE`, `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`,
+  `FLARE_CUT`, and `FLARE_TEST_TIP_FORMING`.
+- Keep all motion distances derived from the SP-compatible variables so users
+  do not tune duplicate values.
+- Risk: Jinja expressions must stay balanced and use only variables from
+  `_FLARE_VARS` / `_FLARE_TIP_FORMING_DEFAULTS`.
+
+### KLIPPER.md
+- Replace inline macro examples with `scripts/flare_mmu.cfg` include guidance
+  and list the provided macros.
+- Collapse the no-physical-toolhead-sensor path into a brief fallback note.
+- Remove sync tuning, telemetry, calibration print, and removed development
+  macro content.
+- Risk: retain serial setup, shell command helper, HD hold rationale,
+  temperature warning, manual wrappers, and troubleshooting table.
+
+### openspec/changes/klipper-mmu-config-overhaul/tasks.md
+- Mark tasks complete immediately after each durable unit lands.
+- Add validation notes after cfg review, Python compile, build, commit, and push.
