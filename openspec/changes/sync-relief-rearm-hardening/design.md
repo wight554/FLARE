@@ -42,11 +42,19 @@ ONLY exit: buffer physically reaches TENSION → sync.c:846 → ACTIVE
 | 9 | low | est update gated prev_dwell > BUF_HYST_MS; marginal (~BUF_HYST) transitions skip the update → staleness | sync.c:779 | rapid near-switch flapping | firmware |
 | 10 | low | expf() (software float, no FPU) at every NEUTRAL↔wall crossing for the drift observer | sync.c:822 | frequent crossings | perf |
 | 11 | low | mixes passed now_ms and global g_now_ms (fast-brake check) → minor timing skew | sync.c:1114 | — | tidy |
+| 12 | med | fast-brake arms only on TENSION→COMPRESSION (`sync.c:1112-1113`); a NEUTRAL→COMPRESSION wall hit — the exact path an item-2 est spike produces — skips the instant brake and ramps down via SYNC_RAMP_DN_SPS (`sync.c:1704`), so the MMU keeps feeding into a full buffer for the ramp duration | sync.c:1112, 1141-1143, 1704 | est spike / over-feed drives NEUTRAL→COMPRESSION with no prior TENSION | firmware |
+| 13 | low | `mmu_sps_dwell_sum` (uint32, `controller_shared.h:123`) accumulates per feed tick (`sync.c:1321`), averaged on the next crossing (`sync.c:744`), reset only on a crossing (`sync.c:854`). A ~12h demand-matched NEUTRAL ride with zero crossings overflows it → corrupt avg → corrupt est at the eventual crossing. Unreachable on a COMPRESSION ride (true-stop reaches a crossing in ~5s); needs a long, perfectly demand-matched NEUTRAL hold | sync.c:1321, 744, 854 | very long no-crossing NEUTRAL steady feed | firmware / N-A |
+
+Items 1–11 are the initial audit; 12–13 were added after independent cross-checks
+(Gemini, GPT-5.5) confirmed the two high items and isolated the NEUTRAL→COMPRESSION
+fast-brake gap (12) and the dwell-sum overflow (13).
 
 ## Checked, NOT issues
 - Mid-band demand estimation correctly absent (no ground truth between crossings).
 - Type-D both-switches → feed 0 + `BS:FAULT`, never FAULT_HOLD (`sync.c:1314`); FAULT_HOLD recovery is type-P only.
 - COMPRESSION→0 does not deadlock: flip-out exempt from the travel guard (`sync.c:560`) + relay_min_flip_mm defaults 0.
+- Same-switch return (TENSION→NEUTRAL→TENSION) skips the estimator update: entry_pos is re-anchored to the switch (`sync.c:775`) so travel=0 (`sync.c:758`, gated at `779`). Correct — travel between same-switch returns is unknowable with no mid-band sensor; est stays *stale, not corrupt*. NEUTRAL feed uses the stale est (`sync.c:1679`); TENSION refill ignores est (`sync.c:1674`). (overlaps item 9)
+- TENSION egress is also gated by the flip guard (the exemption at `sync.c:560` is COMPRESSION-egress-only), but only when `RELAY_MIN_FLIP_MM>0` (default 0 → inert); when enabled, refill feed accrues travel (`sync.c:1172`) and clears it. (= item 6)
 
 ## Decisions (proposed, for the scoped fixes)
 
@@ -59,6 +67,12 @@ ONLY exit: buffer physically reaches TENSION → sync.c:846 → ACTIVE
   tightening the NEUTRAL hold; may be config-only. Decide during apply.
 - **D5 (item 5):** rescale `est` on active-lane change if `MM_PER_STEP` differs;
   no-op for identical lanes.
+- **D6 (item 12):** under type-D (`BUF_SENSOR_TYPE == 0`), arm the fast-brake
+  (instant `sync_current_sps = 0`) on *any* →COMPRESSION entry, not only
+  TENSION→COMPRESSION (`sync.c:1112`) — a 1-line extension of the existing
+  true-stop intent. The item-2 blend (D2) only reduces the trigger; it does not
+  close the NEUTRAL→COMPRESSION ramp gap. Decide at apply whether to scope here
+  or defer.
 
 ## Risks / Trade-offs
 

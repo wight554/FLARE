@@ -20,6 +20,9 @@
   can't pull against a slow active extrusion.
 - [ ] 3.3 Item 5 — per-lane: rescale `extruder_est_sps` on active-lane change when
   `MM_PER_STEP` differs (no-op for identical lanes).
+- [ ] 3.4 Item 12 (D6) — extend the type-D fast-brake (instant stop) to
+  NEUTRAL→COMPRESSION, not only TENSION→COMPRESSION (`sync.c:1112`); or defer with
+  rationale. Pairs with 2.x — the item-2 spike terminates in exactly this path.
 
 ## 4. Low items (notes; fix opportunistically)
 
@@ -27,6 +30,9 @@
 - [ ] 4.2 Optional div-by-zero guard on `MM_PER_STEP` (item 7); MV `g_buf_pos`
   re-anchor (item 8); est-update dwell-gate edge (item 9); `now_ms`/`g_now_ms`
   tidy (item 11). expf perf (item 10) — leave unless profiled.
+- [ ] 4.3 Item 13 — `mmu_sps_dwell_sum` overflow on a multi-hour no-crossing
+  NEUTRAL ride; reset-on-crossing makes it practically unreachable. Leave unless
+  a real long-print log shows it, or add a cheap clamp/decay if cheap.
 
 ## 5. Validation
 

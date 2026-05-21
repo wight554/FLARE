@@ -27,9 +27,10 @@ The two high items:
 - Stop full-overwriting the estimator from a modeled TENSION→COMPRESSION travel;
   blend or rate-cap it.
 - Medium items (steady-feed limit cycle, relieve-vs-active-extrusion gating,
-  per-lane est/g_buf_pos scaling) addressed or explicitly deferred per design.
+  per-lane est/g_buf_pos scaling, and the NEUTRAL→COMPRESSION fast-brake gap
+  surfaced by the cross-check) addressed or explicitly deferred per design.
 - Low items recorded in design as notes (comment staleness, div-guard, MV
-  re-anchor, expf perf) — not necessarily fixed here.
+  re-anchor, expf perf, dwell-sum overflow) — not necessarily fixed here.
 
 ## Capabilities
 
@@ -46,8 +47,9 @@ The two high items:
 ## Impact
 
 - Firmware: `firmware/src/sync.c` — RELIEF_PAUSE exit / re-arm (`846`, `1271`,
-  `1731`), estimator update (`801-802`), and (medium) `buffer_stabilize` gating
-  and per-lane est handling. Gated to `BUF_SENSOR_TYPE == 0`; type-P unchanged.
+  `1731`), estimator update (`801-802`), fast-brake arm (`1112`, medium item 12),
+  and (medium) `buffer_stabilize` gating and per-lane est handling. Gated to
+  `BUF_SENSOR_TYPE == 0`; type-P unchanged.
 - No new tunables intended.
 - Validation: HW replay of relief→high-flow-resume, fast TENSION→COMPRESSION
   disturbance, and a long steady print; `scripts/flare_purge_check.py` regression.
