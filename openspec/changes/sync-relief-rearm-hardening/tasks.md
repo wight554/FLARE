@@ -67,12 +67,36 @@ Pre-flight assert: `BUF_SENSOR_TYPE`=0, `RELAY_MIN_FLIP_MM`=0.
 `SYNC,cannot_refill`, `SYNC,cannot_relieve`, `SYNC,TENSION_DWELL_WARN`,
 `SYNC,FAULT_HOLD`.
 
+### Bench emulation (no real boot / no physical buffer fiddling)
+
+Drive the buffer with `MV` and trigger stabilize over serial — no power cycle.
+Key facts: a plain `MV` forward **auto-stops at COMPRESSION** with
+`EV:FAULT:MOVE_COMPRESSION` (`motion.c:424`) — do **not** add `:i` (it ignores
+the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boot
+(`buffer_stabilize_request`); `BOOT` is BOOTSEL flash mode — not a reboot.
+`MV` disables sync, so clear the lane fault before the next feed if it complains.
+
+- Recipe A — boot-stabilize branch (emulates "power on at COMPRESSION"):
+  `MV:25:600` (forward → stops at COMPRESSION) → `?` confirm `BUF:COMPRESSION` →
+  `BS`. PASS = `EV:BUF_STAB:DONE` reaches NEUTRAL with **no** `EV:SYNC:AUTO_START`.
+  Note: sync stays off here, so no RELIEF_PAUSE → `--mode rearm` is INCONCLUSIVE;
+  judge by events. This exercises the `!g_boot_stabilizing` guard on STABILIZE.
+- Recipe B — RELIEF_PAUSE / idle-relieve branch (the real D1 spurious-rearm risk):
+  needs `sync_auto_started=true`, which only AUTO_START sets — `SM:1` forces it
+  false, so it can't shortcut. With AUTO_MODE on: `MV:-25:600` (reverse → TENSION →
+  `EV:SYNC:AUTO_START`); with no extruder pull the relay creeps the buffer to
+  COMPRESSION → ~5 s (`SYNC_AUTO_STOP_MS`) → `EV:SYNC:RELIEF_PAUSE`; lanes idle →
+  NEG_SYNC relieve auto-fires after `POST_PRINT_STAB_DELAY_MS` → NEUTRAL.
+  PASS = **no** `EV:SYNC:AUTO_START` after the RELIEF_PAUSE
+  (`flare_sync_check.py --log … --mode rearm --idle`).
+
 ### HW maneuvers (ordered safe→risky; fill result + log excerpt under each)
 
-- [ ] 5.2 M1 — boot + idle (D1 boot guard + no spurious re-arm; covers 1.2).
-  Power on with buffer at COMPRESSION; load; sit idle (no extrusion).
-  PASS: boot → NEUTRAL with no early ACTIVE; idle shows `SYNC,RELIEF_PAUSE` then
-  stays paused, motor quiet, **no** `SYNC,AUTO_START`. Result: __
+- [ ] 5.2 M1 — boot guard + no spurious re-arm (D1; covers 1.2). Use the bench
+  recipes above instead of a real boot: Recipe A (`MV`→COMPRESSION → `BS`) for the
+  STABILIZE branch, Recipe B (auto-start → RELIEF_PAUSE → idle relieve) for the
+  idle branch. PASS: stabilize/relieve reach NEUTRAL with **no** `SYNC,AUTO_START`
+  (motor quiet); Recipe B: `--mode rearm --idle` = PASS. Result: __
 - [ ] 5.3 M2 — steady print 10–15 min (D6 × item-3 + D2).
   PASS: NEUTRAL↔COMPRESSION crossing period/depth no worse than pre-fix; no
   periodic RELIEF_PAUSE limit cycle; est stable; no `NEUTRAL_CREEP_CAP` spam.
@@ -85,8 +109,11 @@ Pre-flight assert: `BUF_SENSOR_TYPE`=0, `RELAY_MIN_FLIP_MM`=0.
   PASS: est (dump) does not jump to the rail; next NEUTRAL feed no overshoot
   straight back to COMPRESSION. Result: __
 - [ ] 5.6 M5 — toolchange L1→L2 (D5) — ONLY if lanes differ in `rotation_distance`.
+  `extruder_est_sps` is a single global; sync drives one (active) lane at a time,
+  so the rescale only matters for the rare mixed-`MM_PER_STEP` rig — **literal
+  no-op for identical lanes** (ratio 1.0), skip there.
   PASS: `EV:ACTIVE,n` + est rescales; first post-swap crossings no over/under-feed.
-  Skip (no-op) if identical `MM_PER_STEP`. Result: __
+  Result: __
 - [ ] 5.7 M6 — regression guard. End-of-feed true-stop (no -11 slam) +
   `flare_sync_check.py … --mode both` clean + purge + constant feed good
   (no `compression-overfeed-stop` regression). Result: __
