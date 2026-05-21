@@ -8,7 +8,7 @@
 
 ## 2. Estimator overwrite (high — item 2)
 
-- [ ] 2.1 At `sync.c:801-802`, replace the hard `extruder_est_sps = est_sps`
+- [x] 2.1 At `sync.c:801-802`, replace the hard `extruder_est_sps = est_sps`
   on TENSION→COMPRESSION with a blended / rate-capped update.
 - [ ] 2.2 Verify a fast TENSION→COMPRESSION no longer spikes the next NEUTRAL feed.
 

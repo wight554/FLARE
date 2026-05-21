@@ -796,11 +796,11 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
         float alpha = clamp_f(fabsf(g_buf.arm_vel_mm_s) / estimator_norm_mm_s, EST_ALPHA_MIN, EST_ALPHA_MAX);
 
         /* If the model was way off (e.g. at one end but hit the other), trust the new estimate more. */
-        if (fabsf(travel_mm) > threshold * 1.5f && alpha < 0.5f) {
+        if (BUF_SENSOR_TYPE != 0 && fabsf(travel_mm) > threshold * 1.5f && alpha < 0.5f) {
             alpha = 0.5f;
         }
 
-        if (old == BUF_TENSION && new_state == BUF_COMPRESSION) {
+        if (BUF_SENSOR_TYPE != 0 && old == BUF_TENSION && new_state == BUF_COMPRESSION) {
             extruder_est_sps = est_sps;
         } else {
             extruder_est_sps = alpha * est_sps + (1.0f - alpha) * extruder_est_sps;
