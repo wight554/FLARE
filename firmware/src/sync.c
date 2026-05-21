@@ -706,12 +706,6 @@ void buffer_stabilize_tick(uint32_t now_ms) {
     if (g_buffer_service_mode == BUFFER_SERVICE_NEG_SYNC) {
         if (raw_state == BUF_NEUTRAL) {
             buf_force_stable_state(BUF_NEUTRAL, now_ms);
-            /* Idle full buffer has been relieved to NEUTRAL. Go OFF (not ACTIVE)
-             * so the relay does not immediately re-feed SYNC_MIN into a buffer
-             * the idle extruder is not draining (which would re-fill to
-             * COMPRESSION and oscillate). AUTO_START re-arms on the next TENSION
-             * when the print actually draws filament. */
-            if (g_sync_state == SYNC_RELIEF_PAUSE) sync_set_state(SYNC_OFF);
             if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "DONE");
             boot_stabilize_stop();
             return;
@@ -850,12 +844,6 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     g_sync_cannot_relieve_warned = false;
     
     if (new_state == BUF_TENSION && g_sync_state == SYNC_RELIEF_PAUSE) {
-        /* Resume on real demand (buffer drawn to empty). Resuming on NEUTRAL
-         * instead oscillates while idle: the reverse-relieve service brings the
-         * buffer to NEUTRAL, sync resumes, the relay re-feeds SYNC_MIN with no
-         * extruder draw, the buffer refills to COMPRESSION, and the cycle
-         * repeats. Idle recovery to NEUTRAL is handled by setting sync OFF when
-         * the relieve service completes (see buffer_stabilize_tick). */
         sync_set_state(SYNC_ACTIVE);
     }
     
@@ -1116,20 +1104,7 @@ static void sync_apply_to_active(void) {
             motor_set_dir(&A->m, true);
         }
     } else if (A->task == TASK_FEED) {
-        bool fast_brake_active = sync_fast_brake_until_ms != 0 && (int32_t)(sync_fast_brake_until_ms - g_now_ms) > 0;
-        /* Hold the motor enabled at 0 only while sync is actively controlling.
-         * In RELIEF_PAUSE / OFF the lane must fully stop so the controller goes
-         * idle and the reverse-relieve buffer service can pull a full buffer
-         * back to NEUTRAL — otherwise a TASK_FEED hold pins it in COMPRESSION. */
-        if (sync_enabled &&
-            (fast_brake_active || (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_COMPRESSION))) {
-            A->current_sps = 0;
-            A->target_sps = 0;
-            motor_set_rate_sps(&A->m, 0);
-            motor_enable(&A->m, true);
-        } else {
-            lane_stop(A);
-        }
+        lane_stop(A);
     }
 }
 
@@ -1699,33 +1674,18 @@ void sync_tick(uint32_t now_ms) {
         if (s == BUF_TENSION) {
             target_sps = (int)((float)relay_base * RELAY_CATCHUP_FRAC);
         } else if (s == BUF_COMPRESSION) {
-            target_sps = 0;
+            target_sps = SYNC_MIN_SPS;
         } else {
             int demand_sps = (int)extruder_est_sps;
             int neutral = (int)((float)demand_sps * RELAY_NEUTRAL_FRAC);
             if (neutral < SYNC_MIN_SPS) neutral = SYNC_MIN_SPS;
             if (neutral > relay_base) neutral = relay_base;
-            /* Approach-taper: ramp feed down toward SYNC_MIN as the virtual
-             * position nears the COMPRESSION switch, so the buffer arrives slow
-             * and does not overshoot the switch on a fast catch-up exit (the
-             * source of the deep -5.9 slam / noise on big purges). Full feed on
-             * the tension side / center (g_buf_pos >= 0), tapering linearly to
-             * SYNC_MIN at the switch (g_buf_pos == -threshold). Geometric, not
-             * demand-based, so it cannot starve normal printing, which holds the
-             * buffer on the tension side (g_buf_pos >= 0, taper = 1.0). */
-            float thr = buf_threshold_mm();
-            if (thr > 0.001f && g_buf_pos < 0.0f) {
-                float taper = clamp_f(1.0f + (g_buf_pos / thr), 0.0f, 1.0f);
-                neutral = SYNC_MIN_SPS + (int)((float)(neutral - SYNC_MIN_SPS) * taper);
-                if (neutral < SYNC_MIN_SPS) neutral = SYNC_MIN_SPS;
-            }
             target_sps = neutral;
         }
     }
 
     int max_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
     if (fast_brake_active) target_sps = 0;
-    else if (BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION) target_sps = 0;
     else target_sps = clamp_i(target_sps, SYNC_MIN_SPS, max_sps);
 
     int ramp_dn_sps = SYNC_RAMP_DN_SPS;
@@ -1752,18 +1712,6 @@ void sync_tick(uint32_t now_ms) {
 
     if (sync_auto_started && !sync_tail_assist_active) {
         if (s == BUF_COMPRESSION) {
-            if (BUF_SENSOR_TYPE == 0) {
-                float threshold = buf_threshold_mm();
-                bool bp_not_recovering = (bp_eff <= -threshold + 0.01f);
-                if (bp_not_recovering && g_sync_relieve_effort_mm >= CONF_RELAY_COMPRESSION_RELIEF_MM) {
-                    sync_relief_pause();
-                    extruder_est_last_update_ms = now_ms;
-                    sync_apply_to_active();
-                    cmd_event("SYNC", "RELIEF_PAUSE");
-                    return;
-                }
-            }
-
             // Start or maintain the continuous physical dwell timer
             if (sync_continuous_compression_since_ms == 0) {
                 sync_continuous_compression_since_ms = now_ms;
