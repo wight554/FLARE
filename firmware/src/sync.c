@@ -1112,7 +1112,12 @@ static void sync_apply_to_active(void) {
         }
     } else if (A->task == TASK_FEED) {
         bool fast_brake_active = sync_fast_brake_until_ms != 0 && (int32_t)(sync_fast_brake_until_ms - g_now_ms) > 0;
-        if (fast_brake_active || (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_COMPRESSION)) {
+        /* Hold the motor enabled at 0 only while sync is actively controlling.
+         * In RELIEF_PAUSE / OFF the lane must fully stop so the controller goes
+         * idle and the reverse-relieve buffer service can pull a full buffer
+         * back to NEUTRAL — otherwise a TASK_FEED hold pins it in COMPRESSION. */
+        if (sync_enabled &&
+            (fast_brake_active || (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_COMPRESSION))) {
             A->current_sps = 0;
             A->target_sps = 0;
             motor_set_rate_sps(&A->m, 0);
