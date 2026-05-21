@@ -38,7 +38,7 @@
 - [x] 3.2 Run `python3 -m py_compile scripts/*.py` if scripts change.
 - [x] 3.3 Review regression impact for preload, unload, toolchange/cutter,
   sync/RELOAD, protocol, and docs.
-- [ ] 3.4 Commit and push implementation with required `Generated-By` footer.
+- [x] 3.4 Commit and push implementation with required `Generated-By` footer.
 
   2026-05-21 validation: `ninja -C build_local` passed.
   `python3 -m py_compile scripts/*.py` passed even though scripts were not
@@ -52,3 +52,6 @@
   `sync_disable()` or `set_toolhead_filament(false)`. RELOAD/toolchange-owned
   states reject inactive eject with `ER:BUSY`. Protocol docs and durable specs
   now describe the new grammar and error constraints.
+
+  2026-05-21 closeout: implementation committed and pushed as `f4b9d58`
+  (`protocol: support lane-aware um`) with required `Generated-By` footer.
