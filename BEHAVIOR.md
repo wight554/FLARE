@@ -227,9 +227,13 @@ instantaneous extruder-rate estimate.
 - A fast `TENSION→COMPRESSION` transition overwrites the estimator directly so a
   sudden demand collapse is reflected immediately.
 
-If the buffer stays in NEUTRAL for > 2 s, the estimator decays gently toward the
-current MMU speed. This keeps the feed-forward term sane during long steady
-sections where no new transitions arrive.
+If the buffer stays in NEUTRAL for > 2 s, the estimator is corrected only when
+the virtual buffer model gives a clear physical clue: a pinned-rail mismatch, or
+in type-D relay mode an in-band slide toward `BUF_COMPRESSION` with no recent
+`BUF_TENSION` refill. That demand-collapse corrector decays the estimator toward
+the relay rate that arrests the slide, so a purge ending mid-band backs feed off
+instead of carrying stale high demand into the compression switch. Stationary
+high-flow NEUTRAL dwell is left alone.
 
 The `EA:` field in the `?:` status response exposes the estimator age in
 milliseconds since the last meaningful update. `ES:` and `EC:` expose the current
@@ -385,7 +389,8 @@ for tuning and regression monitoring.
   dwell once the condition becomes critically unsafe.
 
 On a direct `TENSION→COMPRESSION` transition, firmware arms a short fast-brake
-window. During that window the sync target is forced to 0 before normal
+window. Type-D relay mode also arms that brake on hot `NEUTRAL→COMPRESSION`
+entries. During the window the sync target is forced to 0 before normal
 COMPRESSION low-speed recovery resumes.
 
 The live baseline learner remains ephemeral and up-only. Once the settle,

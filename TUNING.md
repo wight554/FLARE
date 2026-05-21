@@ -151,6 +151,12 @@ two-level relay law:
 - `BUF_NEUTRAL`: use `extruder_est_sps * relay_neutral_frac`, clamped to the
   normal `[SYNC_MIN_RATE, baseline_rate]` fallback range.
 
+During long type-D NEUTRAL dwell, the estimator is normally held steady. It only
+decays when the virtual buffer position is actually sliding toward COMPRESSION
+after the dwell gate and no recent TENSION refill. That automatic correction has
+no tuning knob; it prevents a stale high estimator from carrying a completed
+purge into a compression-wall hit.
+
 NEUTRAL is **always** driven by the extruder-speed fallback — there is no
 confidence gate or duty estimator. The estimator path was removed after
 on-hardware validation showed it causes the buffer to ride the physical empty
