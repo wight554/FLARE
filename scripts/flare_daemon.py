@@ -445,7 +445,7 @@ def klipper_syncer(moonraker_url):
             if isinstance(val, bool):
                 val_str = "1" if val else "0"
             elif isinstance(val, str):
-                val_str = f"'{val}'"
+                val_str = f"'\"{val}\"'"
             elif isinstance(val, float):
                 val_str = f"{val:.3f}"
             else:
