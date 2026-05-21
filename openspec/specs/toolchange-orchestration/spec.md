@@ -33,9 +33,16 @@ The host SHALL be able to trigger the exact cutter sequence independently of a f
 
 #### Scenario: Manual Cut with Feed
 - **WHEN** `CU:` is commanded
+- **AND** both lanes are idle and preloaded (`IN=1`, `OUT=0`)
 - **THEN** the system executes the full cutter state machine (Open -> Feed -> Close -> Open -> Repeat -> Block)
 - **AND** emits `EV:CUT:DONE` upon successful parking
 - **AND** emits `EV:CUT:ERROR` upon failure or timeout
+
+#### Scenario: Manual Cut Rejected Outside Preloaded State
+- **WHEN** `CU:` is commanded
+- **AND** either lane is not idle and preloaded (`IN=1`, `OUT=0`)
+- **THEN** the command returns `ER:NOT_PRELOADED`
+- **AND** the cutter state machine does not start
 
 #### Scenario: Manual Cut without Feed (Bare)
 - **WHEN** `CX:` is commanded
@@ -43,11 +50,10 @@ The host SHALL be able to trigger the exact cutter sequence independently of a f
 - **AND** emits `EV:CUT:DONE` upon successful parking
 - **AND** emits `EV:CUT:ERROR` upon failure or timeout
 
-#### Scenario: Manual unload does not cut a loaded standby lane
-- **WHEN** `UL:` or `UM:` would normally use `UNLOAD_CUT`
-- **AND** the other lane's OUT sensor is already triggered
-- **THEN** the unload sequence skips the cutter phase
-- **AND** continues the requested unload motion without cutting the standby filament
+#### Scenario: Manual unload does not cut
+- **WHEN** `UL:` or `UM:` is commanded
+- **THEN** the unload sequence does not start the cutter phase
+- **AND** continues the requested unload motion without cutting filament
 
 #### Scenario: Static Servo Position Tuning
 - **WHEN** `CP:<us>` is commanded

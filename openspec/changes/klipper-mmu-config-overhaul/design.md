@@ -471,3 +471,11 @@ Implementation plan:
 ### MANUAL.md + BEHAVIOR.md + openspec/specs/toolchange-orchestration/spec.md
 - Document that manual unload skips the cutter when the other lane is already
   OUT-loaded.
+
+2026-05-21 correction:
+- Do not allow `UL:` or `UM:` to auto-trigger the cutter at all. Manual unload
+  commands are unload-only.
+- Keep cutter execution explicit through `CU:`, but gate `CU:` on both lanes
+  being parked in the preloaded state (`IN=1`, `OUT=0`) and idle. This makes
+  `CU:` impossible when either lane is already at OUT, including the
+  `O1=1,O2=1` case.

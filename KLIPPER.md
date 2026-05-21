@@ -183,9 +183,9 @@ commands.
 
 ## Manual load / unload
 
-`UL:` / `UM:` skip the cutter phase when the other lane is already OUT-loaded,
-even if `UNLOAD_CUT=1`, so a parked standby filament is not cut by a manual
-unload.
+`UL:` / `UM:` are unload-only and never run the cutter. Use `CU:` for an
+explicit cutter cycle; firmware only accepts `CU:` when both lanes are idle and
+preloaded (`IN=1`, `OUT=0`).
 
 ```ini
 [gcode_macro FLARE_LOAD]

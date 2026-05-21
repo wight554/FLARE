@@ -226,9 +226,10 @@
 - Committed and pushed to `main` with commit SHA `fc1fee5`.
 
 2026-05-21 manual unload cutter guard:
-- Added a manual unload guard so `UL:` / `UM:` only use `UNLOAD_CUT` when the
-  other lane's OUT sensor is clear. If both lanes are OUT-loaded, the active
-  lane unloads without running the cutter.
+- Removed automatic cutter use from manual `UL:` / `UM:` paths entirely.
+- Gated explicit `CU:` so it only starts when both lanes are idle and
+  preloaded (`IN=1`, `OUT=0`); otherwise it returns `ER:NOT_PRELOADED`.
 - Updated `MANUAL.md`, `BEHAVIOR.md`, `KLIPPER.md`, and the toolchange
-  orchestration spec to document the standby-lane cutter guard.
+  orchestration spec to document manual unload as unload-only and `CU:` as
+  preloaded-only.
 - Verified local firmware build with `ninja -C build_local`.
