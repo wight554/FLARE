@@ -109,12 +109,16 @@ converted to Klipper feedrate (`* 60`).
 - **WHEN** `_FLARE_CHANGE_LANE LANE=2` is called during a print
 - **THEN** tip forming runs a derived `MV:-...:I` old-lane retract before the
   final park move, gear retract clears the sensor, `TC:2` is started, and the
-  delayed toolhead-sensor gate performs PICKUP (`dist_sensor_to_extruder *
-  1.2`) plus `_FLARE_LOAD_HOTEND` when filament is detected again
+  delayed toolhead-sensor gate waits 2 seconds after filament is detected again
+  before performing Stage 1 `MV:{dist_sensor_to_synced_move}:...:I`, Stage 2
+  `G1 E{load_park_dist}`, and `_FLARE_LOAD_HOTEND`
+- **AND** `load_park_dist` is derived as
+  `(dist_filament_park + dist_sensor_to_synced_move) * 1.1`
 
-#### Scenario: PICKUP is zero when sensor_to_extruder is zero
-- **WHEN** `variable_dist_sensor_to_extruder: 0` (TS_BUF_MS fallback)
-- **THEN** PICKUP move distance is 0 (no extrusion)
+#### Scenario: Stage 1 pickup follows sensor-to-synced distance
+- **WHEN** `variable_dist_sensor_to_synced_move` is tuned
+- **THEN** Stage 1 uses that exact distance for the MMU-only approach move
+- **AND** Stage 2 includes that distance in `load_park_dist`
 
 ### Requirement: Boot delayed_gcode sets RELOAD_MODE transiently
 `[delayed_gcode _FLARE_BOOT]` SHALL send `SET:RELOAD_MODE:{enable_reload}`

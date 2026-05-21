@@ -496,3 +496,23 @@ Implementation plan:
 ### KLIPPER.md + openspec/specs/klipper-integration/spec.md
 - Document `MV:` as an accepted-OK command, same scheduling shape as `TC:`,
   so Klipper can continue to the coordinated `G1 E...` retract immediately.
+
+## Post-TC Load Park Distance Follow-up
+
+Printer testing showed `_FLARE_POST_TC_LOAD` starts as soon as the toolhead
+sensor reports filament, but the MMU still needs time to reach the gears before
+the paired Klipper `G1 E...` grab. The park distance variable name also should
+describe intent instead of sync mechanics.
+
+Implementation plan:
+
+### klipper/flare_mmu.cfg
+- Rename local `sync_dist` to `load_park_dist`.
+- Derive `load_park_dist` as `(dist_filament_park + dist_sensor_to_synced_move)
+  * 1.1`.
+- Change `_FLARE_TC_POLL` so sensor detection sets `pending=2` and schedules a
+  2 second delayed `_FLARE_POST_TC_LOAD_DELAY`, allowing the MMU approach time
+  before `_FLARE_POST_TC_LOAD` starts the Stage 1/Stage 2 moves.
+
+### KLIPPER.md + openspec/specs/klipper-integration/spec.md
+- Document the 2 second post-sensor delay and the new `load_park_dist` formula.

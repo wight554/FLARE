@@ -240,3 +240,13 @@
   `EV:FAULT:*` asynchronously.
 - Updated `KLIPPER.md` and the Klipper integration spec so `MV:` is documented
   as an accepted-OK command that can overlap printer-side retract moves.
+
+2026-05-21 post-TC load delay and park distance:
+- Renamed `_FLARE_POST_TC_LOAD` local `sync_dist` to `load_park_dist`.
+- Changed the Stage 2 load/park distance formula to
+  `(dist_filament_park + dist_sensor_to_synced_move) * 1.1`.
+- Added `_FLARE_POST_TC_LOAD_DELAY`: after the toolhead sensor reports insert
+  while TC is pending, the macro waits 2 seconds before starting
+  `_FLARE_POST_TC_LOAD` so the MMU has time to reach the gears.
+- Updated `KLIPPER.md` and the Klipper integration spec to document the delay
+  and new distance formula.
