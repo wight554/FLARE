@@ -1705,6 +1705,20 @@ void sync_tick(uint32_t now_ms) {
             int neutral = (int)((float)demand_sps * RELAY_NEUTRAL_FRAC);
             if (neutral < SYNC_MIN_SPS) neutral = SYNC_MIN_SPS;
             if (neutral > relay_base) neutral = relay_base;
+            /* Approach-taper: ramp feed down toward SYNC_MIN as the virtual
+             * position nears the COMPRESSION switch, so the buffer arrives slow
+             * and does not overshoot the switch on a fast catch-up exit (the
+             * source of the deep -5.9 slam / noise on big purges). Full feed on
+             * the tension side / center (g_buf_pos >= 0), tapering linearly to
+             * SYNC_MIN at the switch (g_buf_pos == -threshold). Geometric, not
+             * demand-based, so it cannot starve normal printing, which holds the
+             * buffer on the tension side (g_buf_pos >= 0, taper = 1.0). */
+            float thr = buf_threshold_mm();
+            if (thr > 0.001f && g_buf_pos < 0.0f) {
+                float taper = clamp_f(1.0f + (g_buf_pos / thr), 0.0f, 1.0f);
+                neutral = SYNC_MIN_SPS + (int)((float)(neutral - SYNC_MIN_SPS) * taper);
+                if (neutral < SYNC_MIN_SPS) neutral = SYNC_MIN_SPS;
+            }
             target_sps = neutral;
         }
     }
