@@ -843,7 +843,14 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     g_sync_cannot_refill_warned = false;
     g_sync_cannot_relieve_warned = false;
     
-    if (new_state == BUF_TENSION && g_sync_state == SYNC_RELIEF_PAUSE) {
+    if (g_sync_state == SYNC_RELIEF_PAUSE &&
+        (new_state == BUF_TENSION || new_state == BUF_NEUTRAL)) {
+        /* Resume the instant the buffer leaves the full wall. Requiring TENSION
+         * (a full drain to empty) deadlocks the type-D COMPRESSION true-stop:
+         * with feed = 0 a full buffer can only reach TENSION via extruder draw,
+         * so an idle purge pause leaves it stuck in COMPRESSION and a resuming
+         * print over-drains before sync re-arms. NEUTRAL means there is room
+         * again, so resume normal relay control there. */
         sync_set_state(SYNC_ACTIVE);
     }
     
