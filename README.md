@@ -57,9 +57,9 @@ panels, and KlipperScreen support.
 FLARE was developed for a narrower goal: allow a dual-lane ERB v2.0 controller
 to own the reload/MMU state machine in firmware. Klipper can still command the
 controller, but the normal integration surface is a small USB serial protocol
-(`T:`, `TC:`, `LO:`, `UL:`, `SET:`, `GET:`, `?:`). This keeps host integration
-simple and avoids routing every lane decision through Klipper macros or API
-callbacks.
+(`T:`, `TC:`, `LO:`, `UL:`, `UM:1`, `SET:`, `GET:`, `?:`). This keeps host
+integration simple and avoids routing every lane decision through Klipper macros
+or API callbacks.
 
 The main reason to use FLARE instead of Happy Hare is autonomous RELOAD. Two
 spools can be treated as a redundant paired supply, and the controller can

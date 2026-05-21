@@ -68,7 +68,7 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `FL:` | Manual| **Full Load** — runs forward until `TS:1`, `TS_BUF_MS`, or sane buffer geometry reports loaded. Limit: `LOAD_MAX`. |
 | `RL:` | Manual| **Reload Load** — manually triggers RELOAD sync. Pushes active lane to approach and follow a disconnected tail. |
 | `UL:` | Both  | **Unload (Extruder)** — reverse until OUT sensor clears. Manual unload never runs the cutter. Limit: `UNLOAD_MAX`. |
-| `UM:` | Both  | **Unload (MMU)** — reverse until IN sensor clears. If OUT or Y is occupied at entry, it first runs a non-cut clear/retract leg. Manual unload never runs the cutter. Limit: `UNLOAD_MAX`. |
+| `UM[:lane]` | Both  | **Unload (MMU)** — reverse until IN sensor clears. `UM` / `UM:` unload the active lane. `UM:1` / `UM:2` target a specific lane; inactive targets must be idle and preloaded (`IN=1`, `OUT=0`). Manual unload never runs the cutter. Limit: `UNLOAD_MAX`. |
 | `TC:n` | Manual| **Toolchange** — If `TH:1` is latched, wait for `TS:0`/`TC_TH_MS`, then unload active lane, cut if enabled, and load lane `n`. |
 | `MV:mm:F[:D][:I]`| Both | **Exact Move** — move `abs(mm)` at `F` mm/min. Direction from sign of `mm` or optional `D` (`F`/`R`/`B`, `+`/`-`). Optional `I` ignores buffer compression/tension guards for this finite move. Disables sync. |
 | `FD:` | Both  | **Continuous Feed** — runs forward until `ST:`. |

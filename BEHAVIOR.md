@@ -113,14 +113,20 @@ OUT is already clear.
 If the printer blocks retraction and the buffer stays in `BUF_TENSION`, `UL:`
 stops with `EV:UNLOAD_BLOCKED` after `UNLOAD_TENSION_BLOCK_MS`.
 
-### `UM:` — Unload from MMU
+### `UM[:lane]` — Unload from MMU
 
-Runs reverse at `REV_RATE` until IN clears. If OUT is present at entry, `UM:`
-first runs the non-cut `UL:` clear leg, then continues reverse until IN clears.
-If OUT is already clear at entry, it does not run a cutter phase; if the
-Y-splitter is still present, it performs the non-cut clear/retract leg before
-continuing to IN clear.
-Use this when the filament tip is between IN and OUT (pre-loaded state).
+`UM` and `UM:` run on the active lane. They reverse at `REV_RATE` until IN
+clears. If OUT is present at entry, the command first runs the non-cut `UL:`
+clear leg, then continues reverse until IN clears. If OUT is already clear at
+entry, it does not run a cutter phase; if the Y-splitter is still present, it
+performs the non-cut clear/retract leg before continuing to IN clear.
+
+`UM:1` and `UM:2` target an explicit lane. If the target is the active lane,
+behavior matches `UM:`. If the target is inactive, it is treated as a standby
+preload eject: the lane must be idle with `IN=1` and `OUT=0`, and the command
+retracts only until that lane's IN clears. Inactive eject does not change the
+active lane, clear toolhead filament state, disable active-lane sync, inspect
+the shared Y-splitter, or run the cutter.
 
 ---
 
@@ -169,8 +175,9 @@ longer uses this gate for tip forming; it uses a finite
 `MV:-distance:feed:I` move to pull the old lane clear while ignoring buffer
 state during that exact move.
 
-`TS:1`, `TC:`, `UL:`, `UM:`, and other explicit lane-motion commands also clear
-retract assist before starting their own motion.
+`TS:1`, `TC:`, `UL:`, active-lane `UM`, and other explicit active-path motion
+commands also clear retract assist before starting their own motion. Inactive
+standby `UM:1` / `UM:2` eject does not touch retract assist.
 
 ---
 
@@ -522,7 +529,7 @@ load completion and RELOAD handover, but it is not the main sync controller.
 | Event | Sync state |
 |-------|-----------|
 | `BUF_TENSION` while sync is off | enabled and bootstrapped |
-| `UL:`, `UM:`, or `TC:` unload starts | disabled |
+| `UL:`, active-lane `UM`, or `TC:` unload starts | disabled |
 | tail-assist `BUF_COMPRESSION` for `SYNC_AUTO_STOP_MS` | disabled and estimator reset |
 | normal-sync `BUF_COMPRESSION` at compression-floor speed for `SYNC_AUTO_STOP_MS` | disabled and estimator reset |
 | `ST:` command | disabled |

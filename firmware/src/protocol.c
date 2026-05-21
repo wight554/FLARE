@@ -258,6 +258,19 @@ static lane_t* get_active_lane_and_clear_error(void) {
     return A;
 }
 
+static bool parse_optional_lane_payload(const char *p, int *lane_out, bool *explicit_lane) {
+    *explicit_lane = false;
+    *lane_out = active_lane;
+
+    if (!p || p[0] == '\0') return true;
+    if ((p[0] == '1' || p[0] == '2') && p[1] == '\0') {
+        *explicit_lane = true;
+        *lane_out = p[0] - '0';
+        return true;
+    }
+    return false;
+}
+
 static void start_manual_unload_lane(lane_t *A, bool suppress_event, uint32_t now_ms) {
     A->unload_to_in = false;
     A->unload_buf_recover_done = true;
@@ -361,20 +374,36 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         start_manual_unload_lane(A, false, now_ms);
         cmd_reply("OK", NULL);
     } else if (!strcmp(cmd, "UM")) {
-        lane_t *A = get_active_lane_and_clear_error();
-        if (!A) return;
-        if (!lane_in_present(A)) { cmd_reply("ER", "NOT_LOADED"); return; }
-        sync_retract_assist_set(false);
-        sync_set_state(SYNC_OFF);
-        sync_disable(false);
-        set_toolhead_filament(false);
-        bool out_present_at_entry = lane_out_present(A);
-        if (out_present_at_entry || on_al(&g_y_split)) {
-            start_manual_unload_lane(A, true, now_ms);
-            g_manual_unload.lane = A;
-            g_manual_unload.finish_to_in = true;
-            g_manual_unload.state = MANUAL_UNLOAD_WAIT_FIRST_CLEAR;
+        int target_lane = 0;
+        bool explicit_lane = false;
+        if (!parse_optional_lane_payload(p, &target_lane, &explicit_lane)) {
+            cmd_reply("ER", "ARG");
+            return;
+        }
+
+        bool active_target = !explicit_lane || target_lane == active_lane;
+        lane_t *A = active_target ? get_active_lane_and_clear_error() : lane_ptr(target_lane);
+        if (!A) { cmd_reply("ER", "ARG"); return; }
+
+        if (active_target) {
+            if (!lane_in_present(A)) { cmd_reply("ER", "NOT_LOADED"); return; }
+            sync_retract_assist_set(false);
+            sync_set_state(SYNC_OFF);
+            sync_disable(false);
+            set_toolhead_filament(false);
+            bool out_present_at_entry = lane_out_present(A);
+            if (out_present_at_entry || on_al(&g_y_split)) {
+                start_manual_unload_lane(A, true, now_ms);
+                g_manual_unload.lane = A;
+                g_manual_unload.finish_to_in = true;
+                g_manual_unload.state = MANUAL_UNLOAD_WAIT_FIRST_CLEAR;
+            } else {
+                start_manual_unload_to_in(A, now_ms);
+            }
         } else {
+            if (g_tc_ctx.state != TC_IDLE || A->task != TASK_IDLE) { cmd_reply("ER", "BUSY"); return; }
+            if (!lane_in_present(A)) { cmd_reply("ER", "NOT_LOADED"); return; }
+            if (lane_out_present(A)) { cmd_reply("ER", "NOT_PRELOADED"); return; }
             start_manual_unload_to_in(A, now_ms);
         }
         cmd_reply("OK", NULL);

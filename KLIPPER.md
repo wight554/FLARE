@@ -186,7 +186,9 @@ commands.
 
 `UL:` / `UM:` are unload-only and never run the cutter. Use `CU:` for an
 explicit cutter cycle; firmware only accepts `CU:` when both lanes are idle and
-preloaded (`IN=1`, `OUT=0`).
+preloaded (`IN=1`, `OUT=0`). `UM:1` / `UM:2` can eject a specific inactive
+standby lane only when that lane is idle and preloaded (`IN=1`, `OUT=0`);
+active lane selection, sync state, and toolhead filament state are preserved.
 
 ```ini
 [gcode_macro FLARE_LOAD]

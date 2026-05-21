@@ -110,6 +110,11 @@ No settings or persistence changes. Protocol grammar and docs change only.
 
 ## Implementation Plan
 
+2026-05-21 implementation note: `lane-aware-um` initially had proposal,
+design, and tasks but no OpenSpec spec delta. Add a
+`toolchange-orchestration` delta before code so the durable lane-aware manual
+unload contract is validateable during implementation.
+
 ### `firmware/src/protocol.c`
 
 - Add a small helper to resolve optional lane payload for `UM`.
