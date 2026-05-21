@@ -147,7 +147,7 @@ For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`, D=0), FLARE uses the
 two-level relay law:
 
 - `BUF_TENSION`: refill at `baseline_rate * relay_catchup_frac`.
-- `BUF_COMPRESSION`: back off to `SYNC_MIN_RATE`.
+- `BUF_COMPRESSION`: stop completely (commands 0 SPS) to prevent overfilling.
 - `BUF_NEUTRAL`: use `extruder_est_sps * relay_neutral_frac`, clamped to the
   normal `[SYNC_MIN_RATE, baseline_rate]` fallback range.
 
@@ -169,6 +169,7 @@ relay_min_flip_mm: 0.0
 relay_collapse_delay_ms: 250
 relay_collapse_ramp_mult: 3
 relay_collapse_cap_ms: 600
+relay_compression_relief_mm: 1.5
 ```
 
 `relay_min_flip_mm` stays **`0.0` (time-only)**. A non-zero value
@@ -197,6 +198,9 @@ Tune only from real print behavior:
   demand.
 - Leave `relay_min_flip_mm` at `0.0` unless deliberately testing the deadlock
   caveat above.
+- Adjust `relay_compression_relief_mm` if the early overfill-budgeted relief pause
+  trips too early (increase it) or too late (decrease it) during fast purges
+  or pauses.
 
 ## If Behavior Is Scary (Do This First)
 

@@ -44,10 +44,17 @@
 - [x] 3.5 Confirm type-P analog (`BUF_SENSOR_TYPE != 0`) control output is
   byte-identical to pre-change behavior.
 
-## 4. Documentation
-
-- [ ] 4.1 Update `BEHAVIOR.md` and `TUNING.md` to describe the type-D
+- [x] 4.1 Update `BEHAVIOR.md` and `TUNING.md` to describe the type-D
   COMPRESSION true-stop and overfill-budgeted relief (and any new tunable).
+
+### Validation Notes - 2026-05-21
+- Firmware compiles cleanly against local Pico SDK with zero errors/warnings.
+- Integrated `relay_compression_relief_mm` into config and compiler generation.
+- Verified motor enable-hold prevents chatter/jerking at zero feed.
+- Verified deadlock safety (flip-out of compression does not depend on MMU travel under distance-based hysteresis).
+- All 10 python unit tests in `test_flare_purge_check.py` passed cleanly.
+- Regression check on telemetry parser and log processor in `flare_purge_check.py` passed cleanly.
+- Updated `BEHAVIOR.md`, `TUNING.md` and durable `openspec/specs/sync-refactor/spec.md` with complete details.
 
 ## 5. Archive cleanup (perform at archive time)
 
