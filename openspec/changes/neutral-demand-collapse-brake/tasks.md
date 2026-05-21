@@ -66,3 +66,11 @@
   2026-05-21 validation: no new tunable introduced. Updated `BEHAVIOR.md`,
   `TUNING.md`, and the change proposal/spec/design notes to describe the
   automatic type-D-only demand-collapse correction and hot fast-brake behavior.
+
+## 5. Archive cleanup (perform at archive time)
+
+- [ ] 5.1 After A/B/C are signed off on hardware (tasks 3.2/3.3), delete the
+  temporary validation tooling created for this change:
+  `scripts/flare_purge_check.py` and `scripts/test_flare_purge_check.py`. These
+  are throwaway validation harnesses scoped to this change only and MUST NOT
+  remain in the tree after archive. Commit the removal alongside the archive.

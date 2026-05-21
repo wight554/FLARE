@@ -59,3 +59,6 @@ history.
   byte-identical.
 - Affects sync control behavior under fast purge / abrupt demand-drop; covered
   by host-side analysis of poll/event telemetry.
+- Temporary tooling: `scripts/flare_purge_check.py` and
+  `scripts/test_flare_purge_check.py` are validation harnesses scoped to this
+  change only and are removed at archive time (see tasks 5.1).
