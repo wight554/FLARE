@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: KLIPPER.md scope is integration-only
 KLIPPER.md SHALL cover: serial port setup, shell command helper,
