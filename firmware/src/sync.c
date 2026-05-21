@@ -706,6 +706,12 @@ void buffer_stabilize_tick(uint32_t now_ms) {
     if (g_buffer_service_mode == BUFFER_SERVICE_NEG_SYNC) {
         if (raw_state == BUF_NEUTRAL) {
             buf_force_stable_state(BUF_NEUTRAL, now_ms);
+            /* Idle full buffer has been relieved to NEUTRAL. Go OFF (not ACTIVE)
+             * so the relay does not immediately re-feed SYNC_MIN into a buffer
+             * the idle extruder is not draining (which would re-fill to
+             * COMPRESSION and oscillate). AUTO_START re-arms on the next TENSION
+             * when the print actually draws filament. */
+            if (g_sync_state == SYNC_RELIEF_PAUSE) sync_set_state(SYNC_OFF);
             if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "DONE");
             boot_stabilize_stop();
             return;
@@ -843,14 +849,13 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     g_sync_cannot_refill_warned = false;
     g_sync_cannot_relieve_warned = false;
     
-    if (g_sync_state == SYNC_RELIEF_PAUSE &&
-        (new_state == BUF_TENSION || new_state == BUF_NEUTRAL)) {
-        /* Resume the instant the buffer leaves the full wall. Requiring TENSION
-         * (a full drain to empty) deadlocks the type-D COMPRESSION true-stop:
-         * with feed = 0 a full buffer can only reach TENSION via extruder draw,
-         * so an idle purge pause leaves it stuck in COMPRESSION and a resuming
-         * print over-drains before sync re-arms. NEUTRAL means there is room
-         * again, so resume normal relay control there. */
+    if (new_state == BUF_TENSION && g_sync_state == SYNC_RELIEF_PAUSE) {
+        /* Resume on real demand (buffer drawn to empty). Resuming on NEUTRAL
+         * instead oscillates while idle: the reverse-relieve service brings the
+         * buffer to NEUTRAL, sync resumes, the relay re-feeds SYNC_MIN with no
+         * extruder draw, the buffer refills to COMPRESSION, and the cycle
+         * repeats. Idle recovery to NEUTRAL is handled by setting sync OFF when
+         * the relieve service completes (see buffer_stabilize_tick). */
         sync_set_state(SYNC_ACTIVE);
     }
     
