@@ -250,7 +250,7 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 class FlareHTTPHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # Suppress spammy log dumps for telemetry requests
-        if "GET /telemetry" in args[0] or "GET /status" in args[0]:
+        if args and isinstance(args[0], str) and ("GET /telemetry" in args[0] or "GET /status" in args[0]):
             return
         super().log_message(format, *args)
 
