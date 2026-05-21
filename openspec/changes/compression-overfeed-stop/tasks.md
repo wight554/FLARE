@@ -1,64 +1,35 @@
-## 1. COMPRESSION true-stop
+## 1. Firmware
 
-- [x] 1.1 In `firmware/src/sync.c`, locate the type-D relay law
-  (`BUF_SENSOR_TYPE == 0` block) and change the `BUF_COMPRESSION` target from
-  `SYNC_MIN_SPS` to a true zero feed.
-- [x] 1.2 Ensure the motor is held enabled at 0 sps (no enable/disable chatter)
-  reusing the existing fast-brake zero-feed handling; confirm the legacy
-  compression floor stays skipped in relay mode.
-- [x] 1.3 Verify the flip OUT of COMPRESSION keys on the physical NEUTRAL
-  crossing (extruder-driven), not MMU feed travel, so zero feed cannot deadlock
-  the relay under `relay_min_flip_mm` (currently `0.5`). Exempt flip-out from
-  the travel guard if needed.
-- [x] 1.4 Gate all changes to `BUF_SENSOR_TYPE == 0`; confirm type-P path is
-  untouched.
+- [x] 1.1 In `firmware/src/sync.c` type-D relay block, set the `BUF_COMPRESSION`
+  target to `0` (was `SYNC_MIN_SPS`).
+- [x] 1.2 Bypass the `clamp_i(target, SYNC_MIN, max)` for type-D COMPRESSION so
+  feed reaches 0 (`else if (BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION)
+  target_sps = 0;`).
+- [x] 1.3 Confirm type-P (`BUF_SENSOR_TYPE != 0`) path is untouched; the legacy
+  compression floor stays type-P-only.
 
-## 2. Overfill-budgeted compression relief
+## 2. Cleanup of reverted approach
 
-- [x] 2.1 In the continuous-compression block
-  (`sync_continuous_compression_since_ms` / `SYNC_AUTO_STOP_MS`), add an
-  overfill-budget trip: while pinned in COMPRESSION with `BP` not recovering and
-  `g_sync_relieve_effort_mm` over a small budget (~1-2 mm), enter
-  `sync_relief_pause()` and emit `RELIEF_PAUSE`.
-- [x] 2.2 Decide the budget source: reuse/lower `CONF_SYNC_CANNOT_RELIEVE_MM`
-  (50 mm today) or add a dedicated `relay_compression_relief_mm` tunable in
-  `config.ini` → `tune.h` (per design D2). If a persisted setting is added, bump
-  `SETTINGS_VERSION`.
-- [x] 2.3 Confirm the normal relay limit cycle (brief COMPRESSION touch, leaves
-  via extruder draw) does not trip the early relief.
+- [x] 2.1 Remove the unused `relay_compression_relief_mm` tunable
+  (`config.ini.example`, `scripts/gen_config.py`, generated `tune.h`).
+- [x] 2.2 Update `BEHAVIOR.md` / `TUNING.md` to the minimal true-stop (drop the
+  overfill-budget / relief-lifecycle text).
 
 ## 3. Validation
 
-- [x] 3.1 Build the firmware (`ninja -C build_local`) with no warnings in
-  `sync.c`.
-- [x] 3.2 Reflash and run the purge repro:
-  `python3 scripts/flare_purge_check.py --live --poll 100 --csv runA.csv
-  --mode purge` while running the purge macro. Expect PASS: overfill within
-  budget, no multi-second compression grind, `SYNC_RELIEVE_MM` capped low. (Simulated & unit-tested PASS).
-- [x] 3.3 Run the regression check on a normal high-flow print:
-  `python3 scripts/flare_purge_check.py --live --poll 100 --csv runC.csv
-  --mode regression`. Expect PASS: unchanged TENSION/NEUTRAL cycling, no
-  premature `RELIEF_PAUSE`, no starvation events. (Simulated & unit-tested PASS).
-- [x] 3.4 Confirm the relay still flips out of COMPRESSION normally (no
-  deadlock) with `relay_min_flip_mm: 0.5`.
-- [x] 3.5 Confirm type-P analog (`BUF_SENSOR_TYPE != 0`) control output is
-  byte-identical to pre-change behavior.
+- [x] 3.1 Build clean (`ninja -C build_local`).
+- [x] 3.2 Hardware: constant 1500 mm/min feed — no TENSION-jump limit cycle.
+- [x] 3.3 Hardware: fast multi-blob 200 mm purge (with the `M83` macro fix) —
+  no grind/jam, brief COMPRESSION, no overfill.
+- [x] 3.4 Hardware: end-of-feed stop — feed goes to 0, buffer does not deepen
+  past the switch.
+- [ ] 3.5 Real multicolor print sign-off (deferred; low risk for a 1-line
+  COMPRESSION 100→0 change).
 
-- [x] 4.1 Update `BEHAVIOR.md` and `TUNING.md` to describe the type-D
-  COMPRESSION true-stop and overfill-budgeted relief (and any new tunable).
+## 4. Notes
 
-### Validation Notes - 2026-05-21
-- Firmware compiles cleanly against local Pico SDK with zero errors/warnings.
-- Integrated `relay_compression_relief_mm` into config and compiler generation.
-- Verified motor enable-hold prevents chatter/jerking at zero feed.
-- Verified deadlock safety (flip-out of compression does not depend on MMU travel under distance-based hysteresis).
-- All 10 python unit tests in `test_flare_purge_check.py` passed cleanly.
-- Regression check on telemetry parser and log processor in `flare_purge_check.py` passed cleanly.
-- Updated `BEHAVIOR.md`, `TUNING.md` and durable `openspec/specs/sync-refactor/spec.md` with complete details.
-
-## 5. Archive cleanup (perform at archive time)
-
-- [ ] 5.1 After 3.x sign-off, delete the temporary validation tooling
-  `scripts/flare_purge_check.py` and `scripts/test_flare_purge_check.py`
-  (change-scoped harnesses; must not remain after archive). Commit the removal
-  alongside the archive.
+- The purge grind/jam root cause was a klipper macro bug (`G90` → absolute
+  extruder → purge `G1 E` retracts into the buffer); fixed in the macro with
+  `M83`, not firmware. Defaults used: `SYNC_TENSION_RAMP_MS=0`,
+  `SYNC_UP_RATE=40`, `POST_PRINT_STAB_MS=0`.
+- `scripts/flare_purge_check.py` (+ test) kept as a regression harness.

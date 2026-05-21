@@ -218,17 +218,10 @@ target = clamp(target, SYNC_MIN_RATE, SYNC_MAX_RATE)
 For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`), FLARE overrides the continuous PI/EKF estimator-driven target with a two-level hysteretic relay control law matched directly to the physical microswitches:
 
 - **`BUF_TENSION` (empty/starved)**: Commands a strong fixed catch-up rate based on the configured baseline rate (`baseline_control_floor_sps() * RELAY_CATCHUP_FRAC`) to ensure rapid buffer refill, completely independent of the velocity estimator.
-- **`BUF_COMPRESSION` (full reserve)**: Commands a **true zero feed** (0 SPS) to prevent overfilling and driver chatter/jerking (holding the motor enabled at 0 SPS). This allows the extruder's draw to pull the buffer back off the compression wall.
+- **`BUF_COMPRESSION` (full reserve)**: Commands a **true zero feed** (0 SPS) instead of `SYNC_MIN_SPS`, so feed stops rather than pushing filament forward into a full buffer (feeding `SYNC_MIN` forward deepened the buffer past the switch for ~5 s at end of feed). The extruder's draw pulls the buffer back off the compression wall; recovery uses the existing relieve / `SYNC_AUTO_STOP_MS` path.
 - **`BUF_NEUTRAL` (neutral zone)**: Dynamically tracks estimated extruder demand (`extruder_est_sps * RELAY_NEUTRAL_FRAC`), clamped to the range `[SYNC_MIN_SPS, baseline_control_floor_sps()]`. This prevents the buffer from slamming either wall during steady consumption.
 
-The physical egress out of `BUF_COMPRESSION` keys directly on the physical `NEUTRAL` crossing (extruder-driven) rather than MMU feed travel, meaning that zero feed in compression will never deadlock the relay under distance-based hysteresis (`relay_min_flip_mm`).
-
-#### Overfill-Budgeted Compression Relief
-
-To prevent continuous grind/pressure build-up during pauses or after fast purges (where the extruder stops drawing), the controller implements an early overfill-budgeted safety check:
-
-- While pinned in `BUF_COMPRESSION` and the virtual position is not recovering (`bp_eff` remaining at or deepening past `-threshold`), if the accumulated relief effort (`g_sync_relieve_effort_mm`) exceeds the configured overfill budget (`relay_compression_relief_mm`, default `1.5` mm), sync immediately enters `RELIEF_PAUSE` and emits `EV:SYNC:RELIEF_PAUSE`.
-- Gated exclusively to `BUF_SENSOR_TYPE == 0`, this replaces the legacy blind `SYNC_AUTO_STOP_MS` (5000 ms) timer with a proactive, distance-checked physical overfill budget. Normal relay limit cycles which touch compression briefly and recover do not trip this early pause as they leave compression before any meaningful relief effort accumulates.
+Zero feed in `BUF_COMPRESSION` does not deadlock the relay: the flip out keys on the physical `NEUTRAL` crossing (extruder draw), and `relay_min_flip_mm` defaults to `0` (time-based hysteresis).
 
 #### Velocity estimator
 

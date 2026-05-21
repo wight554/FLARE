@@ -169,7 +169,6 @@ relay_min_flip_mm: 0.0
 relay_collapse_delay_ms: 250
 relay_collapse_ramp_mult: 3
 relay_collapse_cap_ms: 600
-relay_compression_relief_mm: 1.5
 ```
 
 `relay_min_flip_mm` stays **`0.0` (time-only)**. A non-zero value
@@ -198,9 +197,6 @@ Tune only from real print behavior:
   demand.
 - Leave `relay_min_flip_mm` at `0.0` unless deliberately testing the deadlock
   caveat above.
-- Adjust `relay_compression_relief_mm` if the early overfill-budgeted relief pause
-  trips too early (increase it) or too late (decrease it) during fast purges
-  or pauses.
 
 ## If Behavior Is Scary (Do This First)
 
