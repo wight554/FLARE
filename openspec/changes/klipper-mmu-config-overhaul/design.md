@@ -479,3 +479,20 @@ Implementation plan:
   being parked in the preloaded state (`IN=1`, `OUT=0`) and idle. This makes
   `CU:` impossible when either lane is already at OUT, including the
   `O1=1,O2=1` case.
+
+## Nonblocking MV Host Helper Follow-up
+
+Klipper macro testing showed `flare_cmd.py MV:...` blocks until `EV:MOVE_DONE`.
+That defeats the intended use of `MV:` in `flare_mmu.cfg`, where FLARE should
+start a lane move at the same time Klipper performs the printer-side retract.
+
+Implementation plan:
+
+### scripts/flare_cmd.py
+- Remove `MV` from host-side completion waits. Firmware still emits
+  `EV:MOVE_DONE` / `EV:FAULT:*`, but the helper returns after the initial
+  `OK` for all `MV:` commands.
+
+### KLIPPER.md + openspec/specs/klipper-integration/spec.md
+- Document `MV:` as an accepted-OK command, same scheduling shape as `TC:`,
+  so Klipper can continue to the coordinated `G1 E...` retract immediately.

@@ -233,3 +233,10 @@
   orchestration spec to document manual unload as unload-only and `CU:` as
   preloaded-only.
 - Verified local firmware build with `ninja -C build_local`.
+
+2026-05-21 nonblocking MV host helper:
+- Removed `MV:` from `flare_cmd.py` completion waits so every `MV:` returns
+  after initial firmware `OK`; firmware still emits `EV:MOVE_DONE` /
+  `EV:FAULT:*` asynchronously.
+- Updated `KLIPPER.md` and the Klipper integration spec so `MV:` is documented
+  as an accepted-OK command that can overlap printer-side retract moves.

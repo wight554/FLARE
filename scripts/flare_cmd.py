@@ -6,9 +6,9 @@ SEND MODE (default):
     python3 scripts/flare_cmd.py [--port PORT] [--timeout S] CMD:PAYLOAD [CMD2 ...]
 
     Sends one or more commands in sequence.  Each command waits for OK:/ER:.
-    Long-running commands (FL:, UL:, UM:, RL:, CU:, CX:, MV:) wait for the
-    corresponding completion event. TC: returns after OK so Klipper can run
-    sensor-gated delayed_gcode while firmware toolchange continues.
+    Long-running commands (FL:, UL:, UM:, RL:, CU:, CX:) wait for the
+    corresponding completion event. TC: and MV: return after OK so Klipper can
+    run coordinated work while firmware motion continues.
 
 DUMP MODE:
     python3 scripts/flare_cmd.py [--port PORT] --dump [--raw]
@@ -45,7 +45,6 @@ COMPLETION_EVENTS = {
     'RL': (['EV:RELOAD:LOADED'], ['EV:TC:ERROR']),
     'CU': (['EV:CUT:DONE'], ['EV:CUT:ERROR']),
     'CX': (['EV:CUT:DONE'], ['EV:CUT:ERROR']),
-    'MV': (['EV:MOVE_DONE'], ['EV:FAULT']),
 }
 
 # ---------------------------------------------------------------------------
@@ -257,7 +256,7 @@ def run_send(args):
     ser  = open_port(port)
 
     for raw_cmd in args.cmd:
-        verb   = raw_cmd.split(':')[0].upper()
+        verb = raw_cmd.split(':', 1)[0].upper()
         events = COMPLETION_EVENTS.get(verb)
 
         ser.write(f"{raw_cmd}\n".encode())

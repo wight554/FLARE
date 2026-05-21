@@ -16,9 +16,15 @@ The Klipper host MUST interact with FLARE via single-command CDC serial transact
 
 #### Scenario: Long-Running Completion Waits
 - **WHEN** a Klipper macro calls `flare_cmd.py` with `FL:`, `UL:`, `UM:`,
-  `RL:`, `CU:`, `CX:`, or `MV:`
+  `RL:`, `CU:`, or `CX:`
 - **THEN** the script waits for that command's completion or error event after
   the initial `OK`
+
+#### Scenario: MV Returns After Acceptance
+- **WHEN** a Klipper macro calls `flare_cmd.py MV:...`
+- **THEN** the script returns after the initial firmware `OK`
+- **AND** firmware continues the finite move asynchronously
+- **AND** Klipper may immediately run the coordinated printer-side motion
 
 #### Scenario: TC Returns After Acceptance
 - **WHEN** a Klipper macro calls `flare_cmd.py TC:<lane>`

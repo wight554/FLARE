@@ -36,9 +36,9 @@ sudo usermod -a -G dialout pi   # substitute your username if not 'pi'
 
 `scripts/flare_cmd.py` sends a single FLARE command and blocks until the
 response arrives. Simple commands (SET:, GET:, T:, SM:, TS:, FD:, ST:, TC:,
-…) return on the first `OK:`/`ER:`. Long-running commands (`FL:`, `UL:`,
-`UM:`, `MV:`, `CU:`, `CX:`) wait for their completion event (`EV:LOADED`,
-`EV:UNLOADED`, `EV:MOVE_DONE`, …) or the corresponding error/timeout event.
+MV:, …) return on the first `OK:`/`ER:`. Long-running commands (`FL:`, `UL:`,
+`UM:`, `CU:`, `CX:`) wait for their completion event (`EV:LOADED`,
+`EV:UNLOADED`, `EV:CUT:DONE`, …) or the corresponding error/timeout event.
 Exit code is 0 on success, 1 on error or timeout. All received lines are
 printed so Klipper's `VERBOSE` output shows them in the Mainsail / Fluidd
 console.
@@ -109,7 +109,7 @@ toolhead sensor reports filament detected again while TC is pending. If the
 firmware-side TC reports an error, the sensor gate eventually fails rather than
 starting hotend feed on timeout.
 Keep `gcode_shell_command flare.timeout` high enough for blocking helper calls
-such as `MV:`, `FL:`, `UL:`, and `CU:`. `TC:` itself returns after command
+such as `FL:`, `UL:`, and `CU:`. `TC:` and `MV:` return after command
 acceptance; tune firmware travel/timeouts (`LOAD_MAX`, `UNLOAD_MAX`,
 `TC_TH_MS`, `TC_Y_MS`) for the actual toolchange path.
 
@@ -140,8 +140,8 @@ The [LH-Stinger Pico MMU toolhead distance calibration guide](https://github.com
 
 `FLARE_TEST_TIP_FORMING` follows the LH-Stinger `SP_TEST_MANUAL_TIP_FORMING` flow: it accepts tip-forming override parameters, loads the hotend, simulates a print pause, runs `FLARE_UNLOAD_TOOLHEAD` (which forms the tip via `_FLARE_TIP_FORMING` and retracts past the extruder gears), then retracts the filament further for manual inspection and removal.
 
-Tip forming uses a finite FLARE reverse move before the final park retract:
-`MV:-<derived distance>:<slow feed>:I`. The `I` option tells firmware to ignore buffer state during that exact move, so it can pull the old lane clear of the toolhead gears/bowden exit without reacting to temporary compression or tension. The distance is derived from `_FLARE_VARS` as
+Tip forming starts a finite FLARE reverse move before the final park retract:
+`MV:-<derived distance>:<slow feed>:I`. `flare_cmd.py` returns after firmware accepts `MV:`, so the printer-side retract can run concurrently with the MMU move. The `I` option tells firmware to ignore buffer state during that exact move, so it can pull the old lane clear of the toolhead gears/bowden exit without reacting to temporary compression or tension. The distance is derived from `_FLARE_VARS` as
 `dist_sensor_to_extruder + dist_extruder_to_meltzone +
 dist_meltzone_to_nozzle_tip`. Tune `dist_meltzone_to_nozzle_tip` to your hotend geometry; it is 46 mm in the shared example. The later printer-side gear retract is not mirrored by another FLARE `MV:` and runs at
 `speed_hub_to_extruder * 60` (`50 mm/s` by default, matching LH-Stinger).
