@@ -80,12 +80,14 @@ a backstop, but it also covers any residual ramp-down feed.
 ### D3: `relay_min_flip_mm` interaction (deadlock guard)
 
 Prior history: a non-zero `relay_min_flip_mm` with `COMPRESSION = SYNC_MIN` once
-froze the relay flips. `config.ini` currently has `relay_min_flip_mm: 0.5`. With
-COMPRESSION = 0 the MMU contributes no flip travel, so the flip OUT of
-COMPRESSION must not depend on MMU travel — it should key on the physical
-NEUTRAL switch crossing (extruder-driven), or the flip-out-of-compression must
-be exempt from the min-flip travel guard. Verify the buffer can always leave
-COMPRESSION with zero MMU feed before shipping.
+froze the relay flips. The supported value is `relay_min_flip_mm: 0.0`
+(time-only), per `TUNING.md` — the earlier `0.5` was a stale value in a local
+(gitignored, since-removed) `config.ini`; tuning is done live on the device. At
+`0.0` the flip is time-based and does not depend on MMU travel, so a zero
+COMPRESSION feed cannot deadlock the flip-out. Constraint for this change:
+COMPRESSION = 0 is only safe while `relay_min_flip_mm` stays `0.0`; if a non-zero
+min-flip is ever re-enabled, the flip-out-of-COMPRESSION must be made exempt from
+the travel guard (key on the physical NEUTRAL crossing instead).
 
 ## Risks / Trade-offs
 
@@ -136,8 +138,11 @@ must happen at the switch crossings, which is what this change does.
 
 ## Open Questions
 
-- COMPRESSION = 0 immediately vs a brief `SYNC_MIN` settle then 0 (D1).
-- Exact overfill budget (mm) and whether to reuse `CONF_SYNC_CANNOT_RELIEVE_MM`
-  or add a dedicated `relay_compression_relief_mm` tunable (D2).
-- Whether `relay_min_flip_mm` must be forced to 0 for the flip-out path, or the
-  flip-out can be exempted from the travel guard (D3).
+Resolved in implementation:
+
+- D1: COMPRESSION = 0 immediately (motor held enabled at 0).
+- D2: dedicated `relay_compression_relief_mm` tunable added (default 1.5 mm).
+- D3: relies on `relay_min_flip_mm: 0.0` (time-only, the supported value); a
+  non-zero min-flip would need the flip-out travel-guard exemption.
+
+Remaining: hardware validation (purge A/B + normal-print regression C).

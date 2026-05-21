@@ -1,38 +1,29 @@
 #!/usr/bin/env python3
-"""Tests for flare_purge_check.py — synthetic traces with known verdicts."""
+"""Tests for flare_purge_check.py — synthetic traces with known verdicts.
+
+Validates the compression-overfeed-stop criteria: a purge that reaches
+COMPRESSION must show capped overfill (SYNC_RELIEVE_MM) and a short COMPRESSION
+dwell (CT), not the multi-mm / multi-second grind of the old SYNC_MIN-forward
+behavior.
+"""
 import unittest
 
 import flare_purge_check as fpc
 
 
-def status(buf, bp, est, mm, sm=1):
+def status(buf, bp, est, mm, sm=1, relieve=0.0, ct=0, refill=0.0):
     return (f"OK:LN:2,BUF:{buf},MM:{mm:.1f},BP:{bp:.2f},EST:{est:.1f},"
-            f"RE:0.00,AV:0.00,SM:{sm},ST:1,CT:0")
-
-
-def tension_surge():
-    # EST climbs while pinned at the tension switch (+5).
-    out = []
-    for est in (5, 130, 280, 460, 650, 860, 1071):
-        out.append(status("TENSION", 5.0, est, 1500))
-    return out
-
-
-def neutral_glide(est_series, bp_start=4.2, bp_end=-4.0):
-    n = len(est_series)
-    out = []
-    for k, est in enumerate(est_series):
-        bp = bp_start + (bp_end - bp_start) * k / (n - 1)
-        out.append(status("NEUTRAL", bp, est, 1322))
-    return out
+            f"RE:0.00,AV:0.00,CT:{ct},SM:{sm},ST:1,"
+            f"SYNC_RELIEVE_MM:{relieve:.1f},SYNC_REFILL_MM:{refill:.1f}")
 
 
 class ParseTests(unittest.TestCase):
     def test_parse_status_line(self):
-        f = fpc.parse_status_line(status("NEUTRAL", -1.5, 1071, 1322))
-        self.assertEqual(f["BUF"], "NEUTRAL")
-        self.assertAlmostEqual(float(f["BP"]), -1.5)
-        self.assertAlmostEqual(float(f["EST"]), 1071.0)
+        f = fpc.parse_status_line(status("COMPRESSION", -5.1, 1071, 0,
+                                         relieve=1.4, ct=400))
+        self.assertEqual(f["BUF"], "COMPRESSION")
+        self.assertAlmostEqual(float(f["SYNC_RELIEVE_MM"]), 1.4)
+        self.assertAlmostEqual(float(f["CT"]), 400)
 
     def test_non_status_ignored(self):
         self.assertIsNone(fpc.parse_status_line("EV:BS:TENSION,40.1,5.00"))
@@ -41,41 +32,50 @@ class ParseTests(unittest.TestCase):
     def test_stream_splits_events(self):
         lines = [status("NEUTRAL", 0, 100, 50),
                  "EV:SYNC:RELIEF_PAUSE",
-                 status("COMPRESSION", -5, 100, 50)]
+                 status("COMPRESSION", -5, 0, 0)]
         samples, events = fpc.parse_stream(lines)
         self.assertEqual(len(samples), 2)
         self.assertEqual(len(events), 1)
-        self.assertIn("RELIEF_PAUSE", events[0][1])
 
-    def test_neutral_runs_respect_sm(self):
-        lines = [status("NEUTRAL", 0, 100, 50, sm=1),
-                 status("NEUTRAL", 0, 100, 50, sm=0),  # sync off -> break
-                 status("NEUTRAL", 0, 100, 50, sm=1)]
+    def test_state_runs(self):
+        lines = [status("COMPRESSION", -5, 0, 0),
+                 status("NEUTRAL", 0, 100, 50),
+                 status("COMPRESSION", -5, 0, 0)]
         samples, _ = fpc.parse_stream(lines)
-        runs = fpc.neutral_runs(samples)
-        self.assertEqual(runs, [(0, 0), (2, 2)])
+        self.assertEqual(fpc.state_runs(samples, "COMPRESSION"), [(0, 0), (2, 2)])
 
 
 class PurgeTests(unittest.TestCase):
-    def test_frozen_est_fails(self):
-        # EST stuck at 1071 across the whole glide -> the bug.
-        lines = tension_surge() + neutral_glide([1071] * 8, bp_end=-4.5)
-        samples, events = fpc.parse_stream(lines)
-        verdict, _ = fpc.analyze_purge(samples, events, threshold=5.0, hardwall=12.5)
-        self.assertEqual(verdict, "FAIL")
+    def _purge(self, relieve_series, ct_series, mm_series):
+        # tension surge -> neutral glide -> compression episode
+        lines = [status("TENSION", 5.0, 1300, 1700) for _ in range(3)]
+        lines += [status("NEUTRAL", 4.0 - k, 1345, 1680) for k in range(6)]
+        for rel, ct, mm in zip(relieve_series, ct_series, mm_series):
+            lines.append(status("COMPRESSION", -5.1, 200, mm, relieve=rel, ct=ct))
+        return fpc.parse_stream(lines)
 
-    def test_decaying_est_passes(self):
-        # EST backs off 1071 -> 200 as the buffer slides -> corrector works.
-        est = [1071, 950, 800, 640, 480, 350, 250, 200]
-        lines = tension_surge() + neutral_glide(est, bp_end=-3.0)
-        samples, events = fpc.parse_stream(lines)
-        verdict, _ = fpc.analyze_purge(samples, events, threshold=5.0, hardwall=12.5)
+    def test_capped_overfill_passes(self):
+        # feed drops to ~0, overfill capped at 1.5mm, short dwell -> the fix works
+        rel = [0.4, 0.9, 1.4, 1.5, 1.5]
+        ct = [100, 200, 300, 400, 450]
+        mm = [900, 200, 0, 0, 0]
+        samples, events = self._purge(rel, ct, mm)
+        verdict, _ = fpc.analyze_purge(samples, events, 5.0, 12.5)
         self.assertEqual(verdict, "PASS")
 
-    def test_no_glide_inconclusive(self):
+    def test_overfeed_grind_fails(self):
+        # old behavior: SYNC_MIN keeps feeding, ~8mm over ~5s
+        rel = [2, 4, 6, 8, 10]
+        ct = [1000, 2000, 3000, 4000, 4900]
+        mm = [120, 100, 80, 100, 120]
+        samples, events = self._purge(rel, ct, mm)
+        verdict, _ = fpc.analyze_purge(samples, events, 5.0, 12.5)
+        self.assertEqual(verdict, "FAIL")
+
+    def test_no_compression_inconclusive(self):
         lines = [status("NEUTRAL", 0.0, 50, 60) for _ in range(6)]
         samples, events = fpc.parse_stream(lines)
-        verdict, _ = fpc.analyze_purge(samples, events, threshold=5.0, hardwall=12.5)
+        verdict, _ = fpc.analyze_purge(samples, events, 5.0, 12.5)
         self.assertEqual(verdict, "INCONCLUSIVE")
 
 
@@ -84,27 +84,28 @@ class RegressionTests(unittest.TestCase):
         lines = []
         for _ in range(5):
             lines.append(status("TENSION", 5.0, 600, 1500))
-            lines += [status("NEUTRAL", 0.5, 600, 700) for _ in range(4)]
+            lines += [status("NEUTRAL", 0.5, 600, 700) for _ in range(3)]
+            lines += [status("COMPRESSION", -5.0, 600, 0, relieve=0.3, ct=200)]
         samples, events = fpc.parse_stream(lines)
-        verdict, _ = fpc.analyze_regression(samples, events, threshold=5.0)
+        verdict, _ = fpc.analyze_regression(samples, events, 5.0)
         self.assertEqual(verdict, "PASS")
 
     def test_starvation_event_fails(self):
         lines = [status("TENSION", 5.0, 600, 1500),
-                 "EV:SYNC:TENSION_DWELL_WARN",
+                 "EV:SYNC:cannot_refill",
                  status("NEUTRAL", 0.5, 600, 700)]
         samples, events = fpc.parse_stream(lines)
-        verdict, _ = fpc.analyze_regression(samples, events, threshold=5.0)
+        verdict, _ = fpc.analyze_regression(samples, events, 5.0)
         self.assertEqual(verdict, "FAIL")
 
-    def test_spurious_fire_fails(self):
-        # Leave TENSION with high EST, then EST collapses while BP holds mid-band
-        # (no slide to compression) -> corrector fired when it should be inhibited.
-        lines = [status("TENSION", 5.0, 1000, 1500)]
-        lines += [status("NEUTRAL", 0.5, est, 700)
-                  for est in (1000, 850, 700, 550, 400, 300, 250, 200, 200)]
+    def test_overpausing_relief_fails(self):
+        lines = []
+        for _ in range(3):
+            lines += [status("COMPRESSION", -5.0, 600, 0, relieve=0.3, ct=200)]
+            lines.append("EV:SYNC:RELIEF_PAUSE")
+            lines += [status("NEUTRAL", 0.5, 600, 700)]
         samples, events = fpc.parse_stream(lines)
-        verdict, _ = fpc.analyze_regression(samples, events, threshold=5.0)
+        verdict, _ = fpc.analyze_regression(samples, events, 5.0)
         self.assertEqual(verdict, "FAIL")
 
 

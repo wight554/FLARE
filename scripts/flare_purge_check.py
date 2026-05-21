@@ -46,7 +46,12 @@ STARVATION_EVENTS = (
 )
 
 # Fields kept in the CSV / used by the analysis.
-CSV_FIELDS = ("idx", "BUF", "BP", "EST", "MM", "RE", "AV", "CT", "SM", "ST")
+CSV_FIELDS = ("idx", "BUF", "BP", "EST", "MM", "RE", "AV", "CT", "SM", "ST",
+              "SYNC_RELIEVE_MM", "SYNC_REFILL_MM")
+
+# PASS thresholds for the compression-overfeed-stop fix.
+OVERFILL_BUDGET_MM = 3.0    # relief budget (1.5) + ramp-down slack
+GRIND_MS = 1500             # max acceptable continuous COMPRESSION dwell (CT)
 
 
 class Sample:
@@ -105,16 +110,16 @@ def parse_stream(lines: List[str]) -> Tuple[List[Sample], List[Tuple[int, str]]]
 # ---------------------------------------------------------------------------
 # PURGE analysis (tests A/B)
 # ---------------------------------------------------------------------------
-def neutral_runs(samples: List[Sample]) -> List[Tuple[int, int]]:
-    """Maximal index ranges [start, end] where BUF == NEUTRAL and sync active."""
+def state_runs(samples: List[Sample], state: str) -> List[Tuple[int, int]]:
+    """Maximal index ranges [start, end] where BUF == state and sync active."""
     runs: List[Tuple[int, int]] = []
     start = None
     for i, smp in enumerate(samples):
         active = smp.s("SM") in (None, "1")  # treat missing SM as active
-        is_neutral = smp.s("BUF") == "NEUTRAL" and active
-        if is_neutral and start is None:
+        match = smp.s("BUF") == state and active
+        if match and start is None:
             start = i
-        elif not is_neutral and start is not None:
+        elif not match and start is not None:
             runs.append((start, i - 1))
             start = None
     if start is not None:
@@ -124,65 +129,55 @@ def neutral_runs(samples: List[Sample]) -> List[Tuple[int, int]]:
 
 def analyze_purge(samples: List[Sample], events, threshold: float,
                   hardwall: float) -> Tuple[str, List[str]]:
-    """Return (verdict, report_lines). verdict in PASS/FAIL/INCONCLUSIVE."""
+    """compression-overfeed-stop success: when the buffer reaches COMPRESSION
+    after a purge, the MMU must stop (0 feed) and overfill must stay within the
+    relief budget — i.e. small SYNC_RELIEVE_MM and a short COMPRESSION dwell (CT),
+    not the multi-second / multi-mm grind of the old SYNC_MIN-forward behavior.
+    Return (verdict, report_lines)."""
     report: List[str] = []
-    drop_thresh = 0.4 * threshold          # meaningful slide toward compression
-    surge_floor = 200.0                    # EST high enough to have learned a surge
-    collapse_glides = 0
-    frozen_glides = 0
+    worst_overfill = 0.0
+    worst_grind_ms = 0.0
+    worst_feed = 0.0
+    runs = state_runs(samples, "COMPRESSION")
 
-    for (a, b) in neutral_runs(samples):
-        if b - a < 3:
-            continue
-        bp0 = samples[a].f("BP")
-        bp1 = samples[b].f("BP")
-        est0 = samples[a].f("EST")
-        est1 = samples[b].f("EST")
-        mm_vals = [s.f("MM") for s in samples[a:b + 1] if s.f("MM") is not None]
-        if None in (bp0, bp1, est0, est1) or not mm_vals:
-            continue
-        bp_drop = bp0 - bp1                 # positive => moved toward compression
-        mmu_mean = sum(mm_vals) / len(mm_vals)
-        # Demand-collapse glide: buffer slid toward compression while feeding,
-        # following a surge that pushed EST high.
-        if bp_drop < drop_thresh or mmu_mean < 50.0 or est0 < surge_floor:
-            continue
-        collapse_glides += 1
-        est_decay = est0 - est1            # positive => estimator backed off
-        required = max(0.10 * est0, 40.0)
-        status = "OK (EST decayed)"
-        if est_decay < required:
-            frozen_glides += 1
-            status = "FROZEN (EST did not decay)"
+    for (a, b) in runs:
+        rel = [s.f("SYNC_RELIEVE_MM") for s in samples[a:b + 1]
+               if s.f("SYNC_RELIEVE_MM") is not None]
+        ct = [s.f("CT") for s in samples[a:b + 1] if s.f("CT") is not None]
+        mm = [s.f("MM") for s in samples[a:b + 1] if s.f("MM") is not None]
+        bp = [s.f("BP") for s in samples[a:b + 1] if s.f("BP") is not None]
+        overfill = (max(rel) - min(rel)) if rel else 0.0
+        grind_ms = max(ct) if ct else 0.0
+        # Feed after the first couple of ramp-down ticks should be ~0.
+        feed_tail = max(mm[2:]) if len(mm) > 2 else (max(mm) if mm else 0.0)
+        min_bp = min(bp) if bp else 0.0
+        worst_overfill = max(worst_overfill, overfill)
+        worst_grind_ms = max(worst_grind_ms, grind_ms)
+        worst_feed = max(worst_feed, feed_tail)
+        verdict = "OK"
+        if overfill > OVERFILL_BUDGET_MM or grind_ms > GRIND_MS:
+            verdict = "OVERFEED"
         report.append(
-            f"  glide idx[{a}-{b}] BP {bp0:+.2f}->{bp1:+.2f} (drop {bp_drop:.2f}) "
-            f"EST {est0:.0f}->{est1:.0f} (decay {est_decay:.0f}, need {required:.0f}) "
-            f"MMU~{mmu_mean:.0f} -> {status}"
+            f"  COMPRESSION idx[{a}-{b}] overfill {overfill:.1f} mm "
+            f"(budget {OVERFILL_BUDGET_MM:.1f}), grind {grind_ms:.0f} ms "
+            f"(max {GRIND_MS}), feed_tail {feed_tail:.0f}, BPmin {min_bp:+.2f} "
+            f"-> {verdict}"
         )
 
-    # Compression depth past the switch (corroborating slam signal).
-    min_bp = min((s.f("BP") for s in samples if s.f("BP") is not None), default=0.0)
-    depth_past_switch = max(0.0, -min_bp - threshold)
     relief_pauses = [e for (_, e) in events if "RELIEF_PAUSE" in e]
+    report.insert(0, f"  COMPRESSION episodes: {len(runs)}; worst overfill "
+                     f"{worst_overfill:.1f} mm, worst grind {worst_grind_ms:.0f} ms, "
+                     f"worst feed_tail {worst_feed:.0f} sps")
+    report.insert(1, f"  RELIEF_PAUSE events: {len(relief_pauses)}")
 
-    report.insert(0, f"  demand-collapse glides: {collapse_glides}, frozen: {frozen_glides}")
-    report.insert(1, f"  deepest BP: {min_bp:+.2f} mm "
-                     f"(switch +/-{threshold:.1f}, wall +/-{hardwall:.1f}, "
-                     f"{depth_past_switch:.2f} mm past switch)")
-    if relief_pauses:
-        report.insert(2, f"  RELIEF_PAUSE events: {len(relief_pauses)} (compression auto-stop fired)")
-
-    if collapse_glides == 0:
+    if not runs:
         return "INCONCLUSIVE", report + [
-            "  No post-surge demand-collapse glide captured — run the purge "
-            "macro (e.g. _FLARE_PURGE PURGE=60) during capture."]
-    if frozen_glides > 0:
-        return "FAIL", report
-    # Frozen estimator fixed; flag residual slam as a secondary concern only.
-    if depth_past_switch > 0.5 * (hardwall - threshold):
+            "  No COMPRESSION episode captured — run the purge macro "
+            "(e.g. _FLARE_PURGE PURGE=60) during capture."]
+    if worst_overfill > OVERFILL_BUDGET_MM or worst_grind_ms > GRIND_MS:
         return "FAIL", report + [
-            "  EST decayed but buffer still drove deep past the switch — check "
-            "fast-brake hot-gate / ramp."]
+            "  Overfill/grind exceeded budget — MMU still feeding into a full "
+            "buffer (check COMPRESSION true-stop + relief budget)."]
     return "PASS", report
 
 
@@ -191,6 +186,9 @@ def analyze_purge(samples: List[Sample], events, threshold: float,
 # ---------------------------------------------------------------------------
 def analyze_regression(samples: List[Sample], events, threshold: float
                        ) -> Tuple[str, List[str]]:
+    """Normal-print regression: the COMPRESSION true-stop must not starve the
+    relay cycle or fire RELIEF_PAUSE on every routine compression touch. Watch
+    starvation/degraded events and premature relief during a normal print."""
     report: List[str] = []
     counts: Dict[str, int] = {k: 0 for k in STARVATION_EVENTS}
     for (_, ev) in events:
@@ -198,40 +196,27 @@ def analyze_regression(samples: List[Sample], events, threshold: float
             if k in ev:
                 counts[k] += 1
 
-    # Spurious-fire heuristic: EST drops sharply within the recent-tension
-    # holdoff window after leaving TENSION, while BP is NOT sliding to
-    # compression. The corrector is supposed to be inhibited there.
-    spurious = 0
-    holdoff = 8  # samples (~800ms at 100ms poll), heuristic
-    for i in range(1, len(samples)):
-        prev, cur = samples[i - 1], samples[i]
-        if prev.s("BUF") == "TENSION" and cur.s("BUF") == "NEUTRAL":
-            est_at_exit = cur.f("EST")
-            if est_at_exit is None or est_at_exit < 200.0:
-                continue
-            j_end = min(i + holdoff, len(samples) - 1)
-            est_end = samples[j_end].f("EST")
-            bp_now = cur.f("BP")
-            bp_end = samples[j_end].f("BP")
-            if None in (est_end, bp_now, bp_end):
-                continue
-            est_drop = est_at_exit - est_end
-            bp_drop = bp_now - bp_end
-            if est_drop > 0.20 * est_at_exit and bp_drop < 0.4 * threshold:
-                spurious += 1
+    comp_runs = state_runs(samples, "COMPRESSION")
+    relief_pauses = counts.get("RELIEF_PAUSE", 0)
 
-    total_starv = sum(counts.values())
+    total_starv = sum(v for k, v in counts.items() if k != "RELIEF_PAUSE")
     for k in STARVATION_EVENTS:
         if counts[k]:
             report.append(f"  {k}: {counts[k]}")
-    report.insert(0, f"  starvation/degraded events: {total_starv}")
-    report.append(f"  suspected spurious corrector fires (decay inside "
-                  f"recent-tension holdoff, no compression slide): {spurious}")
+    report.insert(0, f"  COMPRESSION episodes: {len(comp_runs)}; "
+                     f"starvation/degraded events (excl RELIEF_PAUSE): {total_starv}")
 
-    if total_starv > 0 or spurious > 0:
-        return "FAIL", report
     if not samples:
         return "INCONCLUSIVE", report + ["  No samples captured."]
+    if total_starv > 0:
+        return "FAIL", report + [
+            "  Starvation/degraded events during a normal print — the true-stop "
+            "may be over-pausing the relay cycle."]
+    # Frequent RELIEF_PAUSE relative to compression touches = over-pausing.
+    if comp_runs and relief_pauses > max(1, len(comp_runs) // 2):
+        return "FAIL", report + [
+            f"  RELIEF_PAUSE fired {relief_pauses}x over {len(comp_runs)} "
+            "compression touches — relief budget likely too tight for normal use."]
     return "PASS", report
 
 

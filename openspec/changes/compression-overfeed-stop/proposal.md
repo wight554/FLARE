@@ -47,9 +47,9 @@ ground truth between switch crossings — see design.md *Alternatives considered
 - Possible tunable change: a small compression overfill / relief-stop threshold
   (replacing or supplementing the 50 mm `CONF_SYNC_CANNOT_RELIEVE_MM` and the
   5 s `CONF_SYNC_AUTO_STOP_MS`); flows through `config.ini` → generated `tune.h`.
-- Interaction risk: `relay_min_flip_mm` (currently `0.5`) plus a zero
-  COMPRESSION feed must not freeze the flip out of COMPRESSION (prior deadlock
-  history with non-zero min-flip). Must be verified in design/implementation.
+- Interaction risk: a zero COMPRESSION feed must not freeze the flip out of
+  COMPRESSION. Safe at the supported `relay_min_flip_mm: 0.0` (time-only flip);
+  a non-zero min-flip would need a flip-out travel-guard exemption.
 - Behavior gated to `BUF_SENSOR_TYPE == 0`; type-P analog path stays
   byte-identical.
 - Validated host-side with `scripts/flare_purge_check.py` (purge A/B + normal
