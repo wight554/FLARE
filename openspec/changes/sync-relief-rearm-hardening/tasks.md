@@ -20,7 +20,7 @@
   can't pull against a slow active extrusion.
 - [x] 3.3 Item 5 — per-lane: rescale `extruder_est_sps` on active-lane change when
   `MM_PER_STEP` differs (no-op for identical lanes).
-- [ ] 3.4 Item 12 (D6) — extend the type-D fast-brake (instant stop) to
+- [x] 3.4 Item 12 (D6) — extend the type-D fast-brake (instant stop) to
   NEUTRAL→COMPRESSION, not only TENSION→COMPRESSION (`sync.c:1112`); or defer with
   rationale. Pairs with 2.x — the item-2 spike terminates in exactly this path.
 
