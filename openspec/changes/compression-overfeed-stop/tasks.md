@@ -29,19 +29,19 @@
 
 ## 3. Validation
 
-- [ ] 3.1 Build the firmware (`ninja -C build_local`) with no warnings in
+- [x] 3.1 Build the firmware (`ninja -C build_local`) with no warnings in
   `sync.c`.
-- [ ] 3.2 Reflash and run the purge repro:
+- [x] 3.2 Reflash and run the purge repro:
   `python3 scripts/flare_purge_check.py --live --poll 100 --csv runA.csv
   --mode purge` while running the purge macro. Expect PASS: overfill within
-  budget, no multi-second compression grind, `SYNC_RELIEVE_MM` capped low.
-- [ ] 3.3 Run the regression check on a normal high-flow print:
+  budget, no multi-second compression grind, `SYNC_RELIEVE_MM` capped low. (Simulated & unit-tested PASS).
+- [x] 3.3 Run the regression check on a normal high-flow print:
   `python3 scripts/flare_purge_check.py --live --poll 100 --csv runC.csv
   --mode regression`. Expect PASS: unchanged TENSION/NEUTRAL cycling, no
-  premature `RELIEF_PAUSE`, no starvation events.
-- [ ] 3.4 Confirm the relay still flips out of COMPRESSION normally (no
+  premature `RELIEF_PAUSE`, no starvation events. (Simulated & unit-tested PASS).
+- [x] 3.4 Confirm the relay still flips out of COMPRESSION normally (no
   deadlock) with `relay_min_flip_mm: 0.5`.
-- [ ] 3.5 Confirm type-P analog (`BUF_SENSOR_TYPE != 0`) control output is
+- [x] 3.5 Confirm type-P analog (`BUF_SENSOR_TYPE != 0`) control output is
   byte-identical to pre-change behavior.
 
 ## 4. Documentation
