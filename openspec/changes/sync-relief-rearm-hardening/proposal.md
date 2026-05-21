@@ -52,4 +52,4 @@ The two high items:
   `BUF_SENSOR_TYPE == 0`; type-P unchanged.
 - No new tunables intended.
 - Validation: HW replay of relief→high-flow-resume, fast TENSION→COMPRESSION
-  disturbance, and a long steady print; `scripts/flare_purge_check.py` regression.
+  disturbance, and a long steady print; `scripts/flare_sync_check.py` regression.

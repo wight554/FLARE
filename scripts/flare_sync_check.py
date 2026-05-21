@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
-flare_purge_check.py — objective pass/fail for the neutral-demand-collapse-brake
-change. Parses FLARE `?:` poll telemetry (live or from a captured log) and
-evaluates two things:
+flare_sync_check.py — objective pass/fail for FLARE type-D sync buffer behavior.
+Parses FLARE `?:` poll telemetry (live or from a captured log) and evaluates the
+buffer-recovery contracts. Replaces the older purge-only checker; the purge and
+regression checks are unchanged, plus two analyzers for the
+sync-relief-rearm-hardening fixes (D1 re-arm, D2 estimator).
 
   PURGE (tests A/B): after a fast purge the buffer must NOT slam compression.
     The estimator (EST) must DECAY during the post-surge NEUTRAL glide instead
@@ -10,16 +12,32 @@ evaluates two things:
 
   REGRESSION (test C): during normal extrusion the demand-collapse corrector
     must NOT false-fire and must not introduce starvation. Counts starvation /
-    low-confidence events and flags estimator decays that happen inside the
-    recent-tension holdoff (where the corrector is supposed to be inhibited).
+    low-confidence events and flags over-pausing (RELIEF_PAUSE per compression
+    touch) — this also catches a D6 fast-brake limit cycle (maneuver M2).
+
+  REARM (D1, maneuvers M1/M3): a RELIEF_PAUSE must re-arm (SYNC AUTO_START) when
+    the buffer recovers — and on an idle capture it must NOT re-arm at all.
+    --idle flips the expectation: any RELIEF_PAUSE -> AUTO_START is a FAIL
+    (spurious end-of-print re-arm). Without --idle a RELIEF_PAUSE that never
+    re-arms, or any cannot_refill, is a FAIL. Reports the BUF state at each
+    re-arm so you can confirm NEUTRAL re-arm (the D1 improvement).
+
+  ESTIMATOR (D2, maneuver M4): on a TENSION->COMPRESSION transition the estimator
+    must not spike. FAIL if EST jumps by more than --est-spike-factor x its
+    pre-transition value (with an absolute floor) — the modeled-overwrite spike
+    the blend is meant to prevent.
 
 USAGE
   Offline (analyze a captured log):
-    python3 scripts/flare_purge_check.py --log purge.txt
-    python3 scripts/flare_purge_check.py --log print.txt --mode regression
+    python3 scripts/flare_sync_check.py --log purge.txt
+    python3 scripts/flare_sync_check.py --log print.txt --mode regression
+    python3 scripts/flare_sync_check.py --log idle.txt   --mode rearm --idle
+    python3 scripts/flare_sync_check.py --log resume.txt  --mode rearm
+    python3 scripts/flare_sync_check.py --log spike.txt   --mode estimator
+    python3 scripts/flare_sync_check.py --log run.txt     --mode all
 
   Live (capture while you run the macro / print, Ctrl+C to stop and analyze):
-    python3 scripts/flare_purge_check.py --live --poll 100 --csv run.csv
+    python3 scripts/flare_sync_check.py --live --poll 100 --csv run.csv
 
 Geometry (defaults match config.ini buf_switch_span_mm=10, buf_max_travel_mm=25):
   --switch-span-mm 10   -> compression/tension switch at +/-5 mm
@@ -246,6 +264,112 @@ def analyze_regression(samples: List[Sample], events, threshold: float
 
 
 # ---------------------------------------------------------------------------
+# REARM analysis (D1 — maneuvers M1 idle / M3 resume)
+# ---------------------------------------------------------------------------
+def _buf_at(samples: List[Sample], event_idx: int) -> Optional[str]:
+    """BUF state of the sample nearest an event. events store the sample count at
+    emit time, i.e. the index of the next sample."""
+    if not samples:
+        return None
+    j = event_idx if event_idx < len(samples) else len(samples) - 1
+    return samples[j].s("BUF")
+
+
+def analyze_rearm(samples: List[Sample], events, idle: bool
+                  ) -> Tuple[str, List[str]]:
+    """D1: a RELIEF_PAUSE must re-arm (SYNC AUTO_START) when the buffer recovers.
+    On an --idle capture it must NOT re-arm (spurious end-of-print re-arm). Each
+    re-arm records the BUF state so a NEUTRAL re-arm (the D1 improvement) is
+    visible."""
+    report: List[str] = []
+    n_relief = 0
+    rearm_states: List[str] = []
+    pending = False
+    for (si, ev) in events:
+        if "RELIEF_PAUSE" in ev:
+            n_relief += 1
+            pending = True
+        elif "AUTO_START" in ev and pending:
+            rearm_states.append(_buf_at(samples, si) or "?")
+            pending = False
+    n_rearm = len(rearm_states)
+    cannot = sum(1 for (_, e) in events if "cannot_refill" in e)
+
+    report.append(f"  RELIEF_PAUSE: {n_relief}, re-arms (AUTO_START after pause): "
+                  f"{n_rearm}")
+    if rearm_states:
+        report.append(f"  re-arm BUF states: {', '.join(rearm_states)}")
+    if cannot:
+        report.append(f"  cannot_refill: {cannot}")
+
+    if n_relief == 0:
+        return "INCONCLUSIVE", report + [
+            "  No RELIEF_PAUSE captured — run M1 (idle) or M3 (pause/resume)."]
+    if idle:
+        if n_rearm == 0:
+            return "PASS", report + ["  idle: no spurious re-arm (correct)."]
+        return "FAIL", report + [
+            "  idle capture re-armed — spurious end-of-print AUTO_START "
+            "(D1 over-fires; check the !g_boot_stabilizing guard)."]
+    if cannot:
+        return "FAIL", report + [
+            "  cannot_refill during resume — starved before/at re-arm."]
+    if n_rearm < n_relief:
+        return "FAIL", report + [
+            f"  {n_relief - n_rearm} RELIEF_PAUSE(s) never re-armed — stuck paused."]
+    extra = []
+    if any(s == "NEUTRAL" for s in rearm_states):
+        extra.append("  re-armed from NEUTRAL (D1 path exercised).")
+    return "PASS", report + extra
+
+
+# ---------------------------------------------------------------------------
+# ESTIMATOR analysis (D2 — maneuver M4)
+# ---------------------------------------------------------------------------
+def analyze_estimator(samples: List[Sample], events, factor: float,
+                      window: int, est_floor: float) -> Tuple[str, List[str]]:
+    """D2: on a TENSION->COMPRESSION transition the estimator must not spike.
+    FAIL if EST jumps by more than `factor` x its pre-transition value (with an
+    absolute floor to ignore noise on tiny values)."""
+    report: List[str] = []
+    transitions = 0
+    worst_ratio = 0.0
+    worst: Optional[Tuple[int, float, float]] = None
+    failed = False
+    prev_buf: Optional[str] = None
+    for i, smp in enumerate(samples):
+        buf = smp.s("BUF")
+        if prev_buf == "TENSION" and buf == "COMPRESSION":
+            transitions += 1
+            pre = samples[i - 1].f("EST") if i > 0 else None
+            post_vals = [samples[k].f("EST")
+                         for k in range(i, min(i + window, len(samples)))
+                         if samples[k].f("EST") is not None]
+            post = max(post_vals) if post_vals else None
+            if pre is not None and post is not None:
+                ratio = post / max(pre, est_floor)
+                if ratio > worst_ratio:
+                    worst_ratio = ratio
+                    worst = (i, pre, post)
+                if ratio > factor and post > est_floor:
+                    failed = True
+        prev_buf = buf
+
+    report.append(f"  TENSION->COMPRESSION transitions: {transitions}; "
+                  f"worst EST ratio {worst_ratio:.2f}x (cap {factor:.2f})")
+    if worst:
+        report.append(f"  worst at idx {worst[0]}: EST {worst[1]:.0f} -> "
+                      f"{worst[2]:.0f} mm/min")
+    if transitions == 0:
+        return "INCONCLUSIVE", report + [
+            "  No TENSION->COMPRESSION transition — run M4 (fast disturbance)."]
+    if failed:
+        return "FAIL", report + [
+            "  estimator spiked on a modeled transition — D2 blend not limiting it."]
+    return "PASS", report
+
+
+# ---------------------------------------------------------------------------
 # IO
 # ---------------------------------------------------------------------------
 def capture_live(port: Optional[str], poll_ms: int, duration: Optional[float]
@@ -253,7 +377,7 @@ def capture_live(port: Optional[str], poll_ms: int, duration: Optional[float]
     try:
         import serial  # lazy
     except ImportError:
-        print("flare_purge_check: pyserial not installed. pip install pyserial",
+        print("flare_sync_check: pyserial not installed. pip install pyserial",
               file=sys.stderr)
         sys.exit(1)
     sys.path.insert(0, __import__("os").path.dirname(__file__))
@@ -261,7 +385,7 @@ def capture_live(port: Optional[str], poll_ms: int, duration: Optional[float]
 
     dev = find_port(port)
     if not dev:
-        print("flare_purge_check: no serial port found", file=sys.stderr)
+        print("flare_sync_check: no serial port found", file=sys.stderr)
         sys.exit(1)
     ser = serial.Serial(dev, 115200, timeout=0.5)
     interval = poll_ms / 1000.0
@@ -312,8 +436,23 @@ def main() -> int:
     ap.add_argument("--duration", type=float,
                     help="Live capture seconds (default: until Ctrl+C)")
     ap.add_argument("--csv", help="Write parsed samples to this CSV path")
-    ap.add_argument("--mode", choices=("purge", "regression", "both"),
-                    default="both", help="Which check(s) to run")
+    ap.add_argument("--mode",
+                    choices=("purge", "regression", "rearm", "estimator",
+                             "both", "all"),
+                    default="both",
+                    help="Which check(s) to run ('both'=purge+regression, "
+                         "'all'=every analyzer)")
+    ap.add_argument("--idle", action="store_true",
+                    help="rearm mode: this capture is idle — any re-arm is a FAIL")
+    ap.add_argument("--est-spike-factor", type=float, default=2.0,
+                    help="estimator mode: max allowed EST jump ratio on a "
+                         "TENSION->COMPRESSION transition")
+    ap.add_argument("--est-window", type=int, default=5,
+                    help="estimator mode: samples after a transition to scan for "
+                         "the EST peak")
+    ap.add_argument("--est-floor", type=float, default=100.0,
+                    help="estimator mode: EST floor (mm/min) below which jumps "
+                         "are treated as noise")
     ap.add_argument("--switch-span-mm", type=float, default=10.0)
     ap.add_argument("--max-travel-mm", type=float, default=25.0)
     args = ap.parse_args()
@@ -334,15 +473,28 @@ def main() -> int:
         print(f"# wrote {args.csv}")
 
     verdicts: List[str] = []
-    if args.mode in ("purge", "both"):
+    if args.mode in ("purge", "both", "all"):
         v, rep = analyze_purge(samples, events, threshold, hardwall)
         print(f"\nPURGE (A/B): {v}")
         for line in rep:
             print(line)
         verdicts.append(v)
-    if args.mode in ("regression", "both"):
+    if args.mode in ("regression", "both", "all"):
         v, rep = analyze_regression(samples, events, threshold)
         print(f"\nREGRESSION (C): {v}")
+        for line in rep:
+            print(line)
+        verdicts.append(v)
+    if args.mode in ("rearm", "all"):
+        v, rep = analyze_rearm(samples, events, args.idle)
+        print(f"\nREARM (D1{', idle' if args.idle else ''}): {v}")
+        for line in rep:
+            print(line)
+        verdicts.append(v)
+    if args.mode in ("estimator", "all"):
+        v, rep = analyze_estimator(samples, events, args.est_spike_factor,
+                                   args.est_window, args.est_floor)
+        print(f"\nESTIMATOR (D2): {v}")
         for line in rep:
             print(line)
         verdicts.append(v)

@@ -53,8 +53,11 @@ Commands (run from repo root):
 - Live status + event capture: `python3 scripts/flare_cmd.py --poll 100 | tee hw_run.log`
 - One-off cmd / GET / SET: `python3 scripts/flare_cmd.py GET:<PARAM>` · `SET:<PARAM>:<VAL>` · `?`
 - Config dump: `python3 scripts/flare_cmd.py --dump` (`--raw` for terse)
-- Telemetry + regression analyze: `python3 scripts/flare_purge_check.py --live --poll 100 --csv hw_run.csv --mode both`
-  (offline: `python3 scripts/flare_purge_check.py --log hw_run.log --mode regression`)
+- Telemetry capture + auto-judge: `python3 scripts/flare_sync_check.py --live --poll 100 --csv hw_run.csv --mode all`
+  (offline: `python3 scripts/flare_sync_check.py --log hw_run.log --mode all`).
+  Per-maneuver modes: M1 `--mode rearm --idle`, M2 `--mode regression`,
+  M3 `--mode rearm`, M4 `--mode estimator`, M6 `--mode both`. Exit 0=PASS, 1=FAIL,
+  2=INCONCLUSIVE (no relevant episode — re-run the maneuver).
 - Build/regression suite (no HW): `bash scripts/validate_regression.sh`
 
 Watch (from `?` status): `g_buf_pos`, `SYNC_STATE`, est (mm/min), reserve_error.
@@ -85,7 +88,7 @@ Pre-flight assert: `BUF_SENSOR_TYPE`=0, `RELAY_MIN_FLIP_MM`=0.
   PASS: `EV:ACTIVE,n` + est rescales; first post-swap crossings no over/under-feed.
   Skip (no-op) if identical `MM_PER_STEP`. Result: __
 - [ ] 5.7 M6 — regression guard. End-of-feed true-stop (no -11 slam) +
-  `flare_purge_check.py … --mode both` clean + purge + constant feed good
+  `flare_sync_check.py … --mode both` clean + purge + constant feed good
   (no `compression-overfeed-stop` regression). Result: __
 
 ## 6. Docs (rule 6)

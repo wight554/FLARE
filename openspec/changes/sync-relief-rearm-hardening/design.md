@@ -155,7 +155,7 @@ type-agnostic.
 - **D5:** two lanes with different `rotation_distance`; toolchange mid-sync;
   confirm est rescales (no over/under-feed on the first crossings post-swap).
   Identical-lane setup must be bit-identical to today.
-- **Regression guard (all):** `flare_purge_check.py --mode regression` clean;
+- **Regression guard (all):** `flare_sync_check.py --mode regression` clean;
   re-confirm `compression-overfeed-stop` (purge + constant feed + end-of-feed
   true-stop, no -11 slam). type-P smoke (analog rig) unchanged.
 

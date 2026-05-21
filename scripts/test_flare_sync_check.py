@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Tests for flare_purge_check.py — synthetic traces with known verdicts.
+"""Tests for flare_sync_check.py — synthetic traces with known verdicts.
 
-Validates the compression-overfeed-stop criteria: a purge that reaches
-COMPRESSION must show capped overfill (SYNC_RELIEVE_MM) and a short COMPRESSION
-dwell (CT), not the multi-mm / multi-second grind of the old SYNC_MIN-forward
-behavior.
+Covers the compression-overfeed-stop criteria (purge/regression) plus the
+sync-relief-rearm-hardening analyzers: rearm (D1) and estimator (D2).
 """
 import unittest
 
-import flare_purge_check as fpc
+import flare_sync_check as fpc
 
 
 def status(buf, bp, est, mm, sm=1, relieve=0.0, ct=0, refill=0.0):
@@ -124,6 +122,88 @@ class RegressionTests(unittest.TestCase):
         samples, events = fpc.parse_stream(lines)
         verdict, _ = fpc.analyze_regression(samples, events, 5.0)
         self.assertEqual(verdict, "FAIL")
+
+
+class RearmTests(unittest.TestCase):
+    def test_idle_no_rearm_passes(self):
+        # M1: pause then stay idle — RELIEF_PAUSE, no AUTO_START.
+        lines = [status("COMPRESSION", -5.0, 0, 0),
+                 "EV:SYNC:RELIEF_PAUSE",
+                 status("NEUTRAL", 0.0, 0, 0)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_rearm(samples, events, idle=True)
+        self.assertEqual(verdict, "PASS")
+
+    def test_idle_spurious_rearm_fails(self):
+        lines = [status("COMPRESSION", -5.0, 0, 0),
+                 "EV:SYNC:RELIEF_PAUSE",
+                 "EV:SYNC:AUTO_START",
+                 status("NEUTRAL", 0.0, 0, 0)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_rearm(samples, events, idle=True)
+        self.assertEqual(verdict, "FAIL")
+
+    def test_resume_rearm_on_neutral_passes(self):
+        # M3: pause then high-flow resume re-arms on the drain to NEUTRAL.
+        lines = [status("COMPRESSION", -5.0, 0, 0),
+                 "EV:SYNC:RELIEF_PAUSE",
+                 "EV:SYNC:AUTO_START",
+                 status("NEUTRAL", 0.0, 600, 700)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, rep = fpc.analyze_rearm(samples, events, idle=False)
+        self.assertEqual(verdict, "PASS")
+        self.assertTrue(any("NEUTRAL" in line for line in rep))
+
+    def test_resume_stuck_pause_fails(self):
+        lines = [status("COMPRESSION", -5.0, 0, 0),
+                 "EV:SYNC:RELIEF_PAUSE",
+                 status("COMPRESSION", -5.0, 0, 0)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_rearm(samples, events, idle=False)
+        self.assertEqual(verdict, "FAIL")
+
+    def test_resume_cannot_refill_fails(self):
+        lines = [status("COMPRESSION", -5.0, 0, 0),
+                 "EV:SYNC:RELIEF_PAUSE",
+                 "EV:SYNC:AUTO_START",
+                 "EV:SYNC:cannot_refill",
+                 status("TENSION", 5.0, 600, 700)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_rearm(samples, events, idle=False)
+        self.assertEqual(verdict, "FAIL")
+
+    def test_no_relief_inconclusive(self):
+        lines = [status("NEUTRAL", 0.0, 600, 700) for _ in range(4)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_rearm(samples, events, idle=False)
+        self.assertEqual(verdict, "INCONCLUSIVE")
+
+
+class EstimatorTests(unittest.TestCase):
+    def test_spike_fails(self):
+        # EST jumps 200 -> 1500 mm/min on TENSION->COMPRESSION = 7.5x.
+        lines = [status("TENSION", 5.0, 200, 1500) for _ in range(2)]
+        lines += [status("COMPRESSION", -5.0, 1500, 0) for _ in range(3)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_estimator(samples, events, factor=2.0,
+                                           window=5, est_floor=100.0)
+        self.assertEqual(verdict, "FAIL")
+
+    def test_blended_passes(self):
+        # Blended update: EST 300 -> 360 = 1.2x, under the 2x cap.
+        lines = [status("TENSION", 5.0, 300, 1500) for _ in range(2)]
+        lines += [status("COMPRESSION", -5.0, 360, 0) for _ in range(3)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_estimator(samples, events, factor=2.0,
+                                           window=5, est_floor=100.0)
+        self.assertEqual(verdict, "PASS")
+
+    def test_no_transition_inconclusive(self):
+        lines = [status("NEUTRAL", 0.0, 300, 700) for _ in range(4)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_estimator(samples, events, factor=2.0,
+                                           window=5, est_floor=100.0)
+        self.assertEqual(verdict, "INCONCLUSIVE")
 
 
 if __name__ == "__main__":
