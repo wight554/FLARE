@@ -81,8 +81,6 @@ static uint32_t sync_continuous_compression_since_ms = 0;
 static uint32_t sync_post_compression_boost_until_ms = 0;
 static uint32_t sync_recent_negative_until_ms = 0;
 static uint32_t sync_tension_pin_since_ms = 0;
-static float sync_neutral_collapse_prev_pos_mm = 0.0f;
-static bool sync_neutral_collapse_prev_valid = false;
 
 /* Integral centering and sigma confidence state */
 static float sync_reserve_integral_mm = 0.0f;
@@ -1008,8 +1006,6 @@ void sync_disable(bool reset_estimator) {
     sync_post_compression_boost_until_ms = 0;
     sync_recent_negative_until_ms = 0;
     sync_tension_pin_since_ms = 0;
-    sync_neutral_collapse_prev_pos_mm = 0.0f;
-    sync_neutral_collapse_prev_valid = false;
     g_buf_confidence = 1.0f;
     sync_reserve_integral_mm = 0.0f;
     g_buf_pos_sigma_accum_mm = 0.0f;
@@ -1113,18 +1109,7 @@ static void sync_apply_to_active(void) {
 }
 
 static void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t now_ms) {
-    bool direct_tension_to_compression = prev == BUF_TENSION && now_state == BUF_COMPRESSION;
-    bool hot_neutral_to_compression = false;
-
-    if (BUF_SENSOR_TYPE == 0 && prev == BUF_NEUTRAL && now_state == BUF_COMPRESSION) {
-        lane_t *A = lane_ptr(active_lane);
-        int hot_threshold_sps = baseline_control_floor_sps() / 2;
-        int min_hot_sps = SYNC_MIN_SPS + PRE_RAMP_SPS;
-        if (hot_threshold_sps < min_hot_sps) hot_threshold_sps = min_hot_sps;
-        hot_neutral_to_compression = lane_motion_sps(A) > hot_threshold_sps;
-    }
-
-    if (direct_tension_to_compression || hot_neutral_to_compression) {
+    if (prev == BUF_TENSION && now_state == BUF_COMPRESSION) {
         sync_fast_brake_until_ms = now_ms + 250u;
     }
 
@@ -1134,13 +1119,6 @@ static void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t
         g_tension_pin_ts_idx = (g_tension_pin_ts_idx + 1) % TENSION_PIN_WINDOW_LEN;
     } else if (prev == BUF_TENSION) {
         sync_tension_pin_since_ms = 0;
-    }
-
-    if (BUF_SENSOR_TYPE == 0 && now_state == BUF_NEUTRAL) {
-        sync_neutral_collapse_prev_pos_mm = g_buf_pos;
-        sync_neutral_collapse_prev_valid = true;
-    } else {
-        sync_neutral_collapse_prev_valid = false;
     }
 
     if (!sync_tail_assist_active) {
@@ -1429,7 +1407,6 @@ void sync_tick(uint32_t now_ms) {
     }
     float effective_target = raw_target + sync_reserve_integral_mm;
 
-    float reserve_error_mm = bp_eff - effective_target;
     bool buf_near_target = fabsf(bp_eff - effective_target) < (reserve_deadband_mm * 2.0f);
     if (s == BUF_TENSION && (now_ms - g_buf.entered_ms) > SYNC_COMPRESSION_COLLAPSE_DELAY_MS) {
         // Mirror the compression bleed-down logic: if the arm stays pinned at the
@@ -1487,36 +1464,7 @@ void sync_tick(uint32_t now_ms) {
         }
     }
 
-    /* Type-D NEUTRAL demand-collapse corrector. When demand drops mid-print
-     * (e.g. a fast purge ends) the estimator stays stale-high and the relay
-     * NEUTRAL target keeps feeding the buffer into the compression wall. The
-     * rail correctors above act only at the rails, and the model-stalled branch
-     * needs a long (>2 s) dwell, so neither fires during the short post-tension
-     * glide where the slam happens. This runs on a short dwell and decays EST
-     * toward the rate that arrests the slide. Self-gated by an actual slide
-     * toward compression (since NEUTRAL entry) plus a reserve lean to the
-     * compression side: genuine extrusion holds the buffer mid-band and does
-     * not slide, so it cannot false-fire and needs no recent-tension holdoff. */
-    if (BUF_SENSOR_TYPE == 0 && s == BUF_NEUTRAL && A &&
-        A->task == TASK_FEED && A->fault == FAULT_NONE && sync_current_sps > 0 &&
-        sync_neutral_collapse_prev_valid &&
-        (now_ms - g_buf.entered_ms) > (uint32_t)(SYNC_TICK_MS * 2)) {
-        float thr = buf_threshold_mm();
-        bool mid_band = (g_buf_pos > -thr + 0.01f) && (g_buf_pos < thr - 0.01f);
-        float slide_mm = sync_neutral_collapse_prev_pos_mm - g_buf_pos; /* + = toward compression */
-        bool reserve_leaning_compression = reserve_error_mm < -(reserve_deadband_mm * 0.5f);
-        bool sliding_to_compression = slide_mm > (thr * 0.15f);
-        if (mid_band && reserve_leaning_compression && sliding_to_compression) {
-            float relay_frac = (RELAY_NEUTRAL_FRAC > 0.1f) ? RELAY_NEUTRAL_FRAC : 1.0f;
-            float target_rate = ((float)lane_motion_sps(A) / relay_frac) - 4.0f;
-            if (target_rate < 0.0f) target_rate = 0.0f;
-            if (extruder_est_sps > target_rate) {
-                extruder_est_sps += 0.05f * (target_rate - extruder_est_sps);
-                extruder_est_last_update_ms = now_ms;
-            }
-        }
-    }
-
+    float reserve_error_mm = bp_eff - effective_target;
     if (reserve_error_mm < -reserve_deadband_mm) {
         sync_recent_negative_until_ms = now_ms + SYNC_RECENT_NEGATIVE_HOLD_MS;
     }
