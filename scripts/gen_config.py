@@ -84,6 +84,7 @@ DEFAULTS = {
     "relay_collapse_delay_ms": "250",
     "relay_collapse_ramp_mult": "3",
     "relay_collapse_cap_ms": "600",
+    "relay_compression_relief_mm": "1.5",
     # Drift Observer
     "buf_drift_ewma_tau_ms": "60000",
     "buf_drift_min_samples": "3",
@@ -497,6 +498,7 @@ def main():
         f"#define CONF_RELAY_COLLAPSE_DELAY_MS {get('relay_collapse_delay_ms')}",
         f"#define CONF_RELAY_COLLAPSE_RAMP_MULT {get('relay_collapse_ramp_mult')}",
         f"#define CONF_RELAY_COLLAPSE_CAP_MS {get('relay_collapse_cap_ms')}",
+        f"#define CONF_RELAY_COMPRESSION_RELIEF_MM {get_float('relay_compression_relief_mm')}f",
         f"#define CONF_BUF_DRIFT_EWMA_TAU_MS {get('buf_drift_ewma_tau_ms')}",
         f"#define CONF_BUF_DRIFT_MIN_SAMPLES {get('buf_drift_min_samples')}",
         f"#define CONF_BUF_DRIFT_APPLY_THR_MM {get_float('buf_drift_apply_thr_mm')}f",

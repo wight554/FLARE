@@ -114,6 +114,7 @@ run_current:
 # relay_collapse_delay_ms: 250        # Delay before deep-COMPRESSION collapse ramp engages.
 # relay_collapse_ramp_mult: 3         # Down-ramp multiplier after collapse delay.
 # relay_collapse_cap_ms: 600          # Max collapse ramp window.
+# relay_compression_relief_mm: 1.5    # Max allowed overfill budget before early relief in COMPRESSION (mm).
 
 # ─── Drift Observer & TENSION-Risk Telemetry ─────────────────────────────────
 # buf_drift_ewma_tau_ms: 60000        # EWMA time constant for per-transition residual drift (ms).
