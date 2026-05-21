@@ -552,7 +552,7 @@ static buf_state_t buf_read_stable(uint32_t now_ms) {
 
     if ((now_ms - g_buf_pending_since_ms) >= (uint32_t)BUF_HYST_MS) {
         /* G2(b): never gate the egress flip from a zero-feed state.
-         * Type-D COMPRESSION commands MMU SYNC_MIN, so no motor travel
+         * Type-D COMPRESSION commands feed rate of 0, so no motor travel
          * accrues there; gating the flip OUT of COMPRESSION on
          * g_relay_flip_travel_since_mm deadlocks the relay (cannot leave
          * a stopped state because leaving it is what produces the travel
@@ -787,7 +787,10 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
         if (idx < 0 || idx >= NUM_LANES) idx = 0;
         float mmu_mm_s = mmu_avg_sps * MM_PER_STEP[idx];
         float extruder_mm_s = mmu_mm_s + g_buf.arm_vel_mm_s;
-        float est_sps = extruder_mm_s / MM_PER_STEP[idx];
+        float est_sps = 0.0f;
+        if (MM_PER_STEP[idx] > 1e-6f) {
+            est_sps = extruder_mm_s / MM_PER_STEP[idx];
+        }
         float max_est_sps = (float)GLOBAL_MAX_SPS;
         if (est_sps < 0.0f) est_sps = 0.0f;
         if (est_sps > max_est_sps) est_sps = max_est_sps;
@@ -1329,6 +1332,10 @@ void sync_tick(uint32_t now_ms) {
     }
 
     if (A && A->task == TASK_FEED && A->fault == FAULT_NONE && sync_current_sps > 0) {
+        if (g_buf.mmu_sps_dwell_samples >= 10000) {
+            g_buf.mmu_sps_dwell_sum /= 2;
+            g_buf.mmu_sps_dwell_samples /= 2;
+        }
         g_buf.mmu_sps_dwell_sum += (uint32_t)lane_motion_sps(A);
         g_buf.mmu_sps_dwell_samples++;
     }

@@ -26,11 +26,11 @@
 
 ## 4. Low items (notes; fix opportunistically)
 
-- [ ] 4.1 Fix stale `buf_read_stable` flip-guard comment (item 6).
-- [ ] 4.2 Optional div-by-zero guard on `MM_PER_STEP` (item 7); MV `g_buf_pos`
+- [x] 4.1 Fix stale `buf_read_stable` flip-guard comment (item 6).
+- [x] 4.2 Optional div-by-zero guard on `MM_PER_STEP` (item 7); MV `g_buf_pos`
   re-anchor (item 8); est-update dwell-gate edge (item 9); `now_ms`/`g_now_ms`
   tidy (item 11). expf perf (item 10) — leave unless profiled.
-- [ ] 4.3 Item 13 — `mmu_sps_dwell_sum` overflow on a multi-hour no-crossing
+- [x] 4.3 Item 13 — `mmu_sps_dwell_sum` overflow on a multi-hour no-crossing
   NEUTRAL ride; reset-on-crossing makes it practically unreachable. Leave unless
   a real long-print log shows it, or add a cheap clamp/decay if cheap.
 
