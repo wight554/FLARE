@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="FLARE Filament Lane Automation and Reload Engine Dashboard. Premium real-time MMU/RELOAD telemetry and control interface.">
+    <title>FLARE Control Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    <div class="glow glow-teal"></div>
+    <div class="glow glow-coral"></div>
+
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="header-logo">
+                <span class="logo-accent">FLARE</span>
+                <span class="logo-subtitle">Automation & Reload Engine</span>
+            </div>
+            <div class="header-status">
+                <span class="status-dot offline" id="connection-dot"></span>
+                <span class="status-label" id="connection-status">DISCONNECTED</span>
+            </div>
+        </header>
+
+        <main class="dashboard-grid">
+            <!-- Telemetry & Plot Panel -->
+            <section class="panel panel-telemetry" id="panel-telemetry">
+                <div class="panel-header">
+                    <h2>Live Buffer Telemetry</h2>
+                    <div class="badge-row">
+                        <span class="badge" id="badge-sync-enabled">SYNC DISABLED</span>
+                        <span class="badge" id="badge-reload-mode">MMU MODE</span>
+                    </div>
+                </div>
+                
+                <div class="canvas-container">
+                    <canvas id="buffer-chart"></canvas>
+                    <div class="canvas-y-axis">
+                        <span>TENSION</span>
+                        <span>NEUTRAL</span>
+                        <span>COMPRESSION</span>
+                    </div>
+                </div>
+
+                <div class="telemetry-stats">
+                    <div class="stat-card">
+                        <span class="stat-label">Buffer Position</span>
+                        <span class="stat-value" id="val-buf-pos">0.00 <span class="unit">mm</span></span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Sync Speed</span>
+                        <span class="stat-value" id="val-sps">0 <span class="unit">sps</span></span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Extruder Speed</span>
+                        <span class="stat-value" id="val-est-sps">0 <span class="unit">sps</span></span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Reserve Error</span>
+                        <span class="stat-value" id="val-reserve-error">0.0 <span class="unit">mm</span></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Device Controls Panel -->
+            <section class="panel panel-controls" id="panel-controls">
+                <h2>Control Deck</h2>
+                
+                <div class="lane-selector">
+                    <h3>Active Lane</h3>
+                    <div class="lane-buttons">
+                        <button class="btn-lane" id="btn-lane-1" onclick="sendCustomCommand('LN:1')">LANE 1</button>
+                        <button class="btn-lane" id="btn-lane-2" onclick="sendCustomCommand('LN:2')">LANE 2</button>
+                    </div>
+                </div>
+
+                <div class="control-actions">
+                    <h3>Sequences</h3>
+                    <div class="action-grid">
+                        <button class="btn btn-primary" id="btn-load" onclick="sendCustomCommand('FL')">Preload / Load</button>
+                        <button class="btn btn-secondary" id="btn-unload" onclick="sendCustomCommand('UL')">Unload Lane</button>
+                        <button class="btn btn-secondary" id="btn-unload-model" onclick="sendCustomCommand('UM')">Unload Model</button>
+                        <button class="btn btn-secondary" id="btn-cut" onclick="sendCustomCommand('CU')">Cut Filament</button>
+                    </div>
+                </div>
+
+                <div class="custom-command">
+                    <h3>Execute Serial Command</h3>
+                    <div class="cmd-input-group">
+                        <input type="text" id="input-command" placeholder="e.g. TC:1, SET:RUN_CURRENT_MA_L1:800" onkeydown="if(event.key === 'Enter') sendCustomCommandFromInput()">
+                        <button class="btn btn-accent" id="btn-send-cmd" onclick="sendCustomCommandFromInput()">SEND</button>
+                    </div>
+                    <div id="cmd-feedback" class="cmd-feedback">Ready</div>
+                </div>
+            </section>
+
+            <!-- Physical Sensors Panel -->
+            <section class="panel panel-sensors" id="panel-sensors">
+                <h2>Hardware State</h2>
+                
+                <div class="sensors-grid">
+                    <div class="sensor-lane">
+                        <h3>Lane 1</h3>
+                        <div class="sensor-indicators">
+                            <div class="sensor-indicator" id="sensor-in1">
+                                <span class="indicator-dot"></span>
+                                <span class="indicator-label">Entry Sensor (IN1)</span>
+                            </div>
+                            <div class="sensor-indicator" id="sensor-out1">
+                                <span class="indicator-dot"></span>
+                                <span class="indicator-label">Exit Sensor (OUT1)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sensor-lane">
+                        <h3>Lane 2</h3>
+                        <div class="sensor-indicators">
+                            <div class="sensor-indicator" id="sensor-in2">
+                                <span class="indicator-dot"></span>
+                                <span class="indicator-label">Entry Sensor (IN2)</span>
+                            </div>
+                            <div class="sensor-indicator" id="sensor-out2">
+                                <span class="indicator-dot"></span>
+                                <span class="indicator-label">Exit Sensor (OUT2)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sensor-global">
+                        <h3>Global Sensors</h3>
+                        <div class="sensor-indicators">
+                            <div class="sensor-indicator" id="sensor-y-split">
+                                <span class="indicator-dot"></span>
+                                <span class="indicator-label">Y-Splitter Switch</span>
+                            </div>
+                            <div class="sensor-indicator" id="sensor-toolhead">
+                                <span class="indicator-dot"></span>
+                                <span class="indicator-label">Toolhead Extruder (TS)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="runtime-mode-card">
+                    <span class="mode-label">Toolchange State</span>
+                    <span class="mode-value" id="val-tc-state">UNKNOWN</span>
+                </div>
+            </section>
+
+            <!-- Live Event Logs Panel -->
+            <section class="panel panel-logs" id="panel-logs">
+                <h2>Live Event Stream</h2>
+                <div class="logs-container" id="logs-container">
+                    <div class="log-entry system">Waiting for connection...</div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

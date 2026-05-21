@@ -28,6 +28,11 @@ import argparse
 import glob
 import sys
 import time
+import urllib.request
+import urllib.error
+import json
+import threading
+import queue
 
 try:
     import serial
@@ -215,6 +220,213 @@ def format_dump_value(key, value):
         return "True" if value not in ("0", "False", "false") else "False"
 
     return value
+
+
+# ---------------------------------------------------------------------------
+# Daemon Proxy Integration
+# ---------------------------------------------------------------------------
+DAEMON_URL = "http://127.0.0.1:8080"
+
+def get_daemon_status():
+    try:
+        req = urllib.request.Request(f"{DAEMON_URL}/status")
+        with urllib.request.urlopen(req, timeout=0.1) as response:
+            if response.status == 200:
+                return json.loads(response.read().decode('utf-8'))
+    except Exception:
+        pass
+    return None
+
+def send_daemon_cmd(cmd_str, timeout=10.0):
+    try:
+        data = json.dumps({"cmd": cmd_str}).encode('utf-8')
+        req = urllib.request.Request(
+            f"{DAEMON_URL}/cmd",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=timeout + 2.0) as response:
+            if response.status == 200:
+                res = json.loads(response.read().decode('utf-8'))
+                return res.get("response")
+    except Exception:
+        pass
+    return None
+
+def sse_listener_thread(event_q, stop_event):
+    try:
+        req = urllib.request.Request(f"{DAEMON_URL}/telemetry")
+        with urllib.request.urlopen(req, timeout=5.0) as response:
+            while not stop_event.is_set():
+                line = response.readline()
+                if not line:
+                    break
+                line_str = line.decode('utf-8', errors='ignore').strip()
+                if line_str.startswith("data:"):
+                    data_json = line_str[5:].strip()
+                    try:
+                        data = json.loads(data_json)
+                        event_q.put(data)
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
+def run_send_daemon(args):
+    has_complex = False
+    for raw_cmd in args.cmd:
+        verb = raw_cmd.split(':', 1)[0].upper()
+        if verb in COMPLETION_EVENTS:
+            has_complex = True
+            break
+
+    event_q = queue.Queue()
+    stop_event = threading.Event()
+    listener_t = None
+
+    if has_complex:
+        listener_t = threading.Thread(target=sse_listener_thread, args=(event_q, stop_event), daemon=True)
+        listener_t.start()
+        time.sleep(0.1)
+
+    try:
+        for raw_cmd in args.cmd:
+            verb = raw_cmd.split(':', 1)[0].upper()
+            events = COMPLETION_EVENTS.get(verb)
+
+            while not event_q.empty():
+                try:
+                    event_q.get_nowait()
+                except queue.Empty:
+                    break
+
+            resp = send_daemon_cmd(raw_cmd, timeout=args.timeout)
+            if resp is None:
+                print("flare_cmd: daemon command timeout or error", file=sys.stderr)
+                sys.exit(1)
+
+            print(resp, flush=True)
+            if resp.startswith('ER:'):
+                sys.exit(1)
+
+            if events:
+                ok_evs, err_evs = events
+                deadline = time.time() + args.timeout
+                got_completion = False
+
+                while time.time() < deadline:
+                    try:
+                        evt = event_q.get(timeout=0.1)
+                        if "event_type" in evt:
+                            evt_type = evt["event_type"]
+                            evt_data = evt.get("event_data", "")
+                            evt_line = f"EV:{evt_type}"
+                            if evt_data:
+                                evt_line += f",{evt_data}"
+                            print(evt_line, flush=True)
+
+                            if any(evt_line.startswith(ev) for ev in err_evs):
+                                sys.exit(1)
+                            if any(evt_line.startswith(ev) for ev in ok_evs):
+                                got_completion = True
+                                break
+                    except queue.Empty:
+                        continue
+
+                if not got_completion:
+                    print("flare_cmd: completion timeout", file=sys.stderr)
+                    sys.exit(1)
+    finally:
+        stop_event.set()
+        if listener_t:
+            listener_t.join(timeout=0.5)
+
+def run_dump_daemon(args):
+    results = {}
+    errors = []
+
+    for (cmd, key, lane_aware) in DUMP_PARAMS:
+        if lane_aware:
+            vals = []
+            for suffix, label in [("_L1", "L1"), ("_L2", "L2")]:
+                resp = send_daemon_cmd(f"GET:{cmd}{suffix}")
+                if resp and resp.startswith("OK:"):
+                    parts = resp.split(":", 2)
+                    raw_val = parts[2] if len(parts) >= 3 else "?"
+                    vals.append(format_dump_value(key, raw_val))
+                else:
+                    vals.append("?")
+                    errors.append(f"GET:{cmd}{suffix} → {resp}")
+            if len(set(vals)) == 1:
+                results[key] = vals[0]
+            else:
+                results[key] = ", ".join(vals)
+        else:
+            resp = send_daemon_cmd(f"GET:{cmd}")
+            if resp and resp.startswith("OK:"):
+                parts = resp.split(":", 2)
+                raw_val = parts[2] if len(parts) >= 3 else "?"
+                results[key] = format_dump_value(key, raw_val)
+            else:
+                results[key] = "?"
+                errors.append(f"GET:{cmd} → {resp}")
+
+    if args.raw:
+        for (_, key, _) in DUMP_PARAMS:
+            if key in results:
+                print(f"{key}: {results[key]}")
+    else:
+        print("# FLARE live config dump (via daemon)")
+        print(f"# Generated by flare_cmd.py --dump")
+        print()
+        for (_, key, _) in DUMP_PARAMS:
+            if key not in results:
+                continue
+            if key in SECTION_BREAKS:
+                print()
+                print(SECTION_BREAKS[key])
+            print(f"{key}: {results[key]}")
+
+    if errors:
+        print("\n# Warnings — some parameters could not be read:", file=sys.stderr)
+        for e in errors:
+            print(f"#   {e}", file=sys.stderr)
+
+def run_poll_daemon(args):
+    interval = args.poll / 1000.0
+    print(f"# Polling status every {args.poll} ms (via daemon). Press Ctrl+C to stop.", flush=True)
+    try:
+        while True:
+            start_time = time.time()
+            status = get_daemon_status()
+            if status:
+                line_parts = []
+                line_parts.append(f"LN:{status.get('active_lane', 0)}")
+                line_parts.append(f"TC:{status.get('tc_state', 'UNKNOWN')}")
+                line_parts.append(f"BP:{status.get('g_buf_pos', 0.0):.3f}")
+                line_parts.append(f"BUF:{status.get('buf_state', 'NEUTRAL')}")
+                line_parts.append(f"SM:{status.get('sync_enabled', 0)}")
+                line_parts.append(f"MM:{status.get('sps', 0.0):.3f}")
+                line_parts.append(f"BL:{status.get('baseline_sps', 0.0):.3f}")
+                line_parts.append(f"EST:{status.get('extruder_est_sps', 0.0):.3f}")
+                line_parts.append(f"RE:{status.get('reserve_error_mm', 0.0):.3f}")
+                line_parts.append(f"I1:{status.get('in1', 0)}")
+                line_parts.append(f"O1:{status.get('out1', 0)}")
+                line_parts.append(f"I2:{status.get('in2', 0)}")
+                line_parts.append(f"O2:{status.get('out2', 0)}")
+                line_parts.append(f"TH:{status.get('toolhead', 0)}")
+                line_parts.append(f"YS:{status.get('y_split', 0)}")
+                line_parts.append(f"RELOAD:{status.get('reload_mode', 0)}")
+                print(f"OK:{','.join(line_parts)}", flush=True)
+            else:
+                print("ER:DAEMON_OFFLINE", flush=True)
+
+            elapsed = time.time() - start_time
+            sleep_time = max(0, interval - elapsed)
+            time.sleep(sleep_time)
+    except KeyboardInterrupt:
+        print("\n# Stopped by user.")
 
 
 # ---------------------------------------------------------------------------
@@ -413,12 +625,23 @@ def main():
     parser.add_argument('cmd', nargs='*', help='FLARE command(s) to send')
     args = parser.parse_args()
 
+    daemon_online = (args.port is None) and (get_daemon_status() is not None)
+
     if args.dump:
-        run_dump(args)
+        if daemon_online:
+            run_dump_daemon(args)
+        else:
+            run_dump(args)
     elif args.poll:
-        run_poll(args)
+        if daemon_online:
+            run_poll_daemon(args)
+        else:
+            run_poll(args)
     elif args.cmd:
-        run_send(args)
+        if daemon_online:
+            run_send_daemon(args)
+        else:
+            run_send(args)
     else:
         parser.print_help()
         sys.exit(1)

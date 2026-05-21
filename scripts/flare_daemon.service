@@ -1,0 +1,14 @@
+[Unit]
+Description=FLARE Automation & Reload Engine Background Daemon
+After=network.target
+
+[Service]
+Type=simple
+User={{USER}}
+WorkingDirectory={{DIR}}
+ExecStart=/usr/bin/python3 {{DIR}}/scripts/flare_daemon.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
