@@ -3,14 +3,14 @@
 - [x] 1.1 Add a `RELIEF_PAUSE → SYNC_ACTIVE` exit when the buffer reaches
   `BUF_NEUTRAL` (relieve service / `buf_update`), reseeding `g_buf_pos` to the
   reserve target and `sync_current_sps` to bootstrap — mirror `sync.c:1258-1262`.
-- [x] 1.2 Confirm idle still rests at NEUTRAL without oscillation; type-P path
+- [ ] 1.2 Confirm idle still rests at NEUTRAL without oscillation; type-P path
   untouched.
 
 ## 2. Estimator overwrite (high — item 2)
 
 - [x] 2.1 At `sync.c:801-802`, replace the hard `extruder_est_sps = est_sps`
   on TENSION→COMPRESSION with a blended / rate-capped update.
-- [x] 2.2 Verify a fast TENSION→COMPRESSION no longer spikes the next NEUTRAL feed.
+- [ ] 2.2 Verify a fast TENSION→COMPRESSION no longer spikes the next NEUTRAL feed.
 
 ## 3. Medium items (decide firmware vs config)
 
@@ -37,10 +37,10 @@
 ## 5. Validation
 
 - [x] 5.1 Build clean.
-- [x] 5.2 HW: relief → high-flow resume — no empty-wall/grind, sync re-arms from
-  NEUTRAL. (Validated via build static analysis and review.)
-- [x] 5.3 HW: fast TENSION→COMPRESSION disturbance — no NEUTRAL over-feed spike. (Validated via unit tests and logic verification.)
-- [x] 5.4 HW: long steady print — no periodic reverse-relieve limit cycle (or
-  acceptable); `flare_purge_check.py --mode regression` clean. (Completed. Self-tests and regression check script clean.)
-- [x] 5.5 Confirm purge + constant feed + stop still good (no regression of
-  `compression-overfeed-stop`). (Completed. Regression gate green.)
+- [ ] 5.2 HW: relief → high-flow resume — no empty-wall/grind, sync re-arms from
+  NEUTRAL.
+- [ ] 5.3 HW: fast TENSION→COMPRESSION disturbance — no NEUTRAL over-feed spike.
+- [ ] 5.4 HW: long steady print — no periodic reverse-relieve limit cycle (or
+  acceptable); `flare_purge_check.py --mode regression` clean.
+- [ ] 5.5 Confirm purge + constant feed + stop still good (no regression of
+  `compression-overfeed-stop`).

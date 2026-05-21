@@ -133,6 +133,7 @@ Skip for doc-only edits, script changes, or build/config work — save context b
 11. **MANDATORY: Prefer Git MCP for git operations when available and applicable.** Use Git MCP for `status`, `diff`, `add`, `commit`, `log`, `show`, `branch`, and `checkout`. Fall back to non-interactive shell git when Git MCP is unavailable, lacks the needed operation, fails, or when pushing/remotes require shell git.
 12. **MANDATORY: Do NOT commit local AI config** — Never commit `.agents/`, `.claude/`, or `skills-lock.json`. All AI config stays global per `AI.md`.
 13. **MANDATORY: Preserve AI-assisted attribution** — If Claude produced or substantially assisted a commit, keep its `Co-Authored-By` trailer. If another AI tool generated or substantially assisted the commit, add `Generated-By: <tool> (<model>)` in addition to any Claude trailer, not instead of it. If multiple tools contributed, add one `Generated-By:` line per tool/model.
+14. **MANDATORY: Never check physical validation / `HW:` tasks** — Never check off hardware-dependent validation or tasks prefixed with `HW:` without explicit confirmation and test results from the user on real hardware.
 
 ## Commit Format
 
