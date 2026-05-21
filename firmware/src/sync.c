@@ -1674,7 +1674,7 @@ void sync_tick(uint32_t now_ms) {
         if (s == BUF_TENSION) {
             target_sps = (int)((float)relay_base * RELAY_CATCHUP_FRAC);
         } else if (s == BUF_COMPRESSION) {
-            target_sps = SYNC_MIN_SPS;
+            target_sps = 0;
         } else {
             int demand_sps = (int)extruder_est_sps;
             int neutral = (int)((float)demand_sps * RELAY_NEUTRAL_FRAC);
@@ -1686,6 +1686,10 @@ void sync_tick(uint32_t now_ms) {
 
     int max_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
     if (fast_brake_active) target_sps = 0;
+    /* Type-D COMPRESSION true-stop: don't let the SYNC_MIN clamp re-floor the 0,
+     * so feed actually stops instead of pushing SYNC_MIN forward into a full
+     * buffer (which deepened BP past the switch for ~5s at end of feed). */
+    else if (BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION) target_sps = 0;
     else target_sps = clamp_i(target_sps, SYNC_MIN_SPS, max_sps);
 
     int ramp_dn_sps = SYNC_RAMP_DN_SPS;
