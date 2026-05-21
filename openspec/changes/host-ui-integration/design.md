@@ -27,7 +27,7 @@ sync_feedback = clamp(g_buf_pos / max_travel, -1.0, 1.0)
 `flare_daemon.py` must run reliably on any Linux host (Raspberry Pi, laptop, or industrial PC) without Klipper or Moonraker dependencies.
 
 - **Optional Integration**: During startup, `flare_daemon.py` checks for the presence of the Moonraker API socket (typically `/tmp/moonraker.sock` or `http://localhost:7125`).
-- **Graceful Degradation**: If Moonraker is not found, the Klipper-masquerade bridge is completely bypassed. The daemon prints a warning to logs and runs purely as a standalone serial-to-HTTP/WebSocket proxy.
+- **Graceful Degradation**: If Moonraker is not found, the Klipper-masquerade bridge is completely bypassed. The daemon prints a warning to logs and runs purely as a standalone serial-to-HTTP proxy.
 - **Standalone Dashboard**: The embedded static web server hosts the same HTML/JS Canvas UI. Standalone users can access the dashboard by navigating to `http://<pi_ip>:8080` in their browser, gaining full access to:
   - Real-time buffer telemetry graphs.
   - Manual load, unload, and lane swap commands (`TC:`, `FL:`, `UL:`, `UM:`).
@@ -41,7 +41,8 @@ The custom dashboard will be served directly by the daemon (`http://<pi_ip>:8080
 
 ### Code Stack
 - **Structure**: Vanilla HTML5. Highly semantic, unique IDs for browser automation testing.
-- **Logic**: Vanilla ES6 JavaScript. Uses the standard browser WebSocket and Fetch APIs.
+- **Logic**: Vanilla ES6 JavaScript. Uses the standard browser **EventSource (Server-Sent Events / SSE)** for real-time telemetry streaming and standard Fetch APIs for sending commands.
+  - **Why SSE?**: 100% native HTTP protocol, requires zero custom WebSocket frame parsing in std-lib Python, extremely robust, and instantly supported by modern browsers.
 - **Styling**: Vanilla CSS3. Utilizes CSS Custom Properties (variables) for theme tokens.
 - **Visualization**: HTML5 Canvas API. Telemetry points are pushed into a rolling buffer and rendered at 60FPS using `requestAnimationFrame()`, avoiding CPU overhead.
 
@@ -98,14 +99,15 @@ This guarantees that:
                   │              ▼               │
                   │  ┌────────────────────────┐  │
                   │  │       Main Loop        │  │
-                  │  │    (asyncio / select)  │  │
+                  │  │      (Threading/       │  │
+                  │  │     SocketServer)      │  │
                   │  └───────────┬────────────┘  │
                   │              │               │
                   │    ┌─────────┴─────────┐     │
                   │    ▼                   ▼     │
                   │ ┌──────┐          ┌────────┐ │
-                  │ │ HTTP │          │ WebSocket│
-                  │ │ Server│         │ Server │ │
+                  │ │ HTTP │          │  SSE   │ │
+                  │ │ Server│         │ Stream │ │
                   │ └──────┘          └────────┘ │
                   └──────────────────────────────┘
 ```
@@ -115,7 +117,7 @@ If the USB cable is physically unplugged or the board resets:
 1. `pyserial` raises `SerialException`.
 2. The serial thread catches the exception, enters `DISCONNECTED` state, and closes the port handle.
 3. Every 2 seconds, the serial thread attempts to reconnect to `/dev/ttyACM*`.
-4. While disconnected, the HTTP server returns `503 Service Unavailable` with `{"error": "board_offline"}`. The WebSocket continues to broadcast status with `board_online: false`.
+4. While disconnected, the HTTP server returns `503 Service Unavailable` with `{"error": "board_offline"}`. The SSE stream broadcasts offline state.
 5. **No daemon crash occurs.** Graceful recovery is fully automatic.
 
 ---
@@ -127,8 +129,5 @@ If the USB cable is physically unplugged or the board resets:
 - **`POST /cmd`**: Body contains raw FLARE C-command string (e.g. `{"cmd": "TC:1"}`).
   - Daemon immediately writes the string to serial.
   - Blocks and returns `200 OK` with response payload when `OK:` or `ER:` is received.
+- **`GET /telemetry`**: Continuous Server-Sent Events stream of real-time stats at 20Hz.
 - **`GET /`**: Serves the standalone HTML/Canvas WebUI.
-
-### WebSocket Server (Port: `8081` or unified)
-- Streams continuous telemetry at 50Hz to any connected client.
-- Exposes raw buffer positions and sensor triggers.
