@@ -21,6 +21,23 @@ To preserve FLARE's standalone nature and verify it against all testing plans:
 
 ---
 
+## Tech Stack & Design Aesthetics
+
+To ensure maximum performance on low-resource Klipper hosts (Raspberry Pi) and provide a state-of-the-art UI experience:
+
+1. **Ultra-Lightweight Core**: Zero heavy frameworks (no React, Vue, or Next.js). The frontend uses **Vanilla HTML5, ES6 JavaScript, and Vanilla CSS3**.
+   - No `node_modules` compilation or installation overhead on the Pi.
+   - Extremely small footprint (<20KB total package) serving in under 1ms.
+2. **Hardware-Accelerated Visualization**: Real-time buffer force tracking is drawn using **HTML5 Canvas** at 60FPS. 
+   - Uses browser GPU acceleration directly, imposing **0% CPU load** on the Raspberry Pi host.
+3. **Premium Aesthetics**:
+   - Modern typography using the Google Font **Outfit** or **Inter**.
+   - Deep, curated dark-mode theme utilizing harmonious HSL-tailored neon accents (no raw primary colors).
+   - Glassmorphism UI panel containers utilizing CSS backdrop-filter blur effects (`backdrop-filter: blur(12px)`).
+   - Dynamic hover micro-animations and smooth CSS transitions.
+
+---
+
 ## What Changes
 
 ### 1. Host Daemon: `scripts/flare_daemon.py` [NEW]
@@ -51,6 +68,7 @@ To preserve FLARE's standalone nature and verify it against all testing plans:
 - A lightweight single-page application (Vanilla HTML5/Canvas/CSS).
 - Hosted natively by the `flare_daemon`'s internal static file server or by Moonraker.
 - Graphically displays high-frequency `g_buf_pos` traces, live sensor indicators, and calibration guides.
+- Exposes all interactive commands (`TC:`, `FL:`, `UL:`, `UM:`, `CU:`, `SET:`, `GET:`, `MV:`) as buttons, sliders, and a developer console.
 
 ---
 

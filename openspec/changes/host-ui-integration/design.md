@@ -30,12 +30,29 @@ sync_feedback = clamp(g_buf_pos / max_travel, -1.0, 1.0)
 - **Graceful Degradation**: If Moonraker is not found, the Klipper-masquerade bridge is completely bypassed. The daemon prints a warning to logs and runs purely as a standalone serial-to-HTTP/WebSocket proxy.
 - **Standalone Dashboard**: The embedded static web server hosts the same HTML/JS Canvas UI. Standalone users can access the dashboard by navigating to `http://<pi_ip>:8080` in their browser, gaining full access to:
   - Real-time buffer telemetry graphs.
-  - Manual load, unload, and lane swap commands.
+  - Manual load, unload, and lane swap commands (`TC:`, `FL:`, `UL:`, `UM:`).
   - Interactive sensor calibration assistants.
 
 ---
 
-## 3. Graceful Client Fallback (flare_cmd.py)
+## 3. UI Tech Stack & Sleek Dark-Mode Design
+
+The custom dashboard will be served directly by the daemon (`http://<pi_ip>:8080`).
+
+### Code Stack
+- **Structure**: Vanilla HTML5. Highly semantic, unique IDs for browser automation testing.
+- **Logic**: Vanilla ES6 JavaScript. Uses the standard browser WebSocket and Fetch APIs.
+- **Styling**: Vanilla CSS3. Utilizes CSS Custom Properties (variables) for theme tokens.
+- **Visualization**: HTML5 Canvas API. Telemetry points are pushed into a rolling buffer and rendered at 60FPS using `requestAnimationFrame()`, avoiding CPU overhead.
+
+### Premium Aesthetic System
+- **Colors**: Curated deep grey background (`#0d0f12`), translucent glass card panels (`rgba(22, 26, 30, 0.75)` with `backdrop-filter: blur(12px)` and `border: 1px solid rgba(255, 255, 255, 0.05)`).
+- **Accents**: Neon teal (`hsl(174, 100%, 45%)`) for active loaded states, neon coral (`hsl(354, 100%, 60%)`) for tension warnings, and pure white for telemetry labels.
+- **Typography**: Imported Google Font `Outfit` (`sans-serif`, weight 400 & 600) for a state-of-the-art tech aesthetic.
+
+---
+
+## 4. Graceful Client Fallback (flare_cmd.py)
 
 To prevent breaking `TEST_CASES.md` and manual bring-up checklists, `scripts/flare_cmd.py` implements the following fallback sequence when a user runs a command:
 
@@ -67,7 +84,7 @@ This guarantees that:
 
 ---
 
-## 4. Daemon Architecture & Threading Model
+## 5. Daemon Architecture & Threading Model
 
 ```
                   ┌──────────────────────────────┐
@@ -103,7 +120,7 @@ If the USB cable is physically unplugged or the board resets:
 
 ---
 
-## 5. Network Specifications
+## 6. Network Specifications
 
 ### HTTP Server (Port: `8080`)
 - **`GET /status`**: Returns the latest cached state of the RP2040 in JSON format.
