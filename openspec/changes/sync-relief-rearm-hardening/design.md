@@ -82,6 +82,83 @@ fast-brake gap (12) and the dwell-sum overflow (13).
   catch-up at TENSION already covers refill regardless of est; the blend only
   slows the NEUTRAL feed-forward, which is the safe direction.
 
+## Regression impact (rule 10)
+
+Per-fix blast radius across the touched flows. All four fixes must be gated
+`BUF_SENSOR_TYPE == 0` so type-P is byte-for-byte unchanged; today the re-arm
+(`846`), fast-brake arm (`1112`), and estimator overwrite (`801-802`) are all
+type-agnostic.
+
+### D1 — RELIEF_PAUSE re-arm on NEUTRAL
+- **Spurious re-arm at true end-of-print (highest risk).** The NEUTRAL that would
+  re-arm is produced by the relieve service (`buffer_stabilize_tick` →
+  `buf_force_stable_state(NEUTRAL)`, `708`), which runs only when
+  `buffer_stabilize_controller_idle()` (`611-614`: `TC_IDLE && !cutter_busy &&
+  !sync_enabled && both lanes TASK_IDLE`) — i.e. end-of-print idle. A naive
+  "re-arm on NEUTRAL" re-engages the motor exactly when the print is done.
+  Mid-print-pause resume (the goal) and end-of-print look identical to type-D
+  (no extruder signal).
+- **Precondition to verify first:** `sync_relief_pause()` (`984`) does not clear
+  `sync_enabled`. If it stays set, `controller_idle` is false → relieve never runs
+  → COMPRESSION only clears by the extruder draining toward TENSION (already
+  covered at `846`). Confirm what actually drives COMPRESSION→NEUTRAL *in*
+  RELIEF_PAUSE before wiring D1, or the new exit fires never / only at idle.
+- Boot stabilize uses the same `buf_force_stable_state(NEUTRAL)` (`723`); if the
+  re-arm lives in `buf_update` it fires during boot. `sync_tick` guards
+  `g_boot_stabilizing` (`1247`); `buf_update` does not → gate D1 on
+  `!g_boot_stabilizing`.
+- Reseed to reserve target while the buffer leans → brief model/physical mismatch
+  until the next crossing; bounded (FAULT_HOLD proves it).
+
+### D2 — estimator blend / rate-cap
+- Slower reaction to a genuine fast demand jump → NEUTRAL feed lags on a real
+  ramp-up; self-corrects via TENSION catch-up (`1675`, est-independent). Under-feed
+  = safe direction.
+- Cold start from est=0 ramps slower over the first crossings → weak initial
+  NEUTRAL feed. Minor. Reuse the existing `alpha` path (`794`); add no tunable.
+
+### D6 — fast-brake on any →COMPRESSION
+- **Interacts with item 3 (limit cycle, possibly unfixed).** Normal NEUTRAL feed
+  creeps to COMPRESSION ~every 5s and today ramps down gently; a 250ms instant
+  brake on every creep stops harder → buffer relaxes faster → quicker re-lean →
+  may deepen the oscillation. Verify against item 3 before scoping.
+- `baseline_update_on_settle` skips while `fast_brake_active` (`1142-1144`); a
+  brake overlapping the next COMPRESSION→NEUTRAL settle drops one baseline sample.
+  Low.
+
+### D3 (items 3-4) / D5 (item 5)
+- D3 longer relieve gate → relief fires later → longer COMPRESSION dwell →
+  post-print stabilize delayed. Config-only = low code risk.
+- D5 rescale est on lane swap: isolated to toolchange, no-op for identical
+  `MM_PER_STEP`; unit-check the ratio direction. est not persisted.
+
+### Cross-cutting
+- No `settings_t` field if no new tunable → **no `SETTINGS_VERSION` bump**;
+  hold the no-new-tunables line (else full SET/GET/dump/doc parity, rule 8).
+- `BEHAVIOR.md` sync state-machine + the RELIEF_PAUSE diagram must gain the
+  NEUTRAL exit; `MANUAL.md` only if a tunable lands.
+- Untouched: preload / load / unload / cutter. RELOAD only via tail-assist
+  (D6 benign there).
+
+## Testing notes (extends tasks 5.x)
+- **D1 end-of-print isolation:** finish a print (lanes → idle), let COMPRESSION →
+  RELIEF_PAUSE → relieve → NEUTRAL; assert sync stays paused, no AUTO_START,
+  motor quiet. Then a mid-print pause→resume at high flow must re-arm without an
+  empty-wall/grind. Watch `SYNC` events for a stray `AUTO_START` at idle.
+- **D1 boot:** power-cycle with the buffer at COMPRESSION; confirm boot stabilize
+  reaches NEUTRAL without tripping ACTIVE early.
+- **D2 spike:** force a fast/partial TENSION→COMPRESSION; capture `extruder_est_sps`
+  before/after — must not jump to the rail; next NEUTRAL feed must not over-shoot.
+  Also a genuine fast ramp-up: confirm TENSION catch-up still refills (no starve).
+- **D6 × item 3:** long steady print; log NEUTRAL↔COMPRESSION crossing period and
+  depth with and without D6 — D6 must not shorten the period or deepen the lean.
+- **D5:** two lanes with different `rotation_distance`; toolchange mid-sync;
+  confirm est rescales (no over/under-feed on the first crossings post-swap).
+  Identical-lane setup must be bit-identical to today.
+- **Regression guard (all):** `flare_purge_check.py --mode regression` clean;
+  re-confirm `compression-overfeed-stop` (purge + constant feed + end-of-feed
+  true-stop, no -11 slam). type-P smoke (analog rig) unchanged.
+
 ## Open Questions
 
 - Whether items 3-4 need firmware or are acceptable as config guidance.
