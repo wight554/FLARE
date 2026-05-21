@@ -1,6 +1,6 @@
 ## 1. RELIEF_PAUSE re-arm (high — item 1)
 
-- [ ] 1.1 Add a `RELIEF_PAUSE → SYNC_ACTIVE` exit when the buffer reaches
+- [x] 1.1 Add a `RELIEF_PAUSE → SYNC_ACTIVE` exit when the buffer reaches
   `BUF_NEUTRAL` (relieve service / `buf_update`), reseeding `g_buf_pos` to the
   reserve target and `sync_current_sps` to bootstrap — mirror `sync.c:1258-1262`.
 - [ ] 1.2 Confirm idle still rests at NEUTRAL without oscillation; type-P path
