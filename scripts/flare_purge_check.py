@@ -50,8 +50,10 @@ CSV_FIELDS = ("idx", "BUF", "BP", "EST", "MM", "RE", "AV", "CT", "SM", "ST",
               "SYNC_RELIEVE_MM", "SYNC_REFILL_MM")
 
 # PASS thresholds for the compression-overfeed-stop fix.
-OVERFILL_BUDGET_MM = 3.0    # relief budget (1.5) + ramp-down slack
-GRIND_MS = 1500             # max acceptable continuous COMPRESSION dwell (CT)
+# The damage signal is forward feed into a FULL buffer, not dwell length: once
+# feed stops (~0), a long idle COMPRESSION sit (purge pause) is harmless.
+OVERFILL_BUDGET_MM = 3.0    # max forward overfill (SYNC_RELIEVE_MM) into a full buffer
+STOP_EPS_SPS = 30           # feed at/below this counts as stopped (SYNC_MIN is 100)
 
 
 class Sample:
@@ -136,8 +138,8 @@ def analyze_purge(samples: List[Sample], events, threshold: float,
     Return (verdict, report_lines)."""
     report: List[str] = []
     worst_overfill = 0.0
+    worst_steady_feed = 0.0
     worst_grind_ms = 0.0
-    worst_feed = 0.0
     runs = state_runs(samples, "COMPRESSION")
 
     for (a, b) in runs:
@@ -148,45 +150,49 @@ def analyze_purge(samples: List[Sample], events, threshold: float,
         bp = [s.f("BP") for s in samples[a:b + 1] if s.f("BP") is not None]
         overfill = (max(rel) - min(rel)) if rel else 0.0
         grind_ms = max(ct) if ct else 0.0
-        # Feed after the first couple of ramp-down ticks should be ~0.
-        feed_tail = max(mm[2:]) if len(mm) > 2 else (max(mm) if mm else 0.0)
         min_bp = min(bp) if bp else 0.0
+        # Skip the initial ramp-down, then feed must stay ~0 (true-stop). A long
+        # dwell at zero feed is a benign idle sit, not an overfeed.
+        skip = min(6, len(mm) // 3)
+        steady = mm[skip:] if len(mm) > skip else mm
+        steady_feed = max(steady) if steady else 0.0
         worst_overfill = max(worst_overfill, overfill)
+        worst_steady_feed = max(worst_steady_feed, steady_feed)
         worst_grind_ms = max(worst_grind_ms, grind_ms)
-        worst_feed = max(worst_feed, feed_tail)
-        verdict = "OK"
-        if overfill > OVERFILL_BUDGET_MM or grind_ms > GRIND_MS:
-            verdict = "OVERFEED"
+        verdict = "OK" if (steady_feed <= STOP_EPS_SPS
+                           and overfill <= OVERFILL_BUDGET_MM) else "OVERFEED"
         report.append(
-            f"  COMPRESSION idx[{a}-{b}] overfill {overfill:.1f} mm "
-            f"(budget {OVERFILL_BUDGET_MM:.1f}), grind {grind_ms:.0f} ms "
-            f"(max {GRIND_MS}), feed_tail {feed_tail:.0f}, BPmin {min_bp:+.2f} "
-            f"-> {verdict}"
+            f"  COMPRESSION idx[{a}-{b}] steady_feed {steady_feed:.0f} sps "
+            f"(stop<= {STOP_EPS_SPS}), overfill {overfill:.1f} mm "
+            f"(budget {OVERFILL_BUDGET_MM:.1f}), dwell {grind_ms:.0f} ms, "
+            f"BPmin {min_bp:+.2f} -> {verdict}"
         )
 
     relief_pauses = [e for (_, e) in events if "RELIEF_PAUSE" in e]
     # EV:BS:COMPRESSION,<mm>,<bp> state-change events catch episodes too brief
-    # to land on a poll sample (the fix makes compression very short).
+    # to land on a poll sample.
     ev_compression = [e for (_, e) in events if "BS:COMPRESSION" in e]
     report.insert(0, f"  COMPRESSION episodes: {len(runs)} sampled, "
-                     f"{len(ev_compression)} in events; worst overfill "
-                     f"{worst_overfill:.1f} mm, worst grind {worst_grind_ms:.0f} ms, "
-                     f"worst feed_tail {worst_feed:.0f} sps")
+                     f"{len(ev_compression)} in events; worst steady_feed "
+                     f"{worst_steady_feed:.0f} sps, worst overfill "
+                     f"{worst_overfill:.1f} mm, worst dwell {worst_grind_ms:.0f} ms")
     report.insert(1, f"  RELIEF_PAUSE events: {len(relief_pauses)}")
+    if worst_grind_ms > 2000 and worst_steady_feed <= STOP_EPS_SPS:
+        report.insert(2, "  (long dwell at zero feed = benign idle sit; confirm "
+                         "it recovers to NEUTRAL when extrusion resumes)")
 
     if not runs:
         if ev_compression or relief_pauses:
             return "INCONCLUSIVE", report + [
                 "  Compression happened (events) but was too brief to sample at "
-                "this poll rate — a good sign vs the old multi-second grind, but "
-                "overfill can't be measured. Re-run with --poll 20 to quantify."]
+                "this poll rate. Re-run with --poll 20 to quantify."]
         return "INCONCLUSIVE", report + [
             "  No COMPRESSION episode captured — run the purge macro "
             "(e.g. _FLARE_PURGE PURGE=60) during capture."]
-    if worst_overfill > OVERFILL_BUDGET_MM or worst_grind_ms > GRIND_MS:
+    if worst_steady_feed > STOP_EPS_SPS or worst_overfill > OVERFILL_BUDGET_MM:
         return "FAIL", report + [
-            "  Overfill/grind exceeded budget — MMU still feeding into a full "
-            "buffer (check COMPRESSION true-stop + relief budget)."]
+            "  Feed did not stop / overfill exceeded budget — MMU still feeding "
+            "a full buffer (check COMPRESSION true-stop + relief budget)."]
     return "PASS", report
 
 

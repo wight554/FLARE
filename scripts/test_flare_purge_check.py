@@ -51,23 +51,32 @@ class PurgeTests(unittest.TestCase):
         lines = [status("TENSION", 5.0, 1300, 1700) for _ in range(3)]
         lines += [status("NEUTRAL", 4.0 - k, 1345, 1680) for k in range(6)]
         for rel, ct, mm in zip(relieve_series, ct_series, mm_series):
-            lines.append(status("COMPRESSION", -5.1, 200, mm, relieve=rel, ct=ct))
+            lines.append(status("COMPRESSION", -5.0, 200, mm, relieve=rel, ct=ct))
         return fpc.parse_stream(lines)
 
-    def test_capped_overfill_passes(self):
-        # feed drops to ~0, overfill capped at 1.5mm, short dwell -> the fix works
-        rel = [0.4, 0.9, 1.4, 1.5, 1.5]
-        ct = [100, 200, 300, 400, 450]
-        mm = [900, 200, 0, 0, 0]
+    def test_truestop_passes(self):
+        # feed ramps to 0 and holds, overfill ~0 -> the fix works
+        mm = [280, 200, 120, 40] + [0] * 16
+        rel = [0.0, 0.1, 0.2, 0.3] + [0.3] * 16
+        ct = [i * 60 for i in range(20)]
         samples, events = self._purge(rel, ct, mm)
         verdict, _ = fpc.analyze_purge(samples, events, 5.0, 12.5)
         self.assertEqual(verdict, "PASS")
 
-    def test_overfeed_grind_fails(self):
-        # old behavior: SYNC_MIN keeps feeding, ~8mm over ~5s
-        rel = [2, 4, 6, 8, 10]
-        ct = [1000, 2000, 3000, 4000, 4900]
-        mm = [120, 100, 80, 100, 120]
+    def test_long_zero_feed_dwell_passes(self):
+        # benign idle sit: feed 0 for 5 s -> PASS despite long dwell
+        mm = [280, 200, 120, 40] + [0] * 40
+        rel = [0.0, 0.1, 0.2, 0.3] + [0.3] * 40
+        ct = [i * 110 for i in range(44)]  # dwell climbs past 4 s
+        samples, events = self._purge(rel, ct, mm)
+        verdict, _ = fpc.analyze_purge(samples, events, 5.0, 12.5)
+        self.assertEqual(verdict, "PASS")
+
+    def test_sustained_feed_fails(self):
+        # old behavior: keeps feeding ~120 sps into a full buffer, overfill grows
+        mm = [120] * 20
+        rel = [i * 0.5 for i in range(20)]
+        ct = [i * 250 for i in range(20)]
         samples, events = self._purge(rel, ct, mm)
         verdict, _ = fpc.analyze_purge(samples, events, 5.0, 12.5)
         self.assertEqual(verdict, "FAIL")
