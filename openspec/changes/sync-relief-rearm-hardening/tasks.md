@@ -14,10 +14,10 @@
 
 ## 3. Medium items (decide firmware vs config)
 
-- [ ] 3.1 Item 3 — steady-feed limit cycle: assess whether NEUTRAL hold needs a
-  tighter band or it's `RELAY_NEUTRAL_FRAC`/baseline tuning guidance.
-- [ ] 3.2 Item 4 — reverse-relieve gating: consider a longer idle gate so relieve
-  can't pull against a slow active extrusion.
+- [x] 3.1 Item 3 — steady-feed limit cycle: assess whether NEUTRAL hold needs a
+  tighter band or it's `RELAY_NEUTRAL_FRAC`/baseline tuning guidance. (Evaluated: resolved via RELAY_NEUTRAL_FRAC baseline tuning.)
+- [x] 3.2 Item 4 — reverse-relieve gating: consider a longer idle gate so relieve
+  can't pull against a slow active extrusion. (Evaluated: handled via POST_PRINT_STAB_MS configuration.)
 - [x] 3.3 Item 5 — per-lane: rescale `extruder_est_sps` on active-lane change when
   `MM_PER_STEP` differs (no-op for identical lanes).
 - [x] 3.4 Item 12 (D6) — extend the type-D fast-brake (instant stop) to
