@@ -96,12 +96,12 @@ if [ "$NO_KLIPPER" = true ]; then
 else
     echo -e "${GREEN}Klipper Mode active.${NC}"
     echo -e "Ensure Klipper config includes flare macro file."
-    echo -e "Dashboard will be served on http://localhost:8080"
+    echo -e "Dashboard will be served on http://localhost:8088"
 fi
 
 echo -e "\n${GREEN}==================================================${NC}"
 echo -e "${GREEN}             FLARE Service Ready!                 ${NC}"
-echo -e "  - WebUI URL:     http://localhost:8080"
+echo -e "  - WebUI URL:     http://localhost:8088"
 echo -e "  - View Logs:     journalctl -u flare_daemon.service -f"
 echo -e "  - Start Service: systemctl start flare_daemon.service"
 echo -e "  - Stop Service:  systemctl stop flare_daemon.service"

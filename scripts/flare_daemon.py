@@ -479,7 +479,7 @@ def main():
     parser.add_argument("--port", help="Serial port connection path (e.g. /dev/ttyACM0)")
     parser.add_argument("--baud", type=int, default=115200, help="Baud rate (default: 115200)")
     parser.add_argument("--host", default="0.0.0.0", help="HTTP server bind host (default: 0.0.0.0)")
-    parser.add_argument("--api-port", type=int, default=8080, help="HTTP/SSE API server port (default: 8080)")
+    parser.add_argument("--api-port", type=int, default=8088, help="HTTP/SSE API server port (default: 8088)")
     parser.add_argument("--no-klipper", action="store_true", help="Bypass Moonraker/Klipper telemetry synchronization")
     parser.add_argument("--moonraker-url", default="http://localhost:7125", help="Moonraker base URL (default: http://localhost:7125)")
     args = parser.parse_args()

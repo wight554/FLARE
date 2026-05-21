@@ -28,7 +28,7 @@ sync_feedback = clamp(g_buf_pos / max_travel, -1.0, 1.0)
 
 - **Optional Integration**: During startup, `flare_daemon.py` checks for the presence of the Moonraker API socket (typically `/tmp/moonraker.sock` or `http://localhost:7125`).
 - **Graceful Degradation**: If Moonraker is not found, the Klipper-masquerade bridge is completely bypassed. The daemon prints a warning to logs and runs purely as a standalone serial-to-HTTP proxy.
-- **Standalone Dashboard**: The embedded static web server hosts the same HTML/JS Canvas UI. Standalone users can access the dashboard by navigating to `http://<pi_ip>:8080` in their browser, gaining full access to:
+- **Standalone Dashboard**: The embedded static web server hosts the same HTML/JS Canvas UI. Standalone users can access the dashboard by navigating to `http://<pi_ip>:8088` in their browser, gaining full access to:
   - Real-time buffer telemetry graphs.
   - Manual load, unload, and lane swap commands (`TC:`, `FL:`, `UL:`, `UM:`).
   - Interactive sensor calibration assistants.
@@ -37,7 +37,7 @@ sync_feedback = clamp(g_buf_pos / max_travel, -1.0, 1.0)
 
 ## 3. UI Tech Stack & Sleek Dark-Mode Design
 
-The custom dashboard will be served directly by the daemon (`http://<pi_ip>:8080`).
+The custom dashboard will be served directly by the daemon (`http://<pi_ip>:8088`).
 
 ### Code Stack
 - **Structure**: Vanilla HTML5. Highly semantic, unique IDs for browser automation testing.
@@ -62,7 +62,7 @@ To prevent breaking `TEST_CASES.md` and manual bring-up checklists, `scripts/fla
                                      │
                                      ▼
                       [ Attempt HTTP POST to Daemon ]
-                         [ http://localhost:8080/cmd ]
+                          [ http://localhost:8088/cmd ]
                                   /     \
                        Connection/       \Connection
                         Succeeds/         \Refused (Daemon Offline)
@@ -124,7 +124,7 @@ If the USB cable is physically unplugged or the board resets:
 
 ## 6. Network Specifications
 
-### HTTP Server (Port: `8080`)
+### HTTP Server (Port: `8088`)
 - **`GET /status`**: Returns the latest cached state of the RP2040 in JSON format.
 - **`POST /cmd`**: Body contains raw FLARE C-command string (e.g. `{"cmd": "TC:1"}`).
   - Daemon immediately writes the string to serial.

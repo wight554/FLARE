@@ -225,7 +225,7 @@ def format_dump_value(key, value):
 # ---------------------------------------------------------------------------
 # Daemon Proxy Integration
 # ---------------------------------------------------------------------------
-DAEMON_URL = "http://127.0.0.1:8080"
+DAEMON_URL = "http://127.0.0.1:8088"
 
 def get_daemon_status():
     try:
@@ -622,8 +622,13 @@ def main():
                         help='With --dump: print terse key: value lines without comments')
     parser.add_argument('--poll',    type=int, metavar='MS',
                         help='Repeatedly poll status (?:) at specified interval in ms')
+    parser.add_argument('--api-port', type=int, default=8088,
+                        help='Daemon HTTP API port (default: 8088)')
     parser.add_argument('cmd', nargs='*', help='FLARE command(s) to send')
     args = parser.parse_args()
+
+    global DAEMON_URL
+    DAEMON_URL = f"http://127.0.0.1:{args.api_port}"
 
     daemon_online = (args.port is None) and (get_daemon_status() is not None)
 
