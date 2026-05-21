@@ -120,5 +120,9 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
 
 ## 6. Docs (rule 6)
 
-- [ ] 6.1 Update `BEHAVIOR.md` sync state-machine: add the RELIEF_PAUSE → NEUTRAL
+- [x] 6.1 Update `BEHAVIOR.md` sync state-machine: add the RELIEF_PAUSE → NEUTRAL
   re-arm exit (D1) and the type-D fast-brake on NEUTRAL→COMPRESSION (D6).
+  Done: documented `SYNC_RELIEF_PAUSE` + re-arm on NEUTRAL/TENSION (relief
+  section, AUTO sync step 8, auto-toggle table), the type-D NEUTRAL→COMPRESSION
+  fast-brake (transition-handling section), and corrected the estimator note to
+  reflect the type-D blend (no hard overwrite) — D2.

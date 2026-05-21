@@ -241,8 +241,12 @@ instantaneous extruder-rate estimate.
 - The instantaneous estimate is clamped to `GLOBAL_MAX_RATE` and merged into
   `extruder_est_sps` with an adaptive EMA bounded by `EST_ALPHA_MIN` and
   `EST_ALPHA_MAX`.
-- A fast `TENSION→COMPRESSION` transition overwrites the estimator directly so a
-  sudden demand collapse is reflected immediately.
+- On type-P sensors a fast `TENSION→COMPRESSION` transition overwrites the
+  estimator directly so a sudden demand collapse is reflected immediately. On
+  type-D (dual-endstop) this travel is *modeled* (`2×threshold ÷ dwell`), so a
+  short/partial transition could fabricate a huge value; there the update is
+  blended through the adaptive EMA instead of overwritten, so a single modeled
+  transition cannot spike the estimator (and over-feed the next `NEUTRAL`).
 
 If the buffer stays in NEUTRAL for > 2 s, the estimator decays gently toward the
 current MMU speed. This keeps the feed-forward term sane during long steady
@@ -403,7 +407,10 @@ for tuning and regression monitoring.
 
 On a direct `TENSION→COMPRESSION` transition, firmware arms a short fast-brake
 window. During that window the sync target is forced to 0 before normal
-COMPRESSION low-speed recovery resumes.
+COMPRESSION low-speed recovery resumes. On type-D the fast-brake is also armed on
+`NEUTRAL→COMPRESSION` — the wall hit an estimator over-feed produces — because
+that transition would otherwise only ramp down (`SYNC_RAMP_DN_SPS`) and keep
+feeding into a full buffer for the ramp duration instead of stopping at once.
 
 The live baseline learner remains ephemeral and up-only. Once the settle,
 variance, cooldown, distance, and `SYNC_ACTIVE` gates accept an update, the
@@ -494,6 +501,15 @@ Instead:
   applies directly without relying on an internal deadman multiplier since the 
   dwell timer no longer falsely resets.
 
+When this fires the controller enters `SYNC_RELIEF_PAUSE` (feed 0), not a full
+disable. On type-D it re-arms to `SYNC_ACTIVE` as soon as the buffer recovers to
+**`NEUTRAL` or `TENSION`**, reseeding `g_buf_pos` to the reserve target and the
+speed to the bootstrap floor, so a high-flow resume after a pause does not have to
+drain the whole buffer to empty before sync feeds again. (Earlier behavior
+re-armed only on `TENSION`, which starved the extruder during the drain.)
+Boot/idle stabilization is excluded from this re-arm, so an end-of-print relieve
+to `NEUTRAL` does not spuriously restart feed.
+
 The same low-speed stabilization helper used at boot can also be run on demand
 with `BS:` when the controller is idle.
 
@@ -522,7 +538,9 @@ tension-side handoff and then settles the buffer back toward `NEUTRAL`.
 7. During normal auto-started print sync, sustained `BUF_COMPRESSION` only
    disables sync after the continuous dwell exceeds `SYNC_AUTO_STOP_MS`
    and the controller speed has collapsed to the compression-floor limit.
-8. The next eligible `BUF_TENSION` event bootstraps sync again.
+8. From `SYNC_RELIEF_PAUSE`, the next recovery to `BUF_NEUTRAL` or `BUF_TENSION`
+   (type-D) re-arms sync; from a full-off state an eligible `BUF_TENSION` event
+   bootstraps a fresh start.
 
 ---
 
@@ -536,7 +554,7 @@ load completion and RELOAD handover, but it is not the main sync controller.
 | `BUF_TENSION` while sync is off | enabled and bootstrapped |
 | `UL:`, active-lane `UM`, or `TC:` unload starts | disabled |
 | tail-assist `BUF_COMPRESSION` for `SYNC_AUTO_STOP_MS` | disabled and estimator reset |
-| normal-sync `BUF_COMPRESSION` at compression-floor speed for `SYNC_AUTO_STOP_MS` | disabled and estimator reset |
+| normal-sync `BUF_COMPRESSION` at compression-floor speed for `SYNC_AUTO_STOP_MS` | `SYNC_RELIEF_PAUSE` (re-arms on `NEUTRAL`/`TENSION`, type-D) |
 | `ST:` command | disabled |
 ---
 
