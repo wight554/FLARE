@@ -183,6 +183,10 @@ commands.
 
 ## Manual load / unload
 
+`UL:` / `UM:` skip the cutter phase when the other lane is already OUT-loaded,
+even if `UNLOAD_CUT=1`, so a parked standby filament is not cut by a manual
+unload.
+
 ```ini
 [gcode_macro FLARE_LOAD]
 description: Full load active lane to toolhead

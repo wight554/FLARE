@@ -224,3 +224,11 @@
 - Simplified the `printer.cfg` snippet in `KLIPPER.md` by removing the manual `RUN_SHELL_COMMAND` calls from the Klipper sensor blocks.
 - Verified Jinja2 brace balance (`96/96`), Python script compile check, and local firmware build.
 - Committed and pushed to `main` with commit SHA `fc1fee5`.
+
+2026-05-21 manual unload cutter guard:
+- Added a manual unload guard so `UL:` / `UM:` only use `UNLOAD_CUT` when the
+  other lane's OUT sensor is clear. If both lanes are OUT-loaded, the active
+  lane unloads without running the cutter.
+- Updated `MANUAL.md`, `BEHAVIOR.md`, `KLIPPER.md`, and the toolchange
+  orchestration spec to document the standby-lane cutter guard.
+- Verified local firmware build with `ninja -C build_local`.

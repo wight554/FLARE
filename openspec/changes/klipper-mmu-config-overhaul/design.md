@@ -450,3 +450,24 @@ Implementation plan:
 - Keep the explicit printer gear-clear retract, but stop mirroring it with a
   second FLARE `MV:` because the tip-forming MV has already pulled the old lane
   clear of the gears/bowden exit.
+
+## Manual Unload Cutter Guard Follow-up
+
+Hardware status can show both lanes parked at OUT (`O1=1,O2=1`). In that
+state a manual `UL:` on the active lane must not run the cutter after the
+active lane clears OUT, because the standby lane is still physically loaded and
+could be cut instead.
+
+Implementation plan:
+
+### firmware/src/protocol.c
+- Add a small manual-unload helper that permits `UNLOAD_CUT` only when the
+  active lane is eligible and the other lane's OUT sensor is clear.
+- Apply the helper to `UL:` and to the `UM:` path that reuses the manual unload
+  clear/cut/clear sequence.
+- Keep unload motion behavior unchanged: if the cutter is not permitted, the
+  active lane still unloads normally, just without the cut phase.
+
+### MANUAL.md + BEHAVIOR.md + openspec/specs/toolchange-orchestration/spec.md
+- Document that manual unload skips the cutter when the other lane is already
+  OUT-loaded.

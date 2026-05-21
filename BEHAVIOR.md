@@ -105,10 +105,12 @@ reports the lane loaded. OUT sensor is a non-stopping checkpoint.
 
 ### `UL:` — Unload from extruder
 
-Runs reverse at `REV_RATE` until OUT clears. When `UNLOAD_CUT=1` and the
-cutter is enabled, `UL:` suppresses the first `EV:UNLOADED`, runs the full
-cutter sequence, then reverses again until OUT clears and emits the final
-`EV:UNLOADED`.
+Runs reverse at `REV_RATE` until OUT clears. When `UNLOAD_CUT=1`, the cutter is
+enabled, and the other lane's OUT sensor is clear, `UL:` suppresses the first
+`EV:UNLOADED`, runs the full cutter sequence, then reverses again until OUT
+clears and emits the final `EV:UNLOADED`. If the other lane is already
+OUT-loaded, `UL:` skips the cutter and performs a plain unload so the standby
+filament cannot be cut.
 **Requires OUT to be triggered before starting** — returns `ER:NOT_LOADED` if
 OUT is already clear.
 
@@ -118,10 +120,10 @@ stops with `EV:UNLOAD_BLOCKED` after `UNLOAD_TENSION_BLOCK_MS`.
 ### `UM:` — Unload from MMU
 
 Runs reverse at `REV_RATE` until IN clears. If OUT is present at entry, `UM:`
-first runs the full `UL:` cycle (including cut when enabled), then continues
-reverse until IN clears. If OUT is already clear at entry, it does not cut; if
-the Y-splitter is still present, it performs the non-cut clear/retract leg
-before continuing to IN clear.
+first runs the full `UL:` cycle (including cut when enabled and the other lane
+OUT is clear), then continues reverse until IN clears. If OUT is already clear
+at entry, it does not cut; if the Y-splitter is still present, it performs the
+non-cut clear/retract leg before continuing to IN clear.
 Use this when the filament tip is between IN and OUT (pre-loaded state).
 
 ---

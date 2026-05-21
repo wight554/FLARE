@@ -43,6 +43,12 @@ The host SHALL be able to trigger the exact cutter sequence independently of a f
 - **AND** emits `EV:CUT:DONE` upon successful parking
 - **AND** emits `EV:CUT:ERROR` upon failure or timeout
 
+#### Scenario: Manual unload does not cut a loaded standby lane
+- **WHEN** `UL:` or `UM:` would normally use `UNLOAD_CUT`
+- **AND** the other lane's OUT sensor is already triggered
+- **THEN** the unload sequence skips the cutter phase
+- **AND** continues the requested unload motion without cutting the standby filament
+
 #### Scenario: Static Servo Position Tuning
 - **WHEN** `CP:<us>` is commanded
 - **THEN** the system immediately sets the servo PWM pulse width to `<us>` microseconds and leaves it there
