@@ -47,6 +47,15 @@
   poll telemetry and confirm `g_buf_pos` (BP) stabilizes in-band with
   `extruder_est_sps` (EST) decaying during the NEUTRAL glide — no COMPRESSION
   slam, no bowden pressure.
+
+  2026-05-21 first hardware run FAILED (EST frozen 1302->1302, BP -5.57,
+  RELIEF_PAUSE). Root cause: the corrector was gated by a `>2000u` NEUTRAL dwell
+  AND a 2000 ms recent-tension holdoff, but the purge collapse glide is ~1.4 s
+  and starts the instant TENSION is left — both timers excluded the exact
+  window. Fix: moved the collapse corrector to its own short-dwell NEUTRAL
+  branch, dropped the recent-tension holdoff (self-gated by a real slide toward
+  compression since NEUTRAL entry + reserve lean), and use cumulative slide
+  instead of a single-tick delta. Reflash + re-run required.
 - [ ] 3.3 Run a normal high-flow print and confirm TENSION/NEUTRAL cycling and
   EST learning are unchanged (corrector does not false-trigger).
 - [x] 3.4 Confirm type-P analog mode (`BUF_SENSOR_TYPE != 0`) control output is
