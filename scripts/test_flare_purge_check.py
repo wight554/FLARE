@@ -81,6 +81,14 @@ class PurgeTests(unittest.TestCase):
         verdict, _ = fpc.analyze_purge(samples, events, 5.0, 12.5)
         self.assertEqual(verdict, "FAIL")
 
+    def test_brief_entry_sample_passes(self):
+        # Fast-stop makes COMPRESSION so brief only the entry transient is
+        # sampled (1 sample, feed still high mid-ramp, overfill 0). Must NOT
+        # false-fail: a 1-sample run has no steady portion to judge.
+        samples, events = self._purge([0.0], [14], [1361])
+        verdict, _ = fpc.analyze_purge(samples, events, 5.0, 12.5)
+        self.assertEqual(verdict, "PASS")
+
     def test_no_compression_inconclusive(self):
         lines = [status("NEUTRAL", 0.0, 50, 60) for _ in range(6)]
         samples, events = fpc.parse_stream(lines)

@@ -140,6 +140,7 @@ def analyze_purge(samples: List[Sample], events, threshold: float,
     worst_overfill = 0.0
     worst_steady_feed = 0.0
     worst_grind_ms = 0.0
+    had_overfeed = False
     runs = state_runs(samples, "COMPRESSION")
 
     for (a, b) in runs:
@@ -152,21 +153,30 @@ def analyze_purge(samples: List[Sample], events, threshold: float,
         grind_ms = max(ct) if ct else 0.0
         min_bp = min(bp) if bp else 0.0
         # Skip the initial ramp-down, then feed must stay ~0 (true-stop). A long
-        # dwell at zero feed is a benign idle sit, not an overfeed.
+        # dwell at zero feed is a benign idle sit, not an overfeed. Episodes too
+        # brief to have a post-ramp-down portion (the fast-stop makes COMPRESSION
+        # very short) can't be judged on feed — a single entry sample is the
+        # pre-ramp transient, not steady; rely on overfill for those.
         skip = min(6, len(mm) // 3)
-        steady = mm[skip:] if len(mm) > skip else mm
+        steady = mm[skip:]
+        have_steady = len(steady) >= 2
         steady_feed = max(steady) if steady else 0.0
+        sustained_feed = have_steady and steady_feed > STOP_EPS_SPS
+        overfeed = sustained_feed or overfill > OVERFILL_BUDGET_MM
         worst_overfill = max(worst_overfill, overfill)
-        worst_steady_feed = max(worst_steady_feed, steady_feed)
+        if have_steady:
+            worst_steady_feed = max(worst_steady_feed, steady_feed)
         worst_grind_ms = max(worst_grind_ms, grind_ms)
-        verdict = "OK" if (steady_feed <= STOP_EPS_SPS
-                           and overfill <= OVERFILL_BUDGET_MM) else "OVERFEED"
+        verdict = "OVERFEED" if overfeed else ("OK" if have_steady else "OK(brief)")
+        feed_str = f"{steady_feed:.0f} sps" if have_steady else "n/a (brief)"
         report.append(
-            f"  COMPRESSION idx[{a}-{b}] steady_feed {steady_feed:.0f} sps "
+            f"  COMPRESSION idx[{a}-{b}] steady_feed {feed_str} "
             f"(stop<= {STOP_EPS_SPS}), overfill {overfill:.1f} mm "
             f"(budget {OVERFILL_BUDGET_MM:.1f}), dwell {grind_ms:.0f} ms, "
             f"BPmin {min_bp:+.2f} -> {verdict}"
         )
+        if overfeed:
+            had_overfeed = True
 
     relief_pauses = [e for (_, e) in events if "RELIEF_PAUSE" in e]
     # EV:BS:COMPRESSION,<mm>,<bp> state-change events catch episodes too brief
@@ -189,7 +199,7 @@ def analyze_purge(samples: List[Sample], events, threshold: float,
         return "INCONCLUSIVE", report + [
             "  No COMPRESSION episode captured — run the purge macro "
             "(e.g. _FLARE_PURGE PURGE=60) during capture."]
-    if worst_steady_feed > STOP_EPS_SPS or worst_overfill > OVERFILL_BUDGET_MM:
+    if had_overfeed:
         return "FAIL", report + [
             "  Feed did not stop / overfill exceeded budget — MMU still feeding "
             "a full buffer (check COMPRESSION true-stop + relief budget)."]
