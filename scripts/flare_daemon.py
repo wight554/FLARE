@@ -246,6 +246,7 @@ def status_poller():
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     """Handle requests in separate threads."""
     allow_reuse_address = True
+    daemon_threads = True
 
 class FlareHTTPHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
