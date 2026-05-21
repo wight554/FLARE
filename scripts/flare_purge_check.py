@@ -165,12 +165,21 @@ def analyze_purge(samples: List[Sample], events, threshold: float,
         )
 
     relief_pauses = [e for (_, e) in events if "RELIEF_PAUSE" in e]
-    report.insert(0, f"  COMPRESSION episodes: {len(runs)}; worst overfill "
+    # EV:BS:COMPRESSION,<mm>,<bp> state-change events catch episodes too brief
+    # to land on a poll sample (the fix makes compression very short).
+    ev_compression = [e for (_, e) in events if "BS:COMPRESSION" in e]
+    report.insert(0, f"  COMPRESSION episodes: {len(runs)} sampled, "
+                     f"{len(ev_compression)} in events; worst overfill "
                      f"{worst_overfill:.1f} mm, worst grind {worst_grind_ms:.0f} ms, "
                      f"worst feed_tail {worst_feed:.0f} sps")
     report.insert(1, f"  RELIEF_PAUSE events: {len(relief_pauses)}")
 
     if not runs:
+        if ev_compression or relief_pauses:
+            return "INCONCLUSIVE", report + [
+                "  Compression happened (events) but was too brief to sample at "
+                "this poll rate — a good sign vs the old multi-second grind, but "
+                "overfill can't be measured. Re-run with --poll 20 to quantify."]
         return "INCONCLUSIVE", report + [
             "  No COMPRESSION episode captured — run the purge macro "
             "(e.g. _FLARE_PURGE PURGE=60) during capture."]
