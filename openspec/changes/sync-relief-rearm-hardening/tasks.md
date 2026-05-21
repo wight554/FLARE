@@ -18,7 +18,7 @@
   tighter band or it's `RELAY_NEUTRAL_FRAC`/baseline tuning guidance.
 - [ ] 3.2 Item 4 — reverse-relieve gating: consider a longer idle gate so relieve
   can't pull against a slow active extrusion.
-- [ ] 3.3 Item 5 — per-lane: rescale `extruder_est_sps` on active-lane change when
+- [x] 3.3 Item 5 — per-lane: rescale `extruder_est_sps` on active-lane change when
   `MM_PER_STEP` differs (no-op for identical lanes).
 - [ ] 3.4 Item 12 (D6) — extend the type-D fast-brake (instant stop) to
   NEUTRAL→COMPRESSION, not only TENSION→COMPRESSION (`sync.c:1112`); or defer with

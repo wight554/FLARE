@@ -274,6 +274,13 @@ static int detect_active_lane_from_out(void) {
 }
 
 void set_active_lane(int lane) {
+    if (active_lane != lane && (active_lane == 1 || active_lane == 2) && (lane == 1 || lane == 2)) {
+        int old_idx = active_lane - 1;
+        int new_idx = lane - 1;
+        if (MM_PER_STEP[new_idx] > 1e-6f) {
+            extruder_est_sps = extruder_est_sps * (MM_PER_STEP[old_idx] / MM_PER_STEP[new_idx]);
+        }
+    }
     active_lane = lane;
     if (lane == 1 || lane == 2) {
         char lane_s[2] = { (char)('0' + lane), 0 };

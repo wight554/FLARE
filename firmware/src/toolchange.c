@@ -239,7 +239,7 @@ void tc_tick(uint32_t now_ms) {
             char swap_s[8];
             snprintf(swap_s, sizeof(swap_s), "%d->%d", active_lane, g_tc_ctx.target_lane);
             cmd_event("TC:SWAPPING", swap_s);
-            active_lane = g_tc_ctx.target_lane;
+            set_active_lane(g_tc_ctx.target_lane);
             g_tc_ctx.phase_start_ms = now_ms;
             g_tc_ctx.state = TC_LOAD_START;
             break;

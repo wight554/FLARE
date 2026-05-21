@@ -351,7 +351,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         int ln = atoi(p);
         if (ln == 1 || ln == 2) {
             sync_retract_assist_set(false);
-            active_lane = ln;
+            set_active_lane(ln);
             cmd_reply("OK", NULL);
         } else {
             cmd_reply("ER", "ARG");
