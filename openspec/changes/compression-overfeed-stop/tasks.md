@@ -1,30 +1,30 @@
 ## 1. COMPRESSION true-stop
 
-- [ ] 1.1 In `firmware/src/sync.c`, locate the type-D relay law
+- [x] 1.1 In `firmware/src/sync.c`, locate the type-D relay law
   (`BUF_SENSOR_TYPE == 0` block) and change the `BUF_COMPRESSION` target from
   `SYNC_MIN_SPS` to a true zero feed.
-- [ ] 1.2 Ensure the motor is held enabled at 0 sps (no enable/disable chatter)
+- [x] 1.2 Ensure the motor is held enabled at 0 sps (no enable/disable chatter)
   reusing the existing fast-brake zero-feed handling; confirm the legacy
   compression floor stays skipped in relay mode.
-- [ ] 1.3 Verify the flip OUT of COMPRESSION keys on the physical NEUTRAL
+- [x] 1.3 Verify the flip OUT of COMPRESSION keys on the physical NEUTRAL
   crossing (extruder-driven), not MMU feed travel, so zero feed cannot deadlock
   the relay under `relay_min_flip_mm` (currently `0.5`). Exempt flip-out from
   the travel guard if needed.
-- [ ] 1.4 Gate all changes to `BUF_SENSOR_TYPE == 0`; confirm type-P path is
+- [x] 1.4 Gate all changes to `BUF_SENSOR_TYPE == 0`; confirm type-P path is
   untouched.
 
 ## 2. Overfill-budgeted compression relief
 
-- [ ] 2.1 In the continuous-compression block
+- [x] 2.1 In the continuous-compression block
   (`sync_continuous_compression_since_ms` / `SYNC_AUTO_STOP_MS`), add an
   overfill-budget trip: while pinned in COMPRESSION with `BP` not recovering and
   `g_sync_relieve_effort_mm` over a small budget (~1-2 mm), enter
   `sync_relief_pause()` and emit `RELIEF_PAUSE`.
-- [ ] 2.2 Decide the budget source: reuse/lower `CONF_SYNC_CANNOT_RELIEVE_MM`
+- [x] 2.2 Decide the budget source: reuse/lower `CONF_SYNC_CANNOT_RELIEVE_MM`
   (50 mm today) or add a dedicated `relay_compression_relief_mm` tunable in
   `config.ini` → `tune.h` (per design D2). If a persisted setting is added, bump
   `SETTINGS_VERSION`.
-- [ ] 2.3 Confirm the normal relay limit cycle (brief COMPRESSION touch, leaves
+- [x] 2.3 Confirm the normal relay limit cycle (brief COMPRESSION touch, leaves
   via extruder draw) does not trip the early relief.
 
 ## 3. Validation

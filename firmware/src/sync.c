@@ -1104,7 +1104,15 @@ static void sync_apply_to_active(void) {
             motor_set_dir(&A->m, true);
         }
     } else if (A->task == TASK_FEED) {
-        lane_stop(A);
+        bool fast_brake_active = sync_fast_brake_until_ms != 0 && (int32_t)(sync_fast_brake_until_ms - g_now_ms) > 0;
+        if (fast_brake_active || (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_COMPRESSION)) {
+            A->current_sps = 0;
+            A->target_sps = 0;
+            motor_set_rate_sps(&A->m, 0);
+            motor_enable(&A->m, true);
+        } else {
+            lane_stop(A);
+        }
     }
 }
 
@@ -1674,7 +1682,7 @@ void sync_tick(uint32_t now_ms) {
         if (s == BUF_TENSION) {
             target_sps = (int)((float)relay_base * RELAY_CATCHUP_FRAC);
         } else if (s == BUF_COMPRESSION) {
-            target_sps = SYNC_MIN_SPS;
+            target_sps = 0;
         } else {
             int demand_sps = (int)extruder_est_sps;
             int neutral = (int)((float)demand_sps * RELAY_NEUTRAL_FRAC);
@@ -1686,6 +1694,7 @@ void sync_tick(uint32_t now_ms) {
 
     int max_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
     if (fast_brake_active) target_sps = 0;
+    else if (BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION) target_sps = 0;
     else target_sps = clamp_i(target_sps, SYNC_MIN_SPS, max_sps);
 
     int ramp_dn_sps = SYNC_RAMP_DN_SPS;
@@ -1712,6 +1721,18 @@ void sync_tick(uint32_t now_ms) {
 
     if (sync_auto_started && !sync_tail_assist_active) {
         if (s == BUF_COMPRESSION) {
+            if (BUF_SENSOR_TYPE == 0) {
+                float threshold = buf_threshold_mm();
+                bool bp_not_recovering = (bp_eff <= -threshold + 0.01f);
+                if (bp_not_recovering && g_sync_relieve_effort_mm >= CONF_RELAY_COMPRESSION_RELIEF_MM) {
+                    sync_relief_pause();
+                    extruder_est_last_update_ms = now_ms;
+                    sync_apply_to_active();
+                    cmd_event("SYNC", "RELIEF_PAUSE");
+                    return;
+                }
+            }
+
             // Start or maintain the continuous physical dwell timer
             if (sync_continuous_compression_since_ms == 0) {
                 sync_continuous_compression_since_ms = now_ms;
