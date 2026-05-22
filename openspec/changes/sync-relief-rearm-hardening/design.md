@@ -159,6 +159,27 @@ type-agnostic.
   re-confirm `compression-overfeed-stop` (purge + constant feed + end-of-feed
   true-stop, no -11 slam). type-P smoke (analog rig) unchanged.
 
+## Daemon-safe live capture for HW validation
+
+During HW validation the persistent `flare_daemon.py` may own `/dev/ttyACM0`.
+Direct `flare_sync_check.py --live` then races the daemon and can fail with
+pyserial disconnect / multiple-access errors. The checker should grow an
+explicit daemon live source:
+
+### scripts/flare_sync_check.py
+- Add `--daemon` as a live source that reads the daemon telemetry stream instead
+  of opening serial directly.
+- Convert daemon JSON frames into the same `OK:...` and `EV:...` stream consumed
+  by existing parsers, preserving analyzer behavior and CSV output.
+- Keep `--live` direct serial behavior unchanged for no-daemon setups.
+- Risk: daemon telemetry is cached and lower-rate than direct serial; use it as
+  an observer-friendly capture path, not a replacement for direct raw serial
+  when the daemon is stopped.
+
+### scripts/test_flare_sync_check.py
+- Add focused unit coverage for daemon JSON-to-stream conversion so analyzer
+  parsing does not drift from direct serial field names.
+
 ## Open Questions
 
 - Whether items 3-4 need firmware or are acceptable as config guidance.

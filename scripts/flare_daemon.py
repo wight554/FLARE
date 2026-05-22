@@ -99,12 +99,14 @@ def parse_status_line(line):
     
     parts = line.strip().split(",")
     new_data = {}
+    raw_fields = {}
     
     for part in parts:
         if ":" not in part:
             continue
         # Split at first colon only
         key, val = part.split(":", 1)
+        raw_fields[key.strip()] = val.strip()
         
         try:
             if key == "LN":
@@ -147,6 +149,7 @@ def parse_status_line(line):
             pass # ignore malformed metrics
             
     if new_data:
+        new_data["raw_status"] = raw_fields
         new_data["board_online"] = True
         new_data["timestamp"] = time.time()
         with status_lock:
@@ -258,7 +261,10 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/status":
             with status_lock:
-                res = json.dumps(status_cache)
+                snapshot = dict(status_cache)
+            with event_history_lock:
+                snapshot["events"] = list(event_history)
+            res = json.dumps(snapshot)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")

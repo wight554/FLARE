@@ -42,6 +42,41 @@ class ParseTests(unittest.TestCase):
         samples, _ = fpc.parse_stream(lines)
         self.assertEqual(fpc.state_runs(samples, "COMPRESSION"), [(0, 0), (2, 2)])
 
+    def test_daemon_raw_status_converts_to_ok_line(self):
+        line = fpc.daemon_status_to_line({
+            "raw_status": {
+                "LN": "1",
+                "BUF": "NEUTRAL",
+                "BP": "0.00",
+                "MM": "0.1",
+                "EST": "0.1",
+                "SYNC_RELIEVE_MM": "0",
+            }
+        })
+        fields = fpc.parse_status_line(line)
+        self.assertEqual(fields["BUF"], "NEUTRAL")
+        self.assertEqual(fields["SYNC_RELIEVE_MM"], "0")
+
+    def test_daemon_fallback_status_converts_to_ok_line(self):
+        line = fpc.daemon_status_to_line({
+            "active_lane": 1,
+            "buf_state": "COMPRESSION",
+            "g_buf_pos": -5.0,
+            "sync_enabled": 1,
+            "sps": 0.0,
+            "extruder_est_sps": 120.0,
+        })
+        fields = fpc.parse_status_line(line)
+        self.assertEqual(fields["BUF"], "COMPRESSION")
+        self.assertEqual(fields["SM"], "1")
+
+    def test_daemon_event_converts_to_ev_line(self):
+        line = fpc.daemon_event_to_line({
+            "type": "SYNC",
+            "data": "RELIEF_PAUSE",
+        })
+        self.assertEqual(line, "EV:SYNC,RELIEF_PAUSE")
+
 
 class PurgeTests(unittest.TestCase):
     def _purge(self, relieve_series, ct_series, mm_series):

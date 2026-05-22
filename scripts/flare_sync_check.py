@@ -38,6 +38,7 @@ USAGE
 
   Live (capture while you run the macro / print, Ctrl+C to stop and analyze):
     python3 scripts/flare_sync_check.py --live --poll 100 --csv run.csv
+    python3 scripts/flare_sync_check.py --daemon --poll 100 --csv run.csv
 
 Geometry (defaults match config.ini buf_switch_span_mm=10, buf_max_travel_mm=25):
   --switch-span-mm 10   -> compression/tension switch at +/-5 mm
@@ -48,9 +49,12 @@ Exit code: 0 = PASS, 1 = FAIL, 2 = INCONCLUSIVE (no relevant episode captured).
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from typing import Dict, List, Optional, Tuple
+import urllib.error
+import urllib.request
 
 # Events that signal starvation / degraded estimator (regression watch).
 STARVATION_EVENTS = (
@@ -125,6 +129,51 @@ def parse_stream(lines: List[str]) -> Tuple[List[Sample], List[Tuple[int, str]]]
         if fields is not None:
             samples.append(Sample(len(samples), fields))
     return samples, events
+
+
+def daemon_status_to_line(status: Dict[str, object]) -> Optional[str]:
+    """Convert daemon /status JSON to the normal serial OK status shape."""
+    raw = status.get("raw_status")
+    if isinstance(raw, dict) and "BUF" in raw:
+        return "OK:" + ",".join(f"{k}:{v}" for k, v in raw.items())
+
+    if "buf_state" not in status:
+        return None
+
+    parts = [
+        ("LN", status.get("active_lane", 0)),
+        ("TC", status.get("tc_state", "UNKNOWN")),
+        ("BP", f"{float(status.get('g_buf_pos', 0.0)):.3f}"),
+        ("BUF", status.get("buf_state", "NEUTRAL")),
+        ("SM", status.get("sync_enabled", 0)),
+        ("MM", f"{float(status.get('sps', 0.0)):.3f}"),
+        ("BL", f"{float(status.get('baseline_sps', 0.0)):.3f}"),
+        ("EST", f"{float(status.get('extruder_est_sps', 0.0)):.3f}"),
+        ("RE", f"{float(status.get('reserve_error_mm', 0.0)):.3f}"),
+        ("AV", "0.000"),
+        ("CT", "0"),
+        ("ST", status.get("sync_enabled", 0)),
+        ("I1", status.get("in1", 0)),
+        ("O1", status.get("out1", 0)),
+        ("I2", status.get("in2", 0)),
+        ("O2", status.get("out2", 0)),
+        ("TH", status.get("toolhead", 0)),
+        ("YS", status.get("y_split", 0)),
+        ("RELOAD", status.get("reload_mode", 0)),
+        ("SYNC_RELIEVE_MM", "0"),
+        ("SYNC_REFILL_MM", "0"),
+    ]
+    return "OK:" + ",".join(f"{k}:{v}" for k, v in parts)
+
+
+def daemon_event_to_line(event: Dict[str, object]) -> Optional[str]:
+    evt_type = str(event.get("type", "")).strip()
+    evt_data = str(event.get("data", "")).strip()
+    if not evt_type:
+        return None
+    if evt_data:
+        return f"EV:{evt_type},{evt_data}"
+    return f"EV:{evt_type}"
 
 
 # ---------------------------------------------------------------------------
@@ -414,6 +463,51 @@ def capture_live(port: Optional[str], poll_ms: int, duration: Optional[float]
     return lines
 
 
+def capture_daemon(url: str, poll_ms: int, duration: Optional[float]) -> List[str]:
+    interval = poll_ms / 1000.0
+    endpoint = url.rstrip("/") + "/status"
+    lines: List[str] = []
+    seen_events = set()
+    deadline = time.time() + duration if duration else None
+    print(f"# Capturing via daemon {endpoint} every {poll_ms} ms. "
+          "Run the macro/print now. Ctrl+C to stop and analyze.", flush=True)
+    try:
+        while True:
+            t0 = time.time()
+            try:
+                with urllib.request.urlopen(endpoint, timeout=2.0) as resp:
+                    status = json.loads(resp.read().decode("utf-8"))
+            except (OSError, urllib.error.URLError, json.JSONDecodeError) as e:
+                print(f"# daemon status read failed: {e}", file=sys.stderr,
+                      flush=True)
+                status = {}
+
+            events = status.get("events", [])
+            if isinstance(events, list):
+                for event in events:
+                    if not isinstance(event, dict):
+                        continue
+                    key = (event.get("time"), event.get("type"),
+                           event.get("data"))
+                    if key in seen_events:
+                        continue
+                    seen_events.add(key)
+                    line = daemon_event_to_line(event)
+                    if line:
+                        lines.append(line)
+
+            line = daemon_status_to_line(status)
+            if line:
+                lines.append(line)
+
+            if deadline and time.time() >= deadline:
+                break
+            time.sleep(max(0.0, interval - (time.time() - t0)))
+    except KeyboardInterrupt:
+        print("\n# Capture stopped.", flush=True)
+    return lines
+
+
 def write_csv(path: str, samples: List[Sample]) -> None:
     import csv
     with open(path, "w", newline="") as fh:
@@ -431,7 +525,11 @@ def main() -> int:
     src.add_argument("--log", help="Analyze a captured telemetry log file")
     src.add_argument("--live", action="store_true",
                      help="Capture live from the device, then analyze")
+    src.add_argument("--daemon", action="store_true",
+                     help="Capture live through flare_daemon /status")
     ap.add_argument("--port", help="Serial port (auto-detect if omitted)")
+    ap.add_argument("--daemon-url", default="http://127.0.0.1:8088",
+                    help="flare_daemon base URL for --daemon")
     ap.add_argument("--poll", type=int, default=100, help="Live poll interval ms")
     ap.add_argument("--duration", type=float,
                     help="Live capture seconds (default: until Ctrl+C)")
@@ -462,6 +560,8 @@ def main() -> int:
 
     if args.live:
         lines = capture_live(args.port, args.poll, args.duration)
+    elif args.daemon:
+        lines = capture_daemon(args.daemon_url, args.poll, args.duration)
     else:
         with open(args.log, "r", errors="ignore") as fh:
             lines = fh.readlines()

@@ -55,6 +55,9 @@ Commands (run from repo root):
 - Config dump: `python3 scripts/flare_cmd.py --dump` (`--raw` for terse)
 - Telemetry capture + auto-judge: `python3 scripts/flare_sync_check.py --live --poll 100 --csv hw_run.csv --mode all`
   (offline: `python3 scripts/flare_sync_check.py --log hw_run.log --mode all`).
+  If `flare_daemon.py` owns the serial port, use
+  `python3 scripts/flare_sync_check.py --daemon --poll 100 --csv hw_run.csv --mode all`
+  to capture via the daemon HTTP status stream instead of opening `/dev/ttyACM0`.
   Per-maneuver modes: M1 `--mode rearm --idle`, M2 `--mode regression`,
   M3 `--mode rearm`, M4 `--mode estimator`, M6 `--mode both`. Exit 0=PASS, 1=FAIL,
   2=INCONCLUSIVE (no relevant episode — re-run the maneuver).
@@ -117,6 +120,12 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
 - [ ] 5.7 M6 — regression guard. End-of-feed true-stop (no -11 slam) +
   `flare_sync_check.py … --mode both` clean + purge + constant feed good
   (no `compression-overfeed-stop` regression). Result: __
+- [x] 5.8 Add daemon-safe live capture to `scripts/flare_sync_check.py` so HW
+  validation can observe through `flare_daemon.py` when it owns the serial port.
+  Validate with unit tests and script syntax checks.
+  Done: added `--daemon` source, daemon `/status` raw status + event history
+  support, and 24-test analyzer coverage; `python3 -m py_compile scripts/*.py`
+  passes.
 
 ## 6. Docs (rule 6)
 
