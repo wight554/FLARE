@@ -122,10 +122,14 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   Pause extruder ~10s (buffer → COMPRESSION → RELIEF_PAUSE), then resume high flow.
   PASS: `SYNC,RELIEF_PAUSE` → `SYNC,AUTO_START` on the drain to NEUTRAL (no full
   TENSION drain), no grind / `cannot_refill`. Result: PASS on 2026-05-22 with
-  strong inline macro (`E30 F90`, 12 s pause, `E35 F90`): 1 RELIEF_PAUSE, 1
-  AUTO_START re-arm, re-arm BUF state NEUTRAL. A weaker first run (`E18 F75`,
-  10 s pause, `E24 F75`) captured 1 RELIEF_PAUSE and no re-arm before capture
-  stop, so retain the strong run as the D1 positive validation.
+  first inline macro (`E30 F90`, 12 s pause, `E35 F90`): 1 RELIEF_PAUSE, 1
+  AUTO_START re-arm, re-arm BUF state NEUTRAL. Note: `F90` is only
+  90 mm/min filament feed, so it proves the D1 path but is not a high-flow
+  pressure stress. Follow-up high-flow run (`hw_m3_resume_highflow2`,
+  `E18/E30/E120 F1500`) captured a real NEUTRAL re-arm plus a final idle
+  RELIEF_PAUSE after the macro ended; checker updated with
+  `--allow-terminal-idle-relief` so this terminal idle pause does not mask the
+  successful resume re-arm.
 - [ ] 5.5 M4 — fast/partial TENSION→COMPRESSION disturbance (D2; covers 2.2).
   PASS: est (dump) does not jump to the rail; next NEUTRAL feed no overshoot
   straight back to COMPRESSION. Result: __

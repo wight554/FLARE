@@ -20,7 +20,9 @@ sync-relief-rearm-hardening fixes (D1 re-arm, D2 estimator).
     --idle flips the expectation: any RELIEF_PAUSE -> AUTO_START is a FAIL
     (spurious end-of-print re-arm). Without --idle a RELIEF_PAUSE that never
     re-arms, or any cannot_refill, is a FAIL. Reports the BUF state at each
-    re-arm so you can confirm NEUTRAL re-arm (the D1 improvement).
+    re-arm so you can confirm NEUTRAL re-arm (the D1 improvement). M3 macros
+    that intentionally end after a successful resume can use
+    --allow-terminal-idle-relief to ignore one final idle RELIEF_PAUSE.
 
   ESTIMATOR (D2, maneuver M4): on a TENSION->COMPRESSION transition the estimator
     must not spike. FAIL if EST jumps by more than --est-spike-factor x its
@@ -33,6 +35,7 @@ USAGE
     python3 scripts/flare_sync_check.py --log print.txt --mode regression
     python3 scripts/flare_sync_check.py --log idle.txt   --mode rearm --idle
     python3 scripts/flare_sync_check.py --log resume.txt  --mode rearm
+    python3 scripts/flare_sync_check.py --log resume.txt  --mode rearm --allow-terminal-idle-relief
     python3 scripts/flare_sync_check.py --log spike.txt   --mode estimator
     python3 scripts/flare_sync_check.py --log run.txt     --mode all
 
@@ -330,7 +333,27 @@ def _buf_at(samples: List[Sample], event_idx: int) -> Optional[str]:
     return samples[j].s("BUF")
 
 
-def analyze_rearm(samples: List[Sample], events, idle: bool
+def _terminal_idle_after(samples: List[Sample], event_idx: int) -> bool:
+    if not samples:
+        return False
+    start = event_idx if event_idx < len(samples) else len(samples) - 1
+    tail = samples[start:]
+    if not tail:
+        return False
+    last = samples[-1]
+    last_buf = last.s("BUF")
+    if last.f("SM") != 0 or last.f("MM") > STOP_EPS_SPS:
+        return False
+    if last_buf not in ("NEUTRAL", "COMPRESSION"):
+        return False
+    if any(s.s("BUF") == "TENSION" or s.f("MM") > STOP_EPS_SPS for s in tail):
+        return False
+    idle_tail = samples[-min(3, len(samples)):]
+    return all(s.f("SM") == 0 and s.f("MM") <= STOP_EPS_SPS for s in idle_tail)
+
+
+def analyze_rearm(samples: List[Sample], events, idle: bool,
+                  allow_terminal_idle_relief: bool = False
                   ) -> Tuple[str, List[str]]:
     """D1: a RELIEF_PAUSE must re-arm (SYNC AUTO_START) when the buffer recovers.
     On an --idle capture it must NOT re-arm (spurious end-of-print re-arm). Each
@@ -339,16 +362,20 @@ def analyze_rearm(samples: List[Sample], events, idle: bool
     report: List[str] = []
     n_relief = 0
     rearm_states: List[str] = []
-    pending = False
+    pending_idx: Optional[int] = None
     for (si, ev) in events:
         if "RELIEF_PAUSE" in ev:
             n_relief += 1
-            pending = True
-        elif "AUTO_START" in ev and pending:
+            pending_idx = si
+        elif "AUTO_START" in ev and pending_idx is not None:
             rearm_states.append(_buf_at(samples, si) or "?")
-            pending = False
+            pending_idx = None
     n_rearm = len(rearm_states)
     cannot = sum(1 for (_, e) in events if "cannot_refill" in e)
+    ignored_terminal_idle = 0
+    if (not idle and allow_terminal_idle_relief and pending_idx is not None and
+            n_rearm > 0 and _terminal_idle_after(samples, pending_idx)):
+        ignored_terminal_idle = 1
 
     report.append(f"  RELIEF_PAUSE: {n_relief}, re-arms (AUTO_START after pause): "
                   f"{n_rearm}")
@@ -356,6 +383,8 @@ def analyze_rearm(samples: List[Sample], events, idle: bool
         report.append(f"  re-arm BUF states: {', '.join(rearm_states)}")
     if cannot:
         report.append(f"  cannot_refill: {cannot}")
+    if ignored_terminal_idle:
+        report.append("  ignored terminal idle RELIEF_PAUSE: 1")
 
     if n_relief == 0:
         return "INCONCLUSIVE", report + [
@@ -369,9 +398,11 @@ def analyze_rearm(samples: List[Sample], events, idle: bool
     if cannot:
         return "FAIL", report + [
             "  cannot_refill during resume — starved before/at re-arm."]
-    if n_rearm < n_relief:
+    effective_relief = n_relief - ignored_terminal_idle
+    if n_rearm < effective_relief:
         return "FAIL", report + [
-            f"  {n_relief - n_rearm} RELIEF_PAUSE(s) never re-armed — stuck paused."]
+            f"  {effective_relief - n_rearm} RELIEF_PAUSE(s) never re-armed — "
+            "stuck paused."]
     extra = []
     if any(s == "NEUTRAL" for s in rearm_states):
         extra.append("  re-armed from NEUTRAL (D1 path exercised).")
@@ -562,6 +593,9 @@ def main() -> int:
                          "'all'=every analyzer)")
     ap.add_argument("--idle", action="store_true",
                     help="rearm mode: this capture is idle — any re-arm is a FAIL")
+    ap.add_argument("--allow-terminal-idle-relief", action="store_true",
+                    help="rearm mode: ignore one final idle RELIEF_PAUSE after "
+                         "a successful resume re-arm")
     ap.add_argument("--est-spike-factor", type=float, default=2.0,
                     help="estimator mode: max allowed EST jump ratio on a "
                          "TENSION->COMPRESSION transition")
@@ -609,7 +643,8 @@ def main() -> int:
             print(line)
         verdicts.append(v)
     if args.mode in ("rearm", "all"):
-        v, rep = analyze_rearm(samples, events, args.idle)
+        v, rep = analyze_rearm(samples, events, args.idle,
+                               args.allow_terminal_idle_relief)
         print(f"\nREARM (D1{', idle' if args.idle else ''}): {v}")
         for line in rep:
             print(line)

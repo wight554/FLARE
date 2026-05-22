@@ -220,6 +220,36 @@ class RearmTests(unittest.TestCase):
         verdict, _ = fpc.analyze_rearm(samples, events, idle=False)
         self.assertEqual(verdict, "FAIL")
 
+    def test_resume_terminal_idle_relief_fails_by_default(self):
+        lines = [status("COMPRESSION", -5.0, 0, 0),
+                 "EV:SYNC:RELIEF_PAUSE",
+                 "EV:SYNC:AUTO_START",
+                 status("NEUTRAL", 0.0, 600, 700),
+                 status("COMPRESSION", -5.0, 0, 0, sm=0),
+                 "EV:SYNC:RELIEF_PAUSE",
+                 status("COMPRESSION", -5.0, 0, 0, sm=0),
+                 status("NEUTRAL", 0.0, 0, 0, sm=0),
+                 status("NEUTRAL", 0.0, 0, 0, sm=0)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_rearm(samples, events, idle=False)
+        self.assertEqual(verdict, "FAIL")
+
+    def test_resume_terminal_idle_relief_can_be_ignored(self):
+        lines = [status("COMPRESSION", -5.0, 0, 0),
+                 "EV:SYNC:RELIEF_PAUSE",
+                 "EV:SYNC:AUTO_START",
+                 status("NEUTRAL", 0.0, 600, 700),
+                 status("COMPRESSION", -5.0, 0, 0, sm=0),
+                 "EV:SYNC:RELIEF_PAUSE",
+                 status("COMPRESSION", -5.0, 0, 0, sm=0),
+                 status("NEUTRAL", 0.0, 0, 0, sm=0),
+                 status("NEUTRAL", 0.0, 0, 0, sm=0)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, rep = fpc.analyze_rearm(
+            samples, events, idle=False, allow_terminal_idle_relief=True)
+        self.assertEqual(verdict, "PASS")
+        self.assertTrue(any("ignored terminal idle" in line for line in rep))
+
     def test_resume_cannot_refill_fails(self):
         lines = [status("COMPRESSION", -5.0, 0, 0),
                  "EV:SYNC:RELIEF_PAUSE",
