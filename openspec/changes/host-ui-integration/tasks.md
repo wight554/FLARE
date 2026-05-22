@@ -259,4 +259,8 @@
 - Verified that `self.active_gate = gate` correctly updates, highlighting the selected card, showing its spool filament info, and leaving correct `LOAD` and `EJECT` buttons active.
 - Confirmed C-firmware builds successfully via `ninja -C build_local`.
 
-
+## Phase 23: Fix Active Gate Selection & UI Highlight Jump-back Loop
+- [ ] 23.1 In `scripts/flare_daemon.py`, change `klipper_gate = loaded_gate` and `klipper_tool = loaded_gate` to assign `active_gate` instead.
+- [ ] 23.2 In `klipper/mmu.py` `cmd_SET_MMU`, refine `is_loaded` derivation to strictly check if the selected gate matches the physically loaded gate.
+- [ ] 23.3 In `klipper/mmu.py` `cmd_MMU_SELECT`, set `self.gate` and `self.tool` to the newly selected gate in the pure UI selection branch.
+- [ ] 23.4 Run static python verification checks and ensure regression validations pass.
