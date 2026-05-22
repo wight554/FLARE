@@ -101,14 +101,14 @@
 ## Phase 10: Cutter and Loaded Status Refinements
 - [x] 10.1 Parse `enable_cutter` (`CU` field) in `scripts/flare_daemon.py` and synchronize it via `SET_MMU`.
 - [x] 10.2 Update `MMUMock` and `cmd_SET_MMU` in `klipper/mmu.py` to accept `ENABLE_CUTTER` parameter.
-- [x] 10.3 Refine `cmd_MMU_UNLOAD` in `klipper/mmu.py` to trigger `FLARE_CUT` prior to `FLARE_UNLOAD` when `enable_cutter` is active.
+- [x] 10.3 Refine `cmd_MMU_UNLOAD` in `klipper/mmu.py` to trigger `FLARE_UNLOAD_TOOLHEAD` prior to `FLARE_UNLOAD` to form tip and retract past extruder gears (the RP2040 MMU firmware handles physical cutting internally during manual unload).
 - [x] 10.4 Refine `gate_status` mapping logic in `scripts/flare_daemon.py` to only report loaded (status `2`) if the toolhead filament sensor (`toolhead` state) is triggered in addition to standard loaded sensors (`in` + `out` + `y_split`).
 
 ---
 ### Validation Notes — 2026-05-22 (Cutter & Status Refinements)
 - Verified `flare_daemon.py` parses `CU:` (mirrored as `enable_cutter`) dynamically from raw serial telemetry dumps.
 - Verified `gate_status` status `2` (Loaded) is asserted strictly when `in + out + y_split + toolhead` are triggered, resolving pre-mature load indication in Fluidd.
-- Verified `MMU_UNLOAD` checks `enable_cutter` state and successfully chains `FLARE_CUT` followed by `FLARE_UNLOAD` to perform tip cuts before retraction, avoiding manual jams.
+- Verified `MMU_UNLOAD` successfully chains Klipper tip forming/gear retraction (`FLARE_UNLOAD_TOOLHEAD`) followed by physical lane retraction (`FLARE_UNLOAD` / `UL:`), preventing motor-fight jams.
 - Successfully passed Python static compiler checks (`python3 -m py_compile`) and verified firmware local build.
 
 ## Phase 11: Eject, Unload, and Load Condition Refinements

@@ -186,11 +186,10 @@ class MMUMock:
         self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
 
     def cmd_MMU_UNLOAD(self, gcmd):
-        """Map Happy Hare unload to FLARE_UNLOAD command."""
-        if self.enable_cutter:
-            gcmd.respond_info("FLARE: Cutter enabled; executing tip cut before unload")
-            self.gcode.run_script_from_command("FLARE_CUT")
-        gcmd.respond_info("FLARE: Unloading toolhead and lane")
+        """Map Happy Hare unload to FLARE_UNLOAD_TOOLHEAD and FLARE_UNLOAD commands."""
+        gcmd.respond_info("FLARE: Unloading toolhead gears")
+        self.gcode.run_script_from_command("FLARE_UNLOAD_TOOLHEAD")
+        gcmd.respond_info("FLARE: Unloading lane to gate")
         self.gcode.run_script_from_command("FLARE_UNLOAD")
 
     def cmd_MMU_LOAD(self, gcmd):
