@@ -532,10 +532,10 @@ def klipper_syncer(moonraker_url):
         elif gate_status_2 == 2:
             loaded_gate = 1
 
-        # Align both tool and gate to loaded_gate so that we report -1 when completely unloaded.
-        # active_gate still tracks the selected card for UI highlighting.
-        klipper_tool = loaded_gate
-        klipper_gate = loaded_gate
+        # Align klipper_tool and klipper_gate to active_gate so that UI highlights the selected card
+        # and displays its spool details correctly.
+        klipper_tool = active_gate
+        klipper_gate = active_gate
 
         mmu_cmd = (
             f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={klipper_gate} TOOL={klipper_tool} "
