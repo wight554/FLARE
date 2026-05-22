@@ -203,9 +203,9 @@ class MMUMock:
         self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
 
     def cmd_MMU_EJECT(self, gcmd):
-        """Map Happy Hare eject to FLARE_UNLOAD command."""
-        gcmd.respond_info("FLARE: Ejecting filament")
-        self.gcode.run_script_from_command("FLARE_UNLOAD")
+        """Map Happy Hare eject to FLARE_EJECT command."""
+        gcmd.respond_info("FLARE: Ejecting filament completely")
+        self.gcode.run_script_from_command("FLARE_EJECT")
 
     def cmd_MMU_RECOVER(self, gcmd):
         """Acknowledge MMU recovery command and log status."""

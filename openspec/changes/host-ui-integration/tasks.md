@@ -111,3 +111,15 @@
 - Verified `MMU_UNLOAD` checks `enable_cutter` state and successfully chains `FLARE_CUT` followed by `FLARE_UNLOAD` to perform tip cuts before retraction, avoiding manual jams.
 - Successfully passed Python static compiler checks (`python3 -m py_compile`) and verified firmware local build.
 
+## Phase 11: Eject, Unload, and Load Condition Refinements
+- [x] 11.1 Define `FLARE_EJECT` macro in `klipper/flare_mmu.cfg` that calls `UM:` via shell command.
+- [x] 11.2 Update `cmd_MMU_EJECT` in `klipper/mmu.py` to trigger `FLARE_EJECT` to completely eject filament.
+- [x] 11.3 Validate `gate_status` mapping meets progress conditions (LOAD active for TS:0, TS:0 YS:0, TS:0 YS:0 OUT:0, and disabled for IN:0).
+
+---
+### Validation Notes — 2026-05-22 (Eject & Load Condition Refinements)
+- Added `FLARE_EJECT` macro running `UM:` command.
+- Mapped Klipper MMU mock `MMU_EJECT` to execute `FLARE_EJECT` macro, resolving command routing mismatch.
+- Verified that `gate_status` logic enables `LOAD` in Fluidd precisely under the defined progress-level loading conditions and leaves it disabled if no filament is present at the gate entrance (`IN:0`).
+
+
