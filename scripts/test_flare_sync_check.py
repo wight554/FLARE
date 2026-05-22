@@ -5,6 +5,8 @@ Covers the compression-overfeed-stop criteria (purge/regression) plus the
 sync-relief-rearm-hardening analyzers: rearm (D1) and estimator (D2).
 """
 import unittest
+import tempfile
+import os
 
 import flare_sync_check as fpc
 
@@ -84,6 +86,19 @@ class ParseTests(unittest.TestCase):
             "data": "AUTO_START",
         })
         self.assertEqual(key, (123.0, "SYNC", "AUTO_START"))
+
+    def test_write_capture_log_round_trips_lines(self):
+        fd, path = tempfile.mkstemp()
+        os.close(fd)
+        try:
+            fpc.write_capture_log(path, ["OK:LN:1,BUF:NEUTRAL", "EV:SYNC,AUTO_START"])
+            with open(path) as fh:
+                self.assertEqual(
+                    fh.read(),
+                    "OK:LN:1,BUF:NEUTRAL\nEV:SYNC,AUTO_START\n",
+                )
+        finally:
+            os.unlink(path)
 
 
 class PurgeTests(unittest.TestCase):

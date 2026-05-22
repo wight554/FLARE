@@ -128,6 +128,9 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   passes.
   Follow-up: `--daemon` now seeds existing daemon event history without emitting
   pre-capture events, so stale `EV:` entries do not contaminate a new HW run.
+  Follow-up: added `--capture-log` so manual Ctrl+C captures do not need
+  `| tee`; Ctrl+C in a shell pipeline can kill `tee` before the checker prints
+  its analysis.
 
 ## 6. Docs (rule 6)
 

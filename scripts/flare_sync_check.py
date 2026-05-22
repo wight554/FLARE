@@ -39,6 +39,7 @@ USAGE
   Live (capture while you run the macro / print, Ctrl+C to stop and analyze):
     python3 scripts/flare_sync_check.py --live --poll 100 --csv run.csv
     python3 scripts/flare_sync_check.py --daemon --poll 100 --csv run.csv
+    python3 scripts/flare_sync_check.py --daemon --capture-log run.txt --csv run.csv
 
 Geometry (defaults match config.ini buf_switch_span_mm=10, buf_max_travel_mm=25):
   --switch-span-mm 10   -> compression/tension switch at +/-5 mm
@@ -524,6 +525,13 @@ def write_csv(path: str, samples: List[Sample]) -> None:
             w.writerow([s.idx] + [s.fields.get(k, "") for k in CSV_FIELDS[1:]])
 
 
+def write_capture_log(path: str, lines: List[str]) -> None:
+    with open(path, "w") as fh:
+        for line in lines:
+            fh.write(line)
+            fh.write("\n")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
@@ -540,6 +548,8 @@ def main() -> int:
     ap.add_argument("--poll", type=int, default=100, help="Live poll interval ms")
     ap.add_argument("--duration", type=float,
                     help="Live capture seconds (default: until Ctrl+C)")
+    ap.add_argument("--capture-log",
+                    help="Write captured OK:/EV: stream to this file")
     ap.add_argument("--csv", help="Write parsed samples to this CSV path")
     ap.add_argument("--mode",
                     choices=("purge", "regression", "rearm", "estimator",
@@ -575,6 +585,9 @@ def main() -> int:
 
     samples, events = parse_stream(lines)
     print(f"# parsed {len(samples)} samples, {len(events)} events")
+    if args.capture_log:
+        write_capture_log(args.capture_log, lines)
+        print(f"# wrote {args.capture_log}")
     if args.csv:
         write_csv(args.csv, samples)
         print(f"# wrote {args.csv}")
