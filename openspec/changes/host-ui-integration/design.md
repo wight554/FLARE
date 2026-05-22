@@ -131,3 +131,14 @@ If the USB cable is physically unplugged or the board resets:
   - Blocks and returns `200 OK` with response payload when `OK:` or `ER:` is received.
 - **`GET /telemetry`**: Continuous Server-Sent Events stream of real-time stats at 20Hz.
 - **`GET /`**: Serves the standalone HTML/Canvas WebUI.
+
+---
+
+## 7. Spoolman Integration (Happy Hare Mocking)
+
+To support spool assignment from Mainsail/Fluidd natively:
+1. `spoolman_support` is exported in the `[mmu]` state as `"get"`.
+2. A G-code command `MMU_SPOOLMAN` is registered to handle spool mappings:
+   - `MMU_SPOOLMAN GATE=<gate> SPOOLID=<id>` associates a spool.
+   - `MMU_SPOOLMAN GATE=<gate> CLEAR=1` unmaps the spool.
+3. The assigned spool IDs are stored in `gate_spool_id` list and persisted inside `flare_mmu_vars.json` to survive restarts/reloads.

@@ -17,6 +17,7 @@ class MMUMock:
         self.gate_color = ["", ""] # color names or hex codes (e.g. "ff0000")
         self.gate_material = ["", ""] # material types (e.g. "PLA", "ABS")
         self.gate_spool_id = [-1, -1] # Spoolman database spool mappings
+        self.spoolman_support = "get"
         self.gate_color_rgb = [[0.5, 0.5, 0.5], [0.5, 0.5, 0.5]]
         self.gate_name = ["Gate 0", "Gate 1"]
         self.gate_filament_name = ["Gate 0", "Gate 1"]
@@ -58,6 +59,8 @@ class MMUMock:
                                     desc="Update or list gate filament map")
         self.gcode.register_command('MMU_TTG_MAP', self.cmd_MMU_TTG_MAP,
                                     desc="Update or list tool-to-gate map")
+        self.gcode.register_command('MMU_SPOOLMAN', self.cmd_MMU_SPOOLMAN,
+                                    desc="Mock Spoolman mapping command")
 
     def cmd_SET_MMU(self, gcmd):
         """Update MMU state parameters dynamically."""
@@ -81,6 +84,7 @@ class MMUMock:
         self.board_online = gcmd.get_int('BOARD_ONLINE', self.board_online)
         self.sps = gcmd.get_float('SPS', self.sps)
         self.reload_mode = gcmd.get_int('RELOAD_MODE', self.reload_mode)
+        self.spoolman_support = gcmd.get('SPOOLMAN_SUPPORT', self.spoolman_support)
  
         # Parse gate_status list
         gate_status_str = gcmd.get('GATE_STATUS', None)
@@ -231,6 +235,40 @@ class MMUMock:
         self._save_vars()
         gcmd.respond_info(f"FLARE: Mapped Tool {tool} to Gate {gate}")
 
+    def cmd_MMU_SPOOLMAN(self, gcmd):
+        """Mock Spoolman mapping command."""
+        gate = gcmd.get_int('GATE', -1)
+        if gate < 0:
+            # Show current mapping
+            gcmd.respond_info(
+                "================ MMU Spoolman Map (FLARE Mock) ================\n"
+                f"Gate 0: Spool ID {self.gate_spool_id[0]}\n"
+                f"Gate 1: Spool ID {self.gate_spool_id[1]}"
+            )
+            return
+
+        if gate >= self.num_gates:
+            gcmd.respond_info(f"Error: Gate index {gate} exceeds maximum gates ({self.num_gates})")
+            return
+
+        clear = gcmd.get_int('CLEAR', 0)
+        if clear:
+            self.gate_spool_id[gate] = -1
+            self._save_vars()
+            gcmd.respond_info(f"FLARE: Cleared Spool ID for Gate {gate}")
+            return
+
+        spool_id = gcmd.get_int('SPOOLID', None)
+        if spool_id is None:
+            spool_id = gcmd.get_int('SPOOL', None)
+
+        if spool_id is not None:
+            self.gate_spool_id[gate] = spool_id
+            self._save_vars()
+            gcmd.respond_info(f"FLARE: Mapped Gate {gate} to Spool ID {spool_id}")
+        else:
+            gcmd.respond_info(f"Gate {gate} currently mapped to Spool ID {self.gate_spool_id[gate]}")
+
     def _get_vars_path(self):
         import os
         # Try standard paths, fallback to /tmp if write-restricted
@@ -264,7 +302,8 @@ class MMUMock:
                 "gate_color_rgb": self.gate_color_rgb,
                 "gate_name": self.gate_name,
                 "gate_filament_name": self.gate_filament_name,
-                "ttg_map": self.ttg_map
+                "ttg_map": self.ttg_map,
+                "spoolman_support": self.spoolman_support
             }
             path = self._get_vars_path()
             with open(path, "w") as f:
@@ -288,6 +327,7 @@ class MMUMock:
                 self.gate_name = data.get("gate_name", self.gate_name)
                 self.gate_filament_name = data.get("gate_filament_name", self.gate_filament_name)
                 self.ttg_map = data.get("ttg_map", self.ttg_map)
+                self.spoolman_support = data.get("spoolman_support", self.spoolman_support)
         except Exception as e:
             pass
 
@@ -316,7 +356,8 @@ class MMUMock:
             'print_state': self.print_state,
             'board_online': self.board_online,
             'sps': self.sps,
-            'reload_mode': self.reload_mode
+            'reload_mode': self.reload_mode,
+            'spoolman_support': self.spoolman_support
         }
 
 def load_config(config):

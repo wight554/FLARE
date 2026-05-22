@@ -39,6 +39,7 @@
 - [x] 7.8 Fix daemon serial reader to recognize raw "OK" replies (no colon) to resolve command timeouts.
 - [x] 7.9 Map gate availability to either IN or OUT sensors and add print_state to status object.
 - [x] 7.10 Add state persistence to Klipper mock and periodic force-sync to daemon syncer thread to handle Moonraker/Klipper restarts without losing gate/tool mappings.
+- [x] 7.11 Add Spoolman support to klipper/mmu.py (spoolman_support attribute, gate_spool_id persistence, and MMU_SPOOLMAN command handling).
 
 ---
 ### Validation Notes — 2026-05-22
