@@ -126,11 +126,13 @@
 - [x] 12.1 Expose `enable_cutter` in `get_status` state dict in `klipper/mmu.py` to allow UI and macros to read it dynamically.
 - [x] 12.2 Update `gate` and `tool` in `scripts/flare_daemon.py` to be reported as `-1` unless the active gate's filament is fully loaded (all sensors `in && out && y_split && toolhead` are 1).
 - [x] 12.3 Ensure list/compile checks pass perfectly.
+- [x] 12.4 Initialize, update, and expose Happy Hare `filament` and `filament_pos` status properties in `klipper/mmu.py` to prevent Fluidd LOAD button from disabling.
 
 ---
 ### Validation Notes — 2026-05-22 (Cutter Derivation & Load Button Refinements)
 - Verified `enable_cutter` is exposed in Klipper's state dictionary (`printer.mmu.enable_cutter`), allowing UIs/macros to query it.
 - Verified that `gate` and `tool` are reported as `-1` (unloaded) when the filament is not fully loaded (`gate_status` not equal to 2), which correctly enables the `LOAD` button in Fluidd/Mainsail dashboards for preloaded lanes.
+- Initialized, dynamically derived, and exposed `filament` ("Unloaded" / "Loaded") and `filament_pos` (0 / 10) in `klipper/mmu.py` based on Klipper MMU mock gate loading status, matching Happy Hare schema perfectly to ensure Fluidd's UI controls remain fully functional.
 - Ran static Python linter/compiler checks and confirmed a perfect pass.
 
 

@@ -58,6 +58,8 @@ class MMUMock:
         self.sync_feedback_state = "neutral"
         self.print_job_state = "standby"
         self.print_state = "ready"
+        self.filament = "Unloaded"
+        self.filament_pos = 0
         
         # FLARE specific extra state variables
         self.board_online = 0
@@ -110,6 +112,14 @@ class MMUMock:
         self.active_gate = gcmd.get_int('ACTIVE_GATE', self.active_gate)
         self.gate = gcmd.get_int('GATE', self.active_gate)
         self.tool = gcmd.get_int('TOOL', self.tool)
+
+        # Derive filament loaded state
+        if self.gate == -1:
+            self.filament = "Unloaded"
+            self.filament_pos = 0
+        else:
+            self.filament = "Loaded"
+            self.filament_pos = 10
         self.toolhead_sensor = gcmd.get_int('TOOLHEAD_SENSOR', self.toolhead_sensor)
         self.sync_feedback = gcmd.get_float('SYNC_FEEDBACK', self.sync_feedback)
         
@@ -558,7 +568,9 @@ class MMUMock:
             'sps': self.sps,
             'reload_mode': self.reload_mode,
             'enable_cutter': self.enable_cutter,
-            'spoolman_support': self.spoolman_support
+            'spoolman_support': self.spoolman_support,
+            'filament': self.filament,
+            'filament_pos': self.filament_pos
         }
 
 def load_config(config):
