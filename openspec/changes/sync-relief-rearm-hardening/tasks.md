@@ -139,12 +139,14 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   TENSION→COMPRESSION checker transition; do not repeat that macro. Checker now
   accepts bounded natural TENSION→NEUTRAL→COMPRESSION spans for D2 so M4 can be
   validated from soft motion or normal print logs.
-- [ ] 5.6 M5 — toolchange L1→L2 (D5) — ONLY if lanes differ in `rotation_distance`.
+- [x] 5.6 M5 — toolchange L1→L2 (D5) — ONLY if lanes differ in `rotation_distance`.
   `extruder_est_sps` is a single global; sync drives one (active) lane at a time,
   so the rescale only matters for the rare mixed-`MM_PER_STEP` rig — **literal
   no-op for identical lanes** (ratio 1.0), skip there.
   PASS: `EV:ACTIVE,n` + est rescales; first post-swap crossings no over/under-feed.
-  Result: __
+  Result: SKIPPED / not applicable on 2026-05-22. Operator cannot test mixed
+  lane rotation-distance hardware on this rig; current same-geometry lanes make
+  the D5 rescale path ratio 1.0 and behaviorally inert.
 - [ ] 5.7 M6 — regression guard. End-of-feed true-stop (no -11 slam) +
   `flare_sync_check.py … --mode both` clean + purge + constant feed good
   (no `compression-overfeed-stop` regression). Result: __
