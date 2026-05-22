@@ -97,3 +97,17 @@
 - Expose `gate` key in Klipper `get_status` mapping and synchronized `GATE={active_gate}` via Moonraker `SET_MMU` in `scripts/flare_daemon.py`. This resolves the issue where Fluidd was unable to highlight the loaded/active gate card.
 - Implemented robust dictionary parsing using safe `ast.literal_eval` inside `MMU_GATE_MAP` to handle Fluidd's multi-gate/spool JSON-like map dictionary transmission. Cleaned up color hex strings (stripping `#` and discarding alpha channel to support standard 6-char compatibility) and successfully persisted changes into the flash-backed configuration `flare_mmu_vars.json`.
 - Ran compiler and linter checks (`python3 -m py_compile`) and verified firmware local builds compiled successfully.
+
+## Phase 10: Cutter and Loaded Status Refinements
+- [x] 10.1 Parse `enable_cutter` (`CU` field) in `scripts/flare_daemon.py` and synchronize it via `SET_MMU`.
+- [x] 10.2 Update `MMUMock` and `cmd_SET_MMU` in `klipper/mmu.py` to accept `ENABLE_CUTTER` parameter.
+- [x] 10.3 Refine `cmd_MMU_UNLOAD` in `klipper/mmu.py` to trigger `FLARE_CUT` prior to `FLARE_UNLOAD` when `enable_cutter` is active.
+- [x] 10.4 Refine `gate_status` mapping logic in `scripts/flare_daemon.py` to only report loaded (status `2`) if the toolhead filament sensor (`toolhead` state) is triggered in addition to standard loaded sensors (`in` + `out` + `y_split`).
+
+---
+### Validation Notes — 2026-05-22 (Cutter & Status Refinements)
+- Verified `flare_daemon.py` parses `CU:` (mirrored as `enable_cutter`) dynamically from raw serial telemetry dumps.
+- Verified `gate_status` status `2` (Loaded) is asserted strictly when `in + out + y_split + toolhead` are triggered, resolving pre-mature load indication in Fluidd.
+- Verified `MMU_UNLOAD` checks `enable_cutter` state and successfully chains `FLARE_CUT` followed by `FLARE_UNLOAD` to perform tip cuts before retraction, avoiding manual jams.
+- Successfully passed Python static compiler checks (`python3 -m py_compile`) and verified firmware local build.
+

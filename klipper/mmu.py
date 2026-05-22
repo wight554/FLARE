@@ -63,6 +63,7 @@ class MMUMock:
         self.board_online = 0
         self.sps = 0.0
         self.reload_mode = 0
+        self.enable_cutter = 0
 
         # Register command to update status
         self.gcode = self.printer.lookup_object('gcode')
@@ -121,6 +122,7 @@ class MMUMock:
         self.board_online = gcmd.get_int('BOARD_ONLINE', self.board_online)
         self.sps = gcmd.get_float('SPS', self.sps)
         self.reload_mode = gcmd.get_int('RELOAD_MODE', self.reload_mode)
+        self.enable_cutter = gcmd.get_int('ENABLE_CUTTER', self.enable_cutter)
         self.spoolman_support = gcmd.get('SPOOLMAN_SUPPORT', self.spoolman_support).strip("'\"")
  
         # Parse gate_status list with quote stripping
@@ -185,6 +187,9 @@ class MMUMock:
 
     def cmd_MMU_UNLOAD(self, gcmd):
         """Map Happy Hare unload to FLARE_UNLOAD command."""
+        if self.enable_cutter:
+            gcmd.respond_info("FLARE: Cutter enabled; executing tip cut before unload")
+            self.gcode.run_script_from_command("FLARE_CUT")
         gcmd.respond_info("FLARE: Unloading toolhead and lane")
         self.gcode.run_script_from_command("FLARE_UNLOAD")
 
