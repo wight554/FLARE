@@ -178,3 +178,8 @@ We parse this string using Python's safe `ast.literal_eval`. For each gate in th
 - We strip `#` and any 8-char alpha channel from `color` to ensure standard 6-char hex color compat, then update both `gate_color` and `gate_color_rgb`.
 - We save the updated parameters to `flare_mmu_vars.json` to persist the configuration.
 
+### 12.1 Cutter Derivation & Fluidd Load Button Fix
+- **Cutter Derivation**: Klipper exposes `enable_cutter` as a read-only state variable in `get_status` derived from the board's internal telemetry. No manual configure/set via Klipper-side G-codes is required.
+- **Fluidd Load Button**: To fix the disabled load button in Fluidd when the active lane is preloaded but not loaded, we separate selector/active gate tracking (`ACTIVE_GATE`) from the loaded filament tracking (`GATE` and `TOOL`). `GATE` and `TOOL` are set to `active_gate` only when the active gate's filament is fully loaded to the toolhead (all sensors: `in && out && y_split && toolhead` are 1). If not fully loaded, `GATE` and `TOOL` are set to `-1`. This correctly reports the extruder as empty to Fluidd, enabling the `LOAD` button for preloaded lanes.
+
+

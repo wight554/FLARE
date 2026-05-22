@@ -557,6 +557,7 @@ class MMUMock:
             'board_online': self.board_online,
             'sps': self.sps,
             'reload_mode': self.reload_mode,
+            'enable_cutter': self.enable_cutter,
             'spoolman_support': self.spoolman_support
         }
 

@@ -122,4 +122,17 @@
 - Mapped Klipper MMU mock `MMU_EJECT` to execute `FLARE_EJECT` macro, resolving command routing mismatch.
 - Verified that `gate_status` logic enables `LOAD` in Fluidd precisely under the defined progress-level loading conditions and leaves it disabled if no filament is present at the gate entrance (`IN:0`).
 
+## Phase 12: Cutter Derivation & Fluidd Load Button Refinements
+- [x] 12.1 Expose `enable_cutter` in `get_status` state dict in `klipper/mmu.py` to allow UI and macros to read it dynamically.
+- [x] 12.2 Update `gate` and `tool` in `scripts/flare_daemon.py` to be reported as `-1` unless the active gate's filament is fully loaded (all sensors `in && out && y_split && toolhead` are 1).
+- [x] 12.3 Ensure list/compile checks pass perfectly.
+
+---
+### Validation Notes — 2026-05-22 (Cutter Derivation & Load Button Refinements)
+- Verified `enable_cutter` is exposed in Klipper's state dictionary (`printer.mmu.enable_cutter`), allowing UIs/macros to query it.
+- Verified that `gate` and `tool` are reported as `-1` (unloaded) when the filament is not fully loaded (`gate_status` not equal to 2), which correctly enables the `LOAD` button in Fluidd/Mainsail dashboards for preloaded lanes.
+- Ran static Python linter/compiler checks and confirmed a perfect pass.
+
+
+
 
