@@ -142,3 +142,10 @@ To support spool assignment from Mainsail/Fluidd natively:
    - `MMU_SPOOLMAN GATE=<gate> SPOOLID=<id>` associates a spool.
    - `MMU_SPOOLMAN GATE=<gate> CLEAR=1` unmaps the spool.
 3. The assigned spool IDs are stored in `gate_spool_id` list and persisted inside `flare_mmu_vars.json` to survive restarts/reloads.
+
+## 8. Dashboard Gate Selection (MMU_SELECT)
+
+When a user selects a tool or gate in Fluidd/Mainsail dashboard:
+1. G-code command `MMU_SELECT` is issued with `GATE=<int>` or `TOOL=<int>`.
+2. The mock handler maps the gate index to the corresponding FLARE lane (`lane = gate + 1`).
+3. It runs Klipper command `_FLARE_CHANGE_LANE LANE=<lane>` to perform the toolchange/selection automatically.

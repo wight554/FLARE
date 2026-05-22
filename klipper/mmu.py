@@ -61,6 +61,8 @@ class MMUMock:
                                     desc="Update or list tool-to-gate map")
         self.gcode.register_command('MMU_SPOOLMAN', self.cmd_MMU_SPOOLMAN,
                                     desc="Mock Spoolman mapping command")
+        self.gcode.register_command('MMU_SELECT', self.cmd_MMU_SELECT,
+                                    desc="Select MMU gate or tool")
 
     def cmd_SET_MMU(self, gcmd):
         """Update MMU state parameters dynamically."""
@@ -268,6 +270,27 @@ class MMUMock:
             gcmd.respond_info(f"FLARE: Mapped Gate {gate} to Spool ID {spool_id}")
         else:
             gcmd.respond_info(f"Gate {gate} currently mapped to Spool ID {self.gate_spool_id[gate]}")
+
+    def cmd_MMU_SELECT(self, gcmd):
+        """Map Happy Hare select to FLARE toolchange."""
+        gate = gcmd.get_int('GATE', -1)
+        tool = gcmd.get_int('TOOL', -1)
+        
+        if gate < 0 and tool >= 0:
+            if tool < len(self.ttg_map):
+                gate = self.ttg_map[tool]
+        
+        if gate < 0:
+            gcmd.respond_info("Error: MMU_SELECT requires either GATE or TOOL parameter")
+            return
+            
+        if gate >= self.num_gates:
+            gcmd.respond_info(f"Error: Gate index {gate} exceeds maximum gates ({self.num_gates})")
+            return
+            
+        lane = gate + 1
+        gcmd.respond_info(f"FLARE: Selecting lane {lane} (Gate {gate})")
+        self.gcode.run_script_from_command(f"_FLARE_CHANGE_LANE LANE={lane}")
 
     def _get_vars_path(self):
         import os

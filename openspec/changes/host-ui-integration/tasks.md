@@ -40,6 +40,7 @@
 - [x] 7.9 Map gate availability to either IN or OUT sensors and add print_state to status object.
 - [x] 7.10 Add state persistence to Klipper mock and periodic force-sync to daemon syncer thread to handle Moonraker/Klipper restarts without losing gate/tool mappings.
 - [x] 7.11 Add Spoolman support to klipper/mmu.py (spoolman_support attribute, gate_spool_id persistence, and MMU_SPOOLMAN command handling).
+- [x] 7.12 Register and implement MMU_SELECT in klipper/mmu.py to support dashboard gate selection.
 
 ---
 ### Validation Notes — 2026-05-22
