@@ -11,8 +11,11 @@ class MMUMock:
         self.num_gates = 2
         self.active_gate = -1
         self.tool = -1
-        self.gate_status = [0, 0] # 0 = empty, 1 = loaded/available
+        self.gate_status = [0, 0] # 0 = empty, 1 = loaded/available, 2 = buffer
         self.gate_sensor = [0, 0] # pre-gate sensor states (filament detected)
+        self.gate_color = ["", ""] # color names or hex codes (e.g. "ff0000")
+        self.gate_material = ["", ""] # material types (e.g. "PLA", "ABS")
+        self.gate_spool_id = [-1, -1] # Spoolman database spool mappings
         self.toolhead_sensor = 0 # toolhead sensor state
         self.sync_feedback = 0.0 # buffer compression/tension offset
         self.sync_feedback_state = "neutral"
@@ -27,6 +30,22 @@ class MMUMock:
         self.gcode = self.printer.lookup_object('gcode')
         self.gcode.register_command('SET_MMU', self.cmd_SET_MMU,
                                     desc="Update MMU status parameters")
+        
+        # Register standard Happy Hare G-code commands expected by Mainsail/Fluidd
+        self.gcode.register_command('MMU_STATS', self.cmd_MMU_STATS,
+                                    desc="Show MMU usage and reliability statistics")
+        self.gcode.register_command('MMU_PRELOAD', self.cmd_MMU_PRELOAD,
+                                    desc="Preload filament into selected gate")
+        self.gcode.register_command('MMU_UNLOAD', self.cmd_MMU_UNLOAD,
+                                    desc="Unload filament from extruder to gate")
+        self.gcode.register_command('MMU_LOAD', self.cmd_MMU_LOAD,
+                                    desc="Load filament from gate to extruder")
+        self.gcode.register_command('MMU_EJECT', self.cmd_MMU_EJECT,
+                                    desc="Fully eject filament from gate")
+        self.gcode.register_command('MMU_RECOVER', self.cmd_MMU_RECOVER,
+                                    desc="Recover MMU from error state")
+        self.gcode.register_command('MMU_CHECK_GATE', self.cmd_MMU_CHECK_GATE,
+                                    desc="Check presence of filament at gate")
 
     def cmd_SET_MMU(self, gcmd):
         """Update MMU state parameters dynamically."""
@@ -63,6 +82,71 @@ class MMUMock:
             except ValueError:
                 pass
 
+        # Parse gate_color list
+        gate_color_str = gcmd.get('GATE_COLOR', None)
+        if gate_color_str is not None:
+            self.gate_color = gate_color_str.split(',')
+
+        # Parse gate_material list
+        gate_material_str = gcmd.get('GATE_MATERIAL', None)
+        if gate_material_str is not None:
+            self.gate_material = gate_material_str.split(',')
+
+        # Parse gate_spool_id list
+        gate_spool_id_str = gcmd.get('GATE_SPOOL_ID', None)
+        if gate_spool_id_str is not None:
+            try:
+                self.gate_spool_id = [int(x) for x in gate_spool_id_str.split(',')]
+            except ValueError:
+                pass
+
+    def cmd_MMU_STATS(self, gcmd):
+        """Report mock statistics to satisfy Mainsail/Fluidd dashboard status calls."""
+        gcmd.respond_info(
+            "================ MMU Statistics (FLARE Mock) ================\n"
+            "Tool swaps total: 0\n"
+            "Swaps successful: 0\n"
+            "Swaps failed:     0\n"
+            "Success rate:     100.0%\n"
+            "Preload successes:0\n"
+            "Unload successes: 0\n"
+            "Current error:    None"
+        )
+
+    def cmd_MMU_PRELOAD(self, gcmd):
+        """Map Happy Hare preload to FLARE_LOAD command."""
+        gate = gcmd.get_int('GATE', 0)
+        lane = gate + 1
+        gcmd.respond_info(f"FLARE: Preloading lane {lane} (Gate {gate})")
+        self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
+
+    def cmd_MMU_UNLOAD(self, gcmd):
+        """Map Happy Hare unload to FLARE_UNLOAD command."""
+        gcmd.respond_info("FLARE: Unloading toolhead and lane")
+        self.gcode.run_script_from_command("FLARE_UNLOAD")
+
+    def cmd_MMU_LOAD(self, gcmd):
+        """Map Happy Hare load to FLARE_LOAD command."""
+        gate = gcmd.get_int('GATE', self.active_gate)
+        if gate < 0:
+            gate = 0
+        lane = gate + 1
+        gcmd.respond_info(f"FLARE: Loading lane {lane} (Gate {gate})")
+        self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
+
+    def cmd_MMU_EJECT(self, gcmd):
+        """Map Happy Hare eject to FLARE_UNLOAD command."""
+        gcmd.respond_info("FLARE: Ejecting filament")
+        self.gcode.run_script_from_command("FLARE_UNLOAD")
+
+    def cmd_MMU_RECOVER(self, gcmd):
+        """Acknowledge MMU recovery command and log status."""
+        gcmd.respond_info("FLARE: Resetting error state and recovering")
+
+    def cmd_MMU_CHECK_GATE(self, gcmd):
+        """Acknowledge MMU gate check command."""
+        gcmd.respond_info("FLARE: Checking gate status")
+
     def get_status(self, eventtime):
         """Export state values back to Klipper & Moonraker."""
         return {
@@ -72,6 +156,9 @@ class MMUMock:
             'tool': self.tool,
             'gate_status': self.gate_status,
             'gate_sensor': self.gate_sensor,
+            'gate_color': self.gate_color,
+            'gate_material': self.gate_material,
+            'gate_spool_id': self.gate_spool_id,
             'toolhead_sensor': self.toolhead_sensor,
             'sync_feedback': self.sync_feedback,
             'sync_feedback_state': self.sync_feedback_state,
