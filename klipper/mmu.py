@@ -422,9 +422,13 @@ class MMUMock:
             gcmd.respond_info(f"Gate {gate} currently mapped to Spool ID {self.gate_spool_id[gate]}")
 
     def cmd_MMU_SELECT(self, gcmd):
-        """Map Happy Hare select to FLARE toolchange."""
+        """Map Happy Hare select to FLARE toolchange or pure UI active gate selection."""
         gate = gcmd.get_int('GATE', -1)
         tool = gcmd.get_int('TOOL', -1)
+        
+        # Check if TOOL was explicitly passed to distinguish between UI gate selection
+        # and physical toolchange.
+        has_tool = gcmd.get('TOOL', None) is not None
         
         if gate < 0 and tool >= 0:
             if tool < len(self.ttg_map):
@@ -443,8 +447,19 @@ class MMUMock:
             return
 
         lane = gate + 1
-        gcmd.respond_info(f"FLARE: Selecting lane {lane} (Gate {gate})")
-        self.gcode.run_script_from_command(f"_FLARE_CHANGE_LANE LANE={lane}")
+        if has_tool or tool >= 0:
+            # Physical toolchange requested
+            gcmd.respond_info(f"FLARE: Performing toolchange to lane {lane} (Gate {gate})")
+            self.gcode.run_script_from_command(f"_FLARE_CHANGE_LANE LANE={lane}")
+        else:
+            # Pure UI active gate selection: update active_gate to change button states dynamically
+            gcmd.respond_info(f"FLARE: Selecting active gate {gate} (Lane {lane})")
+            self.active_gate = gate
+            self._ensure_array_lengths()
+            try:
+                self.gcode.run_script_from_command(f'RUN_SHELL_COMMAND CMD=flare PARAMS="T:{lane}"')
+            except Exception as e:
+                gcmd.respond_info(f"FLARE: Warning: Failed to send T:{lane} to board: {str(e)}")
 
     def _get_vars_path(self):
         import os

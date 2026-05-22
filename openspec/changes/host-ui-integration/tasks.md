@@ -151,3 +151,15 @@
 - Wired auto-cutter invocation (`cutter_start`) inside both the `UL:` (manual unload to gate) and `UM:` (manual eject) serial command handlers when `ENABLE_CUTTER` and `UNLOAD_CUT` are active.
 - Registered standard `MMU_CHECK_GATES` (plural) command in `klipper/mmu.py` mapping directly to the existing `cmd_MMU_CHECK_GATE` function, resolving the unknown command error when checking all gates.
 - Successfully verified both clean firmware compilation (`ninja -C build_local`) and Python syntax validity (`python3 -m py_compile`).
+
+## Phase 14: MMU_SELECT Selection Refinements
+- [x] 14.1 Update `cmd_MMU_SELECT` in `klipper/mmu.py` to differentiate between pure gate selection (no `TOOL` parameter) and toolchange (with `TOOL` parameter).
+- [x] 14.2 For pure gate selection, update `self.active_gate = gate`, call `_ensure_array_lengths()` to trigger UI update, and run shell command `T:{lane}`.
+- [x] 14.3 Run Python verification tests (`python3 -m py_compile klipper/mmu.py`) and make sure it is syntactically correct.
+
+---
+### Validation Notes — 2026-05-22 (MMU_SELECT Selection Refinements)
+- Updated `cmd_MMU_SELECT` to check for `TOOL` parameter to distinguish pure active gate UI clicks from physical toolchange macro invocation.
+- For pure gate selection (e.g. clicking gate cards), set `self.active_gate = gate` immediately to trigger low-latency UI highlighting update and dispatched serial active lane change `T:{lane}` to the board.
+- Verified that both Python syntax checks (`python3 -m py_compile`) and native firmware builds (`ninja -C build_local`) pass flawlessly.
+

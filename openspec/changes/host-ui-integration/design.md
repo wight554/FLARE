@@ -147,10 +147,11 @@ To support spool assignment from Mainsail/Fluidd natively:
 
 When a user selects a tool or gate in Fluidd/Mainsail dashboard:
 1. G-code command `MMU_SELECT` is issued with `GATE=<int>` or `TOOL=<int>`.
-2. The mock handler maps the gate index to the corresponding FLARE lane (`lane = gate + 1`).
+2. The mock handler checks if the `TOOL` parameter was explicitly passed:
+   - **Physical Toolchange (with `TOOL` parameter)**: Maps the gate index to the corresponding FLARE lane (`lane = gate + 1`) and runs Klipper command `_FLARE_CHANGE_LANE LANE=<lane>` to perform physical toolchange automatically.
+   - **Pure Gate Selection (no `TOOL` parameter, e.g. clicking gate card in UI)**: Only marks the gate selected in the UI by updating `self.active_gate = gate`, and issues a `RUN_SHELL_COMMAND CMD=flare PARAMS="T:<lane>"` to update the active lane on the RP2040 board without triggering motor movements.
 3. If the selected gate is already the active gate (`gate == active_gate`), do nothing and return.
-4. If a different gate is selected, run Klipper command `_FLARE_CHANGE_LANE LANE=<lane>` to perform the toolchange/selection automatically.
-5. Unloading of the previous active lane is handled by `_FLARE_CHANGE_LANE` (running `FLARE_UNLOAD_TOOLHEAD`).
+4. Unloading of the previous active lane during a physical toolchange is handled by `_FLARE_CHANGE_LANE` (running `FLARE_UNLOAD_TOOLHEAD`).
 
 ## 9. Gate Array Length Hardening & Check Gate Refinement
 
