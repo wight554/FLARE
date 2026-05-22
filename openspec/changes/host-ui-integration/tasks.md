@@ -175,10 +175,16 @@
 - Verified that both Python validation (`python3 -m py_compile`) and native builds (`ninja -C build_local`) pass successfully.
 
 ## Phase 16: UI Spool Mapping and Action Button State Polish
-- [ ] 16.1 Define `tool_color`, `tool_material`, `tool_spool_id`, `tool_color_rgb`, `tool_name`, `tool_filament_name` dynamic properties in `klipper/mmu.py` mapping tools to physical gates via `ttg_map`.
-- [ ] 16.2 Expose the new virtual `tool_` arrays in the `get_status` dictionary returned to Moonraker / UI clients.
-- [ ] 16.3 Fix bug in `cmd_SET_MMU` in `klipper/mmu.py` where omitting the `GATE` parameter incorrectly defaults to `self.active_gate` instead of preserving `self.gate`.
-- [ ] 16.4 Verify that Python compilation passes cleanly (`python3 -m py_compile klipper/mmu.py`).
+- [x] 16.1 Define `tool_color`, `tool_material`, `tool_spool_id`, `tool_color_rgb`, `tool_name`, `tool_filament_name` dynamic properties in `klipper/mmu.py` mapping tools to physical gates via `ttg_map`.
+- [x] 16.2 Expose the new virtual `tool_` arrays in the `get_status` dictionary returned to Moonraker / UI clients.
+- [x] 16.3 Fix bug in `cmd_SET_MMU` in `klipper/mmu.py` where omitting the `GATE` parameter incorrectly defaults to `self.active_gate` instead of preserving `self.gate`.
+- [x] 16.4 Verify that Python compilation passes cleanly (`python3 -m py_compile klipper/mmu.py`).
+
+---
+### Validation Notes — 2026-05-22 (Spool Mapping & Buttons Polish)
+- Defined and exposed all required virtual `tool_` properties (`tool_color`, `tool_material`, `tool_spool_id`, `tool_color_rgb`, `tool_name`, `tool_filament_name`) mapping to physical gates via the dynamic tool-to-gate array `ttg_map` inside the Klipper MMU mock (`klipper/mmu.py`). This guarantees Mainsail/Fluidd correctly resolve color, material, and Spoolman mappings for both active and inactive gates/tools, eliminating "Unknown everything" errors on unloaded gates.
+- Resolved a critical status synchronization bug in `cmd_SET_MMU` where the `GATE` parameter default fell back to `self.active_gate` if omitted, which forced active status on empty gates. It now properly preserves the current `self.gate` value, which correctly enforces fully disabled action button states for empty spools.
+- Verified that all Python syntax checks pass flawlessly (`python3 -m py_compile`) and firmware builds build cleanly (`ninja -C build_local`).
 
 
 
