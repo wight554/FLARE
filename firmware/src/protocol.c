@@ -324,8 +324,18 @@ static void manual_unload_tick(uint32_t now_ms) {
                     return;
                 }
                 if (g_manual_unload.cut_pending) {
-                    cutter_start(A, true, now_ms);
-                    g_manual_unload.state = MANUAL_UNLOAD_WAIT_CUT;
+                    if (on_al(&g_y_split)) {
+                        g_manual_unload.cut_pending = false;
+                        if (g_manual_unload.finish_to_in) {
+                            start_manual_unload_to_in(A, now_ms);
+                            g_manual_unload.state = MANUAL_UNLOAD_WAIT_IN_CLEAR;
+                        } else {
+                            manual_unload_reset();
+                        }
+                    } else {
+                        cutter_start(A, true, now_ms);
+                        g_manual_unload.state = MANUAL_UNLOAD_WAIT_CUT;
+                    }
                 } else if (g_manual_unload.finish_to_in) {
                     start_manual_unload_to_in(A, now_ms);
                     g_manual_unload.state = MANUAL_UNLOAD_WAIT_IN_CLEAR;
@@ -445,6 +455,10 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         lane_t *A = get_active_lane_and_clear_error();
         if (!A) return;
         if (!lane_in_present(A)) { cmd_reply("ER", "NO_FILAMENT"); return; }
+        if (on_al(&g_y_split) && !lane_out_present(A)) {
+            cmd_reply("ER", "OTHER_LANE_ACTIVE");
+            return;
+        }
         lane_t *other = lane_ptr(other_lane(active_lane));
         if (other && lane_out_present(other) && other->task == TASK_IDLE) {
             cmd_reply("ER", "OTHER_LANE_ACTIVE");
@@ -459,6 +473,10 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         lane_t *A = get_active_lane_and_clear_error();
         if (!A) return;
         if (!lane_in_present(A)) { cmd_reply("ER", "NO_FILAMENT"); return; }
+        if (on_al(&g_y_split) && !lane_out_present(A)) {
+            cmd_reply("ER", "OTHER_LANE_ACTIVE");
+            return;
+        }
         lane_t *other = lane_ptr(other_lane(active_lane));
         if (other && lane_out_present(other) && other->task == TASK_IDLE) {
             cmd_reply("ER", "OTHER_LANE_ACTIVE");
