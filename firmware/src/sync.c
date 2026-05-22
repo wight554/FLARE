@@ -1285,7 +1285,11 @@ void sync_tick(uint32_t now_ms) {
     }
 
     buf_state_t s = g_buf.state;
-    bool auto_start_allowed = (A->task == TASK_IDLE || A->task == TASK_FEED);
+    /* Block auto-start while a manual unload state machine is running (cut path).
+       TASK_UNLOAD guards the non-cut path; this covers the TASK_IDLE window inside
+       MANUAL_UNLOAD_WAIT_FIRST_CLEAR / WAIT_CUT before the state machine completes. */
+    bool auto_start_allowed = (A->task == TASK_IDLE || A->task == TASK_FEED)
+        && !manual_unload_active();
 
     /* Do not auto-start sync when both OUT sensors are active: the hub has two
        filaments loaded simultaneously and the system is in manual recovery.

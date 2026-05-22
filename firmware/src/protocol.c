@@ -47,7 +47,7 @@ typedef struct {
 
 static manual_unload_ctx_t g_manual_unload = {0};
 
-static bool manual_unload_active(void) {
+bool manual_unload_active(void) {
     return g_manual_unload.state != MANUAL_UNLOAD_IDLE;
 }
 
@@ -407,7 +407,14 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
                can follow up with UL: to clear the faulty lane manually. */
             if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
                 tc_abort();
-                sync_retract_assist_set(true);
+                /* Stop any in-flight feed on the current lane before switching.
+                   Do not use RETRACT_ASSIST: UL: calls sync_disable anyway and
+                   the RA state is superfluous here. */
+                {
+                    lane_t *_Aold = lane_ptr(active_lane);
+                    if (_Aold && _Aold->task == TASK_FEED) lane_stop(_Aold);
+                }
+                sync_disable(false);
                 set_active_lane(ln);
                 cmd_reply("OK", NULL);
             } else {
