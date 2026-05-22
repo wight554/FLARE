@@ -485,8 +485,20 @@ def klipper_syncer(moonraker_url):
             print_job_state = "standby"
             print_state = "ready"
 
-        gate_status_1 = 1 if (in1 or out1) else 0
-        gate_status_2 = 1 if (in2 or out2) else 0
+        y_split = state.get("y_split", 0)
+        if in1 and out1 and y_split:
+            gate_status_1 = 2
+        elif in1:
+            gate_status_1 = 1
+        else:
+            gate_status_1 = 0
+
+        if in2 and out2 and y_split:
+            gate_status_2 = 2
+        elif in2:
+            gate_status_2 = 1
+        else:
+            gate_status_2 = 0
 
         mmu_cmd = (
             f"SET_MMU ACTIVE_GATE={active_gate} TOOL={active_gate} "
