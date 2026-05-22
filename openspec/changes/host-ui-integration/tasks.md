@@ -137,6 +137,15 @@
 - Wrapped `FLARE_UNLOAD_TOOLHEAD` execution inside a `filament_switch_sensor` state check in `klipper/flare_mmu.cfg`, cleanly skipping tip-forming and gear retraction moves if no filament is present at the toolhead.
 - Ran static Python linter/compiler checks and confirmed a perfect pass.
 
+## Phase 13: Firmware-Level Auto-Cutting for Manual Unload and Eject
+- [x] 13.1 Revert `FLARE_CUT` macro chaining in `cmd_MMU_UNLOAD` and `cmd_MMU_EJECT` within `klipper/mmu.py`.
+- [x] 13.2 Add `MANUAL_UNLOAD_WAIT_CUT` state to manual unload state machine in `firmware/src/protocol.c`.
+- [x] 13.3 Implement cutter cycle trigger inside `UL:` and `UM:` commands in `firmware/src/protocol.c` if `ENABLE_CUTTER` and `UNLOAD_CUT` are true.
+- [x] 13.4 Ensure firmare and Klipper python changes compile successfully.
 
-
-
+---
+### Validation Notes — 2026-05-22 (Firmware-Level Auto-Cutting)
+- Reverted `FLARE_CUT` macro execution from `cmd_MMU_UNLOAD` and `cmd_MMU_EJECT` in `klipper/mmu.py`. Manual unloads now delegate physical cutting entirely to the RP2040 MMU firmware via raw serial commands.
+- Implemented `MANUAL_UNLOAD_WAIT_CUT` state inside the manual unload state machine tick handler (`manual_unload_tick` in `firmware/src/protocol.c`).
+- Wired auto-cutter invocation (`cutter_start`) inside both the `UL:` (manual unload to gate) and `UM:` (manual eject) serial command handlers when `ENABLE_CUTTER` and `UNLOAD_CUT` are active.
+- Successfully verified both clean firmware compilation (`ninja -C build_local`) and Python syntax validity (`python3 -m py_compile`).

@@ -33,6 +33,7 @@ static bool g_live_tune_lock = false;
 
 typedef enum {
     MANUAL_UNLOAD_IDLE,
+    MANUAL_UNLOAD_WAIT_CUT,
     MANUAL_UNLOAD_WAIT_FIRST_CLEAR,
     MANUAL_UNLOAD_WAIT_IN_CLEAR
 } manual_unload_state_t;
@@ -298,6 +299,21 @@ static void manual_unload_tick(uint32_t now_ms) {
         case MANUAL_UNLOAD_IDLE:
             return;
 
+        case MANUAL_UNLOAD_WAIT_CUT:
+            if (!cutter_busy()) {
+                if (cutter_failed()) {
+                    manual_unload_reset();
+                } else {
+                    start_manual_unload_lane(A, g_manual_unload.finish_to_in, now_ms);
+                    if (g_manual_unload.finish_to_in) {
+                        g_manual_unload.state = MANUAL_UNLOAD_WAIT_FIRST_CLEAR;
+                    } else {
+                        manual_unload_reset();
+                    }
+                }
+            }
+            break;
+
         case MANUAL_UNLOAD_WAIT_FIRST_CLEAR:
             if (A->task == TASK_IDLE) {
                 if (lane_out_present(A)) {
@@ -366,7 +382,14 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         sync_set_state(SYNC_OFF);
         sync_disable(false);
         set_toolhead_filament(false);
-        start_manual_unload_lane(A, false, now_ms);
+        if (ENABLE_CUTTER && UNLOAD_CUT) {
+            g_manual_unload.lane = A;
+            g_manual_unload.finish_to_in = false;
+            g_manual_unload.state = MANUAL_UNLOAD_WAIT_CUT;
+            cutter_start(A, true, now_ms);
+        } else {
+            start_manual_unload_lane(A, false, now_ms);
+        }
         cmd_reply("OK", NULL);
     } else if (!strcmp(cmd, "UM")) {
         int target_lane = 0;
@@ -388,10 +411,17 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             set_toolhead_filament(false);
             bool out_present_at_entry = lane_out_present(A);
             if (out_present_at_entry || on_al(&g_y_split)) {
-                start_manual_unload_lane(A, true, now_ms);
-                g_manual_unload.lane = A;
-                g_manual_unload.finish_to_in = true;
-                g_manual_unload.state = MANUAL_UNLOAD_WAIT_FIRST_CLEAR;
+                if (ENABLE_CUTTER && UNLOAD_CUT && out_present_at_entry) {
+                    g_manual_unload.lane = A;
+                    g_manual_unload.finish_to_in = true;
+                    g_manual_unload.state = MANUAL_UNLOAD_WAIT_CUT;
+                    cutter_start(A, true, now_ms);
+                } else {
+                    start_manual_unload_lane(A, true, now_ms);
+                    g_manual_unload.lane = A;
+                    g_manual_unload.finish_to_in = true;
+                    g_manual_unload.state = MANUAL_UNLOAD_WAIT_FIRST_CLEAR;
+                }
             } else {
                 start_manual_unload_to_in(A, now_ms);
             }

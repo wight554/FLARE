@@ -198,14 +198,9 @@ class MMUMock:
         self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
 
     def cmd_MMU_UNLOAD(self, gcmd):
-        """Map Happy Hare unload to FLARE_UNLOAD_TOOLHEAD, FLARE_CUT, and FLARE_UNLOAD."""
+        """Map Happy Hare unload to FLARE_UNLOAD_TOOLHEAD and FLARE_UNLOAD commands."""
         gcmd.respond_info("FLARE: Unloading toolhead gears")
         self.gcode.run_script_from_command("FLARE_UNLOAD_TOOLHEAD")
-        gate = self.active_gate
-        if (self.enable_cutter and self.unload_cut and gate >= 0 
-                and gate < len(self.gate_sensor) and self.gate_sensor[gate]):
-            gcmd.respond_info("FLARE: Performing cutter cycle")
-            self.gcode.run_script_from_command("FLARE_CUT")
         gcmd.respond_info("FLARE: Unloading lane to gate")
         self.gcode.run_script_from_command("FLARE_UNLOAD")
 
@@ -219,14 +214,9 @@ class MMUMock:
         self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
 
     def cmd_MMU_EJECT(self, gcmd):
-        """Map Happy Hare eject to FLARE_UNLOAD_TOOLHEAD, FLARE_CUT, and FLARE_EJECT."""
+        """Map Happy Hare eject to FLARE_UNLOAD_TOOLHEAD and FLARE_EJECT commands."""
         gcmd.respond_info("FLARE: Unloading toolhead gears")
         self.gcode.run_script_from_command("FLARE_UNLOAD_TOOLHEAD")
-        gate = self.active_gate
-        if (self.enable_cutter and self.unload_cut and gate >= 0 
-                and gate < len(self.gate_sensor) and self.gate_sensor[gate]):
-            gcmd.respond_info("FLARE: Performing cutter cycle")
-            self.gcode.run_script_from_command("FLARE_CUT")
         gcmd.respond_info("FLARE: Ejecting filament completely")
         self.gcode.run_script_from_command("FLARE_EJECT")
 
