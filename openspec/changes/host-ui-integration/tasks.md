@@ -211,6 +211,12 @@
 - Updated global variable `AUTOLOAD_RETRACT_MM` initialization in `firmware/src/main.c` and defaults restoration in `firmware/src/settings_store.c` to use the generated `CONF_AUTOLOAD_RETRACT_MM` instead of hardcoding `5`.
 - Successfully validated Python parser compile status (`python3 -m py_compile`) and confirmed the local firmware compiles flawlessly.
 
+## Phase 19: Fix autoload_retract_mm execution bug in firmware motion logic
+- [ ] 19.1 Update `firmware/src/motion.c` to initialize `L->dist_at_out_mm` to `L->task_dist_mm` when the OUT sensor is triggered during `TASK_AUTOLOAD`.
+- [ ] 19.2 Verify that the retract distance calculation `L->task_dist_mm - L->dist_at_out_mm` starts measuring from zero correctly.
+- [ ] 19.3 Verify local firmware compilation succeeds.
+
+
 
 
 
