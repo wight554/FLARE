@@ -287,6 +287,7 @@ class MMUMock:
                                 pass
                                 
                     self._save_vars()
+                    self._ensure_array_lengths()
                     gcmd.respond_info("FLARE: Updated MMU gate map from MAP dictionary")
                     return
             except Exception as e:
@@ -338,6 +339,7 @@ class MMUMock:
             self.gate_status[gate] = available
 
         self._save_vars()
+        self._ensure_array_lengths()
         gcmd.respond_info(f"FLARE: Updated Gate {gate} map")
 
 
@@ -360,6 +362,7 @@ class MMUMock:
 
         self.ttg_map[tool] = gate
         self._save_vars()
+        self._ensure_array_lengths()
         gcmd.respond_info(f"FLARE: Mapped Tool {tool} to Gate {gate}")
 
     def cmd_MMU_SPOOLMAN(self, gcmd):
@@ -382,6 +385,7 @@ class MMUMock:
         if clear:
             self.gate_spool_id[gate] = -1
             self._save_vars()
+            self._ensure_array_lengths()
             gcmd.respond_info(f"FLARE: Cleared Spool ID for Gate {gate}")
             return
 
@@ -392,6 +396,7 @@ class MMUMock:
         if spool_id is not None:
             self.gate_spool_id[gate] = spool_id
             self._save_vars()
+            self._ensure_array_lengths()
             gcmd.respond_info(f"FLARE: Mapped Gate {gate} to Spool ID {spool_id}")
         else:
             gcmd.respond_info(f"Gate {gate} currently mapped to Spool ID {self.gate_spool_id[gate]}")
@@ -508,6 +513,18 @@ class MMUMock:
         self.gate_name = pad_list(self.gate_name, lambda i: f"Gate {i}")
         self.gate_filament_name = pad_list(self.gate_filament_name, lambda i: f"Gate {i}")
         self.ttg_map = pad_list(self.ttg_map, lambda i: i)
+
+        # Force fresh list objects to trigger Klipper/Moonraker status updates
+        self.gate_status = list(self.gate_status)
+        self.gate_sensor = list(self.gate_sensor)
+        self.gate_color = list(self.gate_color)
+        self.gate_material = list(self.gate_material)
+        self.gate_spool_id = list(self.gate_spool_id)
+        self.gate_color_rgb = [list(rgb) for rgb in self.gate_color_rgb]
+        self.gate_name = list(self.gate_name)
+        self.gate_filament_name = list(self.gate_filament_name)
+        self.ttg_map = list(self.ttg_map)
+
 
     def get_status(self, eventtime):
         """Export state values back to Klipper & Moonraker."""
