@@ -286,6 +286,36 @@ class EstimatorTests(unittest.TestCase):
                                            window=5, est_floor=100.0)
         self.assertEqual(verdict, "PASS")
 
+    def test_neutral_gap_transition_passes(self):
+        # Real captures often sample TENSION->NEUTRAL->COMPRESSION, not a direct
+        # adjacent edge.
+        lines = [status("TENSION", 5.0, 300, 1500) for _ in range(2)]
+        lines += [status("NEUTRAL", 0.0, 320, 700) for _ in range(4)]
+        lines += [status("COMPRESSION", -5.0, 360, 0) for _ in range(3)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_estimator(samples, events, factor=2.0,
+                                           window=5, est_floor=100.0)
+        self.assertEqual(verdict, "PASS")
+
+    def test_neutral_gap_spike_fails(self):
+        lines = [status("TENSION", 5.0, 200, 1500) for _ in range(2)]
+        lines += [status("NEUTRAL", 0.0, 220, 700) for _ in range(4)]
+        lines += [status("COMPRESSION", -5.0, 1500, 0) for _ in range(3)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_estimator(samples, events, factor=2.0,
+                                           window=5, est_floor=100.0)
+        self.assertEqual(verdict, "FAIL")
+
+    def test_neutral_gap_too_long_inconclusive(self):
+        lines = [status("TENSION", 5.0, 300, 1500) for _ in range(2)]
+        lines += [status("NEUTRAL", 0.0, 320, 700) for _ in range(6)]
+        lines += [status("COMPRESSION", -5.0, 360, 0) for _ in range(3)]
+        samples, events = fpc.parse_stream(lines)
+        verdict, _ = fpc.analyze_estimator(
+            samples, events, factor=2.0, window=5, est_floor=100.0,
+            transition_gap=3)
+        self.assertEqual(verdict, "INCONCLUSIVE")
+
     def test_no_transition_inconclusive(self):
         lines = [status("NEUTRAL", 0.0, 300, 700) for _ in range(4)]
         samples, events = fpc.parse_stream(lines)

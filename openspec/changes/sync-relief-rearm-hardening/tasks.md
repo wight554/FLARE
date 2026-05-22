@@ -132,7 +132,11 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   successful resume re-arm.
 - [ ] 5.5 M4 — fast/partial TENSION→COMPRESSION disturbance (D2; covers 2.2).
   PASS: est (dump) does not jump to the rail; next NEUTRAL feed no overshoot
-  straight back to COMPRESSION. Result: __
+  straight back to COMPRESSION. Result: pending. 2026-05-22: forced retract
+  shock caused audible grind and still did not produce a direct adjacent
+  TENSION→COMPRESSION checker transition; do not repeat that macro. Checker now
+  accepts bounded natural TENSION→NEUTRAL→COMPRESSION spans for D2 so M4 can be
+  validated from soft motion or normal print logs.
 - [ ] 5.6 M5 — toolchange L1→L2 (D5) — ONLY if lanes differ in `rotation_distance`.
   `extruder_est_sps` is a single global; sync drives one (active) lane at a time,
   so the rescale only matters for the rare mixed-`MM_PER_STEP` rig — **literal

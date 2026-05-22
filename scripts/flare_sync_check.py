@@ -24,10 +24,11 @@ sync-relief-rearm-hardening fixes (D1 re-arm, D2 estimator).
     that intentionally end after a successful resume can use
     --allow-terminal-idle-relief to ignore one final idle RELIEF_PAUSE.
 
-  ESTIMATOR (D2, maneuver M4): on a TENSION->COMPRESSION transition the estimator
-    must not spike. FAIL if EST jumps by more than --est-spike-factor x its
-    pre-transition value (with an absolute floor) — the modeled-overwrite spike
-    the blend is meant to prevent.
+  ESTIMATOR (D2, maneuver M4): on a TENSION->COMPRESSION span the estimator must
+    not spike. The span may pass through NEUTRAL, because real buffer motion and
+    100 ms polling often miss a direct adjacent edge. FAIL if EST jumps by more
+    than --est-spike-factor x its pre-transition value (with an absolute floor)
+    — the modeled-overwrite spike the blend is meant to prevent.
 
 USAGE
   Offline (analyze a captured log):
@@ -413,21 +414,31 @@ def analyze_rearm(samples: List[Sample], events, idle: bool,
 # ESTIMATOR analysis (D2 — maneuver M4)
 # ---------------------------------------------------------------------------
 def analyze_estimator(samples: List[Sample], events, factor: float,
-                      window: int, est_floor: float) -> Tuple[str, List[str]]:
-    """D2: on a TENSION->COMPRESSION transition the estimator must not spike.
-    FAIL if EST jumps by more than `factor` x its pre-transition value (with an
-    absolute floor to ignore noise on tiny values)."""
+                      window: int, est_floor: float,
+                      transition_gap: int = 50) -> Tuple[str, List[str]]:
+    """D2: on a TENSION->COMPRESSION span the estimator must not spike.
+    The span may pass through NEUTRAL. FAIL if EST jumps by more than `factor`
+    x its pre-transition value (with an absolute floor to ignore noise on tiny
+    values)."""
     report: List[str] = []
     transitions = 0
     worst_ratio = 0.0
     worst: Optional[Tuple[int, float, float]] = None
     failed = False
-    prev_buf: Optional[str] = None
+    pending_idx: Optional[int] = None
+    pending_est: Optional[float] = None
     for i, smp in enumerate(samples):
         buf = smp.s("BUF")
-        if prev_buf == "TENSION" and buf == "COMPRESSION":
+        if buf == "TENSION":
+            pending_idx = i
+            pending_est = smp.f("EST")
+            continue
+        if pending_idx is not None and i - pending_idx > transition_gap:
+            pending_idx = None
+            pending_est = None
+        if buf == "COMPRESSION" and pending_idx is not None:
             transitions += 1
-            pre = samples[i - 1].f("EST") if i > 0 else None
+            pre = pending_est
             post_vals = [samples[k].f("EST")
                          for k in range(i, min(i + window, len(samples)))
                          if samples[k].f("EST") is not None]
@@ -439,16 +450,17 @@ def analyze_estimator(samples: List[Sample], events, factor: float,
                     worst = (i, pre, post)
                 if ratio > factor and post > est_floor:
                     failed = True
-        prev_buf = buf
+            pending_idx = None
+            pending_est = None
 
-    report.append(f"  TENSION->COMPRESSION transitions: {transitions}; "
+    report.append(f"  TENSION->COMPRESSION spans: {transitions}; "
                   f"worst EST ratio {worst_ratio:.2f}x (cap {factor:.2f})")
     if worst:
         report.append(f"  worst at idx {worst[0]}: EST {worst[1]:.0f} -> "
                       f"{worst[2]:.0f} mm/min")
     if transitions == 0:
         return "INCONCLUSIVE", report + [
-            "  No TENSION->COMPRESSION transition — run M4 (fast disturbance)."]
+            "  No TENSION->COMPRESSION span — run M4 (fast disturbance)."]
     if failed:
         return "FAIL", report + [
             "  estimator spiked on a modeled transition — D2 blend not limiting it."]
@@ -605,6 +617,9 @@ def main() -> int:
     ap.add_argument("--est-floor", type=float, default=100.0,
                     help="estimator mode: EST floor (mm/min) below which jumps "
                          "are treated as noise")
+    ap.add_argument("--est-transition-gap", type=int, default=50,
+                    help="estimator mode: max samples allowed between TENSION "
+                         "and later COMPRESSION")
     ap.add_argument("--switch-span-mm", type=float, default=10.0)
     ap.add_argument("--max-travel-mm", type=float, default=25.0)
     args = ap.parse_args()
@@ -651,7 +666,8 @@ def main() -> int:
         verdicts.append(v)
     if args.mode in ("estimator", "all"):
         v, rep = analyze_estimator(samples, events, args.est_spike_factor,
-                                   args.est_window, args.est_floor)
+                                   args.est_window, args.est_floor,
+                                   args.est_transition_gap)
         print(f"\nESTIMATOR (D2): {v}")
         for line in rep:
             print(line)
