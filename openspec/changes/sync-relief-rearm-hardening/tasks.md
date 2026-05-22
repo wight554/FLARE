@@ -118,10 +118,14 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   COMPRESSION than 900 mm/min. A non-vase cube with retracts/slowdowns remained
   "okish" visually but failed the checker on 5 `TENSION_RISK_HIGH` events, so
   keep that as tuning evidence rather than the D6 gate result.
-- [ ] 5.4 M3 — pause → high-flow resume (D1 positive).
+- [x] 5.4 M3 — pause → high-flow resume (D1 positive).
   Pause extruder ~10s (buffer → COMPRESSION → RELIEF_PAUSE), then resume high flow.
   PASS: `SYNC,RELIEF_PAUSE` → `SYNC,AUTO_START` on the drain to NEUTRAL (no full
-  TENSION drain), no grind / `cannot_refill`. Result: __
+  TENSION drain), no grind / `cannot_refill`. Result: PASS on 2026-05-22 with
+  strong inline macro (`E30 F90`, 12 s pause, `E35 F90`): 1 RELIEF_PAUSE, 1
+  AUTO_START re-arm, re-arm BUF state NEUTRAL. A weaker first run (`E18 F75`,
+  10 s pause, `E24 F75`) captured 1 RELIEF_PAUSE and no re-arm before capture
+  stop, so retain the strong run as the D1 positive validation.
 - [ ] 5.5 M4 — fast/partial TENSION→COMPRESSION disturbance (D2; covers 2.2).
   PASS: est (dump) does not jump to the rail; next NEUTRAL feed no overshoot
   straight back to COMPRESSION. Result: __
