@@ -142,7 +142,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `EST_ALPHA_MIN`| `est_alpha_min` | Estimator responsiveness for slow drifts | 0.12 |
 | `EST_ALPHA_MAX`| `est_alpha_max` | Estimator responsiveness for sharp jumps | 0.65 |
 | `SYNC_RESERVE_PCT` | `sync_reserve_pct` | Normal-sync reserve target as % of half `BUF_SWITCH_SPAN` toward compression | 35 |
-| `COMPRESSION_BIAS_FRAC` | `sync_compression_bias_frac` | Scalar fallback compression-side setpoint shift when no flow schedule is configured (0.0 to 0.7) | 0.0 |
+| `COMPRESSION_BIAS_FRAC` | `sync_compression_bias_frac` | Scalar fallback compression-side setpoint shift when no flow schedule is configured (0.0 to 0.7) | 0.45 |
 | `NEUTRAL_CREEP_TIMEOUT_MS` | `neutral_creep_timeout_ms` | Neutral-dwell wait before creep activates | 0 |
 | `NEUTRAL_CREEP_RATE` | `neutral_creep_rate_sps_per_s` | Creep ramp slope (SPS/s) | 0 |
 | `NEUTRAL_CREEP_CAP` | `neutral_creep_cap_frac` | Hard cap on creep as % of extruder_est_sps | 10 |
@@ -151,8 +151,8 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `RELAY_MIN_FLIP_MM` | `relay_min_flip_mm` | Distance hysteresis for type-D flips; 0.0 keeps time-only `BUF_HYST` behavior | 0.5 |
 | `VAR_BLEND_FRAC` | `buf_variance_blend_frac` | Max variance-aware blend fraction (0.0=OFF) | 0.0 |
 | `VAR_BLEND_REF_MM` | `buf_variance_blend_ref_mm` | Sigma value at which blend distrust saturates | 1.0 |
-| `ZONE_BIAS_BASE`| `zone_bias_base_rate`| Base reserve-recovery correction around the virtual buffer target (mm/min) | 90 |
-| `ZONE_BIAS_RAMP`| `zone_bias_ramp_rate`| Extra reserve-recovery ramp while buffer stays away from target (mm/min per second) | 30 |
+| `ZONE_BIAS_BASE`| `zone_bias_base_rate`| Base reserve-recovery correction around the virtual buffer target (mm/min) | 120 |
+| `ZONE_BIAS_RAMP`| `zone_bias_ramp_rate`| Extra reserve-recovery ramp while buffer stays away from target (mm/min per second) | 45 |
 | `ZONE_BIAS_MAX` | `zone_bias_max_rate` | Max reserve-recovery correction (mm/min) | 600 |
 | `RELOAD_LEAN`  | `reload_lean_factor` | RELOAD follow over-feed factor (0.0 to 5.0) | 1.15 |
 | `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |

@@ -160,6 +160,11 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   -11 slam). Checker updated to classify stopped-lane relief dwell as
   `OK(idle-relief)` while still failing sustained feed, moving overfill, or
   hardwall hits.
+  Follow-up tuning: operator validated `COMPRESSION_BIAS_FRAC=0.45`,
+  `ZONE_BIAS_BASE=120`, `ZONE_BIAS_RAMP=45`, `ZONE_BIAS_MAX=600` on steady
+  900/1500 mm/min observation and a cube capture (`hw_cube_bias045_zb120`):
+  `REGRESSION (C): PASS`, 26 COMPRESSION episodes, zero starvation/degraded
+  events. These values are promoted to repository defaults.
 - [x] 5.8 Add daemon-safe live capture to `scripts/flare_sync_check.py` so HW
   validation can observe through `flare_daemon.py` when it owns the serial port.
   Validate with unit tests and script syntax checks.

@@ -94,7 +94,7 @@ DEFAULTS = {
     "tension_risk_threshold": "4",
 
     # Adaptive Sync
-    "sync_compression_bias_frac": "0.4",
+    "sync_compression_bias_frac": "0.45",
     "neutral_creep_timeout_ms": "4000",
     "neutral_creep_rate_sps_per_s": "5",
     "neutral_creep_cap_frac": "10",
@@ -102,8 +102,8 @@ DEFAULTS = {
     "buf_variance_blend_ref_mm": "1.0",
     "est_alpha_min": "0.12",
     "est_alpha_max": "0.65",
-    "zone_bias_base_rate": "90",
-    "zone_bias_ramp_rate": "30",
+    "zone_bias_base_rate": "120",
+    "zone_bias_ramp_rate": "45",
     "zone_bias_max_rate": "600",
     "reload_lean_factor": "1.15",
 
