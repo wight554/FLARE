@@ -41,9 +41,9 @@
 - [x] 7.10 Add state persistence to Klipper mock and periodic force-sync to daemon syncer thread to handle Moonraker/Klipper restarts without losing gate/tool mappings.
 - [x] 7.11 Add Spoolman support to klipper/mmu.py (spoolman_support attribute, gate_spool_id persistence, and MMU_SPOOLMAN command handling).
 - [x] 7.12 Register and implement MMU_SELECT in klipper/mmu.py to support dashboard gate selection.
-- [ ] 7.13 Refine MMU_SELECT in klipper/mmu.py to do nothing if selecting already active gate, and perform toolchange if different.
-- [ ] 7.14 Define `_CG28` conditional homing helper in `flare_mmu.cfg`.
-- [ ] 7.15 Harden SET_MMU parsing in klipper/mmu.py to strip quotes from string lists and update gate status mapping logic in scripts/flare_daemon.py (0=empty, 1=preloaded, 2=loaded).
+- [x] 7.13 Refine MMU_SELECT in klipper/mmu.py to do nothing if selecting already active gate, and perform toolchange if different.
+- [x] 7.14 Define `_CG28` conditional homing helper in `flare_mmu.cfg`.
+- [x] 7.15 Harden SET_MMU parsing in klipper/mmu.py to strip quotes from string lists and update gate status mapping logic in scripts/flare_daemon.py (0=empty, 1=preloaded, 2=loaded).
 
 ---
 ### Validation Notes — 2026-05-22
@@ -56,3 +56,7 @@
 - Verified dynamic telemetry parameters (buf pos, states, sensors) via moonraker API commands.
 - Fixed command timeouts for parameter SET requests by supporting raw "OK" (no colon) responses in the daemon serial multiplexer.
 - Implemented automatic recovery of Klipper mock parameters after a Klipper/Moonraker reload, using localized JSON persistence next to the printer configuration directory and a 10-second daemon force-sync heartbeat.
+- Refined `MMU_SELECT` in `klipper/mmu.py` to guard against redundant selection.
+- Added standard conditional homing macro `_CG28` to `klipper/flare_mmu.cfg`.
+- Hardened Klipper list parsers in `klipper/mmu.py` by stripping single/double quotes from all arrays and standard string fields in `SET_MMU`.
+- Implemented three-state sensor mapping in `scripts/flare_daemon.py` (`gate_status`): `0` for empty (no `IN` sensor), `1` for preloaded (`IN` triggered), and `2` for loaded (`IN` + `OUT` + `YS` triggered).
