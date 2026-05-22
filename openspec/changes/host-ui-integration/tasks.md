@@ -327,7 +327,15 @@
 - Successfully verified both Python syntax validity and committed clean changes.
 
 ## Phase 27: mmu_sensors Mock Integration
-- [ ] 27.1 Create mock Klipper extra `klipper/mmu_sensors.py` returning expected sensor fields in get_status.
-- [ ] 27.2 Add `[mmu_sensors]` section inside `klipper/flare_mmu.cfg`.
-- [ ] 27.3 Update target `klippy/extras` copy/install commands inside `scripts/install_daemon.sh`.
-- [ ] 27.4 Validate Python syntax, build firmware, and test locally.
+- [x] 27.1 Create mock Klipper extra `klipper/mmu_sensors.py` returning expected sensor fields in get_status.
+- [x] 27.2 Add `[mmu_sensors]` section inside `klipper/flare_mmu.cfg`.
+- [x] 27.3 Update target `klippy/extras` copy/install commands inside `scripts/install_daemon.sh`.
+- [x] 27.4 Validate Python syntax, build firmware, and test locally.
+
+---
+### Validation Notes — 2026-05-23 (mmu_sensors Mock Integration)
+- Created the new mock Klipper extra module `klipper/mmu_sensors.py` that registers the `mmu_sensors` printer object and dynamically resolves all standard Happy Hare sensor states (`pre_gate_0`, `pre_gate_1`, `gate`, `extruder`, `toolhead`, `hub`, `sync_feedback_tension`, `sync_feedback_compression`) from the unified MMU status cache.
+- Added the `[mmu_sensors]` config section inside `klipper/flare_mmu.cfg` mapping dummy pins to satisfy Fluidd's capability detection interface without allocating actual MCU resources.
+- Updated `scripts/install_daemon.sh` installer script to automatically copy `mmu_sensors.py` alongside `mmu.py` into the target Klipper extras directory during installation.
+- Verified that local C/C++ firmware builds compile cleanly and successfully.
+
