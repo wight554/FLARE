@@ -197,7 +197,7 @@ def serial_reader(port_name, baud):
                     broadcast_telemetry({"event_type": evt_type, "event_data": evt_data})
                     
                 # Check for command reply
-                elif line.startswith("OK:") or line.startswith("ER:"):
+                elif line.startswith("OK:") or line.startswith("ER:") or line == "OK":
                     # If it's a status dump response (starts with OK:LN: or OK:LN=)
                     if "LN:" in line:
                         parse_status_line(line)

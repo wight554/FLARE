@@ -36,6 +36,7 @@
 - [x] 7.5 Run compile/linter check on new python files.
 - [x] 7.6 Add missing Happy Hare status attributes (is_homed, gate_color_rgb, gate_name, gate_filament_name, ttg_map, action) to `klipper/mmu.py`.
 - [x] 7.7 Register `MMU_GATE_MAP` and `MMU_TTG_MAP` G-code commands in `klipper/mmu.py` to prevent unknown command errors when editing filaments in Fluidd.
+- [x] 7.8 Fix daemon serial reader to recognize raw "OK" replies (no colon) to resolve command timeouts.
 
 ---
 ### Validation Notes — 2026-05-22
@@ -46,5 +47,6 @@
 - Mainsail/Fluidd dashboards now seamlessly discover the `printer.mmu` namespace via dynamic `SET_MMU` updates.
 - Added strict safety checks in `install_daemon.sh` preventing unintended Happy Hare file overwrites.
 - Verified dynamic telemetry parameters (buf pos, states, sensors) via moonraker API commands.
+- Fixed command timeouts for parameter SET requests by supporting raw "OK" (no colon) responses in the daemon serial multiplexer.
 
 
