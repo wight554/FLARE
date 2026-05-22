@@ -325,3 +325,9 @@
   - Map `extruder` (dot 5) and `toolhead` (dot 6) dots both to the single `TS` toolhead sensor.
 - Wired real-time board sensor states through the Klipper telemetry syncer thread in `scripts/flare_daemon.py`, translating physical `in/out` and `y_split` triggers into `GATE_SENSOR_ACTIVE`, `EXTRUDER_SENSOR_ACTIVE`, `PRE_GATE_SENSOR_ACTIVE`, and `HUB_SENSOR_ACTIVE` parameters.
 - Successfully verified both Python syntax validity and committed clean changes.
+
+## Phase 27: mmu_sensors Mock Integration
+- [ ] 27.1 Create mock Klipper extra `klipper/mmu_sensors.py` returning expected sensor fields in get_status.
+- [ ] 27.2 Add `[mmu_sensors]` section inside `klipper/flare_mmu.cfg`.
+- [ ] 27.3 Update target `klippy/extras` copy/install commands inside `scripts/install_daemon.sh`.
+- [ ] 27.4 Validate Python syntax, build firmware, and test locally.
