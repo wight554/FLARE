@@ -422,6 +422,7 @@ def klipper_syncer(moonraker_url):
     last_sync = {}
     backoff = 0.0
     last_force_sync = 0.0
+    was_online = False
 
     while True:
         time.sleep(0.25)
@@ -449,6 +450,12 @@ def klipper_syncer(moonraker_url):
 
         # Force full sync every 10 seconds to recover if Klipper/Moonraker restarted
         if time.time() - last_force_sync > 10.0:
+            changed = True
+
+        board_online = state.get("board_online", False)
+        trigger_board_sync = False
+        if board_online and not was_online:
+            trigger_board_sync = True
             changed = True
 
         if not changed:
@@ -531,6 +538,9 @@ def klipper_syncer(moonraker_url):
 
         lines.append(mmu_cmd)
 
+        if trigger_board_sync:
+            lines.append("_FLARE_SYNC_BOARD")
+
         gcode_script = "\n".join(lines)
         payload = json.dumps({"script": gcode_script}).encode("utf-8")
 
@@ -546,6 +556,7 @@ def klipper_syncer(moonraker_url):
                 if resp.status == 200:
                     last_sync = state
                     last_force_sync = time.time()
+                    was_online = board_online
         except Exception:
             # Moonraker offline, backoff for 5.0 seconds
             last_sync = {} # Clear cache to force push on recovery

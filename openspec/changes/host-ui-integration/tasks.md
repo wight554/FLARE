@@ -163,3 +163,16 @@
 - For pure gate selection (e.g. clicking gate cards), set `self.active_gate = gate` immediately to trigger low-latency UI highlighting update and dispatched serial active lane change `T:{lane}` to the board.
 - Verified that both Python syntax checks (`python3 -m py_compile`) and native firmware builds (`ninja -C build_local`) pass flawlessly.
 
+## Phase 15: Post-Reboot/Reconnect State Synchronization
+- [x] 15.1 Replace `_FLARE_BOOT` delayed gcode macro with `_FLARE_SYNC_BOARD` macro in `klipper/flare_mmu.cfg` that queries Klipper toolhead sensor state and sends `TS:1`/`TS:0` and `RELOAD_MODE` to the board.
+- [x] 15.2 In `scripts/flare_daemon.py`, track `was_online` state in the `klipper_syncer` thread and queue `_FLARE_SYNC_BOARD` execution to Moonraker on connection/boot transition to resolve desynchronization.
+- [x] 15.3 Ensure Python compilation checks pass and local firmware builds successfully.
+
+---
+### Validation Notes — 2026-05-22 (Post-Reboot/Reconnect Sync)
+- Implemented `_FLARE_SYNC_BOARD` macro inside `klipper/flare_mmu.cfg`, querying if the Klipper toolhead sensor is active and synchronizing it immediately to the board (`TS:1` or `TS:0`) along with `RELOAD_MODE`.
+- Added dynamic transition state tracking (`was_online`) inside the `klipper_syncer` daemon thread in `scripts/flare_daemon.py` to automatically execute `_FLARE_SYNC_BOARD` upon board boot/reconnection.
+- Verified that both Python validation (`python3 -m py_compile`) and native builds (`ninja -C build_local`) pass successfully.
+
+
+
