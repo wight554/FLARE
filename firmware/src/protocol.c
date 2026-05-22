@@ -75,6 +75,23 @@ static void manual_unload_reset(void) {
     g_manual_unload.cut_pending = false;
 }
 
+/* Called on successful completion of an unload sequence (OUT cleared).
+   If exactly one lane still has filament past its OUT sensor, select it as the
+   active lane so the operator does not have to issue a T: command manually.
+   This is the key recovery step for the double-load scenario: after the bad
+   lane is unloaded, the good lane auto-selects and normal sync can resume. */
+static void maybe_autoselect_lane(void) {
+    bool l1 = lane_out_present(&g_lane_l1);
+    bool l2 = lane_out_present(&g_lane_l2);
+    if (l1 && !l2 && active_lane != 1) set_active_lane(1);
+    else if (l2 && !l1 && active_lane != 2) set_active_lane(2);
+}
+
+static void manual_unload_complete(void) {
+    maybe_autoselect_lane();
+    manual_unload_reset();
+}
+
 static bool live_tune_locked_param(const char *param) {
     return !strcmp(param, "BASELINE_RATE") ||
            !strcmp(param, "BASELINE_SPS") ||
@@ -311,7 +328,7 @@ static void manual_unload_tick(uint32_t now_ms) {
                     if (g_manual_unload.finish_to_in) {
                         g_manual_unload.state = MANUAL_UNLOAD_WAIT_FIRST_CLEAR;
                     } else {
-                        manual_unload_reset();
+                        manual_unload_complete();
                     }
                 }
             }
@@ -330,7 +347,7 @@ static void manual_unload_tick(uint32_t now_ms) {
                             start_manual_unload_to_in(A, now_ms);
                             g_manual_unload.state = MANUAL_UNLOAD_WAIT_IN_CLEAR;
                         } else {
-                            manual_unload_reset();
+                            manual_unload_complete();
                         }
                     } else {
                         cutter_start(A, true, now_ms);
@@ -340,14 +357,14 @@ static void manual_unload_tick(uint32_t now_ms) {
                     start_manual_unload_to_in(A, now_ms);
                     g_manual_unload.state = MANUAL_UNLOAD_WAIT_IN_CLEAR;
                 } else {
-                    manual_unload_reset();
+                    manual_unload_complete();
                 }
             }
             break;
 
         case MANUAL_UNLOAD_WAIT_IN_CLEAR:
             if (A->task == TASK_IDLE) {
-                manual_unload_reset();
+                manual_unload_complete();
             }
             break;
     }

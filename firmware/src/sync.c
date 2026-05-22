@@ -1287,7 +1287,12 @@ void sync_tick(uint32_t now_ms) {
     buf_state_t s = g_buf.state;
     bool auto_start_allowed = (A->task == TASK_IDLE || A->task == TASK_FEED);
 
-    if (AUTO_MODE && !sync_enabled && auto_start_allowed && s == BUF_TENSION) {
+    /* Do not auto-start sync when both OUT sensors are active: the hub has two
+       filaments loaded simultaneously and the system is in manual recovery.
+       The guard clears automatically once one lane's OUT sensor drops (i.e.
+       after the operator unloads the unwanted lane). */
+    if (AUTO_MODE && !sync_enabled && auto_start_allowed && s == BUF_TENSION &&
+            !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
         bool tail_assist = !lane_in_present(A) && lane_out_present(A);
         int startup_sps = sync_bootstrap_sps();
         sync_current_sps = startup_sps;
