@@ -232,11 +232,24 @@ class MMUMock:
         self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
 
     def cmd_MMU_EJECT(self, gcmd):
-        """Map Happy Hare eject to FLARE_UNLOAD_TOOLHEAD and FLARE_EJECT commands."""
-        gcmd.respond_info("FLARE: Unloading toolhead gears")
-        self.gcode.run_script_from_command("FLARE_UNLOAD_TOOLHEAD")
-        gcmd.respond_info("FLARE: Ejecting filament completely")
-        self.gcode.run_script_from_command("FLARE_EJECT")
+        """Map Happy Hare eject to selected-gate FLARE_EJECT command."""
+        gate = gcmd.get_int('GATE', self.active_gate)
+        if gate < 0:
+            gate = 0
+        if gate >= self.num_gates:
+            gcmd.respond_info(f"Error: Gate index {gate} exceeds maximum gates ({self.num_gates})")
+            return
+
+        lane = gate + 1
+        gate_loaded = gate < len(self.gate_status) and self.gate_status[gate] == 2
+        if gate_loaded:
+            gcmd.respond_info(f"FLARE: Unloading toolhead gears for lane {lane} (Gate {gate})")
+            self.gcode.run_script_from_command("FLARE_UNLOAD_TOOLHEAD")
+        else:
+            gcmd.respond_info(f"FLARE: Gate {gate} not loaded to toolhead; ejecting gate only")
+
+        gcmd.respond_info(f"FLARE: Ejecting lane {lane} (Gate {gate}) completely")
+        self.gcode.run_script_from_command(f"FLARE_EJECT LANE={lane}")
 
     def cmd_MMU_RECOVER(self, gcmd):
         """Acknowledge MMU recovery command and log status."""

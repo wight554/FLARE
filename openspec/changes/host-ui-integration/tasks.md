@@ -271,3 +271,18 @@
 - Verified `cmd_MMU_SELECT` sets `self.gate` and `self.tool` to the selected gate index on pure UI clicks to trigger low-latency highlighting and details panel updates in Mainsail/Fluidd.
 - Verified `is_loaded` derivation strictly compares the selected gate index against the physically loaded gate, preventing global toolhead sensor states from incorrectly enabling UNLOAD and disabling LOAD/EJECT on inactive/preloaded lanes.
 - Confirmed syntax validity (`python3 -m py_compile`) and regression tests pass perfectly (`bash scripts/validate_regression.sh`).
+
+## Phase 24: Selected-Gate Load/Eject Macro Routing
+- [x] 24.1 Rename the shared conditional homing helper from `_CG28` to `_FLARE_CG28` so the include does not collide with a user's existing `_CG28` macro.
+- [x] 24.2 Make `FLARE_LOAD LANE=<n>` select `T:<n>` before `FL:` so `MMU_LOAD` loads the UI-selected gate instead of whichever lane was previously active on the board.
+- [x] 24.3 Make `FLARE_EJECT LANE=<n>` call `UM:<n>`, preserving `UM:` only for direct active-lane ejects without a lane parameter.
+- [x] 24.4 Update `cmd_MMU_EJECT` to target the selected gate, skip toolhead unload for merely preloaded inactive gates, and pass `LANE=<n>` to `FLARE_EJECT`.
+- [x] 24.5 Update Klipper docs/specs and validate Python, OpenSpec, and firmware build.
+
+---
+### Validation Notes — 2026-05-22 (Selected-Gate Load/Eject Routing)
+- Verified `MMU_SELECT GATE=<n>` is a pure UI selection path: it updates `active_gate`, `gate`, and `tool`, then sends `T:<lane>` to the board without starting motion.
+- Updated `FLARE_LOAD LANE=<n>` to send `T:<n>` before `FL:`, while bare `FLARE_LOAD` still sends the active-lane `FL:` command.
+- Updated `FLARE_EJECT LANE=<n>` to send `UM:<n>`, while bare `FLARE_EJECT` still sends active-lane `UM:`.
+- Updated `MMU_EJECT` to resolve `GATE` or `active_gate`, unload toolhead gears only when the selected gate has per-gate loaded status `2`, and otherwise eject the selected preloaded gate directly.
+- Validation passed: `python3 -m py_compile klipper/mmu.py scripts/*.py`, `openspec validate --specs --strict`, `ninja -C build_local`, `git diff --check`, and `bash scripts/validate_regression.sh`.

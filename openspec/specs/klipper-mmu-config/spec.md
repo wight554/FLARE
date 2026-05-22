@@ -11,9 +11,9 @@ that users can activate with a single `[include flare_mmu.cfg]` line in
 #### Scenario: Single include activates all macros
 - **WHEN** user adds `[include flare_mmu.cfg]` to `printer.cfg`
 - **THEN** macros `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`, `FLARE_CUT`,
-  `FLARE_TEST_TIP_FORMING`, `_FLARE_CHANGE_LANE`, `_FLARE_TIP_FORMING`,
-  `_FLARE_LOAD_HOTEND`, `_FLARE_PARK`, `_FLARE_PURGE` are all available without further
-  configuration
+  `FLARE_EJECT`, `FLARE_TEST_TIP_FORMING`, `_FLARE_CHANGE_LANE`,
+  `_FLARE_CG28`, `_FLARE_TIP_FORMING`, `_FLARE_LOAD_HOTEND`, `_FLARE_PARK`,
+  `_FLARE_PURGE` are all available without further configuration
 
 ### Requirement: Variables block with SP-compatible distance names
 `[gcode_macro _FLARE_VARS]` SHALL expose all user-configurable distances
@@ -100,6 +100,23 @@ parking, blob splitting, and brush moves SHALL be left to user-provided
   `_FLARE_VARS.min_extrude_temp`
 - **THEN** `_FLARE_HEAT_HOTEND` heats to `_FLARE_VARS.load_temp` and waits
   before purge extrusion starts
+
+### Requirement: Manual load and eject route selected lanes
+`FLARE_LOAD` and `FLARE_EJECT` SHALL preserve active-lane behavior when called
+without `LANE`, and SHALL target a selected lane when `LANE=1` or `LANE=2` is
+provided.
+
+#### Scenario: Selected lane load
+- **WHEN** `FLARE_LOAD LANE=2` is invoked
+- **THEN** the macro sends `T:2` before `FL:`
+
+#### Scenario: Selected lane eject
+- **WHEN** `FLARE_EJECT LANE=2` is invoked
+- **THEN** the macro sends `UM:2`
+
+#### Scenario: Direct active-lane behavior preserved
+- **WHEN** `FLARE_LOAD` or `FLARE_EJECT` is invoked without `LANE`
+- **THEN** the macro sends the existing active-lane command (`FL:` or `UM:`)
 
 ### Requirement: Toolchange macro with derived gear retract
 `_FLARE_CHANGE_LANE` SHALL execute the full toolchange sequence: tip forming

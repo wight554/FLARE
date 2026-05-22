@@ -191,27 +191,17 @@ explicit cutter cycle; firmware only accepts `CU:` when both lanes are idle and
 preloaded (`IN=1`, `OUT=0`). `UM:1` / `UM:2` can eject a specific inactive
 standby lane only when that lane is idle and preloaded (`IN=1`, `OUT=0`);
 active lane selection, sync state, and toolhead filament state are preserved.
+`FLARE_LOAD LANE=<1|2>` selects that lane with `T:<lane>` before `FL:`, so
+dashboard load actions use the selected gate. `FLARE_EJECT LANE=<1|2>` maps to
+`UM:<lane>`, so dashboard eject actions can target a selected preloaded gate
+without ejecting whichever lane is currently active on the MMU.
 
 ```ini
-[gcode_macro FLARE_LOAD]
-description: Full load active lane to toolhead
-gcode:
-    RUN_SHELL_COMMAND CMD=flare PARAMS="FL:"
-
-[gcode_macro FLARE_UNLOAD]
-description: Unload from extruder (tip past OUT sensor)
-gcode:
-    RUN_SHELL_COMMAND CMD=flare PARAMS="UL:"
-
-[gcode_macro FLARE_UNLOAD_TOOLHEAD]
-description: Form filament tip and retract filament past extruder gears
-gcode:
-    FLARE_UNLOAD_TOOLHEAD
-
-[gcode_macro FLARE_CUT]
-description: Perform full filament cut cycle
-gcode:
-    RUN_SHELL_COMMAND CMD=flare PARAMS="CU:"
+FLARE_LOAD LANE=1
+FLARE_UNLOAD
+FLARE_UNLOAD_TOOLHEAD
+FLARE_EJECT LANE=1
+FLARE_CUT
 ```
 
 ---

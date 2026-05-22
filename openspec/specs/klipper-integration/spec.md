@@ -62,6 +62,26 @@ The include SHALL provide a standalone `FLARE_UNLOAD_TOOLHEAD` macro.
 - **AND** it executes `_FLARE_TIP_FORMING` followed by `G1 E-{gear_retract}` to clear the extruder gears
 - **AND** restores the G-code state safely without initiating any subsequent MMU tool change or lane swap
 
+### Requirement: Dashboard load and eject target selected gates
+Dashboard `MMU_LOAD` and `MMU_EJECT` commands SHALL use the currently selected
+gate, not only the board's active lane.
+
+#### Scenario: Selected gate load
+- **WHEN** `MMU_LOAD` is invoked for gate 1
+- **THEN** Klipper runs `FLARE_LOAD LANE=2`
+- **AND** the FLARE macro selects lane 2 before issuing `FL:`
+
+#### Scenario: Selected preloaded gate eject
+- **WHEN** `MMU_EJECT` is invoked for a selected gate that is preloaded but not
+  loaded to the toolhead
+- **THEN** Klipper skips `FLARE_UNLOAD_TOOLHEAD`
+- **AND** runs `FLARE_EJECT LANE=<selected lane>` so firmware receives
+  `UM:<selected lane>`
+
+#### Scenario: Selected loaded gate eject
+- **WHEN** `MMU_EJECT` is invoked for a selected gate loaded to the toolhead
+- **THEN** Klipper runs `FLARE_UNLOAD_TOOLHEAD` before `FLARE_EJECT LANE=<selected lane>`
+
 ### Requirement: Toolhead Sensor Optional For TC Completion
 `TC:` load completion SHALL NOT require an explicit host `TS:1` command.
 
