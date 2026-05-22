@@ -104,13 +104,20 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   STABILIZE branch, Recipe B (auto-start → RELIEF_PAUSE → idle relieve) for the
   idle branch. PASS: stabilize/relieve reach NEUTRAL with **no** `SYNC,AUTO_START`
   (motor quiet); Recipe B: `--mode rearm --idle` = PASS. Result: __
-- [ ] 5.3 M2 — steady print 10–15 min (D6 × item-3 + D2).
+- [x] 5.3 M2 — steady print 10–15 min (D6 × item-3 + D2).
   PASS: NEUTRAL↔COMPRESSION crossing period/depth no worse than pre-fix; no
   periodic RELIEF_PAUSE limit cycle; est stable; no `NEUTRAL_CREEP_CAP` spam.
   FAIL (shrinking period / deeper lean) → revert `ecd3f5d`. Result: FAIL on
   2026-05-22 after 180 s daemon capture: 19 COMPRESSION episodes, 18
   RELIEF_PAUSE events, 19 `cannot_relieve`, 6 `TENSION_RISK_HIGH`. Action:
   reverted D6 commit `ecd3f5d`; rerun M2 after reflashing the reverted build.
+  PASS after revert: 120 s steady 900 mm/min capture (`hw_m2_steady_900`) passed
+  with 5 COMPRESSION episodes and 0 starvation/degraded events; 90 s steady
+  1500 mm/min capture (`hw_m2_steady_1500`) passed with 2 COMPRESSION episodes
+  and 0 starvation/degraded events. Operator observed 1500 mm/min closer to
+  COMPRESSION than 900 mm/min. A non-vase cube with retracts/slowdowns remained
+  "okish" visually but failed the checker on 5 `TENSION_RISK_HIGH` events, so
+  keep that as tuning evidence rather than the D6 gate result.
 - [ ] 5.4 M3 — pause → high-flow resume (D1 positive).
   Pause extruder ~10s (buffer → COMPRESSION → RELIEF_PAUSE), then resume high flow.
   PASS: `SYNC,RELIEF_PAUSE` → `SYNC,AUTO_START` on the drain to NEUTRAL (no full
