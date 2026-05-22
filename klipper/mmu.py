@@ -236,8 +236,28 @@ class MMUMock:
         if gate < 0:
             gate = 0
         lane = gate + 1
+
+        other_gate = 1 - gate
+        if other_gate < len(self.gate_status):
+            if self.gate_status[other_gate] == 2:
+                raise gcmd.error(f"FLARE: Cannot load gate {gate} - gate {other_gate} is currently loaded.")
+
+        if self.hub_sensor_active and not self.gate_sensor_active:
+            raise gcmd.error(f"FLARE: Cannot load gate {gate} - Y-splitter is occupied by another lane.")
+
         gcmd.respond_info(f"FLARE: Loading lane {lane} (Gate {gate})")
         self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
+
+        # Wait synchronously for filament to reach the OUT (gate) sensor
+        reactor = self.printer.get_reactor()
+        start_time = reactor.monotonic()
+        timeout = 15.0
+        gcmd.respond_info(f"FLARE: Waiting for lane {lane} OUT sensor...")
+        while not self.gate_sensor_active:
+            if reactor.monotonic() - start_time > timeout:
+                raise gcmd.error(f"FLARE Error: Load timed out waiting for filament to reach gate {gate} OUT sensor.")
+            reactor.pause(reactor.monotonic() + 0.2)
+
         gcmd.respond_info(f"FLARE: Loading lane {lane} into hotend")
         self.gcode.run_script_from_command(f"_FLARE_POST_TC_LOAD LANE={lane}")
 
