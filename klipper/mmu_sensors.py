@@ -6,6 +6,13 @@ class MMUSensorsMock:
         self.printer = config.get_printer()
         self.name = config.get_name()
         
+        # Consume config options to prevent Klipper validation error on unread options
+        config.get('pre_gate_switch_pin_0', 'dummy')
+        config.get('pre_gate_switch_pin_1', 'dummy')
+        config.get('gate_switch_pin', 'dummy')
+        config.get('extruder_switch_pin', 'dummy')
+        config.get('toolhead_switch_pin', 'dummy')
+        
         # Register mmu_sensors mock object
         self.printer.add_object('mmu_sensors', self)
 
