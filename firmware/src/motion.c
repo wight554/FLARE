@@ -332,7 +332,14 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                 cmd_event("UNLOAD_TIMEOUT", NULL);
             }
 
-            if (UNLOAD_TENSION_BLOCK_MS > 0 && !L->unload_to_in) {
+            /* UNLOAD_TENSION_BLOCK: if the buffer stays in TENSION throughout
+               a retract it usually means the printer extruder is gripping and
+               pulling forward faster than the MMU can retract — a real block.
+               Exception: when BOTH OUT sensors are active (double-load recovery)
+               the buffer tension is caused by the OTHER lane being printed, not
+               by the printer blocking THIS lane.  Skip the check in that case. */
+            if (UNLOAD_TENSION_BLOCK_MS > 0 && !L->unload_to_in &&
+                    !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
                 if (g_buf.state == BUF_TENSION) {
                     if (L->buf_tension_since_ms == 0) L->buf_tension_since_ms = now_ms;
                     else if ((int32_t)(now_ms - L->buf_tension_since_ms) >= UNLOAD_TENSION_BLOCK_MS) {
