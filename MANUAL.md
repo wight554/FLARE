@@ -67,8 +67,8 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `LO:` | Manual| **Preload** — runs forward until OUT sensor triggers. Limit: `AUTOLOAD_MAX`. |
 | `FL:` | Manual| **Full Load** — runs forward until `TS:1`, `TS_BUF_MS`, or sane buffer geometry reports loaded. Limit: `LOAD_MAX`. |
 | `RL:` | Manual| **Reload Load** — manually triggers RELOAD sync. Pushes active lane to approach and follow a disconnected tail. |
-| `UL:` | Both  | **Unload (Extruder)** — reverse until OUT sensor clears. Manual unload never runs the cutter. Limit: `UNLOAD_MAX`. |
-| `UM[:lane]` | Both  | **Unload (MMU)** — reverse until IN sensor clears. `UM` / `UM:` unload the active lane. `UM:1` / `UM:2` target a specific lane; inactive targets must be idle and preloaded (`IN=1`, `OUT=0`). Manual unload never runs the cutter. Limit: `UNLOAD_MAX`. |
+| `UL:` | Both  | **Unload (Extruder)** — reverse until OUT clears. If `CUTTER=1` and `UNLOAD_CUT=1`, runs clear → cut → clear. Limit: `UNLOAD_MAX`. |
+| `UM[:lane]` | Both  | **Unload (MMU)** — reverse until IN clears. `UM` / `UM:` unload the active lane; if fully loaded and `UNLOAD_CUT=1`, they run the full `UL:` cut sequence first, then continue to IN clear. `UM:1` / `UM:2` target a specific lane; inactive targets must be idle and preloaded (`IN=1`, `OUT=0`) and never run the cutter. Limit: `UNLOAD_MAX`. |
 | `TC:n` | Manual| **Toolchange** — If `TH:1` is latched, wait for `TS:0`/`TC_TH_MS`, then unload active lane, cut if enabled, and load lane `n`. |
 | `MV:mm:F[:D][:I]`| Both | **Exact Move** — move `abs(mm)` at `F` mm/min. Direction from sign of `mm` or optional `D` (`F`/`R`/`B`, `+`/`-`). Optional `I` ignores buffer compression/tension guards for this finite move. Disables sync. |
 | `FD:` | Both  | **Continuous Feed** — runs forward until `ST:`. |
@@ -219,7 +219,7 @@ Pre-rename half-travel and size serial tokens are removed; use full-range
 ### Cutter / Servo
 | Parameter | `config.ini` Key | Description | Default |
 |-----------|------------------|-------------|---------|
-| `UNLOAD_CUT` | `unload_cut` | Cut during automated toolchange and manual G-code (`MMU_UNLOAD`/`MMU_EJECT`) unload sequences when the cutter is enabled. Raw `UL:`/`UM:` serial commands never auto-cut. | 0 |
+| `UNLOAD_CUT` | `unload_cut` | Cut during automated toolchange and active-lane `UL:` / `UM:` unload sequences when the cutter is enabled. Inactive explicit `UM:n` standby eject never auto-cuts. | 0 |
 | `SERVO_BLOCK` | `servo_block_us` | Servo block position used between cutter phases | 950 |
 | `CUT_FEED_RATE` | `cut_feed_rate` | Motor speed (mm/min) during cutter feed; ramped from zero — lower if motor stalls | 1500 |
 | `CUT_FEED_MS` | `cut_feed_timeout_ms` | Safety timeout for the cutter motor feed phase. Runtime range: 1000-120000 ms. Raise when long `CUT_FEED` distances would exceed the default. | 30000 |

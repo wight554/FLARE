@@ -186,11 +186,13 @@ commands.
 
 ## Manual load / unload
 
-`UL:` / `UM:` are unload-only and never run the cutter. Use `CU:` for an
-explicit cutter cycle; firmware only accepts `CU:` when both lanes are idle and
-preloaded (`IN=1`, `OUT=0`). `UM:1` / `UM:2` can eject a specific inactive
-standby lane only when that lane is idle and preloaded (`IN=1`, `OUT=0`);
-active lane selection, sync state, and toolhead filament state are preserved.
+`UL:` / active-lane `UM:` run the cutter only when both `CUTTER` and
+`UNLOAD_CUT` are enabled. In that mode `UL:` clears OUT, cuts, then clears OUT
+again; active-lane `UM:` runs that full sequence before ejecting to IN clear.
+Firmware only accepts explicit `CU:` when both lanes are idle and preloaded
+(`IN=1`, `OUT=0`). `UM:1` / `UM:2` can eject a specific inactive standby lane
+only when that lane is idle and preloaded (`IN=1`, `OUT=0`); active lane
+selection, sync state, and toolhead filament state are preserved.
 `FLARE_LOAD LANE=<1|2>` selects that lane with `T:<lane>` before `FL:`, so
 dashboard load actions use the selected gate. `FLARE_EJECT LANE=<1|2>` maps to
 `UM:<lane>`, so dashboard eject actions can target a selected preloaded gate

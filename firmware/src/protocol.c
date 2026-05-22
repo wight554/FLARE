@@ -42,6 +42,7 @@ typedef struct {
     manual_unload_state_t state;
     lane_t *lane;
     bool finish_to_in;
+    bool cut_pending;
 } manual_unload_ctx_t;
 
 static manual_unload_ctx_t g_manual_unload = {0};
@@ -71,6 +72,7 @@ static void manual_unload_reset(void) {
     g_manual_unload.state = MANUAL_UNLOAD_IDLE;
     g_manual_unload.lane = NULL;
     g_manual_unload.finish_to_in = false;
+    g_manual_unload.cut_pending = false;
 }
 
 static bool live_tune_locked_param(const char *param) {
@@ -304,6 +306,7 @@ static void manual_unload_tick(uint32_t now_ms) {
                 if (cutter_failed()) {
                     manual_unload_reset();
                 } else {
+                    g_manual_unload.cut_pending = false;
                     start_manual_unload_lane(A, g_manual_unload.finish_to_in, now_ms);
                     if (g_manual_unload.finish_to_in) {
                         g_manual_unload.state = MANUAL_UNLOAD_WAIT_FIRST_CLEAR;
@@ -320,7 +323,10 @@ static void manual_unload_tick(uint32_t now_ms) {
                     manual_unload_reset();
                     return;
                 }
-                if (g_manual_unload.finish_to_in) {
+                if (g_manual_unload.cut_pending) {
+                    cutter_start(A, true, now_ms);
+                    g_manual_unload.state = MANUAL_UNLOAD_WAIT_CUT;
+                } else if (g_manual_unload.finish_to_in) {
                     start_manual_unload_to_in(A, now_ms);
                     g_manual_unload.state = MANUAL_UNLOAD_WAIT_IN_CLEAR;
                 } else {
@@ -385,8 +391,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         if (ENABLE_CUTTER && UNLOAD_CUT) {
             g_manual_unload.lane = A;
             g_manual_unload.finish_to_in = false;
-            g_manual_unload.state = MANUAL_UNLOAD_WAIT_CUT;
-            cutter_start(A, true, now_ms);
+            g_manual_unload.cut_pending = true;
+            g_manual_unload.state = MANUAL_UNLOAD_WAIT_FIRST_CLEAR;
+            start_manual_unload_lane(A, true, now_ms);
         } else {
             start_manual_unload_lane(A, false, now_ms);
         }
@@ -414,12 +421,14 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
                 if (ENABLE_CUTTER && UNLOAD_CUT && out_present_at_entry) {
                     g_manual_unload.lane = A;
                     g_manual_unload.finish_to_in = true;
-                    g_manual_unload.state = MANUAL_UNLOAD_WAIT_CUT;
-                    cutter_start(A, true, now_ms);
+                    g_manual_unload.cut_pending = true;
+                    g_manual_unload.state = MANUAL_UNLOAD_WAIT_FIRST_CLEAR;
+                    start_manual_unload_lane(A, true, now_ms);
                 } else {
                     start_manual_unload_lane(A, true, now_ms);
                     g_manual_unload.lane = A;
                     g_manual_unload.finish_to_in = true;
+                    g_manual_unload.cut_pending = false;
                     g_manual_unload.state = MANUAL_UNLOAD_WAIT_FIRST_CLEAR;
                 }
             } else {

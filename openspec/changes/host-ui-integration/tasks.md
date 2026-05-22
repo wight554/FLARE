@@ -286,3 +286,17 @@
 - Updated `FLARE_EJECT LANE=<n>` to send `UM:<n>`, while bare `FLARE_EJECT` still sends active-lane `UM:`.
 - Updated `MMU_EJECT` to resolve `GATE` or `active_gate`, unload toolhead gears only when the selected gate has per-gate loaded status `2`, and otherwise eject the selected preloaded gate directly.
 - Validation passed: `python3 -m py_compile klipper/mmu.py scripts/*.py`, `openspec validate --specs --strict`, `ninja -C build_local`, `git diff --check`, and `bash scripts/validate_regression.sh`.
+
+## Phase 25: Manual Unload Cut Ordering and MMU_LOAD Handoff
+- [x] 25.1 Fix active-lane `UL:` with `UNLOAD_CUT=1` so firmware unloads past `OUT`, runs the cutter, then unloads past `OUT` again.
+- [x] 25.2 Fix active-lane `UM:` with `UNLOAD_CUT=1` and fully loaded filament so firmware runs the full `UL:` cut sequence first, then continues reverse until `IN` clears.
+- [x] 25.3 Preserve inactive explicit `UM:n` standby eject behavior: only preloaded `IN=1, OUT=0` targets unload to `IN`, with no cutter and no active-lane state changes.
+- [x] 25.4 Make Klipper `MMU_LOAD` use the selected-gate load plus the same post-toolchange hotend handoff/purge path as `_FLARE_CHANGE_LANE`.
+- [x] 25.5 Update behavior/manual/OpenSpec docs and validate firmware build, Python, specs, and regression gate.
+
+---
+### Validation Notes — 2026-05-22 (Manual Unload Cut Ordering + MMU_LOAD Handoff)
+- Fixed the manual unload state context by adding a `cut_pending` flag. `UL:` and fully loaded active-lane `UM:` now begin with a suppressed reverse clear leg, start the cutter only after `OUT` clears, then run the second reverse clear leg.
+- Preserved inactive explicit standby eject: `UM:n` for inactive lanes still requires `IN=1, OUT=0`, unloads only to `IN` clear, and does not start the cutter or touch active-lane state.
+- Updated `MMU_LOAD` to run `FLARE_LOAD LANE=<n>` and then `_FLARE_POST_TC_LOAD LANE=<n>`, matching the toolchange post-pickup extruder grab, hotend load, and purge sequence.
+- Validation passed: `python3 -m py_compile klipper/mmu.py scripts/*.py`, `openspec validate --specs --strict`, `ninja -C build_local`, `git diff --check`, and `bash scripts/validate_regression.sh`.

@@ -223,13 +223,15 @@ class MMUMock:
         self.gcode.run_script_from_command("FLARE_UNLOAD")
 
     def cmd_MMU_LOAD(self, gcmd):
-        """Map Happy Hare load to FLARE_LOAD command."""
+        """Map Happy Hare load to selected-gate FLARE_LOAD and hotend handoff."""
         gate = gcmd.get_int('GATE', self.active_gate)
         if gate < 0:
             gate = 0
         lane = gate + 1
         gcmd.respond_info(f"FLARE: Loading lane {lane} (Gate {gate})")
         self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
+        gcmd.respond_info(f"FLARE: Loading lane {lane} into hotend")
+        self.gcode.run_script_from_command(f"_FLARE_POST_TC_LOAD LANE={lane}")
 
     def cmd_MMU_EJECT(self, gcmd):
         """Map Happy Hare eject to selected-gate FLARE_EJECT command."""

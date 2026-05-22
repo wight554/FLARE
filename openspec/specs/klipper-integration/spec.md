@@ -70,6 +70,9 @@ gate, not only the board's active lane.
 - **WHEN** `MMU_LOAD` is invoked for gate 1
 - **THEN** Klipper runs `FLARE_LOAD LANE=2`
 - **AND** the FLARE macro selects lane 2 before issuing `FL:`
+- **AND** after firmware reports loaded, Klipper runs `_FLARE_POST_TC_LOAD
+  LANE=2` to perform the same extruder grab, hotend load, and purge handoff
+  used after toolchanges
 
 #### Scenario: Selected preloaded gate eject
 - **WHEN** `MMU_EJECT` is invoked for a selected gate that is preloaded but not

@@ -154,10 +154,11 @@ When a user selects a tool or gate in Fluidd/Mainsail dashboard:
 4. Unloading of the previous active lane during a physical toolchange is handled by `_FLARE_CHANGE_LANE` (running `FLARE_UNLOAD_TOOLHEAD`).
 
 Dashboard load/eject actions route through the selected gate:
-1. `MMU_LOAD` resolves `GATE` or `active_gate`, then runs `FLARE_LOAD LANE=<gate+1>`.
+1. `MMU_LOAD` resolves `GATE` or `active_gate`, runs `FLARE_LOAD LANE=<gate+1>`, then runs `_FLARE_POST_TC_LOAD LANE=<gate+1>`.
 2. `FLARE_LOAD LANE=<n>` sends `T:<n>` before `FL:` so the board loads the selected lane even if a different lane had been active previously.
-3. `MMU_EJECT` resolves `GATE` or `active_gate`, skips `FLARE_UNLOAD_TOOLHEAD` when the selected gate is only preloaded, then runs `FLARE_EJECT LANE=<gate+1>`.
-4. `FLARE_EJECT LANE=<n>` sends `UM:<n>`, relying on firmware's explicit standby-lane eject safety checks for inactive preloaded lanes.
+3. `_FLARE_POST_TC_LOAD` performs the same post-toolchange handoff used by `_FLARE_CHANGE_LANE`: MMU-only pickup, synchronized extruder grab, hotend load, and purge.
+4. `MMU_EJECT` resolves `GATE` or `active_gate`, skips `FLARE_UNLOAD_TOOLHEAD` when the selected gate is only preloaded, then runs `FLARE_EJECT LANE=<gate+1>`.
+5. `FLARE_EJECT LANE=<n>` sends `UM:<n>`, relying on firmware's explicit standby-lane eject safety checks for inactive preloaded lanes.
 
 ## 9. Gate Array Length Hardening & Check Gate Refinement
 
@@ -192,6 +193,5 @@ We parse this string using Python's safe `ast.literal_eval`. For each gate in th
 ### 13. Correct Preloaded Gate UI Selection While Another Gate is Loaded
 - **Problem**: When selecting a preloaded gate card (`T1`) while another gate (`T0`) is loaded, Klipper evaluates `is_physically_loaded` as `True` because `self.toolhead_sensor == 1` globally. This incorrectly sets `self.gate` and `self.tool` to `1` (as if Gate 1 is loaded), and the daemon subsequently overwrites it back to `0` (since Gate 0 is physically loaded). This feedback loop forces Fluidd's UI to jump selection back to `T0` and misreports Gate 1 loaded state.
 - **Solution**: Refine `is_physically_loaded` in `cmd_MMU_SELECT` to check if `self.gate == gate` and `self.toolhead_sensor == 1`. During pure UI gate selection, preserve `self.gate` and `self.tool` unchanged by defaulting them to `self.gate`/`self.tool` if not physically loaded, keeping physical loaded state intact while setting `self.active_gate = gate` to correctly select/highlight the preloaded gate card and display its filament details without any jump-back.
-
 
 

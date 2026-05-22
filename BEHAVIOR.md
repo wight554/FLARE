@@ -105,8 +105,9 @@ reports the lane loaded. OUT sensor is a non-stopping checkpoint.
 
 ### `UL:` — Unload from extruder
 
-Runs reverse at `REV_RATE` until OUT clears. `UL:` is unload-only and never
-auto-runs the cutter; use explicit `CU:` for a manual cut.
+Runs reverse at `REV_RATE` until OUT clears. If `CUTTER=1` and `UNLOAD_CUT=1`,
+`UL:` first unloads past OUT, runs the same fed cutter sequence used by load
+cutting, then unloads past OUT again.
 **Requires OUT to be triggered before starting** — returns `ER:NOT_LOADED` if
 OUT is already clear.
 
@@ -116,10 +117,12 @@ stops with `EV:UNLOAD_BLOCKED` after `UNLOAD_TENSION_BLOCK_MS`.
 ### `UM[:lane]` — Unload from MMU
 
 `UM` and `UM:` run on the active lane. They reverse at `REV_RATE` until IN
-clears. If OUT is present at entry, the command first runs the non-cut `UL:`
-clear leg, then continues reverse until IN clears. If OUT is already clear at
-entry, it does not run a cutter phase; if the Y-splitter is still present, it
-performs the non-cut clear/retract leg before continuing to IN clear.
+clears. If OUT is present at entry and `CUTTER=1` / `UNLOAD_CUT=1`, the command
+first runs the full `UL:` sequence (clear OUT, cut, clear OUT again), then
+continues reverse until IN clears. If cutting is disabled, it runs the non-cut
+OUT clear leg before continuing to IN clear. If OUT is already clear at entry,
+it does not run a cutter phase; if the Y-splitter is still present, it performs
+the non-cut clear/retract leg before continuing to IN clear.
 
 `UM:1` and `UM:2` target an explicit lane. If the target is the active lane,
 behavior matches `UM:`. If the target is inactive, it is treated as a standby

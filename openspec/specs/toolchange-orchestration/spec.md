@@ -50,10 +50,16 @@ The host SHALL be able to trigger the exact cutter sequence independently of a f
 - **AND** emits `EV:CUT:DONE` upon successful parking
 - **AND** emits `EV:CUT:ERROR` upon failure or timeout
 
-#### Scenario: Manual unload does not cut
-- **WHEN** `UL:` or `UM:` is commanded
-- **THEN** the unload sequence does not start the cutter phase
-- **AND** continues the requested unload motion without cutting filament
+#### Scenario: Active manual extruder unload cuts after first OUT clear
+- **WHEN** `UL:` is commanded while `CUTTER` and `UNLOAD_CUT` are enabled
+- **THEN** the system reverses until `OUT` clears
+- **AND** then runs the fed cutter sequence
+- **AND** then reverses until `OUT` clears again
+
+#### Scenario: Manual unload skips cutter when disabled
+- **WHEN** `UL:` or active-lane `UM:` is commanded while `CUTTER` or
+  `UNLOAD_CUT` is disabled
+- **THEN** the unload sequence continues without starting the cutter phase
 
 ### Requirement: Manual unload supports explicit standby lane eject
 Manual MMU unload SHALL accept `UM`, `UM:`, `UM:1`, and `UM:2`. `UM` and
@@ -67,10 +73,18 @@ without clearing active toolhead filament state, disabling active-lane sync,
 changing active lane selection, inspecting shared Y-splitter occupancy, or
 starting any cutter phase.
 
-#### Scenario: Active-lane manual unload remains unchanged
+#### Scenario: Active-lane manual MMU eject from loaded state runs full unload first
 - **WHEN** `UM`, `UM:`, or `UM:n` where `n` is the active lane is commanded
-- **THEN** the active-lane manual MMU unload behavior is unchanged
-- **AND** the unload sequence does not start the cutter phase
+- **AND** `OUT` is present
+- **AND** `CUTTER` and `UNLOAD_CUT` are enabled
+- **THEN** the system runs the full active `UL:` sequence first
+- **AND** then continues reverse until `IN` clears
+
+#### Scenario: Active-lane manual unload remains unchanged without cutter
+- **WHEN** `UM`, `UM:`, or `UM:n` where `n` is the active lane is commanded
+- **AND** `CUTTER` or `UNLOAD_CUT` is disabled
+- **THEN** the active-lane manual MMU unload behavior remains a non-cut eject to
+  `IN` clear
 
 #### Scenario: Inactive standby lane eject preserves active print state
 - **WHEN** lane 1 is active and lane 2 is idle with `IN=1` and `OUT=0`
