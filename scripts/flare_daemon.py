@@ -147,6 +147,8 @@ def parse_status_line(line):
                 new_data["reload_mode"] = int(val)
             elif key == "CU":
                 new_data["enable_cutter"] = int(val)
+            elif key == "UC":
+                new_data["unload_cut"] = int(val)
         except ValueError:
             pass # ignore malformed metrics
             
@@ -482,6 +484,7 @@ def klipper_syncer(moonraker_url):
         sps = state.get("sps", 0.0)
         reload_mode = state.get("reload_mode", 0)
         enable_cutter = state.get("enable_cutter", 0)
+        unload_cut = state.get("unload_cut", 0)
 
         # Map print job state and print state
         if tc_state in ["FOLLOW", "APPROACH"]:
@@ -522,7 +525,8 @@ def klipper_syncer(moonraker_url):
             f"TOOLHEAD_SENSOR={toolhead} SYNC_FEEDBACK={sync_feedback:.3f} "
             f"SYNC_FEEDBACK_STATE='{buf_state}' PRINT_JOB_STATE='{print_job_state}' "
             f"PRINT_STATE='{print_state}' BOARD_ONLINE={board_online} "
-            f"SPS={sps:.3f} RELOAD_MODE={reload_mode} ENABLE_CUTTER={enable_cutter}"
+            f"SPS={sps:.3f} RELOAD_MODE={reload_mode} ENABLE_CUTTER={enable_cutter} "
+            f"UNLOAD_CUT={unload_cut}"
         )
 
         lines.append(mmu_cmd)

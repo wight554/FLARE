@@ -165,7 +165,7 @@ static void status_dump(void) {
     int blen = snprintf(b, sizeof(b),
         "LN:%d,TC:%s,L1T:%s,L2T:%s,"
         "I1:%d,O1:%d,I2:%d,O2:%d,"
-        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BL:%.1f,BP:%.2f,SM:%d,RA:%d,ST:%d,BI:%d,TPR:%d,CU:%d,RELOAD:%d,"
+        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BL:%.1f,BP:%.2f,SM:%d,RA:%d,ST:%d,BI:%d,TPR:%d,CU:%d,RELOAD:%d,UC:%d,"
         "EST:%.1f,RE:%.2f,DP:%d,PR:%d,AV:%.2f,SC:%.1f,SA:%d,GC:0x%X,TP:%u,TS:%u,PW:0x%X,"
         "RS:%d%d%d%d%d,SS:%d",
         active_lane, tc_state_name(g_tc_ctx.state),
@@ -187,6 +187,7 @@ static void status_dump(void) {
         AUTO_PRELOAD ? 1 : 0,
         ENABLE_CUTTER ? 1 : 0,
         RELOAD_MODE,
+        UNLOAD_CUT ? 1 : 0,
         (double)sps_to_mm_per_min((int)extruder_est_sps),
         (double)sync_reserve_error_mm(),
         sync_is_positive_relaunch_damped() ? 1 : 0,
@@ -284,13 +285,7 @@ static void start_manual_unload_to_in(lane_t *A, uint32_t now_ms) {
     lane_start(A, TASK_UNLOAD, REV_SPS, false, now_ms, (float)UNLOAD_MAX_MM);
 }
 
-static bool lane_preloaded(lane_t *L) {
-    return L && L->task == TASK_IDLE && lane_in_present(L) && !lane_out_present(L);
-}
 
-static bool both_lanes_preloaded(void) {
-    return lane_preloaded(&g_lane_l1) && lane_preloaded(&g_lane_l2);
-}
 
 static void manual_unload_tick(uint32_t now_ms) {
     lane_t *A = g_manual_unload.lane;
@@ -448,8 +443,17 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         }
         lane_t *A = get_active_lane_and_clear_error();
         if (!A) return;
-        if (!both_lanes_preloaded()) {
-            cmd_reply("ER", "NOT_PRELOADED");
+        lane_t *B = (A == &g_lane_l1) ? &g_lane_l2 : &g_lane_l1;
+        if (!lane_in_present(A)) {
+            cmd_reply("ER", "NO_FILAMENT");
+            return;
+        }
+        if (lane_out_present(B)) {
+            cmd_reply("ER", "OTHER_LANE_ACTIVE");
+            return;
+        }
+        if (A->task != TASK_IDLE || g_tc_ctx.state != TC_IDLE) {
+            cmd_reply("ER", "BUSY");
             return;
         }
         sync_retract_assist_set(false);

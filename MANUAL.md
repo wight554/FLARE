@@ -219,7 +219,7 @@ Pre-rename half-travel and size serial tokens are removed; use full-range
 ### Cutter / Servo
 | Parameter | `config.ini` Key | Description | Default |
 |-----------|------------------|-------------|---------|
-| `UNLOAD_CUT` | `unload_cut` | Cut during automated toolchange unload sequences when the cutter is enabled. Manual `UL:`/`UM:` never auto-cut. | 0 |
+| `UNLOAD_CUT` | `unload_cut` | Cut during automated toolchange and manual G-code (`MMU_UNLOAD`/`MMU_EJECT`) unload sequences when the cutter is enabled. Raw `UL:`/`UM:` serial commands never auto-cut. | 0 |
 | `SERVO_BLOCK` | `servo_block_us` | Servo block position used between cutter phases | 950 |
 | `CUT_FEED_RATE` | `cut_feed_rate` | Motor speed (mm/min) during cutter feed; ramped from zero — lower if motor stalls | 1500 |
 | `CUT_FEED_MS` | `cut_feed_timeout_ms` | Safety timeout for the cutter motor feed phase. Runtime range: 1000-120000 ms. Raise when long `CUT_FEED` distances would exceed the default. | 30000 |

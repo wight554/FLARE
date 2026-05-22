@@ -66,6 +66,7 @@ class MMUMock:
         self.sps = 0.0
         self.reload_mode = 0
         self.enable_cutter = 0
+        self.unload_cut = 0
 
         # Register command to update status
         self.gcode = self.printer.lookup_object('gcode')
@@ -133,6 +134,7 @@ class MMUMock:
         self.sps = gcmd.get_float('SPS', self.sps)
         self.reload_mode = gcmd.get_int('RELOAD_MODE', self.reload_mode)
         self.enable_cutter = gcmd.get_int('ENABLE_CUTTER', self.enable_cutter)
+        self.unload_cut = gcmd.get_int('UNLOAD_CUT', self.unload_cut)
         self.spoolman_support = gcmd.get('SPOOLMAN_SUPPORT', self.spoolman_support).strip("'\"")
  
         # Parse gate_status list with quote stripping
@@ -196,9 +198,14 @@ class MMUMock:
         self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
 
     def cmd_MMU_UNLOAD(self, gcmd):
-        """Map Happy Hare unload to FLARE_UNLOAD_TOOLHEAD and FLARE_UNLOAD commands."""
+        """Map Happy Hare unload to FLARE_UNLOAD_TOOLHEAD, FLARE_CUT, and FLARE_UNLOAD."""
         gcmd.respond_info("FLARE: Unloading toolhead gears")
         self.gcode.run_script_from_command("FLARE_UNLOAD_TOOLHEAD")
+        gate = self.active_gate
+        if (self.enable_cutter and self.unload_cut and gate >= 0 
+                and gate < len(self.gate_sensor) and self.gate_sensor[gate]):
+            gcmd.respond_info("FLARE: Performing cutter cycle")
+            self.gcode.run_script_from_command("FLARE_CUT")
         gcmd.respond_info("FLARE: Unloading lane to gate")
         self.gcode.run_script_from_command("FLARE_UNLOAD")
 
@@ -212,7 +219,14 @@ class MMUMock:
         self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
 
     def cmd_MMU_EJECT(self, gcmd):
-        """Map Happy Hare eject to FLARE_EJECT command."""
+        """Map Happy Hare eject to FLARE_UNLOAD_TOOLHEAD, FLARE_CUT, and FLARE_EJECT."""
+        gcmd.respond_info("FLARE: Unloading toolhead gears")
+        self.gcode.run_script_from_command("FLARE_UNLOAD_TOOLHEAD")
+        gate = self.active_gate
+        if (self.enable_cutter and self.unload_cut and gate >= 0 
+                and gate < len(self.gate_sensor) and self.gate_sensor[gate]):
+            gcmd.respond_info("FLARE: Performing cutter cycle")
+            self.gcode.run_script_from_command("FLARE_CUT")
         gcmd.respond_info("FLARE: Ejecting filament completely")
         self.gcode.run_script_from_command("FLARE_EJECT")
 
@@ -568,6 +582,7 @@ class MMUMock:
             'sps': self.sps,
             'reload_mode': self.reload_mode,
             'enable_cutter': self.enable_cutter,
+            'unload_cut': self.unload_cut,
             'spoolman_support': self.spoolman_support,
             'filament': self.filament,
             'filament_pos': self.filament_pos
