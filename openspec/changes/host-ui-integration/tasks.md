@@ -60,3 +60,29 @@
 - Added standard conditional homing macro `_CG28` to `klipper/flare_mmu.cfg`.
 - Hardened Klipper list parsers in `klipper/mmu.py` by stripping single/double quotes from all arrays and standard string fields in `SET_MMU`.
 - Implemented three-state sensor mapping in `scripts/flare_daemon.py` (`gate_status`): `0` for empty (no `IN` sensor), `1` for preloaded (`IN` triggered), and `2` for loaded (`IN` + `OUT` + `YS` triggered).
+
+## Phase 8: Gate Visibility & Check Gate Verification
+- [x] 8.1 Wire `NUM_GATES=2` explicitly into Klipper `SET_MMU` commands from the daemon `klipper_syncer` thread in `scripts/flare_daemon.py`.
+- [x] 8.2 Add list size invariant helper `_ensure_array_lengths(self)` in Klipper extra `klipper/mmu.py`.
+- [x] 8.3 Wire list size invariant checks after initialization, variable loads, and dynamic updates in `klipper/mmu.py`.
+- [x] 8.4 Implement robust `cmd_MMU_CHECK_GATE` in `klipper/mmu.py` that triggers a daemon status query and outputs a detailed gate state report.
+
+---
+### Validation Notes — 2026-05-22
+- Verified HTTP and SSE dashboard serves natively on the Raspberry Pi host.
+- UI runs perfectly at default port `8088` (changed default from `8080` to prevent address collision with typical Klipper/mjpg-streamer configurations).
+- Client command proxying verified and compiled cleanly.
+- Implemented native `mmu.py` Klipper extra module to mock Happy Hare state fields.
+- Mainsail/Fluidd dashboards now seamlessly discover the `printer.mmu` namespace via dynamic `SET_MMU` updates.
+- Added strict safety checks in `install_daemon.sh` preventing unintended Happy Hare file overwrites.
+- Verified dynamic telemetry parameters (buf pos, states, sensors) via moonraker API commands.
+- Fixed command timeouts for parameter SET requests by supporting raw "OK" (no colon) responses in the daemon serial multiplexer.
+- Implemented automatic recovery of Klipper mock parameters after a Klipper/Moonraker reload, using localized JSON persistence next to the printer configuration directory and a 10-second daemon force-sync heartbeat.
+- Refined `MMU_SELECT` in `klipper/mmu.py` to guard against redundant selection.
+- Added standard conditional homing macro `_CG28` to `klipper/flare_mmu.cfg`.
+- Hardened Klipper list parsers in `klipper/mmu.py` by stripping single/double quotes from all arrays and standard string fields in `SET_MMU`.
+- Implemented three-state sensor mapping in `scripts/flare_daemon.py` (`gate_status`): `0` for empty (no `IN` sensor), `1` for preloaded (`IN` triggered), and `2` for loaded (`IN` + `OUT` + `YS` triggered).
+- Hardened list length invariants in `klipper/mmu.py` with size invariant checks ensuring reported spool arrays match `self.num_gates` exactly, preventing mismatched/corrupt persistent JSON files from shrinking gate counts in Mainsail/Fluidd dashboards.
+- Explicitly wired `NUM_GATES=2` into Klipper `SET_MMU` commands from the background daemon's `klipper_syncer` thread to guarantee Klipper's gate capacity is continuously asserted as 2.
+- Reimplemented `MMU_CHECK_GATE` to trigger an immediate daemon-level serial status poll (`?:`) and print a detailed, human-readable gate and sensor status report to the G-code console.
+

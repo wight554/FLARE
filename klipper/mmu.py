@@ -37,6 +37,7 @@ class MMUMock:
         # Register command to update status
         self.gcode = self.printer.lookup_object('gcode')
         self._load_vars()
+        self._ensure_array_lengths()
         self.gcode.register_command('SET_MMU', self.cmd_SET_MMU,
                                     desc="Update MMU status parameters")
         
@@ -129,6 +130,7 @@ class MMUMock:
                 self.gate_spool_id = [int(x.strip("'\" ")) for x in gate_spool_id_str.split(',')]
             except ValueError:
                 pass
+        self._ensure_array_lengths()
 
     def cmd_MMU_STATS(self, gcmd):
         """Report mock statistics to satisfy Mainsail/Fluidd dashboard status calls."""
@@ -174,8 +176,30 @@ class MMUMock:
         gcmd.respond_info("FLARE: Resetting error state and recovering")
 
     def cmd_MMU_CHECK_GATE(self, gcmd):
-        """Acknowledge MMU gate check command."""
-        gcmd.respond_info("FLARE: Checking gate status")
+        """Acknowledge MMU gate check command and report status."""
+        try:
+            self.gcode.run_script_from_command('RUN_SHELL_COMMAND CMD=flare PARAMS="?:"')
+        except Exception:
+            pass
+            
+        status_names = {0: "Empty", 1: "Preloaded", 2: "Loaded/Buffer"}
+        msg = "================ MMU Gate Check (FLARE Mock) ================\n"
+        for i in range(self.num_gates):
+            status_val = self.gate_status[i] if i < len(self.gate_status) else 0
+            status_str = status_names.get(status_val, "Unknown")
+            sensor_val = self.gate_sensor[i] if i < len(self.gate_sensor) else 0
+            sensor_str = "Detected" if sensor_val else "Not Detected"
+            
+            material = "Unknown"
+            if i < len(self.gate_material) and self.gate_material[i]:
+                material = self.gate_material[i]
+                
+            color = "Unknown"
+            if i < len(self.gate_color) and self.gate_color[i]:
+                color = self.gate_color[i]
+                
+            msg += f"Gate {i}: Status: {status_str} | Sensor: {sensor_str} | Material: {material} | Color: {color}\n"
+        gcmd.respond_info(msg)
 
     def cmd_MMU_GATE_MAP(self, gcmd):
         """Update or list gate-to-filament mappings."""
@@ -365,6 +389,32 @@ class MMUMock:
                 self.spoolman_support = data.get("spoolman_support", self.spoolman_support)
         except Exception as e:
             pass
+        self._ensure_array_lengths()
+
+    def _ensure_array_lengths(self):
+        n = self.num_gates
+        
+        # Helper to pad or truncate list to exactly n elements
+        def pad_list(lst, default_val):
+            import copy
+            if not isinstance(lst, list):
+                lst = []
+            while len(lst) < n:
+                if callable(default_val):
+                    lst.append(default_val(len(lst)))
+                else:
+                    lst.append(copy.deepcopy(default_val))
+            return lst[:n]
+
+        self.gate_status = pad_list(self.gate_status, 0)
+        self.gate_sensor = pad_list(self.gate_sensor, 0)
+        self.gate_color = pad_list(self.gate_color, "")
+        self.gate_material = pad_list(self.gate_material, "")
+        self.gate_spool_id = pad_list(self.gate_spool_id, -1)
+        self.gate_color_rgb = pad_list(self.gate_color_rgb, [0.5, 0.5, 0.5])
+        self.gate_name = pad_list(self.gate_name, lambda i: f"Gate {i}")
+        self.gate_filament_name = pad_list(self.gate_filament_name, lambda i: f"Gate {i}")
+        self.ttg_map = pad_list(self.ttg_map, lambda i: i)
 
     def get_status(self, eventtime):
         """Export state values back to Klipper & Moonraker."""
