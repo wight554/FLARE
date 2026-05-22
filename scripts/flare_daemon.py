@@ -453,6 +453,39 @@ def klipper_syncer(moonraker_url):
                 val_str = str(val)
             lines.append(f"SET_GCODE_VARIABLE MACRO=_FLARE_STATE VARIABLE={k} VALUE={val_str}")
 
+        # Add SET_MMU command to update Klipper native mmu object variables (Mainsail/Fluidd)
+        active_lane = state.get("active_lane", 0)
+        active_gate = active_lane - 1  # 0-indexed: L1 -> 0, L2 -> 1, none -> -1
+        out1 = state.get("out1", 0)
+        out2 = state.get("out2", 0)
+        in1 = state.get("in1", 0)
+        in2 = state.get("in2", 0)
+        toolhead = state.get("toolhead", 0)
+        g_buf_pos = state.get("g_buf_pos", 0.0)
+        sync_feedback = max(-1.0, min(1.0, g_buf_pos / 15.0))
+        buf_state = state.get("buf_state", "NEUTRAL").lower()
+        tc_state = state.get("tc_state", "UNKNOWN")
+        board_online = 1 if state.get("board_online", False) else 0
+        sps = state.get("sps", 0.0)
+        reload_mode = state.get("reload_mode", 0)
+
+        # Map print job state
+        if tc_state in ["FOLLOW", "APPROACH"]:
+            print_job_state = "printing"
+        elif tc_state == "IDLE":
+            print_job_state = "standby"
+        else:
+            print_job_state = "standby"
+
+        mmu_cmd = (
+            f"SET_MMU ACTIVE_GATE={active_gate} TOOL={active_gate} "
+            f"GATE_STATUS='{out1},{out2}' GATE_SENSOR='{in1},{in2}' "
+            f"TOOLHEAD_SENSOR={toolhead} SYNC_FEEDBACK={sync_feedback:.3f} "
+            f"SYNC_FEEDBACK_STATE='{buf_state}' PRINT_JOB_STATE='{print_job_state}' "
+            f"BOARD_ONLINE={board_online} SPS={sps:.3f} RELOAD_MODE={reload_mode}"
+        )
+        lines.append(mmu_cmd)
+
         gcode_script = "\n".join(lines)
         payload = json.dumps({"script": gcode_script}).encode("utf-8")
 

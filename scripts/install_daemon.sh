@@ -95,6 +95,37 @@ if [ "$NO_KLIPPER" = true ]; then
     echo -e "Skipping Klipper & Moonraker configurations."
 else
     echo -e "${GREEN}Klipper Mode active.${NC}"
+    
+    # Install native MMU Mock extra for Mainsail/Fluidd
+    KLIPPER_EXTRAS_DIR="/home/${REAL_USER}/klipper/klippy/extras"
+    if [ ! -d "$KLIPPER_EXTRAS_DIR" ]; then
+        if [ -d "/home/pi/klipper/klippy/extras" ]; then
+            KLIPPER_EXTRAS_DIR="/home/pi/klipper/klippy/extras"
+        elif [ -d "/home/klipper/klipper/klippy/extras" ]; then
+            KLIPPER_EXTRAS_DIR="/home/klipper/klipper/klippy/extras"
+        fi
+    fi
+
+    if [ -d "$KLIPPER_EXTRAS_DIR" ]; then
+        TARGET_MMU="$KLIPPER_EXTRAS_DIR/mmu.py"
+        if [ -f "$TARGET_MMU" ]; then
+            if grep -q "FLARE MMU Mock" "$TARGET_MMU"; then
+                echo -e "Found existing FLARE MMU Mock at $TARGET_MMU. Updating to latest version."
+                cp "${PROJECT_DIR}/klipper/mmu.py" "$TARGET_MMU"
+                chown "${REAL_USER}:${REAL_USER}" "$TARGET_MMU" || true
+            else
+                echo -e "${YELLOW}Warning: A custom mmu.py already exists at $TARGET_MMU but does NOT contain 'FLARE MMU Mock' (e.g. Happy Hare). Preserving it to avoid conflicts.${NC}"
+            fi
+        else
+            echo -e "Installing FLARE MMU Mock to $TARGET_MMU"
+            cp "${PROJECT_DIR}/klipper/mmu.py" "$TARGET_MMU"
+            chown "${REAL_USER}:${REAL_USER}" "$TARGET_MMU" || true
+        fi
+    else
+        echo -e "${YELLOW}Warning: Klipper extras directory not found. Skipping mmu.py installation.${NC}"
+        echo -e "If Klipper is installed in a non-standard location, please copy 'klipper/mmu.py' to your 'klippy/extras/' directory manually."
+    fi
+
     echo -e "Ensure Klipper config includes flare macro file."
     echo -e "Dashboard will be served on http://localhost:8088"
 fi
