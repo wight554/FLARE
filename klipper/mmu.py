@@ -79,46 +79,54 @@ class MMUMock:
         self.tool = gcmd.get_int('TOOL', self.tool)
         self.toolhead_sensor = gcmd.get_int('TOOLHEAD_SENSOR', self.toolhead_sensor)
         self.sync_feedback = gcmd.get_float('SYNC_FEEDBACK', self.sync_feedback)
-        self.sync_feedback_state = gcmd.get('SYNC_FEEDBACK_STATE', self.sync_feedback_state)
-        self.print_job_state = gcmd.get('PRINT_JOB_STATE', self.print_job_state)
-        self.print_state = gcmd.get('PRINT_STATE', self.print_state)
-        self.action = gcmd.get('ACTION', self.action)
+        
+        # Strip quotes from standard string parameters
+        self.sync_feedback_state = gcmd.get('SYNC_FEEDBACK_STATE', self.sync_feedback_state).strip("'\"")
+        self.print_job_state = gcmd.get('PRINT_JOB_STATE', self.print_job_state).strip("'\"")
+        self.print_state = gcmd.get('PRINT_STATE', self.print_state).strip("'\"")
+        self.action = gcmd.get('ACTION', self.action).strip("'\"")
+        
         self.board_online = gcmd.get_int('BOARD_ONLINE', self.board_online)
         self.sps = gcmd.get_float('SPS', self.sps)
         self.reload_mode = gcmd.get_int('RELOAD_MODE', self.reload_mode)
-        self.spoolman_support = gcmd.get('SPOOLMAN_SUPPORT', self.spoolman_support)
+        self.spoolman_support = gcmd.get('SPOOLMAN_SUPPORT', self.spoolman_support).strip("'\"")
  
-        # Parse gate_status list
+        # Parse gate_status list with quote stripping
         gate_status_str = gcmd.get('GATE_STATUS', None)
         if gate_status_str is not None:
+            gate_status_str = gate_status_str.strip("'\"")
             try:
-                self.gate_status = [int(x) for x in gate_status_str.split(',')]
+                self.gate_status = [int(x.strip("'\" ")) for x in gate_status_str.split(',')]
             except ValueError:
                 pass
 
-        # Parse gate_sensor list
+        # Parse gate_sensor list with quote stripping
         gate_sensor_str = gcmd.get('GATE_SENSOR', None)
         if gate_sensor_str is not None:
+            gate_sensor_str = gate_sensor_str.strip("'\"")
             try:
-                self.gate_sensor = [int(x) for x in gate_sensor_str.split(',')]
+                self.gate_sensor = [int(x.strip("'\" ")) for x in gate_sensor_str.split(',')]
             except ValueError:
                 pass
 
-        # Parse gate_color list
+        # Parse gate_color list with quote stripping
         gate_color_str = gcmd.get('GATE_COLOR', None)
         if gate_color_str is not None:
-            self.gate_color = gate_color_str.split(',')
+            gate_color_str = gate_color_str.strip("'\"")
+            self.gate_color = [x.strip("'\" ") for x in gate_color_str.split(',')]
 
-        # Parse gate_material list
+        # Parse gate_material list with quote stripping
         gate_material_str = gcmd.get('GATE_MATERIAL', None)
         if gate_material_str is not None:
-            self.gate_material = gate_material_str.split(',')
+            gate_material_str = gate_material_str.strip("'\"")
+            self.gate_material = [x.strip("'\" ") for x in gate_material_str.split(',')]
 
-        # Parse gate_spool_id list
+        # Parse gate_spool_id list with quote stripping
         gate_spool_id_str = gcmd.get('GATE_SPOOL_ID', None)
         if gate_spool_id_str is not None:
+            gate_spool_id_str = gate_spool_id_str.strip("'\"")
             try:
-                self.gate_spool_id = [int(x) for x in gate_spool_id_str.split(',')]
+                self.gate_spool_id = [int(x.strip("'\" ")) for x in gate_spool_id_str.split(',')]
             except ValueError:
                 pass
 
@@ -288,6 +296,10 @@ class MMUMock:
             gcmd.respond_info(f"Error: Gate index {gate} exceeds maximum gates ({self.num_gates})")
             return
             
+        if gate == self.active_gate:
+            gcmd.respond_info(f"FLARE: Lane {gate + 1} (Gate {gate}) already active.")
+            return
+
         lane = gate + 1
         gcmd.respond_info(f"FLARE: Selecting lane {lane} (Gate {gate})")
         self.gcode.run_script_from_command(f"_FLARE_CHANGE_LANE LANE={lane}")
