@@ -461,7 +461,7 @@ class MMUMock:
 
         expected_gate = gate if is_physically_loaded else -1
 
-        if gate == self.active_gate and self.gate == expected_gate and self.tool == gate:
+        if gate == self.active_gate and self.gate == expected_gate and self.tool == expected_gate:
             gcmd.respond_info(f"FLARE: Lane {gate + 1} (Gate {gate}) already active.")
             return
 
@@ -475,7 +475,7 @@ class MMUMock:
             gcmd.respond_info(f"FLARE: Selecting active gate {gate} (Lane {lane})")
             self.active_gate = gate
             self.gate = expected_gate
-            self.tool = gate
+            self.tool = expected_gate
             self._ensure_array_lengths()
             try:
                 self.gcode.run_script_from_command(f'RUN_SHELL_COMMAND CMD=flare PARAMS="T:{lane}"')

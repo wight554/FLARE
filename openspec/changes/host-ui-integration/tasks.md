@@ -236,9 +236,13 @@
 - Refined the daemon status reporter loop in `scripts/flare_daemon.py` to assign `active_gate` as the default for `GATE` and `TOOL` variables under physically unloaded states instead of defaulting to `-1`, which solves the 250ms feedback overwrite loop.
 - Verified syntax correctness using `python3 -m py_compile` and successfully ran regression checks via `scripts/validate_regression.sh`.
 
+## Phase 21: Correct Unloaded Button Actions & Trace Toggling
+- [x] 21.1 Align `klipper_tool` and `klipper_gate` in `scripts/flare_daemon.py` to both use `loaded_gate` (which is `-1` if physically unloaded), keeping `active_gate` tracking UI selection.
+- [x] 21.2 Update `cmd_MMU_SELECT` in `klipper/mmu.py` to set both `self.gate` and `self.tool` to `expected_gate` (which is `-1` if physically unloaded) during pure UI selection.
+- [x] 21.3 Run static python verification checks and ensure regression validations pass.
 
-
-
-
-
-
+---
+### Validation Notes — 2026-05-22 (Unloaded Buttons and Active Gate Selection)
+- Verified `flare_daemon.py` resolves `klipper_tool` and `klipper_gate` to the active physically loaded gate (or `-1` if completely unloaded). This removes premature loaded state indications in Fluidd when clicking gate cards.
+- Verified that `cmd_MMU_SELECT` in `klipper/mmu.py` sets both `self.gate` and `self.tool` to `expected_gate` (which evaluates to `-1` if physically unloaded), properly disabling `UNLOAD` and `EJECT` and correctly managing `LOAD` based on gate presence (`gate_status` availability).
+- Ran all local regression test cases (`bash scripts/validate_regression.sh`) and confirmed all static verification checks pass perfectly.

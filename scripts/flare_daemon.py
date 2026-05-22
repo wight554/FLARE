@@ -519,16 +519,16 @@ def klipper_syncer(moonraker_url):
         else:
             gate_status_2 = 0
 
-        # Determine if the active gate is actually fully loaded to the toolhead
+        # Determine if any gate is actually fully loaded to the toolhead
         loaded_gate = -1
-        if active_gate == 0 and gate_status_1 == 2:
+        if gate_status_1 == 2:
             loaded_gate = 0
-        elif active_gate == 1 and gate_status_2 == 2:
+        elif gate_status_2 == 2:
             loaded_gate = 1
 
-        # TOOL tracks the selected toolhead/spool index to keep details visible
-        # GATE tracks only the physically loaded gate index (or -1 if unloaded)
-        klipper_tool = active_gate
+        # Align both tool and gate to loaded_gate so that we report -1 when completely unloaded.
+        # active_gate still tracks the selected card for UI highlighting.
+        klipper_tool = loaded_gate
         klipper_gate = loaded_gate
 
         mmu_cmd = (
