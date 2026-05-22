@@ -212,9 +212,17 @@
 - Successfully validated Python parser compile status (`python3 -m py_compile`) and confirmed the local firmware compiles flawlessly.
 
 ## Phase 19: Fix autoload_retract_mm execution bug in firmware motion logic
-- [ ] 19.1 Update `firmware/src/motion.c` to initialize `L->dist_at_out_mm` to `L->task_dist_mm` when the OUT sensor is triggered during `TASK_AUTOLOAD`.
-- [ ] 19.2 Verify that the retract distance calculation `L->task_dist_mm - L->dist_at_out_mm` starts measuring from zero correctly.
-- [ ] 19.3 Verify local firmware compilation succeeds.
+- [x] 19.1 Update `firmware/src/motion.c` to initialize `L->dist_at_out_mm` to `L->task_dist_mm` when the OUT sensor is triggered during `TASK_AUTOLOAD`.
+- [x] 19.2 Verify that the retract distance calculation `L->task_dist_mm - L->dist_at_out_mm` starts measuring from zero correctly.
+- [x] 19.3 Verify local firmware compilation succeeds.
+
+---
+### Validation Notes — 2026-05-22 (autoload_retract_mm Bugfix)
+- Fixed execution bug where autoload retract ended immediately without moving the motor.
+- Initialized `L->dist_at_out_mm` to `L->task_dist_mm` in `firmware/src/motion.c` when the OUT sensor triggers and transitions to reverse retract. This ensures `L->task_dist_mm - L->dist_at_out_mm` starts measuring from zero instead of starting at `DIST_IN_OUT` (which immediately satisfied the `AUTOLOAD_RETRACT_MM` limit).
+- Confirmed the native firmware compiles successfully (`ninja -C build_local`).
+- Verified all regression checks pass successfully (`bash scripts/validate_regression.sh`).
+
 
 
 

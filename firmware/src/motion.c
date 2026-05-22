@@ -259,6 +259,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
             if (AUTOLOAD_RETRACT_MM > 0) {
                 float secs = (float)AUTOLOAD_RETRACT_MM / ((float)REV_SPS * MM_PER_STEP[L->lane_id - 1]);
                 if (secs < 0.05f) secs = 0.05f;
+                L->dist_at_out_mm = L->task_dist_mm;
                 L->retract_deadline_ms = now_ms + (uint32_t)(secs * 1000.0f);
                 L->task = TASK_UNLOAD;
                 motor_set_dir(&L->m, false);
