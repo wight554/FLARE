@@ -198,6 +198,19 @@
 - Refactored `_FLARE_CHANGE_LANE` in `klipper/flare_mmu.cfg` to chain physical toolchange (`TC:{lane}`) followed immediately by the blocking `FLARE_WAIT_TC` command and synchronous `_FLARE_POST_TC_LOAD` execution, ensuring the next print commands from the SD card/stream do not run until the entire physical sequence completes.
 - Verified that both local firmware compilation (`ninja -C build_local`) and file adjustments compile perfectly.
 
+## Phase 18: Wire autoload_retract_mm through config.ini
+- [x] 18.1 Add `autoload_retract_mm` to `DEFAULTS` in `scripts/gen_config.py` with default value of `"5"`.
+- [x] 18.2 Add generator define `CONF_AUTOLOAD_RETRACT_MM` in `scripts/gen_config.py`.
+- [x] 18.3 Consume `CONF_AUTOLOAD_RETRACT_MM` in `firmware/src/main.c` and `firmware/src/settings_store.c` to fully respect config.ini overrides.
+- [x] 18.4 Re-run `gen_config.py` and verify local firmware compilation succeeds.
+
+---
+### Validation Notes — 2026-05-22 (autoload_retract_mm Integration)
+- Added `autoload_retract_mm` parameter to the default configuration map in `scripts/gen_config.py`, making it a recognized config setting.
+- Generated the `#define CONF_AUTOLOAD_RETRACT_MM` macro in `firmware/include/tune.h`.
+- Updated global variable `AUTOLOAD_RETRACT_MM` initialization in `firmware/src/main.c` and defaults restoration in `firmware/src/settings_store.c` to use the generated `CONF_AUTOLOAD_RETRACT_MM` instead of hardcoding `5`.
+- Successfully validated Python parser compile status (`python3 -m py_compile`) and confirmed the local firmware compiles flawlessly.
+
 
 
 
