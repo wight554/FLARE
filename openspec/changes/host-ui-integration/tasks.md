@@ -223,6 +223,13 @@
 - Confirmed the native firmware compiles successfully (`ninja -C build_local`).
 - Verified all regression checks pass successfully (`bash scripts/validate_regression.sh`).
 
+## Phase 20: Fix Active Gate Selection & Spool Details Desync in Klipper/UI
+- [ ] 20.1 Update Klipper MMU mock `klipper/mmu.py` `cmd_SET_MMU` to decouple `filament` loaded state derivation from `gate == -1`, using `toolhead_sensor` and physical gate buffer/load states instead.
+- [ ] 20.2 Update `klipper/mmu.py` `cmd_MMU_SELECT` to set `self.gate` and `self.tool` to the selected gate index during pure UI selection so the active details panel displays correctly.
+- [ ] 20.3 Update the status reporter in `scripts/flare_daemon.py` to pass the currently selected `active_gate` as the default for `GATE` and `TOOL` variables when the MMU is physically unloaded, instead of defaulting them to `-1` and overwriting Klipper's state.
+- [ ] 20.4 Verify Python scripts compile cleanly and pass static regression gate checks.
+
+
 
 
 
