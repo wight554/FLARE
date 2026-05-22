@@ -507,13 +507,14 @@ def klipper_syncer(moonraker_url):
             gate_status_2 = 0
 
         mmu_cmd = (
-            f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} TOOL={active_gate} "
+            f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={active_gate} TOOL={active_gate} "
             f"GATE_STATUS='{gate_status_1},{gate_status_2}' GATE_SENSOR='{in1},{in2}' "
             f"TOOLHEAD_SENSOR={toolhead} SYNC_FEEDBACK={sync_feedback:.3f} "
             f"SYNC_FEEDBACK_STATE='{buf_state}' PRINT_JOB_STATE='{print_job_state}' "
             f"PRINT_STATE='{print_state}' BOARD_ONLINE={board_online} "
             f"SPS={sps:.3f} RELOAD_MODE={reload_mode}"
         )
+
         lines.append(mmu_cmd)
 
         gcode_script = "\n".join(lines)

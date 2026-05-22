@@ -166,3 +166,15 @@ To resolve the missing second gate spool card in Fluidd:
 2. **Issue**: Because `mmu_machine` was missing in Klipper, Fluidd fell back to `numGates = 1`, hiding the second gate.
 3. **Solution**: Mock the `mmu_machine` Klipper object by registering `MMUMachineMock` under the name `mmu_machine` via `printer.add_object('mmu_machine', ...)`. This object dynamically returns the `num_gates` currently tracked by the `mmu` object.
 
+## 11. UI Bugfixes & Polish (Active Gate & Spoolman Save Mappings)
+
+### 11.1 Active Gate Highlighting
+To resolve Fluidd only highlighting Gate 0 as active/loaded, we expose `gate` in the `mmu` object's Klipper status dictionary. `mmu_cmd` in `flare_daemon.py` includes `GATE={active_gate}` alongside `ACTIVE_GATE={active_gate}`. In `klipper/mmu.py`, `self.gate` is defined and updated via `SET_MMU GATE={active_gate}`.
+
+### 11.2 Spoolman MAP Parameter Saving
+Fluidd transmits all filament and spool updates using a dictionary parameter `MAP="{...}"` to `MMU_GATE_MAP`.
+We parse this string using Python's safe `ast.literal_eval`. For each gate in the dictionary:
+- We update `gate_material`, `gate_spool_id`, `gate_status`, `gate_name`, and `gate_filament_name`.
+- We strip `#` and any 8-char alpha channel from `color` to ensure standard 6-char hex color compat, then update both `gate_color` and `gate_color_rgb`.
+- We save the updated parameters to `flare_mmu_vars.json` to persist the configuration.
+

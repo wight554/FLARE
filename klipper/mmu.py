@@ -40,6 +40,7 @@ class MMUMock:
         self.is_homed = True
         self.num_gates = 2
         self.active_gate = -1
+        self.gate = -1
         self.tool = -1
         self.gate_status = [0, 0] # 0 = empty, 1 = loaded/available, 2 = buffer
         self.gate_sensor = [0, 0] # pre-gate sensor states (filament detected)
@@ -106,6 +107,7 @@ class MMUMock:
 
         self.num_gates = gcmd.get_int('NUM_GATES', self.num_gates)
         self.active_gate = gcmd.get_int('ACTIVE_GATE', self.active_gate)
+        self.gate = gcmd.get_int('GATE', self.active_gate)
         self.tool = gcmd.get_int('TOOL', self.tool)
         self.toolhead_sensor = gcmd.get_int('TOOLHEAD_SENSOR', self.toolhead_sensor)
         self.sync_feedback = gcmd.get_float('SYNC_FEEDBACK', self.sync_feedback)
@@ -232,6 +234,64 @@ class MMUMock:
 
     def cmd_MMU_GATE_MAP(self, gcmd):
         """Update or list gate-to-filament mappings."""
+        map_str = gcmd.get('MAP', None)
+        if map_str is not None:
+            try:
+                import ast
+                map_str = map_str.strip("'\"")
+                parsed_map = ast.literal_eval(map_str)
+                if isinstance(parsed_map, dict):
+                    for g_key, data in parsed_map.items():
+                        try:
+                            g_idx = int(g_key)
+                        except ValueError:
+                            continue
+                        if g_idx < 0 or g_idx >= self.num_gates:
+                            continue
+                        if not isinstance(data, dict):
+                            continue
+                        
+                        # Update gate properties
+                        if 'material' in data:
+                            self.gate_material[g_idx] = str(data['material'])
+                        
+                        if 'color' in data:
+                            color = str(data['color']).lstrip('#')
+                            if len(color) == 8:  # Strip alpha if 8-char (e.g. 000000FF -> 000000)
+                                color = color[:6]
+                            self.gate_color[g_idx] = color
+                            if len(color) == 6:
+                                try:
+                                    r = int(color[0:2], 16) / 255.0
+                                    g = int(color[2:4], 16) / 255.0
+                                    b = int(color[4:6], 16) / 255.0
+                                    self.gate_color_rgb[g_idx] = [r, g, b]
+                                except ValueError:
+                                    pass
+                        
+                        if 'name' in data:
+                            name = str(data['name'])
+                            self.gate_name[g_idx] = name
+                            self.gate_filament_name[g_idx] = name
+                        
+                        if 'spool_id' in data:
+                            try:
+                                self.gate_spool_id[g_idx] = int(data['spool_id'])
+                            except (ValueError, TypeError):
+                                pass
+                                
+                        if 'status' in data:
+                            try:
+                                self.gate_status[g_idx] = int(data['status'])
+                            except (ValueError, TypeError):
+                                pass
+                                
+                    self._save_vars()
+                    gcmd.respond_info("FLARE: Updated MMU gate map from MAP dictionary")
+                    return
+            except Exception as e:
+                gcmd.respond_info(f"FLARE Error: Failed to parse MAP: {e}")
+
         gate = gcmd.get_int('GATE', -1)
         if gate < 0:
             gcmd.respond_info(
@@ -251,6 +311,9 @@ class MMUMock:
 
         color = gcmd.get('COLOR', None)
         if color is not None:
+            color = color.lstrip('#')
+            if len(color) == 8:
+                color = color[:6]
             self.gate_color[gate] = color
             if len(color) == 6:
                 try:
@@ -276,6 +339,7 @@ class MMUMock:
 
         self._save_vars()
         gcmd.respond_info(f"FLARE: Updated Gate {gate} map")
+
 
     def cmd_MMU_TTG_MAP(self, gcmd):
         """Update or list tool-to-gate mappings."""
@@ -452,6 +516,7 @@ class MMUMock:
             'is_homed': self.is_homed,
             'num_gates': self.num_gates,
             'active_gate': self.active_gate,
+            'gate': self.gate,
             'tool': self.tool,
             'gate_status': self.gate_status,
             'gate_sensor': self.gate_sensor,

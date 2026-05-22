@@ -88,3 +88,12 @@
 - Explicitly wired `NUM_GATES=2` into Klipper `SET_MMU` commands from the background daemon's `klipper_syncer` thread to guarantee Klipper's gate capacity is continuously asserted as 2.
 - Reimplemented `MMU_CHECK_GATE` to trigger an immediate daemon-level serial status poll (`?:`) and print a detailed, human-readable gate and sensor status report to the G-code console.
 
+## Phase 9: UI Bugfixes & Polish
+- [x] 9.1 Wire `gate` attribute in `klipper/mmu.py` and `scripts/flare_daemon.py` to resolve active gate highlighting in Fluidd.
+- [x] 9.2 Implement python dictionary parsing for `MAP` parameter in `MMU_GATE_MAP` inside `klipper/mmu.py` using `ast.literal_eval` to correctly save and persist Spoolman configurations.
+
+---
+### Validation Notes — 2026-05-22 (Bugfixes)
+- Expose `gate` key in Klipper `get_status` mapping and synchronized `GATE={active_gate}` via Moonraker `SET_MMU` in `scripts/flare_daemon.py`. This resolves the issue where Fluidd was unable to highlight the loaded/active gate card.
+- Implemented robust dictionary parsing using safe `ast.literal_eval` inside `MMU_GATE_MAP` to handle Fluidd's multi-gate/spool JSON-like map dictionary transmission. Cleaned up color hex strings (stripping `#` and discarding alpha channel to support standard 6-char compatibility) and successfully persisted changes into the flash-backed configuration `flare_mmu_vars.json`.
+- Ran compiler and linter checks (`python3 -m py_compile`) and verified firmware local builds compiled successfully.
