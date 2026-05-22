@@ -525,12 +525,14 @@ def klipper_syncer(moonraker_url):
             loaded_gate = 0
         elif active_gate == 1 and gate_status_2 == 2:
             loaded_gate = 1
-        else:
-            # Fall back to active selection index when physically unloaded so UI retains details
-            loaded_gate = active_gate
+
+        # TOOL tracks the selected toolhead/spool index to keep details visible
+        # GATE tracks only the physically loaded gate index (or -1 if unloaded)
+        klipper_tool = active_gate
+        klipper_gate = loaded_gate
 
         mmu_cmd = (
-            f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={loaded_gate} TOOL={loaded_gate} "
+            f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={klipper_gate} TOOL={klipper_tool} "
             f"GATE_STATUS='{gate_status_1},{gate_status_2}' GATE_SENSOR='{in1},{in2}' "
             f"TOOLHEAD_SENSOR={toolhead} SYNC_FEEDBACK={sync_feedback:.3f} "
             f"SYNC_FEEDBACK_STATE='{buf_state}' PRINT_JOB_STATE='{print_job_state}' "

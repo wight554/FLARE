@@ -452,7 +452,16 @@ class MMUMock:
             gcmd.respond_info(f"Error: Gate index {gate} exceeds maximum gates ({self.num_gates})")
             return
             
-        if gate == self.active_gate and self.gate == gate and self.tool == gate:
+        # Derive expected loaded gate state
+        is_physically_loaded = False
+        if self.toolhead_sensor == 1:
+            is_physically_loaded = True
+        elif 0 <= gate < len(self.gate_status) and self.gate_status[gate] == 2:
+            is_physically_loaded = True
+
+        expected_gate = gate if is_physically_loaded else -1
+
+        if gate == self.active_gate and self.gate == expected_gate and self.tool == gate:
             gcmd.respond_info(f"FLARE: Lane {gate + 1} (Gate {gate}) already active.")
             return
 
@@ -465,7 +474,7 @@ class MMUMock:
             # Pure UI active gate selection: update active_gate to change button states dynamically
             gcmd.respond_info(f"FLARE: Selecting active gate {gate} (Lane {lane})")
             self.active_gate = gate
-            self.gate = gate
+            self.gate = expected_gate
             self.tool = gate
             self._ensure_array_lengths()
             try:
