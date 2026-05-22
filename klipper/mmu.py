@@ -113,7 +113,7 @@ class MMUMock:
 
         self.num_gates = gcmd.get_int('NUM_GATES', self.num_gates)
         self.active_gate = gcmd.get_int('ACTIVE_GATE', self.active_gate)
-        self.gate = gcmd.get_int('GATE', self.active_gate)
+        self.gate = gcmd.get_int('GATE', self.gate)
         self.tool = gcmd.get_int('TOOL', self.tool)
 
         # Derive filament loaded state
@@ -560,6 +560,29 @@ class MMUMock:
         self.gate_filament_name = list(self.gate_filament_name)
         self.ttg_map = list(self.ttg_map)
 
+    @property
+    def tool_color(self):
+        return [self.gate_color[g] if 0 <= g < len(self.gate_color) else "" for g in self.ttg_map]
+
+    @property
+    def tool_material(self):
+        return [self.gate_material[g] if 0 <= g < len(self.gate_material) else "" for g in self.ttg_map]
+
+    @property
+    def tool_spool_id(self):
+        return [self.gate_spool_id[g] if 0 <= g < len(self.gate_spool_id) else -1 for g in self.ttg_map]
+
+    @property
+    def tool_color_rgb(self):
+        return [self.gate_color_rgb[g] if 0 <= g < len(self.gate_color_rgb) else [0.5, 0.5, 0.5] for g in self.ttg_map]
+
+    @property
+    def tool_name(self):
+        return [self.gate_name[g] if 0 <= g < len(self.gate_name) else f"Tool {i}" for i, g in enumerate(self.ttg_map)]
+
+    @property
+    def tool_filament_name(self):
+        return [self.gate_filament_name[g] if 0 <= g < len(self.gate_filament_name) else f"Tool {i}" for i, g in enumerate(self.ttg_map)]
 
     def get_status(self, eventtime):
         """Export state values back to Klipper & Moonraker."""
@@ -579,6 +602,12 @@ class MMUMock:
             'gate_name': self.gate_name,
             'gate_filament_name': self.gate_filament_name,
             'ttg_map': self.ttg_map,
+            'tool_color': self.tool_color,
+            'tool_material': self.tool_material,
+            'tool_spool_id': self.tool_spool_id,
+            'tool_color_rgb': self.tool_color_rgb,
+            'tool_name': self.tool_name,
+            'tool_filament_name': self.tool_filament_name,
             'action': self.action,
             'toolhead_sensor': self.toolhead_sensor,
             'sync_feedback': self.sync_feedback,

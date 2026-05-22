@@ -174,5 +174,12 @@
 - Added dynamic transition state tracking (`was_online`) inside the `klipper_syncer` daemon thread in `scripts/flare_daemon.py` to automatically execute `_FLARE_SYNC_BOARD` upon board boot/reconnection.
 - Verified that both Python validation (`python3 -m py_compile`) and native builds (`ninja -C build_local`) pass successfully.
 
+## Phase 16: UI Spool Mapping and Action Button State Polish
+- [ ] 16.1 Define `tool_color`, `tool_material`, `tool_spool_id`, `tool_color_rgb`, `tool_name`, `tool_filament_name` dynamic properties in `klipper/mmu.py` mapping tools to physical gates via `ttg_map`.
+- [ ] 16.2 Expose the new virtual `tool_` arrays in the `get_status` dictionary returned to Moonraker / UI clients.
+- [ ] 16.3 Fix bug in `cmd_SET_MMU` in `klipper/mmu.py` where omitting the `GATE` parameter incorrectly defaults to `self.active_gate` instead of preserving `self.gate`.
+- [ ] 16.4 Verify that Python compilation passes cleanly (`python3 -m py_compile klipper/mmu.py`).
+
+
 
 
