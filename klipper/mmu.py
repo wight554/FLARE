@@ -8,6 +8,7 @@ class MMUMock:
         
         # State variables matching Happy Hare structure
         self.enabled = True
+        self.is_homed = True
         self.num_gates = 2
         self.active_gate = -1
         self.tool = -1
@@ -16,6 +17,11 @@ class MMUMock:
         self.gate_color = ["", ""] # color names or hex codes (e.g. "ff0000")
         self.gate_material = ["", ""] # material types (e.g. "PLA", "ABS")
         self.gate_spool_id = [-1, -1] # Spoolman database spool mappings
+        self.gate_color_rgb = [[0.5, 0.5, 0.5], [0.5, 0.5, 0.5]]
+        self.gate_name = ["Gate 0", "Gate 1"]
+        self.gate_filament_name = ["Gate 0", "Gate 1"]
+        self.ttg_map = [0, 1]
+        self.action = "Idle"
         self.toolhead_sensor = 0 # toolhead sensor state
         self.sync_feedback = 0.0 # buffer compression/tension offset
         self.sync_feedback_state = "neutral"
@@ -46,12 +52,20 @@ class MMUMock:
                                     desc="Recover MMU from error state")
         self.gcode.register_command('MMU_CHECK_GATE', self.cmd_MMU_CHECK_GATE,
                                     desc="Check presence of filament at gate")
+        self.gcode.register_command('MMU_GATE_MAP', self.cmd_MMU_GATE_MAP,
+                                    desc="Update or list gate filament map")
+        self.gcode.register_command('MMU_TTG_MAP', self.cmd_MMU_TTG_MAP,
+                                    desc="Update or list tool-to-gate map")
 
     def cmd_SET_MMU(self, gcmd):
         """Update MMU state parameters dynamically."""
         enabled = gcmd.get_int('ENABLED', None)
         if enabled is not None:
             self.enabled = bool(enabled)
+
+        is_homed = gcmd.get_int('IS_HOMED', None)
+        if is_homed is not None:
+            self.is_homed = bool(is_homed)
 
         self.num_gates = gcmd.get_int('NUM_GATES', self.num_gates)
         self.active_gate = gcmd.get_int('ACTIVE_GATE', self.active_gate)
@@ -60,6 +74,7 @@ class MMUMock:
         self.sync_feedback = gcmd.get_float('SYNC_FEEDBACK', self.sync_feedback)
         self.sync_feedback_state = gcmd.get('SYNC_FEEDBACK_STATE', self.sync_feedback_state)
         self.print_job_state = gcmd.get('PRINT_JOB_STATE', self.print_job_state)
+        self.action = gcmd.get('ACTION', self.action)
         
         # FLARE extras
         self.board_online = gcmd.get_int('BOARD_ONLINE', self.board_online)
@@ -147,10 +162,77 @@ class MMUMock:
         """Acknowledge MMU gate check command."""
         gcmd.respond_info("FLARE: Checking gate status")
 
+    def cmd_MMU_GATE_MAP(self, gcmd):
+        """Update or list gate-to-filament mappings."""
+        gate = gcmd.get_int('GATE', -1)
+        if gate < 0:
+            gcmd.respond_info(
+                "================ MMU Gate Map (FLARE Mock) ================\n"
+                f"Gate 0: {self.gate_material[0]}({self.gate_color[0]}) Status: {self.gate_status[0]}\n"
+                f"Gate 1: {self.gate_material[1]}({self.gate_color[1]}) Status: {self.gate_status[1]}"
+            )
+            return
+
+        if gate >= self.num_gates:
+            gcmd.respond_info(f"Error: Gate index {gate} exceeds maximum gates ({self.num_gates})")
+            return
+
+        material = gcmd.get('MATERIAL', None)
+        if material is not None:
+            self.gate_material[gate] = material
+
+        color = gcmd.get('COLOR', None)
+        if color is not None:
+            self.gate_color[gate] = color
+            if len(color) == 6:
+                try:
+                    r = int(color[0:2], 16) / 255.0
+                    g = int(color[2:4], 16) / 255.0
+                    b = int(color[4:6], 16) / 255.0
+                    self.gate_color_rgb[gate] = [r, g, b]
+                except ValueError:
+                    pass
+
+        name = gcmd.get('NAME', None)
+        if name is not None:
+            self.gate_name[gate] = name
+            self.gate_filament_name[gate] = name
+
+        spool_id = gcmd.get_int('SPOOL_ID', None)
+        if spool_id is not None:
+            self.gate_spool_id[gate] = spool_id
+
+        available = gcmd.get_int('AVAILABLE', None)
+        if available is not None:
+            self.gate_status[gate] = available
+
+        gcmd.respond_info(f"FLARE: Updated Gate {gate} map")
+
+    def cmd_MMU_TTG_MAP(self, gcmd):
+        """Update or list tool-to-gate mappings."""
+        tool = gcmd.get_int('TOOL', -1)
+        gate = gcmd.get_int('GATE', -1)
+        
+        if tool < 0 or gate < 0:
+            gcmd.respond_info(
+                "================ MMU Tool-to-Gate Map (FLARE Mock) ================\n"
+                f"Tool 0 -> Gate {self.ttg_map[0]}\n"
+                f"Tool 1 -> Gate {self.ttg_map[1]}"
+            )
+            return
+
+        if tool >= len(self.ttg_map) or gate >= self.num_gates:
+            gcmd.respond_info(f"Error: Invalid Tool {tool} or Gate {gate}")
+            return
+
+        self.ttg_map[tool] = gate
+        gcmd.respond_info(f"FLARE: Mapped Tool {tool} to Gate {gate}")
+
     def get_status(self, eventtime):
         """Export state values back to Klipper & Moonraker."""
         return {
             'enabled': self.enabled,
+            'is_homed': self.is_homed,
             'num_gates': self.num_gates,
             'active_gate': self.active_gate,
             'tool': self.tool,
@@ -159,6 +241,11 @@ class MMUMock:
             'gate_color': self.gate_color,
             'gate_material': self.gate_material,
             'gate_spool_id': self.gate_spool_id,
+            'gate_color_rgb': self.gate_color_rgb,
+            'gate_name': self.gate_name,
+            'gate_filament_name': self.gate_filament_name,
+            'ttg_map': self.ttg_map,
+            'action': self.action,
             'toolhead_sensor': self.toolhead_sensor,
             'sync_feedback': self.sync_feedback,
             'sync_feedback_state': self.sync_feedback_state,

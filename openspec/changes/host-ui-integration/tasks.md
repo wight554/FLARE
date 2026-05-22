@@ -34,6 +34,8 @@
 - [x] 7.3 Wire `SET_MMU` commands into `klipper_syncer` thread in `flare_daemon.py`.
 - [x] 7.4 Add `[mmu]` section into `klipper/flare_mmu.cfg`.
 - [x] 7.5 Run compile/linter check on new python files.
+- [x] 7.6 Add missing Happy Hare status attributes (is_homed, gate_color_rgb, gate_name, gate_filament_name, ttg_map, action) to `klipper/mmu.py`.
+- [x] 7.7 Register `MMU_GATE_MAP` and `MMU_TTG_MAP` G-code commands in `klipper/mmu.py` to prevent unknown command errors when editing filaments in Fluidd.
 
 ---
 ### Validation Notes — 2026-05-22
