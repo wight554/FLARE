@@ -260,7 +260,14 @@
 - Confirmed C-firmware builds successfully via `ninja -C build_local`.
 
 ## Phase 23: Fix Active Gate Selection & UI Highlight Jump-back Loop
-- [ ] 23.1 In `scripts/flare_daemon.py`, change `klipper_gate = loaded_gate` and `klipper_tool = loaded_gate` to assign `active_gate` instead.
-- [ ] 23.2 In `klipper/mmu.py` `cmd_SET_MMU`, refine `is_loaded` derivation to strictly check if the selected gate matches the physically loaded gate.
-- [ ] 23.3 In `klipper/mmu.py` `cmd_MMU_SELECT`, set `self.gate` and `self.tool` to the newly selected gate in the pure UI selection branch.
-- [ ] 23.4 Run static python verification checks and ensure regression validations pass.
+- [x] 23.1 In `scripts/flare_daemon.py`, change `klipper_gate = loaded_gate` and `klipper_tool = loaded_gate` to assign `active_gate` instead.
+- [x] 23.2 In `klipper/mmu.py` `cmd_SET_MMU`, refine `is_loaded` derivation to strictly check if the selected gate matches the physically loaded gate.
+- [x] 23.3 In `klipper/mmu.py` `cmd_MMU_SELECT`, set `self.gate` and `self.tool` to the newly selected gate in the pure UI selection branch.
+- [x] 23.4 Run static python verification checks and ensure regression validations pass.
+
+---
+### Validation Notes — 2026-05-22 (Active Gate Selection & UI Highlight Loop Fix)
+- Verified `flare_daemon.py` reports `klipper_gate` and `klipper_tool` as the currently selected `active_gate` instead of the physically `loaded_gate`, solving the 250ms feedback overwrite loop.
+- Verified `cmd_MMU_SELECT` sets `self.gate` and `self.tool` to the selected gate index on pure UI clicks to trigger low-latency highlighting and details panel updates in Mainsail/Fluidd.
+- Verified `is_loaded` derivation strictly compares the selected gate index against the physically loaded gate, preventing global toolhead sensor states from incorrectly enabling UNLOAD and disabling LOAD/EJECT on inactive/preloaded lanes.
+- Confirmed syntax validity (`python3 -m py_compile`) and regression tests pass perfectly (`bash scripts/validate_regression.sh`).
