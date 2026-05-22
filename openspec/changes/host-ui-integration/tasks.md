@@ -300,3 +300,16 @@
 - Preserved inactive explicit standby eject: `UM:n` for inactive lanes still requires `IN=1, OUT=0`, unloads only to `IN` clear, and does not start the cutter or touch active-lane state.
 - Updated `MMU_LOAD` to run `FLARE_LOAD LANE=<n>` and then `_FLARE_POST_TC_LOAD LANE=<n>`, matching the toolchange post-pickup extruder grab, hotend load, and purge sequence.
 - Validation passed: `python3 -m py_compile klipper/mmu.py scripts/*.py`, `openspec validate --specs --strict`, `ninja -C build_local`, `git diff --check`, and `bash scripts/validate_regression.sh`.
+
+## Phase 26: Physical Sensor State Integration & Visualizer Parity
+- [x] 26.1 Define `gate_sensor_active` and `extruder_sensor_active` in `klipper/mmu.py`.
+- [x] 26.2 Update `cmd_SET_MMU` in `klipper/mmu.py` to parse `GATE_SENSOR_ACTIVE` and `EXTRUDER_SENSOR_ACTIVE`.
+- [x] 26.3 Update `get_status` in `klipper/mmu.py` to expose a nested `sensors` dictionary (mapping `gate`, `extruder`, `toolhead`, `tension`, and `compression`).
+- [x] 26.4 Update `klipper_syncer` in `scripts/flare_daemon.py` to compute physical `gate_sensor_active` (based on the active gate's `out` sensor) and `extruder_sensor_active` (based on `y_split`), and pass them via the Moonraker G-code script.
+- [x] 26.5 Verify that Python compilation and syntax checks pass cleanly.
+
+---
+### Validation Notes — 2026-05-23 (Physical Sensor State Integration)
+- Implemented nested `sensors` dictionary inside Klipper MMU mock (`klipper/mmu.py`) matching the Happy Hare status schema (`printer.mmu.sensors`). This enables green indicator dot visualization along the filament track in Fluidd/Mainsail dashboards.
+- Wired real-time board sensor states through the Klipper telemetry syncer thread in `scripts/flare_daemon.py`, translating physical `in/out` and `y_split` triggers into `GATE_SENSOR_ACTIVE` and `EXTRUDER_SENSOR_ACTIVE` parameters.
+- Successfully verified both Python syntax validity and committed clean changes.
