@@ -525,6 +525,9 @@ def klipper_syncer(moonraker_url):
             loaded_gate = 0
         elif active_gate == 1 and gate_status_2 == 2:
             loaded_gate = 1
+        else:
+            # Fall back to active selection index when physically unloaded so UI retains details
+            loaded_gate = active_gate
 
         mmu_cmd = (
             f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={loaded_gate} TOOL={loaded_gate} "

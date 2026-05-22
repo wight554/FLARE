@@ -118,15 +118,23 @@ class MMUMock:
         self.gate = gcmd.get_int('GATE', self.gate)
         self.tool = gcmd.get_int('TOOL', self.tool)
 
-        # Derive filament loaded state
-        if self.gate == -1:
-            self.filament = "Unloaded"
-            self.filament_pos = 0
-        else:
-            self.filament = "Loaded"
-            self.filament_pos = 10
         self.toolhead_sensor = gcmd.get_int('TOOLHEAD_SENSOR', self.toolhead_sensor)
         self.sync_feedback = gcmd.get_float('SYNC_FEEDBACK', self.sync_feedback)
+
+        # Derive filament loaded state
+        # Decouple from self.gate to allow selecting gates/tools while physically unloaded
+        is_loaded = False
+        if self.toolhead_sensor == 1:
+            is_loaded = True
+        elif 0 <= self.gate < len(self.gate_status) and self.gate_status[self.gate] == 2:
+            is_loaded = True
+
+        if is_loaded:
+            self.filament = "Loaded"
+            self.filament_pos = 10
+        else:
+            self.filament = "Unloaded"
+            self.filament_pos = 0
         
         # Strip quotes from standard string parameters
         self.sync_feedback_state = gcmd.get('SYNC_FEEDBACK_STATE', self.sync_feedback_state).strip("'\"")
@@ -444,7 +452,7 @@ class MMUMock:
             gcmd.respond_info(f"Error: Gate index {gate} exceeds maximum gates ({self.num_gates})")
             return
             
-        if gate == self.active_gate:
+        if gate == self.active_gate and self.gate == gate and self.tool == gate:
             gcmd.respond_info(f"FLARE: Lane {gate + 1} (Gate {gate}) already active.")
             return
 
@@ -457,6 +465,8 @@ class MMUMock:
             # Pure UI active gate selection: update active_gate to change button states dynamically
             gcmd.respond_info(f"FLARE: Selecting active gate {gate} (Lane {lane})")
             self.active_gate = gate
+            self.gate = gate
+            self.tool = gate
             self._ensure_array_lengths()
             try:
                 self.gcode.run_script_from_command(f'RUN_SHELL_COMMAND CMD=flare PARAMS="T:{lane}"')

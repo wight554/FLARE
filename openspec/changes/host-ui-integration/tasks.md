@@ -224,10 +224,17 @@
 - Verified all regression checks pass successfully (`bash scripts/validate_regression.sh`).
 
 ## Phase 20: Fix Active Gate Selection & Spool Details Desync in Klipper/UI
-- [ ] 20.1 Update Klipper MMU mock `klipper/mmu.py` `cmd_SET_MMU` to decouple `filament` loaded state derivation from `gate == -1`, using `toolhead_sensor` and physical gate buffer/load states instead.
-- [ ] 20.2 Update `klipper/mmu.py` `cmd_MMU_SELECT` to set `self.gate` and `self.tool` to the selected gate index during pure UI selection so the active details panel displays correctly.
-- [ ] 20.3 Update the status reporter in `scripts/flare_daemon.py` to pass the currently selected `active_gate` as the default for `GATE` and `TOOL` variables when the MMU is physically unloaded, instead of defaulting them to `-1` and overwriting Klipper's state.
-- [ ] 20.4 Verify Python scripts compile cleanly and pass static regression gate checks.
+- [x] 20.1 Update Klipper MMU mock `klipper/mmu.py` `cmd_SET_MMU` to decouple `filament` loaded state derivation from `gate == -1`, using `toolhead_sensor` and physical gate buffer/load states instead.
+- [x] 20.2 Update `klipper/mmu.py` `cmd_MMU_SELECT` to set `self.gate` and `self.tool` to the selected gate index during pure UI selection so the active details panel displays correctly.
+- [x] 20.3 Update the status reporter in `scripts/flare_daemon.py` to pass the currently selected `active_gate` as the default for `GATE` and `TOOL` variables when the MMU is physically unloaded, instead of defaulting them to `-1` and overwriting Klipper's state.
+- [x] 20.4 Verify Python scripts compile cleanly and pass static regression gate checks.
+
+---
+### Validation Notes — 2026-05-22 (Active Gate Selection & Spool Details Fixes)
+- Decoupled Klipper MMU mock `filament` loaded status derivation from strictly checking `self.gate == -1`. It now evaluates physical sensor triggers (`toolhead_sensor` and gate buffer state), allowing `self.gate` and `self.tool` to stay mapped to inactive/unloaded selections while accurately reporting an unloaded status.
+- Updated `cmd_MMU_SELECT` to set `self.gate` and `self.tool` to the newly selected gate on pure UI card clicks, and adjusted the early return check so that selecting a gate when `self.gate == -1` will correctly apply updates.
+- Refined the daemon status reporter loop in `scripts/flare_daemon.py` to assign `active_gate` as the default for `GATE` and `TOOL` variables under physically unloaded states instead of defaulting to `-1`, which solves the 250ms feedback overwrite loop.
+- Verified syntax correctness using `python3 -m py_compile` and successfully ran regression checks via `scripts/validate_regression.sh`.
 
 
 
