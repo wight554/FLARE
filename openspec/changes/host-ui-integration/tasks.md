@@ -186,6 +186,18 @@
 - Resolved a critical status synchronization bug in `cmd_SET_MMU` where the `GATE` parameter default fell back to `self.active_gate` if omitted, which forced active status on empty gates. It now properly preserves the current `self.gate` value, which correctly enforces fully disabled action button states for empty spools.
 - Verified that all Python syntax checks pass flawlessly (`python3 -m py_compile`) and firmware builds build cleanly (`ninja -C build_local`).
 
+## Phase 17: Synchronous Toolchange Blocking
+- [x] 17.1 Register `FLARE_WAIT_TC` command in Klipper mock `klipper/mmu.py`.
+- [x] 17.2 Implement `FLARE_WAIT_TC` using `reactor.pause()` polling loop to check toolhead sensor state.
+- [x] 17.3 Refactor `_FLARE_CHANGE_LANE` in `klipper/flare_mmu.cfg` to run synchronously using `FLARE_WAIT_TC`.
+- [x] 17.4 Verify firmware and config build successfully.
+
+---
+### Validation Notes — 2026-05-22 (Synchronous Toolchange Blocking)
+- Implemented and registered `FLARE_WAIT_TC` command inside the Klipper extra helper `klipper/mmu.py`. This uses the Klipper event reactor `reactor.pause()` to yield execution to the event loop, allowing background syncer/daemon status updates to come through while blocking sequential print G-code stream execution.
+- Refactored `_FLARE_CHANGE_LANE` in `klipper/flare_mmu.cfg` to chain physical toolchange (`TC:{lane}`) followed immediately by the blocking `FLARE_WAIT_TC` command and synchronous `_FLARE_POST_TC_LOAD` execution, ensuring the next print commands from the SD card/stream do not run until the entire physical sequence completes.
+- Verified that both local firmware compilation (`ninja -C build_local`) and file adjustments compile perfectly.
+
 
 
 

@@ -100,6 +100,8 @@ class MMUMock:
                                     desc="Mock Spoolman mapping command")
         self.gcode.register_command('MMU_SELECT', self.cmd_MMU_SELECT,
                                     desc="Select MMU gate or tool")
+        self.gcode.register_command('FLARE_WAIT_TC', self.cmd_FLARE_WAIT_TC,
+                                    desc="Wait for toolchange physical completion")
 
     def cmd_SET_MMU(self, gcmd):
         """Update MMU state parameters dynamically."""
@@ -460,6 +462,50 @@ class MMUMock:
                 self.gcode.run_script_from_command(f'RUN_SHELL_COMMAND CMD=flare PARAMS="T:{lane}"')
             except Exception as e:
                 gcmd.respond_info(f"FLARE: Warning: Failed to send T:{lane} to board: {str(e)}")
+
+    def _is_toolhead_sensor_triggered(self):
+        # 1. Try to query the filament switch sensor object in Klipper directly
+        try:
+            sensor_obj = self.printer.lookup_object('filament_switch_sensor toolhead_sensor')
+            eventtime = self.printer.get_reactor().monotonic()
+            status = sensor_obj.get_status(eventtime)
+            if status.get('filament_detected'):
+                return True
+        except Exception:
+            pass
+
+        # 2. Fall back to the synchronizer-driven cached property
+        return self.toolhead_sensor == 1
+
+    def cmd_FLARE_WAIT_TC(self, gcmd):
+        """Wait synchronously for physical toolchange toolhead insertion."""
+        lane = gcmd.get_int('LANE', 0)
+        load_delay = gcmd.get_float('LOAD_DELAY', 2.0)
+        timeout = gcmd.get_float('TIMEOUT', 300.0)
+        
+        gcmd.respond_info(f"FLARE: FLARE_WAIT_TC waiting for toolhead sensor (Lane {lane}, timeout {timeout}s)...")
+        
+        # Flush existing moves first
+        toolhead = self.printer.lookup_object('toolhead')
+        toolhead.wait_moves()
+        
+        reactor = self.printer.get_reactor()
+        start_time = reactor.monotonic()
+        
+        # Poll toolhead sensor status in a non-blocking loop
+        while not self._is_toolhead_sensor_triggered():
+            if reactor.monotonic() - start_time > timeout:
+                raise gcmd.error("FLARE Error: Toolchange timed out.")
+            
+            reactor.pause(reactor.monotonic() + 0.2)
+            
+        gcmd.respond_info(f"FLARE: Toolhead sensor triggered. Waiting load_delay of {load_delay}s for stabilization...")
+        
+        # Additional stabilization delay
+        if load_delay > 0:
+            reactor.pause(reactor.monotonic() + load_delay)
+            
+        gcmd.respond_info("FLARE: FLARE_WAIT_TC wait complete.")
 
     def _get_vars_path(self):
         import os
