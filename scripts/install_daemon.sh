@@ -121,9 +121,24 @@ else
             cp "${PROJECT_DIR}/klipper/mmu.py" "$TARGET_MMU"
             chown "${REAL_USER}:${REAL_USER}" "$TARGET_MMU" || true
         fi
+
+        TARGET_MMU_SENSORS="$KLIPPER_EXTRAS_DIR/mmu_sensors.py"
+        if [ -f "$TARGET_MMU_SENSORS" ]; then
+            if grep -q "FLARE MMU Sensors Mock" "$TARGET_MMU_SENSORS"; then
+                echo -e "Found existing FLARE MMU Sensors Mock at $TARGET_MMU_SENSORS. Updating to latest version."
+                cp "${PROJECT_DIR}/klipper/mmu_sensors.py" "$TARGET_MMU_SENSORS"
+                chown "${REAL_USER}:${REAL_USER}" "$TARGET_MMU_SENSORS" || true
+            else
+                echo -e "${YELLOW}Warning: A custom mmu_sensors.py already exists at $TARGET_MMU_SENSORS but does NOT contain 'FLARE MMU Sensors Mock' (e.g. Happy Hare). Preserving it to avoid conflicts.${NC}"
+            fi
+        else
+            echo -e "Installing FLARE MMU Sensors Mock to $TARGET_MMU_SENSORS"
+            cp "${PROJECT_DIR}/klipper/mmu_sensors.py" "$TARGET_MMU_SENSORS"
+            chown "${REAL_USER}:${REAL_USER}" "$TARGET_MMU_SENSORS" || true
+        fi
     else
-        echo -e "${YELLOW}Warning: Klipper extras directory not found. Skipping mmu.py installation.${NC}"
-        echo -e "If Klipper is installed in a non-standard location, please copy 'klipper/mmu.py' to your 'klippy/extras/' directory manually."
+        echo -e "${YELLOW}Warning: Klipper extras directory not found. Skipping mmu.py and mmu_sensors.py installation.${NC}"
+        echo -e "If Klipper is installed in a non-standard location, please copy 'klipper/mmu.py' and 'klipper/mmu_sensors.py' to your 'klippy/extras/' directory manually."
     fi
 
     echo -e "Ensure Klipper config includes flare macro file."
