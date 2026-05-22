@@ -47,6 +47,7 @@ serial_port = None
 serial_lock = threading.Lock()
 command_event = threading.Event()
 command_reply = None
+current_executing_command = None
 
 # Thread-safe status cache
 status_lock = threading.Lock()
@@ -172,7 +173,7 @@ def broadcast_telemetry(data):
                 pass
 
 def serial_reader(port_name, baud):
-    global serial_port, command_reply
+    global serial_port, command_reply, current_executing_command
     
     while True:
         print(f"flare_daemon: connecting to {port_name}...")
@@ -208,6 +209,8 @@ def serial_reader(port_name, baud):
                     # If it's a status dump response (starts with OK:LN: or OK:LN=)
                     if "LN:" in line:
                         parse_status_line(line)
+                        if current_executing_command and not current_executing_command.startswith("?"):
+                            continue
                     
                     command_reply = line
                     command_event.set()
@@ -388,7 +391,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             self.send_error(500, f"Error reading file: {e}")
 
     def execute_serial_command(self, cmd_str):
-        global command_reply
+        global command_reply, current_executing_command
         
         # Formatting check
         if not cmd_str.endswith("\n"):
@@ -400,16 +403,19 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                 
             command_event.clear()
             command_reply = None
+            current_executing_command = cmd_str.strip()
             
             try:
                 serial_port.write(cmd_str.encode("utf-8"))
                 serial_port.flush()
             except Exception as e:
+                current_executing_command = None
                 return f"ER:WRITE_ERROR:{e}"
                 
             # Block until event is fired (timeout 10.0s for typical moves)
             # Long commands (FL, UL, TC) execute async and return OK immediately.
             success = command_event.wait(timeout=10.0)
+            current_executing_command = None
             
             if success:
                 return command_reply
