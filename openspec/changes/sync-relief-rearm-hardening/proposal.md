@@ -28,7 +28,8 @@ The two high items:
   blend or rate-cap it.
 - Medium items (steady-feed limit cycle, relieve-vs-active-extrusion gating,
   per-lane est/g_buf_pos scaling, and the NEUTRAL→COMPRESSION fast-brake gap
-  surfaced by the cross-check) addressed or explicitly deferred per design.
+  surfaced by the cross-check) addressed or explicitly deferred per design. The
+  first D6 fast-brake attempt was reverted after M2 HW regression.
 - Low items recorded in design as notes (comment staleness, div-guard, MV
   re-anchor, expf perf, dwell-sum overflow) — not necessarily fixed here.
 
@@ -47,9 +48,10 @@ The two high items:
 ## Impact
 
 - Firmware: `firmware/src/sync.c` — RELIEF_PAUSE exit / re-arm (`846`, `1271`,
-  `1731`), estimator update (`801-802`), fast-brake arm (`1112`, medium item 12),
-  and (medium) `buffer_stabilize` gating and per-lane est handling. Gated to
-  `BUF_SENSOR_TYPE == 0`; type-P unchanged.
+  `1731`), estimator update (`801-802`), and (medium) `buffer_stabilize` gating
+  and per-lane est handling. D6 fast-brake extension (`1112`, medium item 12) is
+  deferred after HW regression. Gated to `BUF_SENSOR_TYPE == 0`; type-P
+  unchanged.
 - No new tunables intended.
 - Validation: HW replay of relief→high-flow-resume, fast TENSION→COMPRESSION
   disturbance, and a long steady print; `scripts/flare_sync_check.py` regression.

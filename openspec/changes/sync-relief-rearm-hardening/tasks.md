@@ -20,9 +20,13 @@
   can't pull against a slow active extrusion. (Evaluated: handled via POST_PRINT_STAB_MS configuration.)
 - [x] 3.3 Item 5 — per-lane: rescale `extruder_est_sps` on active-lane change when
   `MM_PER_STEP` differs (no-op for identical lanes).
-- [x] 3.4 Item 12 (D6) — extend the type-D fast-brake (instant stop) to
+- [ ] 3.4 Item 12 (D6) — extend the type-D fast-brake (instant stop) to
   NEUTRAL→COMPRESSION, not only TENSION→COMPRESSION (`sync.c:1112`); or defer with
   rationale. Pairs with 2.x — the item-2 spike terminates in exactly this path.
+  Deferred: HW M2 steady-print capture on 2026-05-22 failed after commit
+  `ecd3f5d` with 19 COMPRESSION episodes, 18 RELIEF_PAUSE events, 19
+  `cannot_relieve`, and 6 `TENSION_RISK_HIGH` over 180 s. Reverted `ecd3f5d`;
+  a future D6 fix needs a different design.
 
 ## 4. Low items (notes; fix opportunistically)
 
@@ -103,7 +107,10 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
 - [ ] 5.3 M2 — steady print 10–15 min (D6 × item-3 + D2).
   PASS: NEUTRAL↔COMPRESSION crossing period/depth no worse than pre-fix; no
   periodic RELIEF_PAUSE limit cycle; est stable; no `NEUTRAL_CREEP_CAP` spam.
-  FAIL (shrinking period / deeper lean) → revert `ecd3f5d`. Result: __
+  FAIL (shrinking period / deeper lean) → revert `ecd3f5d`. Result: FAIL on
+  2026-05-22 after 180 s daemon capture: 19 COMPRESSION episodes, 18
+  RELIEF_PAUSE events, 19 `cannot_relieve`, 6 `TENSION_RISK_HIGH`. Action:
+  reverted D6 commit `ecd3f5d`; rerun M2 after reflashing the reverted build.
 - [ ] 5.4 M3 — pause → high-flow resume (D1 positive).
   Pause extruder ~10s (buffer → COMPRESSION → RELIEF_PAUSE), then resume high flow.
   PASS: `SYNC,RELIEF_PAUSE` → `SYNC,AUTO_START` on the drain to NEUTRAL (no full
@@ -135,8 +142,9 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
 ## 6. Docs (rule 6)
 
 - [x] 6.1 Update `BEHAVIOR.md` sync state-machine: add the RELIEF_PAUSE → NEUTRAL
-  re-arm exit (D1) and the type-D fast-brake on NEUTRAL→COMPRESSION (D6).
+  re-arm exit (D1) and document the D6 trial/revert outcome.
   Done: documented `SYNC_RELIEF_PAUSE` + re-arm on NEUTRAL/TENSION (relief
-  section, AUTO sync step 8, auto-toggle table), the type-D NEUTRAL→COMPRESSION
-  fast-brake (transition-handling section), and corrected the estimator note to
-  reflect the type-D blend (no hard overwrite) — D2.
+  section, AUTO sync step 8, auto-toggle table), corrected the estimator note to
+  reflect the type-D blend (no hard overwrite) — D2, and updated transition
+  handling to say type-D NEUTRAL→COMPRESSION stays on ramp-down after the D6
+  instant-brake trial regressed M2.

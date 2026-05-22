@@ -125,6 +125,11 @@ type-agnostic.
 - `baseline_update_on_settle` skips while `fast_brake_active` (`1142-1144`); a
   brake overlapping the next COMPRESSION→NEUTRAL settle drops one baseline sample.
   Low.
+- **2026-05-22 HW result:** M2 steady-print capture failed with 19 COMPRESSION
+  episodes, 18 RELIEF_PAUSE events, 19 `cannot_relieve`, and 6
+  `TENSION_RISK_HIGH` over 180 s. This confirms the predicted over-pausing /
+  deeper relay oscillation. Revert `ecd3f5d`; keep D6 deferred pending a
+  different design.
 
 ### D3 (items 3-4) / D5 (item 5)
 - D3 longer relieve gate → relief fires later → longer COMPRESSION dwell →
@@ -152,6 +157,7 @@ type-agnostic.
   Also a genuine fast ramp-up: confirm TENSION catch-up still refills (no starve).
 - **D6 × item 3:** long steady print; log NEUTRAL↔COMPRESSION crossing period and
   depth with and without D6 — D6 must not shorten the period or deepen the lean.
+  The first instant-brake attempt failed this check and was reverted.
 - **D5:** two lanes with different `rotation_distance`; toolchange mid-sync;
   confirm est rescales (no over/under-feed on the first crossings post-swap).
   Identical-lane setup must be bit-identical to today.

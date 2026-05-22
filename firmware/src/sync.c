@@ -1121,8 +1121,7 @@ static void sync_apply_to_active(void) {
 }
 
 static void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t now_ms) {
-    if ((prev == BUF_TENSION && now_state == BUF_COMPRESSION) ||
-        (BUF_SENSOR_TYPE == 0 && prev == BUF_NEUTRAL && now_state == BUF_COMPRESSION)) {
+    if (prev == BUF_TENSION && now_state == BUF_COMPRESSION) {
         sync_fast_brake_until_ms = now_ms + 250u;
     }
 

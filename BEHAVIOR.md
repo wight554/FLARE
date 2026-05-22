@@ -407,10 +407,9 @@ for tuning and regression monitoring.
 
 On a direct `TENSION→COMPRESSION` transition, firmware arms a short fast-brake
 window. During that window the sync target is forced to 0 before normal
-COMPRESSION low-speed recovery resumes. On type-D the fast-brake is also armed on
-`NEUTRAL→COMPRESSION` — the wall hit an estimator over-feed produces — because
-that transition would otherwise only ramp down (`SYNC_RAMP_DN_SPS`) and keep
-feeding into a full buffer for the ramp duration instead of stopping at once.
+COMPRESSION low-speed recovery resumes. Type-D `NEUTRAL→COMPRESSION` remains on
+the normal ramp-down path; a trial instant-brake extension on that transition
+regressed steady-print behavior by over-pausing the relay cycle.
 
 The live baseline learner remains ephemeral and up-only. Once the settle,
 variance, cooldown, distance, and `SYNC_ACTIVE` gates accept an update, the
