@@ -390,7 +390,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
                can follow up with UL: to clear the faulty lane manually. */
             if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
                 tc_abort();
-                sync_set_state(SYNC_OFF);
+                sync_retract_assist_set(true);
                 set_active_lane(ln);
                 cmd_reply("OK", NULL);
             } else {
