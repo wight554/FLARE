@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from typing import Dict, List, Optional, Tuple
@@ -459,6 +460,7 @@ def capture_live(port: Optional[str], poll_ms: int, duration: Optional[float]
                 if line.startswith(("OK:", "ER:")) or line == "OK":
                     break
             if deadline and time.time() >= deadline:
+                print("# Capture duration reached.", flush=True)
                 break
             time.sleep(max(0.0, interval - (time.time() - t0)))
     except KeyboardInterrupt:
@@ -509,6 +511,7 @@ def capture_daemon(url: str, poll_ms: int, duration: Optional[float]) -> List[st
                 lines.append(line)
 
             if deadline and time.time() >= deadline:
+                print("# Capture duration reached.", flush=True)
                 break
             time.sleep(max(0.0, interval - (time.time() - t0)))
     except KeyboardInterrupt:
@@ -627,4 +630,12 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except BrokenPipeError:
+        try:
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, sys.stdout.fileno())
+        except OSError:
+            pass
+        sys.exit(1)
