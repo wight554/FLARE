@@ -246,7 +246,7 @@ void tc_tick(uint32_t now_ms) {
         }
 
         case TC_LOAD_START: {
-            if (TC_TIMEOUT_Y_MS > 0 && on_al(&g_y_split)) {
+            if (on_al(&g_y_split)) {
                 tc_enter_error("HUB_NOT_CLEAR");
                 break;
             }
