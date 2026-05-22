@@ -130,9 +130,11 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   RELIEF_PAUSE after the macro ended; checker updated with
   `--allow-terminal-idle-relief` so this terminal idle pause does not mask the
   successful resume re-arm.
-- [ ] 5.5 M4 — fast/partial TENSION→COMPRESSION disturbance (D2; covers 2.2).
+- [x] 5.5 M4 — fast/partial TENSION→COMPRESSION disturbance (D2; covers 2.2).
   PASS: est (dump) does not jump to the rail; next NEUTRAL feed no overshoot
-  straight back to COMPRESSION. Result: pending. 2026-05-22: forced retract
+  straight back to COMPRESSION. Result: PASS on 2026-05-22. 30 s soft capture
+  `hw_m4_soft`: 1 natural TENSION→COMPRESSION span, worst EST ratio 0.85x
+  (cap 2.00), worst idx 42 `EST 1200 -> 1014 mm/min`. Earlier forced retract
   shock caused audible grind and still did not produce a direct adjacent
   TENSION→COMPRESSION checker transition; do not repeat that macro. Checker now
   accepts bounded natural TENSION→NEUTRAL→COMPRESSION spans for D2 so M4 can be
