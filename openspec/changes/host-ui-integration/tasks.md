@@ -332,6 +332,12 @@
 - [x] 27.3 Update target `klippy/extras` copy/install commands inside `scripts/install_daemon.sh`.
 - [x] 27.4 Validate Python syntax, build firmware, and test locally.
 
+## Phase 28: Filament Track Sensor Discovery Hardening
+- [x] 28.1 Implement dynamic `filament_switch_sensor` mock registration for `mmu_pre_gate_0`, `mmu_pre_gate_1`, `mmu_gate`, `mmu_extruder`, `mmu_toolhead`, and `mmu_hub` inside `klipper/mmu_sensors.py` constructor to satisfy Fluidd/Mainsail dynamic discovery.
+- [x] 28.2 Add active gate selector checks to override shared/global sensors (`gate`, `extruder`, `toolhead`, `hub`) to `False` for unselected/unloaded lanes, eliminating false positive triggers on other lanes.
+- [ ] 28.3 Ask the user to run `install_daemon.sh` and perform a Klipper RESTART, then verify the visual presence and state behavior of all 5 filament track sensor dots in Fluidd dashboard.
+
+
 ---
 ### Validation Notes — 2026-05-23 (mmu_sensors Mock Integration)
 - Created the new mock Klipper extra module `klipper/mmu_sensors.py` that registers the `mmu_sensors` printer object and dynamically resolves all standard Happy Hare sensor states (`pre_gate_0`, `pre_gate_1`, `gate`, `extruder`, `toolhead`, `hub`, `sync_feedback_tension`, `sync_feedback_compression`) from the unified MMU status cache.
@@ -339,5 +345,6 @@
 - Updated `scripts/install_daemon.sh` installer script to automatically copy `mmu_sensors.py` alongside `mmu.py` into the target Klipper extras directory during installation.
 - Verified that local C/C++ firmware builds compile cleanly and successfully.
 - Fixed Klipper config validation error ("Option 'pre_gate_switch_pin_0' is not valid in section 'mmu_sensors'") by explicitly reading and consuming all dummy configuration options in the `MMUSensorsMock` constructor.
+- Overrode global/shared filament switch mock sensors to report `filament_detected = False` when another lane is physically loaded, ensuring that unselected/unloaded lanes correctly show hollow track dots for shared sensors instead of inheriting global triggers.
 
 
