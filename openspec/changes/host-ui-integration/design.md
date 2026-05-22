@@ -183,4 +183,10 @@ We parse this string using Python's safe `ast.literal_eval`. For each gate in th
 - **Cutter Derivation**: Klipper exposes `enable_cutter` as a read-only state variable in `get_status` derived from the board's internal telemetry. No manual configure/set via Klipper-side G-codes is required.
 - **Fluidd Load Button**: To fix the disabled load button in Fluidd when the active lane is preloaded but not loaded, we separate selector/active gate tracking (`ACTIVE_GATE`) from the loaded filament tracking (`GATE` and `TOOL`). `GATE` and `TOOL` are set to `active_gate` only when the active gate's filament is fully loaded to the toolhead (all sensors: `in && out && y_split && toolhead` are 1). If not fully loaded, `GATE` and `TOOL` are set to `-1`. This correctly reports the extruder as empty to Fluidd, enabling the `LOAD` button for preloaded lanes.
 
+### 13. Correct Preloaded Gate UI Selection While Another Gate is Loaded
+- **Problem**: When selecting a preloaded gate card (`T1`) while another gate (`T0`) is loaded, Klipper evaluates `is_physically_loaded` as `True` because `self.toolhead_sensor == 1` globally. This incorrectly sets `self.gate` and `self.tool` to `1` (as if Gate 1 is loaded), and the daemon subsequently overwrites it back to `0` (since Gate 0 is physically loaded). This feedback loop forces Fluidd's UI to jump selection back to `T0` and misreports Gate 1 loaded state.
+- **Solution**: Refine `is_physically_loaded` in `cmd_MMU_SELECT` to check if `self.gate == gate` and `self.toolhead_sensor == 1`. During pure UI gate selection, preserve `self.gate` and `self.tool` unchanged by defaulting them to `self.gate`/`self.tool` if not physically loaded, keeping physical loaded state intact while setting `self.active_gate = gate` to correctly select/highlight the preloaded gate card and display its filament details without any jump-back.
+
+
+
 

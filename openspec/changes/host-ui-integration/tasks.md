@@ -246,3 +246,17 @@
 - Verified `flare_daemon.py` resolves `klipper_tool` and `klipper_gate` to the active physically loaded gate (or `-1` if completely unloaded). This removes premature loaded state indications in Fluidd when clicking gate cards.
 - Verified that `cmd_MMU_SELECT` in `klipper/mmu.py` sets both `self.gate` and `self.tool` to `expected_gate` (which evaluates to `-1` if physically unloaded), properly disabling `UNLOAD` and `EJECT` and correctly managing `LOAD` based on gate presence (`gate_status` availability).
 - Ran all local regression test cases (`bash scripts/validate_regression.sh`) and confirmed all static verification checks pass perfectly.
+
+## Phase 22: Correct Preloaded Gate UI Selection While Another Gate is Loaded
+- [x] 22.1 Refine `is_physically_loaded` in `cmd_MMU_SELECT` within `klipper/mmu.py` to check `self.gate == gate and self.toolhead_sensor == 1`.
+- [x] 22.2 Preserve `self.gate` and `self.tool` unchanged during pure UI selection if the selected gate is not physically loaded.
+- [x] 22.3 Run static python verification checks and ensure regression validations pass.
+
+---
+### Validation Notes — 2026-05-22 (Preloaded UI Selection & Jump-back Fix)
+- Refined `is_physically_loaded` inside `cmd_MMU_SELECT` within `klipper/mmu.py` to check `self.gate == gate and self.toolhead_sensor == 1`, preventing global toolhead sensor trigger from misidentifying unselected lanes as loaded.
+- Preserved `self.gate` and `self.tool` unchanged during pure UI selection if the selected gate is not physically loaded. This successfully maintains physical loaded state (`gate=0, tool=0`), preventing any feedback jump-back loop.
+- Verified that `self.active_gate = gate` correctly updates, highlighting the selected card, showing its spool filament info, and leaving correct `LOAD` and `EJECT` buttons active.
+- Confirmed C-firmware builds successfully via `ninja -C build_local`.
+
+

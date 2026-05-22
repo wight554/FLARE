@@ -454,14 +454,15 @@ class MMUMock:
             
         # Derive expected loaded gate state
         is_physically_loaded = False
-        if self.toolhead_sensor == 1:
+        if self.gate == gate and self.toolhead_sensor == 1:
             is_physically_loaded = True
         elif 0 <= gate < len(self.gate_status) and self.gate_status[gate] == 2:
             is_physically_loaded = True
 
-        expected_gate = gate if is_physically_loaded else -1
+        expected_gate = gate if is_physically_loaded else self.gate
+        expected_tool = gate if is_physically_loaded else self.tool
 
-        if gate == self.active_gate and self.gate == expected_gate and self.tool == expected_gate:
+        if gate == self.active_gate and self.gate == expected_gate and self.tool == expected_tool:
             gcmd.respond_info(f"FLARE: Lane {gate + 1} (Gate {gate}) already active.")
             return
 
@@ -475,7 +476,7 @@ class MMUMock:
             gcmd.respond_info(f"FLARE: Selecting active gate {gate} (Lane {lane})")
             self.active_gate = gate
             self.gate = expected_gate
-            self.tool = expected_gate
+            self.tool = expected_tool
             self._ensure_array_lengths()
             try:
                 self.gcode.run_script_from_command(f'RUN_SHELL_COMMAND CMD=flare PARAMS="T:{lane}"')
