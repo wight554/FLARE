@@ -338,4 +338,6 @@
 - Added the `[mmu_sensors]` config section inside `klipper/flare_mmu.cfg` mapping dummy pins to satisfy Fluidd's capability detection interface without allocating actual MCU resources.
 - Updated `scripts/install_daemon.sh` installer script to automatically copy `mmu_sensors.py` alongside `mmu.py` into the target Klipper extras directory during installation.
 - Verified that local C/C++ firmware builds compile cleanly and successfully.
+- Fixed Klipper config validation error ("Option 'pre_gate_switch_pin_0' is not valid in section 'mmu_sensors'") by explicitly reading and consuming all dummy configuration options in the `MMUSensorsMock` constructor.
+
 
