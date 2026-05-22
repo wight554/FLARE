@@ -176,6 +176,10 @@ def daemon_event_to_line(event: Dict[str, object]) -> Optional[str]:
     return f"EV:{evt_type}"
 
 
+def daemon_event_key(event: Dict[str, object]) -> Tuple[object, object, object]:
+    return (event.get("time"), event.get("type"), event.get("data"))
+
+
 # ---------------------------------------------------------------------------
 # PURGE analysis (tests A/B)
 # ---------------------------------------------------------------------------
@@ -468,6 +472,7 @@ def capture_daemon(url: str, poll_ms: int, duration: Optional[float]) -> List[st
     endpoint = url.rstrip("/") + "/status"
     lines: List[str] = []
     seen_events = set()
+    seeded_events = False
     deadline = time.time() + duration if duration else None
     print(f"# Capturing via daemon {endpoint} every {poll_ms} ms. "
           "Run the macro/print now. Ctrl+C to stop and analyze.", flush=True)
@@ -487,14 +492,16 @@ def capture_daemon(url: str, poll_ms: int, duration: Optional[float]) -> List[st
                 for event in events:
                     if not isinstance(event, dict):
                         continue
-                    key = (event.get("time"), event.get("type"),
-                           event.get("data"))
+                    key = daemon_event_key(event)
                     if key in seen_events:
                         continue
                     seen_events.add(key)
+                    if not seeded_events:
+                        continue
                     line = daemon_event_to_line(event)
                     if line:
                         lines.append(line)
+                seeded_events = True
 
             line = daemon_status_to_line(status)
             if line:

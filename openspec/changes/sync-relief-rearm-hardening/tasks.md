@@ -126,6 +126,8 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   Done: added `--daemon` source, daemon `/status` raw status + event history
   support, and 24-test analyzer coverage; `python3 -m py_compile scripts/*.py`
   passes.
+  Follow-up: `--daemon` now seeds existing daemon event history without emitting
+  pre-capture events, so stale `EV:` entries do not contaminate a new HW run.
 
 ## 6. Docs (rule 6)
 

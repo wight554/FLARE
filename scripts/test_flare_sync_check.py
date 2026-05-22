@@ -77,6 +77,14 @@ class ParseTests(unittest.TestCase):
         })
         self.assertEqual(line, "EV:SYNC,RELIEF_PAUSE")
 
+    def test_daemon_event_key_matches_history_identity(self):
+        key = fpc.daemon_event_key({
+            "time": 123.0,
+            "type": "SYNC",
+            "data": "AUTO_START",
+        })
+        self.assertEqual(key, (123.0, "SYNC", "AUTO_START"))
+
 
 class PurgeTests(unittest.TestCase):
     def _purge(self, relieve_series, ct_series, mm_series):
