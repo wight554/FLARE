@@ -469,20 +469,27 @@ def klipper_syncer(moonraker_url):
         sps = state.get("sps", 0.0)
         reload_mode = state.get("reload_mode", 0)
 
-        # Map print job state
+        # Map print job state and print state
         if tc_state in ["FOLLOW", "APPROACH"]:
             print_job_state = "printing"
+            print_state = "printing"
         elif tc_state == "IDLE":
             print_job_state = "standby"
+            print_state = "ready"
         else:
             print_job_state = "standby"
+            print_state = "ready"
+
+        gate_status_1 = 1 if (in1 or out1) else 0
+        gate_status_2 = 1 if (in2 or out2) else 0
 
         mmu_cmd = (
             f"SET_MMU ACTIVE_GATE={active_gate} TOOL={active_gate} "
-            f"GATE_STATUS='{out1},{out2}' GATE_SENSOR='{in1},{in2}' "
+            f"GATE_STATUS='{gate_status_1},{gate_status_2}' GATE_SENSOR='{in1},{in2}' "
             f"TOOLHEAD_SENSOR={toolhead} SYNC_FEEDBACK={sync_feedback:.3f} "
             f"SYNC_FEEDBACK_STATE='{buf_state}' PRINT_JOB_STATE='{print_job_state}' "
-            f"BOARD_ONLINE={board_online} SPS={sps:.3f} RELOAD_MODE={reload_mode}"
+            f"PRINT_STATE='{print_state}' BOARD_ONLINE={board_online} "
+            f"SPS={sps:.3f} RELOAD_MODE={reload_mode}"
         )
         lines.append(mmu_cmd)
 

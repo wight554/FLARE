@@ -26,6 +26,7 @@ class MMUMock:
         self.sync_feedback = 0.0 # buffer compression/tension offset
         self.sync_feedback_state = "neutral"
         self.print_job_state = "standby"
+        self.print_state = "ready"
         
         # FLARE specific extra state variables
         self.board_online = 0
@@ -74,13 +75,12 @@ class MMUMock:
         self.sync_feedback = gcmd.get_float('SYNC_FEEDBACK', self.sync_feedback)
         self.sync_feedback_state = gcmd.get('SYNC_FEEDBACK_STATE', self.sync_feedback_state)
         self.print_job_state = gcmd.get('PRINT_JOB_STATE', self.print_job_state)
+        self.print_state = gcmd.get('PRINT_STATE', self.print_state)
         self.action = gcmd.get('ACTION', self.action)
-        
-        # FLARE extras
         self.board_online = gcmd.get_int('BOARD_ONLINE', self.board_online)
         self.sps = gcmd.get_float('SPS', self.sps)
         self.reload_mode = gcmd.get_int('RELOAD_MODE', self.reload_mode)
-
+ 
         # Parse gate_status list
         gate_status_str = gcmd.get('GATE_STATUS', None)
         if gate_status_str is not None:
@@ -250,6 +250,7 @@ class MMUMock:
             'sync_feedback': self.sync_feedback,
             'sync_feedback_state': self.sync_feedback_state,
             'print_job_state': self.print_job_state,
+            'print_state': self.print_state,
             'board_online': self.board_online,
             'sps': self.sps,
             'reload_mode': self.reload_mode
