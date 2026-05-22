@@ -537,6 +537,10 @@ def klipper_syncer(moonraker_url):
         klipper_tool = active_gate
         klipper_gate = active_gate
 
+        # Physical sensor states for active gate and combiner
+        gate_sensor_active = out1 if active_gate == 0 else (out2 if active_gate == 1 else 0)
+        extruder_sensor_active = y_split
+
         mmu_cmd = (
             f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={klipper_gate} TOOL={klipper_tool} "
             f"GATE_STATUS='{gate_status_1},{gate_status_2}' GATE_SENSOR='{in1},{in2}' "
@@ -544,7 +548,8 @@ def klipper_syncer(moonraker_url):
             f"SYNC_FEEDBACK_STATE='{buf_state}' PRINT_JOB_STATE='{print_job_state}' "
             f"PRINT_STATE='{print_state}' BOARD_ONLINE={board_online} "
             f"SPS={sps:.3f} RELOAD_MODE={reload_mode} ENABLE_CUTTER={enable_cutter} "
-            f"UNLOAD_CUT={unload_cut}"
+            f"UNLOAD_CUT={unload_cut} GATE_SENSOR_ACTIVE={gate_sensor_active} "
+            f"EXTRUDER_SENSOR_ACTIVE={extruder_sensor_active}"
         )
 
         lines.append(mmu_cmd)
