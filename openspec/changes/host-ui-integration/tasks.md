@@ -38,6 +38,7 @@
 - [x] 7.7 Register `MMU_GATE_MAP` and `MMU_TTG_MAP` G-code commands in `klipper/mmu.py` to prevent unknown command errors when editing filaments in Fluidd.
 - [x] 7.8 Fix daemon serial reader to recognize raw "OK" replies (no colon) to resolve command timeouts.
 - [x] 7.9 Map gate availability to either IN or OUT sensors and add print_state to status object.
+- [x] 7.10 Add state persistence to Klipper mock and periodic force-sync to daemon syncer thread to handle Moonraker/Klipper restarts without losing gate/tool mappings.
 
 ---
 ### Validation Notes — 2026-05-22
@@ -49,3 +50,4 @@
 - Added strict safety checks in `install_daemon.sh` preventing unintended Happy Hare file overwrites.
 - Verified dynamic telemetry parameters (buf pos, states, sensors) via moonraker API commands.
 - Fixed command timeouts for parameter SET requests by supporting raw "OK" (no colon) responses in the daemon serial multiplexer.
+- Implemented automatic recovery of Klipper mock parameters after a Klipper/Moonraker reload, using localized JSON persistence next to the printer configuration directory and a 10-second daemon force-sync heartbeat.

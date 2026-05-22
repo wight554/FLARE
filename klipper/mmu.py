@@ -35,6 +35,7 @@ class MMUMock:
 
         # Register command to update status
         self.gcode = self.printer.lookup_object('gcode')
+        self._load_vars()
         self.gcode.register_command('SET_MMU', self.cmd_SET_MMU,
                                     desc="Update MMU status parameters")
         
@@ -206,6 +207,7 @@ class MMUMock:
         if available is not None:
             self.gate_status[gate] = available
 
+        self._save_vars()
         gcmd.respond_info(f"FLARE: Updated Gate {gate} map")
 
     def cmd_MMU_TTG_MAP(self, gcmd):
@@ -226,7 +228,68 @@ class MMUMock:
             return
 
         self.ttg_map[tool] = gate
+        self._save_vars()
         gcmd.respond_info(f"FLARE: Mapped Tool {tool} to Gate {gate}")
+
+    def _get_vars_path(self):
+        import os
+        # Try standard paths, fallback to /tmp if write-restricted
+        paths = [
+            os.path.expanduser("~/printer_data/config/flare_mmu_vars.json"),
+            os.path.expanduser("~/flare_mmu_vars.json"),
+            "/tmp/flare_mmu_vars.json"
+        ]
+        for p in paths:
+            try:
+                dir_path = os.path.dirname(p)
+                if not os.path.exists(dir_path):
+                    continue
+                # Test write capability directly by touching
+                test_file = os.path.join(dir_path, ".flare_write_test")
+                with open(test_file, "w") as f:
+                    f.write("test")
+                os.remove(test_file)
+                return p
+            except Exception:
+                pass
+        return "/tmp/flare_mmu_vars.json"
+
+    def _save_vars(self):
+        import json
+        try:
+            data = {
+                "gate_color": self.gate_color,
+                "gate_material": self.gate_material,
+                "gate_spool_id": self.gate_spool_id,
+                "gate_color_rgb": self.gate_color_rgb,
+                "gate_name": self.gate_name,
+                "gate_filament_name": self.gate_filament_name,
+                "ttg_map": self.ttg_map
+            }
+            path = self._get_vars_path()
+            with open(path, "w") as f:
+                json.dump(data, f)
+        except Exception as e:
+            if hasattr(self, 'gcode'):
+                self.gcode.respond_info(f"FLARE Error: Failed to save MMU vars: {e}")
+
+    def _load_vars(self):
+        import json
+        import os
+        try:
+            path = self._get_vars_path()
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    data = json.load(f)
+                self.gate_color = data.get("gate_color", self.gate_color)
+                self.gate_material = data.get("gate_material", self.gate_material)
+                self.gate_spool_id = data.get("gate_spool_id", self.gate_spool_id)
+                self.gate_color_rgb = data.get("gate_color_rgb", self.gate_color_rgb)
+                self.gate_name = data.get("gate_name", self.gate_name)
+                self.gate_filament_name = data.get("gate_filament_name", self.gate_filament_name)
+                self.ttg_map = data.get("ttg_map", self.ttg_map)
+        except Exception as e:
+            pass
 
     def get_status(self, eventtime):
         """Export state values back to Klipper & Moonraker."""

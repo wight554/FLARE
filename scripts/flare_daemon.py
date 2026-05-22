@@ -411,6 +411,7 @@ def klipper_syncer(moonraker_url):
     """Background thread to push status updates to Moonraker at 4Hz."""
     last_sync = {}
     backoff = 0.0
+    last_force_sync = 0.0
 
     while True:
         time.sleep(0.25)
@@ -435,6 +436,10 @@ def klipper_syncer(moonraker_url):
             if state.get(k) != last_sync.get(k):
                 changed = True
                 break
+
+        # Force full sync every 10 seconds to recover if Klipper/Moonraker restarted
+        if time.time() - last_force_sync > 10.0:
+            changed = True
 
         if not changed:
             continue
@@ -507,8 +512,10 @@ def klipper_syncer(moonraker_url):
             with urllib.request.urlopen(req, timeout=1.0) as resp:
                 if resp.status == 200:
                     last_sync = state
+                    last_force_sync = time.time()
         except Exception:
             # Moonraker offline, backoff for 5.0 seconds
+            last_sync = {} # Clear cache to force push on recovery
             backoff = time.time() + 5.0
 
 
