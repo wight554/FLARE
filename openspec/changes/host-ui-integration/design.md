@@ -158,3 +158,11 @@ To guarantee consistent discovery of multiple gates in Mainsail/Fluidd:
 1. **Explicit Gate Count**: `SET_MMU` commands sent from the daemon `klipper_syncer` thread must explicitly pass `NUM_GATES=2`. This ensures Klipper registers the correct number of gates even if the persistent file `flare_mmu_vars.json` is absent or corrupt.
 2. **List Size Invariants**: Pad/truncate all gate-specific lists (`gate_status`, `gate_sensor`, `gate_color`, `gate_material`, `gate_spool_id`, `gate_color_rgb`, `gate_name`, `gate_filament_name`, `ttg_map`) to exactly `self.num_gates` elements during initialization, state updates, and load operations in Klipper `mmu.py`. This prevents persistent data with mismatched sizes from shrinking the list lengths reported to Moonraker.
 3. **Interactive Gate Verification**: Implement `MMU_CHECK_GATE` in `mmu.py` to trigger a daemon-level refresh (`?:` query) and output a detailed, human-readable gate state report (including sensor status, loaded/preloaded states, material, and color info) in the G-code console.
+
+## 10. Klipper mmu_machine Mocking for Multi-Gate Visibility
+
+To resolve the missing second gate spool card in Fluidd:
+1. **Background**: Fluidd queries `printer.mmu_machine` to retrieve unit-level gate metadata (e.g., `unit_0.num_gates`).
+2. **Issue**: Because `mmu_machine` was missing in Klipper, Fluidd fell back to `numGates = 1`, hiding the second gate.
+3. **Solution**: Mock the `mmu_machine` Klipper object by registering `MMUMachineMock` under the name `mmu_machine` via `printer.add_object('mmu_machine', ...)`. This object dynamically returns the `num_gates` currently tracked by the `mmu` object.
+

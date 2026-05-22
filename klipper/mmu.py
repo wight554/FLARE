@@ -1,10 +1,39 @@
 # FLARE MMU Mock Klipper Extra Module
 # Enables native MMU panel support in Mainsail/Fluidd without full Happy Hare installation.
 
+class MMUMachineMock:
+    def __init__(self, mmu):
+        self.mmu = mmu
+
+    def get_status(self, eventtime):
+        return {
+            'num_units': 1,
+            'unit_0': {
+                'name': 'FLARE',
+                'vendor': 'FYSETC',
+                'version': '1.0',
+                'num_gates': self.mmu.num_gates,
+                'first_gate': 0,
+                'selector_type': 'VirtualSelector',
+                'variable_rotation_distances': True,
+                'variable_bowden_lengths': True,
+                'require_bowden_move': True,
+                'filament_always_gripped': False,
+                'can_crossload': False,
+                'has_bypass': False,
+                'multi_gear': False,
+                'environment_sensor': '',
+                'filament_heater': ''
+            }
+        }
+
 class MMUMock:
     def __init__(self, config):
         self.printer = config.get_printer()
         self.name = config.get_name()
+        
+        # Register the mmu_machine mock object to support Multi-Gate spool/gate visibility in Fluidd
+        self.printer.add_object('mmu_machine', MMUMachineMock(self))
         
         # State variables matching Happy Hare structure
         self.enabled = True

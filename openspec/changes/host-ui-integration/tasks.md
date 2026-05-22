@@ -66,6 +66,8 @@
 - [x] 8.2 Add list size invariant helper `_ensure_array_lengths(self)` in Klipper extra `klipper/mmu.py`.
 - [x] 8.3 Wire list size invariant checks after initialization, variable loads, and dynamic updates in `klipper/mmu.py`.
 - [x] 8.4 Implement robust `cmd_MMU_CHECK_GATE` in `klipper/mmu.py` that triggers a daemon status query and outputs a detailed gate state report.
+- [x] 8.5 Mock Klipper `mmu_machine` object in `klipper/mmu.py` to fix gate visibility in Fluidd
+
 
 ---
 ### Validation Notes — 2026-05-22
