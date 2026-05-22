@@ -90,6 +90,8 @@ class MMUMock:
                                     desc="Recover MMU from error state")
         self.gcode.register_command('MMU_CHECK_GATE', self.cmd_MMU_CHECK_GATE,
                                     desc="Check presence of filament at gate")
+        self.gcode.register_command('MMU_CHECK_GATES', self.cmd_MMU_CHECK_GATE,
+                                    desc="Check presence of filament at all gates")
         self.gcode.register_command('MMU_GATE_MAP', self.cmd_MMU_GATE_MAP,
                                     desc="Update or list gate filament map")
         self.gcode.register_command('MMU_TTG_MAP', self.cmd_MMU_TTG_MAP,
