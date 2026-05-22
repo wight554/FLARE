@@ -10,7 +10,7 @@ Mainsail and Fluidd look for specific fields in the `printer.mmu` Klipper state 
 | `g_sync_state` | `printer.mmu.sync_feedback_state` | Status text (`neutral`, `compressed`, `expanded`) |
 | `active_lane` | `printer.mmu.active_gate` | Highlights active lane (L1 = Gate 0, L2 = Gate 1) |
 | `I1`, `I2` (In-switches) | `printer.mmu.gate_sensor` | Highlights the pre-gate sensor green dots |
-| `O1`, `O2` (Out-switches) | `printer.mmu.gate_status` | Spool presence indicators (empty vs loaded) |
+| `O1`, `O2` (Out-switches) | `printer.mmu.gate_status` | Spool presence / loaded status: 0 = empty, 1 = preloaded (IN), 2 = loaded (IN+OUT+YS) |
 | `TH` (Toolhead switch) | `printer.mmu.toolhead_sensor` | Green dot at bottom of toolhead track |
 
 ### Rescaling Formula for Buffer Position
@@ -148,4 +148,7 @@ To support spool assignment from Mainsail/Fluidd natively:
 When a user selects a tool or gate in Fluidd/Mainsail dashboard:
 1. G-code command `MMU_SELECT` is issued with `GATE=<int>` or `TOOL=<int>`.
 2. The mock handler maps the gate index to the corresponding FLARE lane (`lane = gate + 1`).
-3. It runs Klipper command `_FLARE_CHANGE_LANE LANE=<lane>` to perform the toolchange/selection automatically.
+3. If the selected gate is already the active gate (`gate == active_gate`), do nothing and return.
+4. If a different gate is selected, run Klipper command `_FLARE_CHANGE_LANE LANE=<lane>` to perform the toolchange/selection automatically.
+5. Unloading of the previous active lane is handled by `_FLARE_CHANGE_LANE` (running `FLARE_UNLOAD_TOOLHEAD`).
+
