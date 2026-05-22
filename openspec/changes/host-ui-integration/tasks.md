@@ -41,6 +41,9 @@
 - [x] 7.10 Add state persistence to Klipper mock and periodic force-sync to daemon syncer thread to handle Moonraker/Klipper restarts without losing gate/tool mappings.
 - [x] 7.11 Add Spoolman support to klipper/mmu.py (spoolman_support attribute, gate_spool_id persistence, and MMU_SPOOLMAN command handling).
 - [x] 7.12 Register and implement MMU_SELECT in klipper/mmu.py to support dashboard gate selection.
+- [ ] 7.13 Refine MMU_SELECT in klipper/mmu.py to do nothing if selecting already active gate, and perform toolchange if different.
+- [ ] 7.14 Define `_CG28` conditional homing helper in `flare_mmu.cfg`.
+- [ ] 7.15 Harden SET_MMU parsing in klipper/mmu.py to strip quotes from string lists and update gate status mapping logic in scripts/flare_daemon.py (0=empty, 1=preloaded, 2=loaded).
 
 ---
 ### Validation Notes — 2026-05-22
