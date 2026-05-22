@@ -367,6 +367,13 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
                 cmd_reply("ER", "NO_ACTIVE_LANE");
                 return;
             }
+            /* Double-load guard: if both OUT sensors are triggered the hub is
+               stuck with two filaments.  Reject TC before touching anything so
+               the caller can use T: to select a lane and UL: to clear it. */
+            if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
+                cmd_reply("ER", "DOUBLE_LOAD");
+                return;
+            }
             sync_retract_assist_set(false);
             sync_set_state(SYNC_OFF);
             tc_start(ln, now_ms);
@@ -377,9 +384,20 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
     } else if (!strcmp(cmd, "T")) {
         int ln = atoi(p);
         if (ln == 1 || ln == 2) {
-            sync_retract_assist_set(false);
-            set_active_lane(ln);
-            cmd_reply("OK", NULL);
+            /* Double-load recovery: both OUT sensors active means the hub is
+               stuck with two filaments.  Abort any in-progress TC state machine
+               and stop all motion, then do a bare lane select so the operator
+               can follow up with UL: to clear the faulty lane manually. */
+            if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
+                tc_abort();
+                sync_set_state(SYNC_OFF);
+                set_active_lane(ln);
+                cmd_reply("OK", NULL);
+            } else {
+                sync_retract_assist_set(false);
+                set_active_lane(ln);
+                cmd_reply("OK", NULL);
+            }
         } else {
             cmd_reply("ER", "ARG");
         }
