@@ -12,7 +12,7 @@ that users can activate with a single `[include flare_mmu.cfg]` line in
 - **WHEN** user adds `[include flare_mmu.cfg]` to `printer.cfg`
 - **THEN** macros `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`, `FLARE_CUT`,
   `FLARE_TEST_TIP_FORMING`, `_FLARE_CHANGE_LANE`, `_FLARE_TIP_FORMING`,
-  `_FLARE_LOAD_HOTEND`, `_FLARE_PURGE` are all available without further
+  `_FLARE_LOAD_HOTEND`, `_FLARE_PARK`, `_FLARE_PURGE` are all available without further
   configuration
 
 ### Requirement: Variables block with SP-compatible distance names
@@ -84,14 +84,16 @@ meltzone in three stages (50% fast / 25% normal / 25% slow) and call
 It SHALL implement the simple upstream `_SP_PURGE` core shape: purge the
 requested relative extrusion amount at `purge_speed`, then perform a small
 0.4 mm retract. It SHALL call `_FLARE_HEAT_HOTEND` before purge extrusion and
-leave a comment placeholder for user-provided park macros. Purge chute parking,
-blob splitting, and brush moves SHALL be left to user-provided wrapper macros.
+call an empty `_FLARE_PARK` hook for user-provided park macros. Purge chute
+parking, blob splitting, and brush moves SHALL be left to user-provided
+`_FLARE_PARK` customization or wrapper macros.
 
 #### Scenario: Default plain purge
 - **WHEN** `_FLARE_PURGE PURGE=30` is called
 - **THEN** it extrudes 30 mm at `_FLARE_VARS.purge_speed * 60` without XY
   parking
 - **AND** it retracts 0.4 mm at 35 mm/s after the purge
+- **AND** it calls the default empty `_FLARE_PARK` hook before heating
 
 #### Scenario: Purge verifies hotend temperature
 - **WHEN** `_FLARE_PURGE PURGE=30` is called while the extruder target is below
@@ -169,4 +171,3 @@ present in `flare_mmu.cfg`.
 - **WHEN** `flare_mmu.cfg` is loaded
 - **THEN** calling `FLARE_PRELOAD`, `FLARE_CUT_BARE`, or `FLARE_CUT_TEST`
   results in a Klipper "unknown command" error
-

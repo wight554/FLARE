@@ -58,7 +58,8 @@ The include SHALL provide a standalone `FLARE_UNLOAD_TOOLHEAD` macro.
 
 #### Scenario: Standalone Unload
 - **WHEN** `FLARE_UNLOAD_TOOLHEAD` is invoked
-- **THEN** it executes `_FLARE_TIP_FORMING` followed by `G1 E-{gear_retract}` to clear the extruder gears
+- **THEN** it calls `_FLARE_PARK` before heating and tip forming
+- **AND** it executes `_FLARE_TIP_FORMING` followed by `G1 E-{gear_retract}` to clear the extruder gears
 - **AND** restores the G-code state safely without initiating any subsequent MMU tool change or lane swap
 
 ### Requirement: Toolhead Sensor Optional For TC Completion
@@ -99,4 +100,3 @@ user configuration.
 - **THEN** there is no "Option B" heading; a single note explains
   that without a physical sensor FLARE falls back to buffer geometry
   and `dist_sensor_to_extruder: 0` should be set in `_FLARE_VARS`
-

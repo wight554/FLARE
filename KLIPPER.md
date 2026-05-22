@@ -122,7 +122,7 @@ Copy `klipper/flare_mmu.cfg` into your Klipper config directory and include it:
 
 The include provides `_FLARE_VARS`, `_FLARE_TIP_FORMING_DEFAULTS`,
 `_FLARE_TIP_FORMING`, `_FLARE_LOAD_HOTEND`, `_FLARE_HEAT_HOTEND`,
-`_FLARE_PURGE`,
+`_FLARE_PARK`, `_FLARE_PURGE`,
 `_FLARE_TC_STATE`, `_FLARE_ARM_TC_LOAD`, `_FLARE_ON_TOOLHEAD_RUNOUT`,
 `_FLARE_ON_TOOLHEAD_INSERT`, `_FLARE_CHANGE_LANE`, `_FLARE_POST_TC_LOAD`,
 `_FLARE_TC_FAILED`, `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`,
@@ -164,9 +164,11 @@ the new filament never reaches the configured toolhead sensor.
 `PURGE` amount, extrudes that amount at `purge_speed`, then performs a small
 0.4 mm retract. It also calls `_FLARE_HEAT_HOTEND`, which ports the
 LH-Stinger heat check: if the current hotend target is below
-`min_extrude_temp`, it heats to `load_temp` before purging. Add your own park
-macro at the `# use your park macro` comment if your printer needs purge
-parking. The shared macro does not include purge-chute parking or brush logic.
+`min_extrude_temp`, it heats to `load_temp` before purging. Customize
+`_FLARE_PARK` if your printer needs purge parking or toolhead-unload parking.
+The shared hook is empty by default and contains only
+`# Add your printer park macro here`. The shared macro does not include
+purge-chute parking or brush logic.
 
 The [LH-Stinger Mini Purge Shute](https://github.com/lhndo/LH-Stinger/tree/main/User_Mods/Other/Mini%20Purge%20Shute%20-%20%40LH)
 is still a good manual reference for users who want to add their own chute
