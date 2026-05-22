@@ -69,6 +69,8 @@ class MMUMock:
         self.unload_cut = 0
         self.gate_sensor_active = 0
         self.extruder_sensor_active = 0
+        self.pre_gate_sensor_active = 0
+        self.hub_sensor_active = 0
 
         # Register command to update status
         self.gcode = self.printer.lookup_object('gcode')
@@ -136,6 +138,8 @@ class MMUMock:
         self.unload_cut = gcmd.get_int('UNLOAD_CUT', self.unload_cut)
         self.gate_sensor_active = gcmd.get_int('GATE_SENSOR_ACTIVE', self.gate_sensor_active)
         self.extruder_sensor_active = gcmd.get_int('EXTRUDER_SENSOR_ACTIVE', self.extruder_sensor_active)
+        self.pre_gate_sensor_active = gcmd.get_int('PRE_GATE_SENSOR_ACTIVE', self.pre_gate_sensor_active)
+        self.hub_sensor_active = gcmd.get_int('HUB_SENSOR_ACTIVE', self.hub_sensor_active)
         self.spoolman_support = gcmd.get('SPOOLMAN_SUPPORT', self.spoolman_support).strip("'\"")
  
         # Parse gate_status list with quote stripping
@@ -705,9 +709,13 @@ class MMUMock:
             'filament_pos': self.filament_pos,
             'gate_sensor_active': self.gate_sensor_active,
             'extruder_sensor_active': self.extruder_sensor_active,
+            'pre_gate_sensor_active': self.pre_gate_sensor_active,
+            'hub_sensor_active': self.hub_sensor_active,
             'sensors': {
+                'pre_gate': bool(self.pre_gate_sensor_active),
                 'gate': bool(self.gate_sensor_active),
-                'extruder': bool(self.extruder_sensor_active),
+                'hub': bool(self.hub_sensor_active),
+                'extruder': bool(self.toolhead_sensor),
                 'toolhead': bool(self.toolhead_sensor),
                 'tension': self.sync_feedback_state == "expanded",
                 'compression': self.sync_feedback_state == "compressed",

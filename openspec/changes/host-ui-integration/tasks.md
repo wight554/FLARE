@@ -307,9 +307,21 @@
 - [x] 26.3 Update `get_status` in `klipper/mmu.py` to expose a nested `sensors` dictionary (mapping `gate`, `extruder`, `toolhead`, `tension`, and `compression`).
 - [x] 26.4 Update `klipper_syncer` in `scripts/flare_daemon.py` to compute physical `gate_sensor_active` (based on the active gate's `out` sensor) and `extruder_sensor_active` (based on `y_split`), and pass them via the Moonraker G-code script.
 - [x] 26.5 Verify that Python compilation and syntax checks pass cleanly.
+- [x] 26.6 Refine the visualizer sensor mapping for the Happy Hare track dots:
+  - `pre_gate` -> `IN` sensor (`self.pre_gate_sensor_active`, parsed from `PRE_GATE_SENSOR_ACTIVE`).
+  - `gate` -> `OUT` sensor/Gear (`self.gate_sensor_active`, parsed from `GATE_SENSOR_ACTIVE`).
+  - `hub` -> `YS` combiner (`self.hub_sensor_active`, parsed from `HUB_SENSOR_ACTIVE`).
+  - `extruder` -> `TS` toolhead switch (`self.toolhead_sensor`).
+  - `toolhead` -> `TS` toolhead switch (`self.toolhead_sensor`).
 
 ---
-### Validation Notes — 2026-05-23 (Physical Sensor State Integration)
+
+### Validation Notes — 2026-05-23 (Physical Sensor State Integration & Refined 5-Dot Visualizer Mapping)
 - Implemented nested `sensors` dictionary inside Klipper MMU mock (`klipper/mmu.py`) matching the Happy Hare status schema (`printer.mmu.sensors`). This enables green indicator dot visualization along the filament track in Fluidd/Mainsail dashboards.
-- Wired real-time board sensor states through the Klipper telemetry syncer thread in `scripts/flare_daemon.py`, translating physical `in/out` and `y_split` triggers into `GATE_SENSOR_ACTIVE` and `EXTRUDER_SENSOR_ACTIVE` parameters.
+- Refined the mapping to align perfectly with the physical 5-dot track:
+  - Map `pre_gate` dot (dot 1) to `IN` sensor (`in1`/`in2` for active gate).
+  - Map `gate` / Gear dot (dot 2) to `OUT` sensor (`out1`/`out2` for active gate).
+  - Map `hub` dot (dot 3) to `YS` combiner sensor.
+  - Map `extruder` (dot 5) and `toolhead` (dot 6) dots both to the single `TS` toolhead sensor.
+- Wired real-time board sensor states through the Klipper telemetry syncer thread in `scripts/flare_daemon.py`, translating physical `in/out` and `y_split` triggers into `GATE_SENSOR_ACTIVE`, `EXTRUDER_SENSOR_ACTIVE`, `PRE_GATE_SENSOR_ACTIVE`, and `HUB_SENSOR_ACTIVE` parameters.
 - Successfully verified both Python syntax validity and committed clean changes.
