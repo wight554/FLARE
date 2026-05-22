@@ -128,6 +128,26 @@ class PurgeTests(unittest.TestCase):
         verdict, _ = fpc.analyze_purge(samples, events, 5.0, 12.5)
         self.assertEqual(verdict, "PASS")
 
+    def test_zero_feed_idle_relief_passes(self):
+        # M6-style idle relief: feed is stopped, but relief accounting grows
+        # while compression settles. This is not forward overfeed.
+        mm = [280, 200, 120, 40] + [0] * 40
+        rel = [0.0, 1.0, 2.0, 3.0] + [6.0] * 40
+        ct = [i * 110 for i in range(44)]
+        samples, events = self._purge(rel, ct, mm)
+        verdict, rep = fpc.analyze_purge(samples, events, 5.0, 12.5)
+        self.assertEqual(verdict, "PASS")
+        self.assertTrue(any("OK(idle-relief)" in line for line in rep))
+
+    def test_zero_feed_hardwall_fails(self):
+        mm = [280, 200, 120, 40] + [0] * 40
+        rel = [0.0, 1.0, 2.0, 3.0] + [6.0] * 40
+        ct = [i * 110 for i in range(44)]
+        samples, events = self._purge(rel, ct, mm)
+        samples[-1].fields["BP"] = "-12.60"
+        verdict, _ = fpc.analyze_purge(samples, events, 5.0, 12.5)
+        self.assertEqual(verdict, "FAIL")
+
     def test_sustained_feed_fails(self):
         # old behavior: keeps feeding ~120 sps into a full buffer, overfill grows
         mm = [120] * 20

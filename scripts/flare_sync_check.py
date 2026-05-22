@@ -210,8 +210,9 @@ def analyze_purge(samples: List[Sample], events, threshold: float,
                   hardwall: float) -> Tuple[str, List[str]]:
     """compression-overfeed-stop success: when the buffer reaches COMPRESSION
     after a purge, the MMU must stop (0 feed) and overfill must stay within the
-    relief budget — i.e. small SYNC_RELIEVE_MM and a short COMPRESSION dwell (CT),
-    not the multi-second / multi-mm grind of the old SYNC_MIN-forward behavior.
+    relief budget while the lane is still feeding, not the multi-second /
+    multi-mm grind of the old SYNC_MIN-forward behavior. A long dwell with
+    steady feed at zero is idle relief/settling and is reported separately.
     Return (verdict, report_lines)."""
     report: List[str] = []
     worst_overfill = 0.0
@@ -239,18 +240,23 @@ def analyze_purge(samples: List[Sample], events, threshold: float,
         have_steady = len(steady) >= 2
         steady_feed = max(steady) if steady else 0.0
         sustained_feed = have_steady and steady_feed > STOP_EPS_SPS
-        overfeed = sustained_feed or overfill > OVERFILL_BUDGET_MM
+        moving_overfill = overfill > OVERFILL_BUDGET_MM and not (
+            have_steady and steady_feed <= STOP_EPS_SPS)
+        hit_hardwall = abs(min_bp) >= hardwall
+        overfeed = sustained_feed or moving_overfill or hit_hardwall
         worst_overfill = max(worst_overfill, overfill)
         if have_steady:
             worst_steady_feed = max(worst_steady_feed, steady_feed)
         worst_grind_ms = max(worst_grind_ms, grind_ms)
         verdict = "OVERFEED" if overfeed else ("OK" if have_steady else "OK(brief)")
+        if not overfeed and overfill > OVERFILL_BUDGET_MM:
+            verdict = "OK(idle-relief)"
         feed_str = f"{steady_feed:.0f} sps" if have_steady else "n/a (brief)"
         report.append(
             f"  COMPRESSION idx[{a}-{b}] steady_feed {feed_str} "
             f"(stop<= {STOP_EPS_SPS}), overfill {overfill:.1f} mm "
             f"(budget {OVERFILL_BUDGET_MM:.1f}), dwell {grind_ms:.0f} ms, "
-            f"BPmin {min_bp:+.2f} -> {verdict}"
+            f"BPmin {min_bp:+.2f} (hardwall {hardwall:.1f}) -> {verdict}"
         )
         if overfeed:
             had_overfeed = True
@@ -278,8 +284,8 @@ def analyze_purge(samples: List[Sample], events, threshold: float,
             "(e.g. _FLARE_PURGE PURGE=60) during capture."]
     if had_overfeed:
         return "FAIL", report + [
-            "  Feed did not stop / overfill exceeded budget — MMU still feeding "
-            "a full buffer (check COMPRESSION true-stop + relief budget)."]
+            "  Feed did not stop, moving overfill exceeded budget, or hardwall "
+            "was reached (check COMPRESSION true-stop + relief budget)."]
     return "PASS", report
 
 

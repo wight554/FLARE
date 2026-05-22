@@ -149,7 +149,13 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   the D5 rescale path ratio 1.0 and behaviorally inert.
 - [ ] 5.7 M6 — regression guard. End-of-feed true-stop (no -11 slam) +
   `flare_sync_check.py … --mode both` clean + purge + constant feed good
-  (no `compression-overfeed-stop` regression). Result: __
+  (no `compression-overfeed-stop` regression). Result: pending. 2026-05-22
+  first M6 guard run had `REGRESSION (C): PASS` with zero starvation/degraded
+  events, but `PURGE (A/B): FAIL` because the analyzer treated 6 mm idle relief
+  accounting as overfill despite `steady_feed 0 sps` and BPmin only -6.44
+  (not a hardwall / -11 slam). Checker updated to classify stopped-lane relief
+  dwell as `OK(idle-relief)` while still failing sustained feed, moving
+  overfill, or hardwall hits.
 - [x] 5.8 Add daemon-safe live capture to `scripts/flare_sync_check.py` so HW
   validation can observe through `flare_daemon.py` when it owns the serial port.
   Validate with unit tests and script syntax checks.
