@@ -158,6 +158,183 @@ def record_event_stats(evt_type, evt_data):
     if changed:
         save_mmu_stats()
 
+# Endpoints / Spoolman config (set from CLI args in main())
+MOONRAKER_URL = "http://localhost:7125"
+SPOOLMAN_URL = "http://localhost:7912"
+NUM_GATES = 2
+
+# Spoolman spool detail cache (spool_id -> (timestamp, data))
+_spool_cache = {}
+_spool_cache_lock = threading.Lock()
+SPOOL_CACHE_TTL = 30.0
+
+def _gate_vars_path():
+    """Resolve the shared gate-map file, matching klipper/mmu.py path logic so
+    the WebUI and the Klipper mock read/write the same store."""
+    for p in (
+        os.path.expanduser("~/printer_data/config/flare_mmu_vars.json"),
+        os.path.expanduser("~/flare_mmu_vars.json"),
+        "/tmp/flare_mmu_vars.json",
+    ):
+        d = os.path.dirname(p)
+        if os.path.isdir(d) and os.access(d, os.W_OK):
+            return p
+    return "/tmp/flare_mmu_vars.json"
+
+def _read_gate_map():
+    """Read the shared gate map (color/material/spool_id/name) from the vars file."""
+    try:
+        path = _gate_vars_path()
+        with open(path) as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+
+    def pad(key, default):
+        lst = data.get(key, [])
+        if not isinstance(lst, list):
+            lst = []
+        out = list(lst[:NUM_GATES])
+        while len(out) < NUM_GATES:
+            out.append(default(len(out)) if callable(default) else default)
+        return out
+
+    return {
+        "num_gates": NUM_GATES,
+        "gate_material": pad("gate_material", ""),
+        "gate_color": pad("gate_color", ""),
+        "gate_spool_id": pad("gate_spool_id", -1),
+        "gate_name": pad("gate_name", lambda i: f"Gate {i}"),
+    }
+
+def _write_gate_map_file(gate, fields):
+    """Update the shared vars file directly (used when Klipper is not running)."""
+    path = _gate_vars_path()
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except Exception:
+        data = {}
+    for key, default in (("gate_material", ""), ("gate_color", ""),
+                         ("gate_spool_id", -1), ("gate_name", None)):
+        lst = data.get(key)
+        if not isinstance(lst, list):
+            lst = []
+        while len(lst) < NUM_GATES:
+            lst.append(f"Gate {len(lst)}" if key == "gate_name" else default)
+        data[key] = lst
+    g = int(gate)
+    if 0 <= g < NUM_GATES:
+        if fields.get("material") is not None:
+            data["gate_material"][g] = str(fields["material"])
+        if fields.get("color") is not None:
+            data["gate_color"][g] = str(fields["color"]).lstrip("#")[:6]
+        if fields.get("spool_id") is not None:
+            data["gate_spool_id"][g] = int(fields["spool_id"])
+        if fields.get("name") is not None:
+            data["gate_name"][g] = str(fields["name"])
+            fn = data.get("gate_filament_name")
+            if not isinstance(fn, list):
+                fn = list(data["gate_name"])
+            while len(fn) < NUM_GATES:
+                fn.append(data["gate_name"][len(fn)])
+            fn[g] = str(fields["name"])
+            data["gate_filament_name"] = fn
+    try:
+        with open(path, "w") as f:
+            json.dump(data, f)
+        return True
+    except Exception as e:
+        print(f"flare_daemon: failed to write gate map: {e}", file=sys.stderr)
+        return False
+
+def _push_gate_map_to_klipper(gate, fields):
+    """Push a gate-map edit to the Klipper mmu mock (MMU_GATE_MAP) so Fluidd
+    stays in sync. Uses a single-quoted python-dict literal like Fluidd does."""
+    inner = {k: fields[k] for k in ("material", "color", "name", "spool_id")
+             if fields.get(k) is not None}
+    if not inner:
+        return False
+    map_literal = repr({int(gate): inner})
+    gcode = 'MMU_GATE_MAP MAP="%s"' % map_literal
+    try:
+        payload = json.dumps({"script": gcode}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{MOONRAKER_URL}/printer/gcode/script",
+            data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        urllib.request.urlopen(req, timeout=2.0)
+        return True
+    except Exception:
+        return False
+
+def _spoolman_fetch_spool(spool_id):
+    """Fetch spool detail: Moonraker proxy first, then direct Spoolman API."""
+    spool = None
+    try:
+        body = json.dumps({"request_method": "GET",
+                           "path": f"/v1/spool/{spool_id}"}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{MOONRAKER_URL}/server/spoolman/proxy",
+            data=body, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            d = json.loads(resp.read().decode("utf-8"))
+        spool = d.get("result", d)
+    except Exception:
+        spool = None
+    if not isinstance(spool, dict):
+        try:
+            with urllib.request.urlopen(f"{SPOOLMAN_URL}/v1/spool/{spool_id}", timeout=1.5) as resp:
+                spool = json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            return None
+    if not isinstance(spool, dict):
+        return None
+    fil = spool.get("filament", {}) or {}
+    return {
+        "name": fil.get("name") or spool.get("name"),
+        "material": fil.get("material"),
+        "color_hex": fil.get("color_hex"),
+        "remaining_weight": spool.get("remaining_weight"),
+        "remaining_length": spool.get("remaining_length"),
+    }
+
+def _spoolman_get_spool(spool_id):
+    now = time.time()
+    with _spool_cache_lock:
+        ent = _spool_cache.get(spool_id)
+        if ent and now - ent[0] < SPOOL_CACHE_TTL:
+            return ent[1]
+    data = _spoolman_fetch_spool(spool_id)
+    with _spool_cache_lock:
+        _spool_cache[spool_id] = (now, data)
+    return data
+
+def build_gatemap_response():
+    gm = _read_gate_map()
+    gates = []
+    for i in range(gm["num_gates"]):
+        sid = gm["gate_spool_id"][i]
+        spool = _spoolman_get_spool(sid) if isinstance(sid, int) and sid >= 0 else None
+        gates.append({
+            "material": gm["gate_material"][i],
+            "color": gm["gate_color"][i],
+            "name": gm["gate_name"][i],
+            "spool_id": sid,
+            "spool": spool,
+        })
+    return {"num_gates": gm["num_gates"], "gates": gates}
+
+def apply_gatemap_edit(gate, fields):
+    """Persist a gate edit: push to Klipper if running, else write the file.
+    Invalidate the spool cache for the affected gate so the next read refreshes."""
+    pushed = _push_gate_map_to_klipper(gate, fields)
+    if not pushed:
+        _write_gate_map_file(gate, fields)
+    if fields.get("spool_id") is not None:
+        with _spool_cache_lock:
+            _spool_cache.pop(int(fields["spool_id"]), None)
+    return {"pushed": pushed}
+
 def parse_status_line(line):
     """
     Parse a raw serial status line (e.g. 'OK:LN:1,TC:IDLE,L1T:NONE,...')
@@ -390,6 +567,14 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                     active_sse_queues.discard(q)
                 print(f"flare_daemon: SSE telemetry stream client disconnected (remaining: {len(active_sse_queues)})")
                 
+        elif self.path == "/gatemap":
+            res = json.dumps(build_gatemap_response())
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(res.encode("utf-8"))
+
         elif self.path == "/" or self.path == "/index.html":
             self.serve_static_file("index.html", "text/html")
         elif self.path == "/app.js":
@@ -430,6 +615,25 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                 self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(json.dumps({"response": response}).encode("utf-8"))
+
+        elif self.path == "/gatemap":
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                body = json.loads(post_data.decode("utf-8"))
+                gate = int(body.get("gate"))
+            except Exception:
+                self.send_error(400, "Invalid gate map payload")
+                return
+            fields = {k: body[k] for k in ("material", "color", "name", "spool_id") if k in body}
+            result = apply_gatemap_edit(gate, fields)
+            resp = build_gatemap_response()
+            resp.update(result)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(resp).encode("utf-8"))
         else:
             self.send_error(404, "Not Found")
 
@@ -715,7 +919,12 @@ def main():
     parser.add_argument("--api-port", type=int, default=8088, help="HTTP/SSE API server port (default: 8088)")
     parser.add_argument("--no-klipper", action="store_true", help="Bypass Moonraker/Klipper telemetry synchronization")
     parser.add_argument("--moonraker-url", default="http://localhost:7125", help="Moonraker base URL (default: http://localhost:7125)")
+    parser.add_argument("--spoolman-url", default="http://localhost:7912", help="Spoolman base URL for direct API fallback (default: http://localhost:7912)")
     args = parser.parse_args()
+
+    global MOONRAKER_URL, SPOOLMAN_URL
+    MOONRAKER_URL = args.moonraker_url
+    SPOOLMAN_URL = args.spoolman_url
     
     # 1. Resolve preferred serial port candidate
     port_name = serial_utils.find_port(args.port)

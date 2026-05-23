@@ -307,4 +307,16 @@ We do not compute filament usage; **Moonraker's** Spoolman module does, billing 
 - Pushed only on loaded-gate change (no per-cycle spam); Moonraker then attributes extruder usage to the correct spool across toolchanges.
 - Spoolman is optional: if not configured the `POST` 404s and is silently ignored. We still only *map* spools (`spoolman_support = "get"`); the gate↔spool attributes shown in Fluidd are fetched by Fluidd directly from Spoolman.
 
+## 21. WebUI Spool Cards (Klipper-Agnostic Gate Map)
+
+The standalone WebUI shows painted spool cards in the Active Lane selector and lets the user edit the gate map, mirroring the Fluidd MMU widget but working without Klipper.
+
+- **Shared store**: the daemon reads/writes the same `flare_mmu_vars.json` that `klipper/mmu.py` uses (identical path-resolution), so the WebUI and the Fluidd widget share one gate map.
+- **Endpoints**:
+  - `GET /gatemap` → per-gate `{material, color, name, spool_id, spool}` where `spool` is the Spoolman enrichment.
+  - `POST /gatemap` `{gate, material?, color?, name?, spool_id?}` → persist the edit.
+- **Edit propagation**: on edit the daemon **pushes `MMU_GATE_MAP`** (single-quoted python-dict literal, like Fluidd) to Moonraker so the Klipper mock + Fluidd update live; if Moonraker is down it writes `flare_mmu_vars.json` directly (mmu.py picks it up on next load). So edits flow both ways between the WebUI and the Fluidd widget.
+- **Spoolman enrichment**: for gates with `spool_id >= 0`, the daemon fetches name/material/color_hex/remaining via **Moonraker proxy first, then direct Spoolman API** (`--spoolman-url`, default `:7912`); cached 30 s. Display precedence is local gate-map value first, Spoolman second.
+- **UI**: each card shows a color-painted spool icon, name, material, lane, and remaining weight; clicking the card body selects the lane (`T:n`), the ✎ button opens an inline editor (material / color picker / name / spool ID). Cards refresh on connect, after edits, and every 30 s.
+
 

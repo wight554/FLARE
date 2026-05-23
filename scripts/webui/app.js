@@ -37,6 +37,7 @@ function connectSSE() {
         statusDot.className = 'status-dot online';
         statusLabel.textContent = 'CONNECTED';
         addLogEntry('System', 'Connected successfully to daemon proxy', 'info');
+        fetchGateMap();
     };
     
     eventSource.onerror = (err) => {
@@ -87,7 +88,7 @@ function updateUIOffline() {
     document.getElementById('val-tc-state').textContent = 'UNKNOWN';
 
     // Disable every control while disconnected
-    ['btn-lane-1', 'btn-lane-2', 'btn-preload', 'btn-eject', 'btn-checkgate',
+    ['btn-preload', 'btn-eject', 'btn-checkgate',
      'btn-unload', 'btn-load', 'btn-extrude', 'btn-retract'].forEach((id) => setBtnEnabled(id, false));
 }
 
@@ -130,21 +131,10 @@ function updateUIState(data) {
     
     document.getElementById('val-tc-state').textContent = data.tc_state;
     
-    // 4. Lane Selectors
+    // 4. Active lane highlight on the spool cards
     activeLane = data.active_lane;
-    const btnL1 = document.getElementById('btn-lane-1');
-    const btnL2 = document.getElementById('btn-lane-2');
-    if (activeLane === 1) {
-        btnL1.className = 'btn-lane active';
-        btnL2.className = 'btn-lane';
-    } else if (activeLane === 2) {
-        btnL1.className = 'btn-lane';
-        btnL2.className = 'btn-lane active';
-    } else {
-        btnL1.className = 'btn-lane';
-        btnL2.className = 'btn-lane';
-    }
-    
+    updateLaneHighlight();
+
     // 5. Sensors
     updateSensor('sensor-in1', data.in1);
     updateSensor('sensor-out1', data.out1);
@@ -170,6 +160,123 @@ function updateStats(stats) {
     document.getElementById('stat-last-error').textContent = stats.last_error || 'None';
 }
 
+// ---- Spool cards (gate map): display + lane select + inline edit ----
+let gateMap = null;
+
+function fetchGateMap() {
+    fetch('/gatemap')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d && d.gates) { gateMap = d; renderSpoolCards(); } })
+        .catch(() => {});
+}
+
+// Effective display values: local gate-map value wins, else Spoolman enrichment.
+function spoolDisplay(g) {
+    const sp = g.spool || {};
+    const color = (g.color && g.color.trim()) ? g.color : (sp.color_hex || '');
+    const material = (g.material && g.material.trim()) ? g.material : (sp.material || '');
+    const localName = (g.name && g.name.trim() && !/^Gate \d+$/.test(g.name)) ? g.name : '';
+    const name = localName || sp.name || g.name || '';
+    return { color, material, name, remaining: sp.remaining_weight, spool_id: g.spool_id };
+}
+
+function renderSpoolCards() {
+    const wrap = document.getElementById('spool-cards');
+    if (!wrap || !gateMap) return;
+    wrap.innerHTML = '';
+    gateMap.gates.forEach((g, i) => {
+        const lane = i + 1;
+        const d = spoolDisplay(g);
+        const colorCss = d.color ? ('#' + d.color.replace(/^#/, '')) : '#5a5f6a';
+        const sub = [];
+        if (d.material) sub.push(escapeHtml(d.material));
+        sub.push('Lane ' + lane);
+        if (typeof d.remaining === 'number') sub.push(Math.round(d.remaining) + 'g');
+        else if (d.spool_id >= 0) sub.push('#' + d.spool_id);
+
+        const card = document.createElement('div');
+        card.className = 'spool-card' + (activeLane === lane ? ' active' : '');
+        card.dataset.lane = String(lane);
+        card.innerHTML =
+            '<div class="spool-card-main" onclick="selectLane(' + lane + ')">' +
+              '<span class="spool-icon" style="--c:' + colorCss + '">' +
+                '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="var(--c)"/>' +
+                '<circle cx="24" cy="24" r="7" fill="#0a0d16"/>' +
+                '<circle cx="24" cy="24" r="20" fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="2"/></svg>' +
+              '</span>' +
+              '<span class="spool-info">' +
+                '<span class="spool-card-name">' + (escapeHtml(d.name) || ('Gate ' + i)) + '</span>' +
+                '<span class="spool-card-sub">' + sub.join(' · ') + '</span>' +
+              '</span>' +
+            '</div>' +
+            '<button class="spool-edit" title="Edit spool" onclick="openSpoolEdit(' + i + ')">✎</button>' +
+            '<div class="spool-edit-form" id="spool-edit-' + i + '" hidden>' +
+              '<label>Material<input type="text" id="se-material-' + i + '"></label>' +
+              '<label>Color<input type="color" id="se-color-' + i + '"></label>' +
+              '<label>Name<input type="text" id="se-name-' + i + '"></label>' +
+              '<label>Spool ID<input type="number" id="se-spool-' + i + '" min="-1" step="1"></label>' +
+              '<div class="spool-edit-actions">' +
+                '<button class="btn btn-primary" onclick="saveSpoolEdit(' + i + ')">Save</button>' +
+                '<button class="btn btn-secondary" onclick="closeSpoolEdit(' + i + ')">Cancel</button>' +
+              '</div>' +
+            '</div>';
+        wrap.appendChild(card);
+    });
+}
+
+function updateLaneHighlight() {
+    document.querySelectorAll('#spool-cards .spool-card').forEach((c) => {
+        c.classList.toggle('active', Number(c.dataset.lane) === activeLane);
+    });
+}
+
+function selectLane(lane) {
+    sendCustomCommand('T:' + lane);
+}
+
+function openSpoolEdit(i) {
+    if (!gateMap) return;
+    const g = gateMap.gates[i];
+    const d = spoolDisplay(g);
+    document.getElementById('se-material-' + i).value = g.material || '';
+    document.getElementById('se-color-' + i).value = d.color
+        ? ('#' + d.color.replace(/^#/, '').slice(0, 6).padStart(6, '0')) : '#888888';
+    document.getElementById('se-name-' + i).value =
+        (g.name && !/^Gate \d+$/.test(g.name)) ? g.name : '';
+    document.getElementById('se-spool-' + i).value = (g.spool_id >= 0) ? g.spool_id : '';
+    document.getElementById('spool-edit-' + i).hidden = false;
+}
+
+function closeSpoolEdit(i) {
+    const el = document.getElementById('spool-edit-' + i);
+    if (el) el.hidden = true;
+}
+
+function saveSpoolEdit(i) {
+    const spoolRaw = document.getElementById('se-spool-' + i).value.trim();
+    const body = {
+        gate: i,
+        material: document.getElementById('se-material-' + i).value.trim(),
+        color: document.getElementById('se-color-' + i).value.replace(/^#/, ''),
+        name: document.getElementById('se-name-' + i).value.trim(),
+    };
+    if (spoolRaw !== '') body.spool_id = parseInt(spoolRaw, 10);
+    fetch('/gatemap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d && d.gates) { gateMap = d; renderSpoolCards(); } })
+        .catch(() => closeSpoolEdit(i));
+}
+
+function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 // Happy Hare gate_status for a lane: 0 = empty, 1 = available (preloaded),
 // 2 = loaded/buffer (fully loaded to toolhead). Matches the daemon's
 // klipper-syncer derivation; out-switch gates the shared y_split/toolhead so a
@@ -193,10 +300,6 @@ function updateButtonStates(data) {
     const hasLane = lane === 1 || lane === 2;
     const gateStatus = hasLane ? gateStatusForLane(lane, data) : -1;
     const loaded = gateStatus === 2;
-
-    // Lane selection always available while online
-    setBtnEnabled('btn-lane-1', online);
-    setBtnEnabled('btn-lane-2', online);
 
     // Preload (LO:): only when the gate is empty (no IN). LO: spins the gear
     // and grabs filament as it is inserted (the manual preload flow for setups
@@ -423,3 +526,6 @@ function drawChart() {
 // Start execution
 connectSSE();
 drawChart();
+fetchGateMap();
+// Refresh spool data periodically for live Spoolman remaining-weight updates
+setInterval(fetchGateMap, 30000);
