@@ -106,6 +106,8 @@ class MMUMock:
                                     desc="Unload filament from extruder to gate")
         self.gcode.register_command('MMU_LOAD', self.cmd_MMU_LOAD,
                                     desc="Load filament from gate to extruder")
+        self.gcode.register_command('MMU_CHANGE_TOOL', self.cmd_MMU_CHANGE_TOOL,
+                                    desc="Change to the tool/gate (toolchange)")
         self.gcode.register_command('MMU_EJECT', self.cmd_MMU_EJECT,
                                     desc="Fully eject filament from gate")
         self.gcode.register_command('MMU_RECOVER', self.cmd_MMU_RECOVER,
@@ -297,26 +299,50 @@ class MMUMock:
         gate = gcmd.get_int('GATE', self.active_gate)
         if gate < 0:
             gate = 0
+        self._load_gate(gcmd, gate)
+
+    def cmd_MMU_CHANGE_TOOL(self, gcmd):
+        """Map Happy Hare tool change to a FLARE gate toolchange. The new Fluidd
+        gate menu issues MMU_CHANGE_TOOL GATE=X; TOOL=X is also accepted and
+        mapped through the tool-to-gate map."""
+        gate = gcmd.get_int('GATE', -1)
+        tool = gcmd.get_int('TOOL', -1)
+        if gate < 0 and 0 <= tool < len(self.ttg_map):
+            gate = self.ttg_map[tool]
+        if gate < 0:
+            raise gcmd.error("MMU_CHANGE_TOOL requires a GATE or TOOL parameter")
+        if gate >= self.num_gates:
+            raise gcmd.error(f"Gate index {gate} exceeds maximum gates ({self.num_gates})")
+
+        if (gate == self.active_gate and 0 <= gate < len(self.gate_status)
+                and self.gate_status[gate] == 2):
+            gcmd.respond_info(f"FLARE: Lane {gate + 1} (Gate {gate}) already loaded.")
+            return
+
+        self._load_gate(gcmd, gate)
+
+    def _load_gate(self, gcmd, gate):
+        """Bring `gate` to the toolhead. If the other gate is loaded, run a
+        firmware toolchange (it unloads the current lane first). Otherwise select
+        the lane and load it. Both go through the proven _FLARE_CHANGE_LANE path:
+        TC: drives to the toolhead, FLARE_WAIT_TC blocks on the toolhead sensor,
+        then the hotend is loaded."""
         lane = gate + 1
 
         other_gate = 1 - gate
         if other_gate < len(self.gate_status):
             if self.gate_status[other_gate] == 2:
                 gcmd.respond_info(f"FLARE: Gate {other_gate} is currently loaded. Performing auto-unload and switching to lane {lane} (Gate {gate})...")
+                # Do not pre-select with T:: the firmware's active lane is the
+                # loaded one, so TC: performs a real swap (unload then load).
                 self.gcode.run_script_from_command(f"_FLARE_CHANGE_LANE LANE={lane}")
                 return
 
         if self.hub_sensor_active and not self.gate_sensor_active:
             raise gcmd.error(f"FLARE: Cannot load gate {gate} - Y-splitter is occupied by another lane.")
 
-        # Drive the lane to the toolhead and gate the hotend handoff on the
-        # physical toolhead sensor. A bare FL: stops at the buffer (the load
-        # completes on sane buffer geometry before the toolhead sensor trips), so
-        # feeding the hotend afterwards would run before filament reached the
-        # extruder. Reuse the proven toolchange path: T: selects the lane, then
-        # _FLARE_CHANGE_LANE runs TC: (same-lane -> TC_LOAD_START loads to the
-        # toolhead), blocks on the toolhead sensor via FLARE_WAIT_TC, and loads
-        # the hotend.
+        # Fresh load (nothing at the toolhead): select the lane so TC: sees
+        # target == active and runs TC_LOAD_START (a load, not a swap).
         gcmd.respond_info(f"FLARE: Loading lane {lane} (Gate {gate})")
         self.gcode.run_script_from_command(f'RUN_SHELL_COMMAND CMD=flare PARAMS="T:{lane}"')
         self.gcode.run_script_from_command(f"_FLARE_CHANGE_LANE LANE={lane}")
