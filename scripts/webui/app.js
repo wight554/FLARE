@@ -195,12 +195,15 @@ function renderSpoolCards() {
         const lane = i + 1;
         const d = spoolDisplay(g);
         const colorCss = d.color ? ('#' + d.color.replace(/^#/, '')) : '#5a5f6a';
-        const sub = [];
-        if (d.material) sub.push(escapeHtml(d.material));
-        sub.push('Lane ' + lane);
-        if (typeof d.remaining === 'number') sub.push(Math.round(d.remaining) + 'g');
-        else if (d.used && d.used.used_g) sub.push('used ' + Math.round(d.used.used_g) + 'g');
-        else if (d.spool_id >= 0) sub.push('#' + d.spool_id);
+        
+        const subParts = [];
+        if (d.material) subParts.push(escapeHtml(d.material));
+        subParts.push('Lane ' + lane);
+        subParts.push('<span class="sub-separator" style="display: none;"> · </span><span class="spool-card-status"></span>');
+        
+        if (typeof d.remaining === 'number') subParts.push(Math.round(d.remaining) + 'g');
+        else if (d.used && d.used.used_g) subParts.push('used ' + Math.round(d.used.used_g) + 'g');
+        else if (d.spool_id >= 0) subParts.push('#' + d.spool_id);
 
         const card = document.createElement('div');
         const active = activeLane === lane;
@@ -216,11 +219,7 @@ function renderSpoolCards() {
               '</span>' +
               '<span class="spool-info">' +
                 '<span class="spool-card-name">' + (escapeHtml(d.name) || ('Gate ' + i)) + '</span>' +
-                '<span class="spool-card-sub">' + sub.join(' · ') + '</span>' +
-                '<span class="spool-card-status-row">' +
-                  '<span class="mini-badge active-badge" style="display: ' + (active ? 'inline-block' : 'none') + ';">Active</span>' +
-                  '<span class="mini-badge loaded-badge" style="display: ' + (loaded ? 'inline-block' : 'none') + ';">Loaded</span>' +
-                '</span>' +
+                '<span class="spool-card-sub">' + subParts.join(' · ') + '</span>' +
               '</span>' +
             '</div>' +
             '<button class="spool-edit" title="Edit spool" onclick="openSpoolEdit(' + i + ')">✎</button>' +
@@ -247,10 +246,26 @@ function updateLaneHighlight() {
         c.classList.toggle('active', isActive);
         c.classList.toggle('loaded', loaded);
 
-        const activeBadge = c.querySelector('.active-badge');
-        const loadedBadge = c.querySelector('.loaded-badge');
-        if (activeBadge) activeBadge.style.display = isActive ? 'inline-block' : 'none';
-        if (loadedBadge) loadedBadge.style.display = loaded ? 'inline-block' : 'none';
+        // Update status text inline
+        const statusEl = c.querySelector('.spool-card-status');
+        if (statusEl) {
+            let statusHtml = '';
+            if (isActive && loaded) {
+                statusHtml = '<span class="status-active">Active</span> &amp; <span class="status-loaded">Loaded</span>';
+            } else if (isActive) {
+                statusHtml = '<span class="status-active">Active</span>';
+            } else if (loaded) {
+                statusHtml = '<span class="status-loaded">Loaded</span>';
+            }
+            statusEl.innerHTML = statusHtml;
+            statusEl.style.display = statusHtml ? 'inline' : 'none';
+            
+            // Toggle separator before the status element
+            const sepEl = statusEl.previousElementSibling;
+            if (sepEl && sepEl.classList.contains('sub-separator')) {
+                sepEl.style.display = statusHtml ? 'inline' : 'none';
+            }
+        }
     });
 }
 
