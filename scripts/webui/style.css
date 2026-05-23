@@ -381,6 +381,7 @@ body {
 
 .spool-card {
     position: relative;
+    min-width: 0;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--panel-border);
     border-radius: 10px;
@@ -464,6 +465,10 @@ body {
     margin-top: 10px;
     padding-top: 10px;
     border-top: 1px solid var(--panel-border);
+}
+
+.spool-edit-form[hidden] {
+    display: none;
 }
 
 .spool-edit-form label {
