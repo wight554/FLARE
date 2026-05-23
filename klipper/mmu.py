@@ -1,6 +1,9 @@
 # FLARE MMU Mock Klipper Extra Module
 # Enables native MMU panel support in Mainsail/Fluidd without full Happy Hare installation.
 
+import json
+import urllib.request
+
 class MMUMachineMock:
     def __init__(self, mmu):
         self.mmu = mmu
@@ -81,6 +84,11 @@ class MMUMock:
         self.loads_success = 0
         self.unloads_success = 0
         self.last_error = "None"
+
+        # FLARE daemon HTTP endpoint, used to read live sensor state directly
+        # (the SET_MMU-pushed mirror cannot update while a command holds the
+        # gcode lock).
+        self.daemon_url = config.get('daemon_url', 'http://127.0.0.1:8088')
 
         # Register command to update status
         self.gcode = self.printer.lookup_object('gcode')
@@ -302,20 +310,34 @@ class MMUMock:
             raise gcmd.error(f"FLARE: Cannot load gate {gate} - Y-splitter is occupied by another lane.")
 
         gcmd.respond_info(f"FLARE: Loading lane {lane} (Gate {gate})")
+        # FLARE_LOAD runs FL:, which blocks until the firmware reports the lane
+        # fully loaded (EV:LOADED) or fails (EV:LOAD_TIMEOUT / EV:RUNOUT). It
+        # only returns here once the firmware load task has finished.
         self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
 
-        # Wait synchronously for filament to reach the OUT (gate) sensor
-        reactor = self.printer.get_reactor()
-        start_time = reactor.monotonic()
-        timeout = 15.0
-        gcmd.respond_info(f"FLARE: Waiting for lane {lane} OUT sensor...")
-        while not self.gate_sensor_active:
-            if reactor.monotonic() - start_time > timeout:
-                raise gcmd.error(f"FLARE Error: Load timed out waiting for filament to reach gate {gate} OUT sensor.")
-            reactor.pause(reactor.monotonic() + 0.2)
+        # Confirm the gate OUT sensor before the hotend handoff so a failed load
+        # never grabs filament into the hotend. Read it straight from the daemon
+        # instead of polling self.gate_sensor_active: that mirror is refreshed by
+        # SET_MMU, which cannot run while this command holds the gcode lock, so a
+        # poll loop here would always time out even on a successful load.
+        if not self._daemon_gate_out_active(gate):
+            raise gcmd.error(f"FLARE Error: Load finished but gate {gate} OUT sensor is not triggered.")
 
         gcmd.respond_info(f"FLARE: Loading lane {lane} into hotend")
         self.gcode.run_script_from_command(f"_FLARE_POST_TC_LOAD LANE={lane}")
+
+    def _daemon_gate_out_active(self, gate):
+        """Return True if the OUT (gate) sensor for `gate` is currently triggered,
+        read live from the FLARE daemon HTTP status. If the daemon is unreachable
+        the load has already completed via FLARE_LOAD, so default to True rather
+        than abort on a transient HTTP error."""
+        try:
+            with urllib.request.urlopen(f"{self.daemon_url}/status", timeout=2.0) as resp:
+                status = json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            return True
+        out = status.get("out1", 0) if gate == 0 else status.get("out2", 0)
+        return bool(out)
 
     def cmd_MMU_EJECT(self, gcmd):
         """Map Happy Hare eject to selected-gate FLARE_EJECT command."""
