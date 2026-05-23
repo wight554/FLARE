@@ -3,6 +3,7 @@
 // State cache
 let boardOnline = false;
 let activeLane = 0;
+let lastTelemetryData = null;
 let bufferHistory = []; // circular buffer of {time, pos}
 const MAX_HISTORY = 300;
 
@@ -93,6 +94,7 @@ function updateUIOffline() {
 }
 
 function updateUIState(data) {
+    lastTelemetryData = data;
     // 1. Board status & headers
     const statusDot = document.getElementById('connection-dot');
     const statusLabel = document.getElementById('connection-status');
@@ -334,10 +336,49 @@ function updateSensor(id, state) {
     }
 }
 
+// Load the active lane. Prompts the user with a confirmation dialog if the other lane is loaded to the toolhead.
+function loadActiveLane() {
+    if (lastTelemetryData) {
+        const lane = lastTelemetryData.active_lane;
+        const otherLane = lane === 1 ? 2 : (lane === 2 ? 1 : 0);
+        if (otherLane > 0) {
+            const otherLoaded = gateStatusForLane(otherLane, lastTelemetryData) === 2;
+            if (otherLoaded) {
+                if (!confirm("Make sure you unloaded the current lane from the toolhead before loading. Proceed?")) {
+                    return;
+                }
+            }
+        }
+    }
+    sendCustomCommand('FL:');
+}
+
+// Unload the active lane. Prompts the user with a confirmation dialog if the lane is loaded to the toolhead.
+function unloadActiveLane() {
+    if (lastTelemetryData) {
+        const gateStatus = gateStatusForLane(activeLane, lastTelemetryData);
+        if (gateStatus === 2) {
+            if (!confirm("Make sure you unloaded the current lane from the toolhead before unloading. Proceed?")) {
+                return;
+            }
+        }
+    }
+    sendCustomCommand('UL:');
+}
+
 // Eject the lane currently selected in the UI. Sends an explicit UM:<lane>
 // (matching Fluidd's explicit-gate eject) so the target is pinned to the
 // active lane rather than relying on the board's bare-UM active default.
+// Prompts the user with a confirmation dialog if the lane is loaded to the toolhead.
 function ejectActiveLane() {
+    if (lastTelemetryData) {
+        const gateStatus = gateStatusForLane(activeLane, lastTelemetryData);
+        if (gateStatus === 2) {
+            if (!confirm("Make sure you unloaded the current lane from the toolhead before ejecting. Proceed?")) {
+                return;
+            }
+        }
+    }
     if (activeLane === 1 || activeLane === 2) {
         sendCustomCommand('UM:' + activeLane);
     } else {

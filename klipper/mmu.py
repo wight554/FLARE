@@ -294,7 +294,9 @@ class MMUMock:
         other_gate = 1 - gate
         if other_gate < len(self.gate_status):
             if self.gate_status[other_gate] == 2:
-                raise gcmd.error(f"FLARE: Cannot load gate {gate} - gate {other_gate} is currently loaded.")
+                gcmd.respond_info(f"FLARE: Gate {other_gate} is currently loaded. Performing auto-unload and switching to lane {lane} (Gate {gate})...")
+                self.gcode.run_script_from_command(f"_FLARE_CHANGE_LANE LANE={lane}")
+                return
 
         if self.hub_sensor_active and not self.gate_sensor_active:
             raise gcmd.error(f"FLARE: Cannot load gate {gate} - Y-splitter is occupied by another lane.")
