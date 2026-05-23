@@ -214,4 +214,9 @@ We parse this string using Python's safe `ast.literal_eval`. For each gate in th
   1. **State vocabulary**: firmware emits `TENSION`/`COMPRESSION`/`NEUTRAL`; daemon lowercases to `tension`/`compression`. Fluidd expects `tension`/`compressed`/`neutral` (`SYNC_FEEDBACK_COMPRESSED='compressed'`). Daemon normalizes `compression → compressed` so both the path booleans and `sync_feedback_state` label render. The dead `== "expanded"` checks are removed (firmware never emits that token).
   2. **Piston position**: Fluidd reads `sync_feedback_bias_modelled` (not `sync_feedback`). Export `sync_feedback_bias_modelled` (= rescaled `-1..1` value) and `sync_feedback_enabled` from `mmu.get_status` so the piston animates instead of freezing at center.
 
+- **Downstream sensor cascade (shared-sensor leakage)**:
+  - **Problem**: `mmu_gate` (Y-splitter / hub) and `toolhead` are shared across both lanes (daemon sets them from `y_split` / `toolhead_sensor` globally). When viewing a non-loaded gate while the other gate is loaded, these shared dots show green even though the viewed gate's per-lane gear (OUT) sensor is clear — implying filament is past a point it never reached.
+  - **Rule**: a strand cannot occupy a sensor it has not reached. In `mmu.get_status`, once the per-lane gear (OUT) sensor (`mmu_gear`) is clear, force the downstream shared sensors (`mmu_gate`, `toolhead`) clear.
+  - **Anchor at gear, not pre-gate**: pre-gate (IN) sits before the drive; a spool runout can clear IN while filament remains threaded past the gear, so cascading from pre-gate would wrongly blank a still-loaded path. Gear (OUT) is the first post-drive, per-lane sensor and is the correct cascade anchor.
+
 

@@ -691,6 +691,19 @@ class MMUMock:
 
     def get_status(self, eventtime):
         """Export state values back to Klipper & Moonraker."""
+        # Filament-path sensor cascade: a strand cannot be past a sensor it has
+        # not reached. Once the per-lane gear (OUT) sensor is clear, the shared
+        # downstream sensors (hub/gate, toolhead) cannot belong to this lane, so
+        # force them clear. Suppresses shared-sensor leakage when viewing a
+        # non-loaded gate. Anchored at gear, not pre-gate, so a spool runout
+        # (IN clear, filament still threaded past the drive) is not blanked.
+        path_pre_gate = bool(self.pre_gate_sensor_active)
+        path_gear = bool(self.gate_sensor_active)
+        path_gate = bool(self.hub_sensor_active)
+        path_toolhead = bool(self.toolhead_sensor)
+        if not path_gear:
+            path_gate = False
+            path_toolhead = False
         return {
             'enabled': self.enabled,
             'is_homed': self.is_homed,
@@ -734,10 +747,10 @@ class MMUMock:
             'pre_gate_sensor_active': self.pre_gate_sensor_active,
             'hub_sensor_active': self.hub_sensor_active,
             'sensors': {
-                'mmu_pre_gate': bool(self.pre_gate_sensor_active),
-                'mmu_gear': bool(self.gate_sensor_active),
-                'mmu_gate': bool(self.hub_sensor_active),
-                'toolhead': bool(self.toolhead_sensor),
+                'mmu_pre_gate': path_pre_gate,
+                'mmu_gear': path_gear,
+                'mmu_gate': path_gate,
+                'toolhead': path_toolhead,
                 'filament_tension': self.sync_feedback_state == "tension",
                 'filament_compression': self.sync_feedback_state == "compressed",
             }
