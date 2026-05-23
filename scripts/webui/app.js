@@ -249,37 +249,40 @@ function drawChart() {
         ctx.stroke();
     }
     
-    // Horizontal zones (assume 15.0mm travel max, let's map center to h/2)
-    // 0mm -> h - 40, 15mm -> 40
+    // g_buf_pos is signed: 0 = neutral, + = tension (up), - = compression (down).
+    // Clamps to +/- BUF_MAX_TRAVEL_MM/2 (default 12.5mm); state thresholds at
+    // +/- BUF_SWITCH_SPAN_MM/2 (default 5.0mm). Map 0 to vertical center.
+    const HALF_RANGE_MM = 12.5;
+    const THRESHOLD_MM = 5.0;
     const mmToY = (mm) => {
         const padding = 30;
-        const travelRange = 15.0; // mm
-        const scale = (h - padding * 2) / travelRange;
-        return h - padding - mm * scale;
+        const usable = (h - padding * 2) / 2;
+        const clamped = Math.max(-HALF_RANGE_MM, Math.min(HALF_RANGE_MM, mm));
+        return h / 2 - (clamped / HALF_RANGE_MM) * usable;
     };
-    
+
     // Draw boundary markers
     ctx.lineWidth = 1;
-    
-    // Neutral center (e.g. 7.5mm)
+
+    // Neutral center (0mm)
     ctx.strokeStyle = 'rgba(0, 242, 195, 0.08)';
     ctx.beginPath();
-    ctx.moveTo(0, mmToY(7.5));
-    ctx.lineTo(w, mmToY(7.5));
+    ctx.moveTo(0, mmToY(0));
+    ctx.lineTo(w, mmToY(0));
     ctx.stroke();
-    
-    // Compression boundary (top, say 13.0mm)
+
+    // Tension boundary (top, +threshold)
     ctx.strokeStyle = 'rgba(255, 74, 96, 0.08)';
     ctx.beginPath();
-    ctx.moveTo(0, mmToY(12.0));
-    ctx.lineTo(w, mmToY(12.0));
+    ctx.moveTo(0, mmToY(THRESHOLD_MM));
+    ctx.lineTo(w, mmToY(THRESHOLD_MM));
     ctx.stroke();
-    
-    // Tension boundary (bottom, say 2.0mm)
+
+    // Compression boundary (bottom, -threshold)
     ctx.strokeStyle = 'rgba(255, 74, 96, 0.08)';
     ctx.beginPath();
-    ctx.moveTo(0, mmToY(3.0));
-    ctx.lineTo(w, mmToY(3.0));
+    ctx.moveTo(0, mmToY(-THRESHOLD_MM));
+    ctx.lineTo(w, mmToY(-THRESHOLD_MM));
     ctx.stroke();
     
     // If no history, don't draw line
