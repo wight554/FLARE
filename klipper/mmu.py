@@ -755,6 +755,20 @@ class MMUMock:
     def tool_filament_name(self):
         return [self.gate_filament_name[g] if 0 <= g < len(self.gate_filament_name) else f"Tool {i}" for i, g in enumerate(self.ttg_map)]
 
+    def _load_path_len_mm(self):
+        """Approximate gate->nozzle load-path length from _FLARE_VARS toolhead
+        geometry. Used only to scale the synthetic filament_position readout."""
+        macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
+        if macro is not None:
+            v = getattr(macro, 'variables', {})
+            try:
+                return (float(v.get('dist_sensor_to_extruder', 27.0))
+                        + float(v.get('dist_extruder_to_meltzone', 44.0))
+                        + float(v.get('dist_meltzone_to_nozzle_tip', 46.0)))
+            except (TypeError, ValueError):
+                pass
+        return 117.0
+
     def get_status(self, eventtime):
         """Export state values back to Klipper & Moonraker."""
         # Filament-path sensor cascade: a strand cannot be past a sensor it has
@@ -770,6 +784,21 @@ class MMUMock:
         if not path_gear:
             path_gate = False
             path_toolhead = False
+        # Synthesize a filament tip position (mm) for the Fluidd "Filament: X mm"
+        # readout. FLARE has no continuous encoder, so approximate from how far
+        # the strand has advanced through the path sensors, scaled by the
+        # configured load-path length. Keeps the readout from sitting at 0.
+        path_len = self._load_path_len_mm()
+        if path_toolhead:
+            filament_position = path_len
+        elif path_gate:
+            filament_position = path_len * 0.6
+        elif path_gear:
+            filament_position = path_len * 0.3
+        elif path_pre_gate:
+            filament_position = path_len * 0.1
+        else:
+            filament_position = 0.0
         return {
             'enabled': self.enabled,
             'is_homed': self.is_homed,
@@ -815,6 +844,7 @@ class MMUMock:
             'spoolman_support': self.spoolman_support,
             'filament': self.filament,
             'filament_pos': self.filament_pos,
+            'filament_position': round(filament_position, 1),
             'gate_sensor_active': self.gate_sensor_active,
             'extruder_sensor_active': self.extruder_sensor_active,
             'pre_gate_sensor_active': self.pre_gate_sensor_active,

@@ -292,4 +292,19 @@ The WebUI Control Deck has a Fluidd-style manual-move block driving the FLARE la
 - **Lane awareness**: `MV:` acts on the firmware active lane. The WebUI's `Lane 1`/`Lane 2` selector (`T:n`) sets that, so the move targets the selected lane. Extrude/Retract are gated on a lane being active (and disabled while offline).
 - `MV:` disables sync for the finite move (firmware behavior); validation requires length > 0 and speed > 0.
 
+## 20. Filament Position Readout + Spoolman Active-Spool Tracking
+
+### Synthetic filament_position (Fluidd "Filament: X mm")
+Fluidd reads `mmu.filament_position` (mm tip position). FLARE has no continuous encoder, so it previously stayed 0. `mmu.get_status` now synthesizes it from how far the strand has advanced through the (cascaded) path sensors, scaled by an approximate load-path length:
+- toolhead → 100%, hub/gate → 60%, gear(OUT) → 30%, pre-gate(IN) → 10%, none → 0.
+- Path length = `_FLARE_VARS` toolhead geometry (`dist_sensor_to_extruder + dist_extruder_to_meltzone + dist_meltzone_to_nozzle_tip`, default 117 mm).
+
+This is an indicator (tip progress), **not** consumption, and is approximate by design — it mirrors Happy Hare's non-zero readout rather than measuring real mm.
+
+### Spoolman active-spool tracking (consumption)
+We do not compute filament usage; **Moonraker's** Spoolman module does, billing the *active spool*. Like Happy Hare, the daemon keeps Moonraker's active spool aligned to the loaded gate:
+- `klipper_syncer` tracks the loaded gate; on change it reads `mmu.gate_spool_id` from Moonraker and `POST`s `/server/spoolman/spool_id` with the loaded gate's spool (or `null` when nothing is loaded).
+- Pushed only on loaded-gate change (no per-cycle spam); Moonraker then attributes extruder usage to the correct spool across toolchanges.
+- Spoolman is optional: if not configured the `POST` 404s and is silently ignored. We still only *map* spools (`spoolman_support = "get"`); the gate↔spool attributes shown in Fluidd are fetched by Fluidd directly from Spoolman.
+
 

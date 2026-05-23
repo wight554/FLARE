@@ -494,12 +494,38 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                 return None
 
 
+def _moonraker_get_gate_spool_ids(moonraker_url):
+    """Read the gate->spool_id mapping from the Klipper mmu object via Moonraker."""
+    try:
+        url = f"{moonraker_url}/printer/objects/query?mmu=gate_spool_id"
+        with urllib.request.urlopen(url, timeout=1.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return data.get("result", {}).get("status", {}).get("mmu", {}).get("gate_spool_id", []) or []
+    except Exception:
+        return []
+
+def _moonraker_set_active_spool(moonraker_url, spool_id):
+    """Set Moonraker's active Spoolman spool (None clears it). Moonraker then
+    bills filament consumption to this spool. No-op/ignored if Spoolman is not
+    configured (404)."""
+    try:
+        body = json.dumps({"spool_id": spool_id}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{moonraker_url}/server/spoolman/spool_id",
+            data=body, headers={"Content-Type": "application/json"}, method="POST")
+        urllib.request.urlopen(req, timeout=1.0)
+        return True
+    except Exception:
+        return False
+
 def klipper_syncer(moonraker_url):
     """Background thread to push status updates to Moonraker at 4Hz."""
     last_sync = {}
     backoff = 0.0
     last_force_sync = 0.0
     was_online = False
+    last_loaded_gate = None
+    last_active_spool = object()  # sentinel distinct from None / any spool id
 
     while True:
         time.sleep(0.25)
@@ -659,6 +685,23 @@ def klipper_syncer(moonraker_url):
             # Moonraker offline, backoff for 5.0 seconds
             last_sync = {} # Clear cache to force push on recovery
             backoff = time.time() + 5.0
+
+        # Spoolman: mirror the loaded gate's spool as Moonraker's active spool so
+        # consumption is billed to the correct spool on toolchange (like Happy
+        # Hare). Pushed only when the loaded gate changes; Moonraker does the
+        # actual usage tracking. Harmlessly ignored if Spoolman is not configured.
+        if loaded_gate != last_loaded_gate:
+            last_loaded_gate = loaded_gate
+            desired_spool = None
+            if loaded_gate >= 0:
+                spool_ids = _moonraker_get_gate_spool_ids(moonraker_url)
+                if loaded_gate < len(spool_ids):
+                    sid = spool_ids[loaded_gate]
+                    if isinstance(sid, int) and sid >= 0:
+                        desired_spool = sid
+            if desired_spool != last_active_spool:
+                if _moonraker_set_active_spool(moonraker_url, desired_spool):
+                    last_active_spool = desired_spool
 
 
 # ---------------------------------------------------------------------------
