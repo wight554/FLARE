@@ -472,33 +472,53 @@ body {
 
 .move-field {
     display: flex;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
     background: rgba(0, 0, 0, 0.25);
     border: 1px solid var(--panel-border);
     border-radius: 8px;
     padding: 8px 12px;
 }
 
-.move-field > span:first-child {
-    font-size: 0.75rem;
+.move-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     color: var(--text-secondary);
-    white-space: nowrap;
+}
+
+.move-input-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
 }
 
 .move-field input {
     flex: 1;
     min-width: 0;
+    width: 100%;
     background: transparent;
     border: none;
     color: var(--text-primary);
     font-family: var(--font-outfit);
-    font-size: 0.9rem;
-    text-align: right;
+    font-size: 0.95rem;
 }
 
 .move-field input:focus {
     outline: none;
+}
+
+.move-field input::-webkit-outer-spin-button,
+.move-field input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.move-field input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 .move-unit {
