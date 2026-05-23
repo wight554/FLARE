@@ -595,10 +595,19 @@ class MMUMock:
                 gcmd.respond_info(f"FLARE: Warning: Failed to send T:{lane} to board: {str(e)}")
 
     def _is_toolhead_sensor_triggered(self):
-        # 1. A real Klipper filament switch sensor object, for setups that wire
-        #    the toolhead sensor to the printer MCU instead of the FLARE board.
+        # 1. The real Klipper filament switch sensor wired to the printer MCU.
+        #    Use the name configured in _FLARE_VARS (what the macros key off),
+        #    not a hardcoded "toolhead_sensor". The sensor object is MCU-driven,
+        #    so it reflects filament arrival immediately even while this command
+        #    holds the gcode lock (the SET_MMU mirror and the sensor's own
+        #    insert-gcode TS: are both starved by the lock; reading the object is
+        #    not).
+        sensor_name = 'toolhead_sensor'
+        macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
+        if macro is not None:
+            sensor_name = getattr(macro, 'variables', {}).get('toolhead_sensor', sensor_name) or sensor_name
         try:
-            sensor_obj = self.printer.lookup_object('filament_switch_sensor toolhead_sensor')
+            sensor_obj = self.printer.lookup_object('filament_switch_sensor ' + sensor_name)
             eventtime = self.printer.get_reactor().monotonic()
             if sensor_obj.get_status(eventtime).get('filament_detected'):
                 return True
