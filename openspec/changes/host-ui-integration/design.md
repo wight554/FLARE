@@ -257,4 +257,10 @@ The daemon-served dashboard (`scripts/webui/`) mirrors Fluidd's `MmuControls.vue
   - `mmu.get_status` exports `num_toolchanges = swaps_total` so Fluidd's filament-path "(N swaps)" counter works, plus the raw stat fields.
   - The daemon includes `mmu_stats` in every SSE telemetry frame; the WebUI shows Tool Swaps / Success Rate / Loads / Unloads / Last Error in a Usage Statistics panel.
 
+## 17. Stale-Active-Lane Protection on Sync Auto-Start
+
+- **Problem**: The UI lets the operator switch the active lane to inspect or eject a non-loaded lane (`T:n`). If they leave the selection on an unloaded lane, the firmware's tension-triggered sync auto-start (`sync_tick`, `AUTO_MODE && !sync_enabled && s == BUF_TENSION`) would enable sync on the *wrong* (empty) lane.
+- **Fix**: At the auto-start point, before enabling sync, adopt the physically loaded lane — if filament is at the hub (`on_al(&g_y_split)`), set active to whichever lane has its OUT sensor engaged (`lane_out_present`). Re-fetch the active lane pointer after switching so tail-assist/bootstrap use the corrected lane.
+- **Safety**: Double-load (both OUT engaged) is already excluded by the existing guard, so the correction never fires ambiguously. The switch only happens when a single lane's OUT is engaged at the hub, and only when it differs from the current active lane.
+
 

@@ -1297,6 +1297,21 @@ void sync_tick(uint32_t now_ms) {
        after the operator unloads the unwanted lane). */
     if (AUTO_MODE && !sync_enabled && auto_start_allowed && s == BUF_TENSION &&
             !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
+        /* Auto-correct the active lane to the physically loaded one. The operator
+           may have switched the UI selection to an unloaded lane (to inspect or
+           eject) and left it there. Tension with filament at the hub (YS) means
+           the loaded lane is feeding, so adopt whichever lane has its OUT sensor
+           engaged before enabling sync — otherwise we would drive the wrong
+           (empty) lane. Double-load is already excluded by the guard above. */
+        if (on_al(&g_y_split)) {
+            if (lane_out_present(&g_lane_l1) && active_lane != 1) {
+                set_active_lane(1);
+                A = lane_ptr(active_lane);
+            } else if (lane_out_present(&g_lane_l2) && active_lane != 2) {
+                set_active_lane(2);
+                A = lane_ptr(active_lane);
+            }
+        }
         bool tail_assist = !lane_in_present(A) && lane_out_present(A);
         int startup_sps = sync_bootstrap_sps();
         sync_current_sps = startup_sps;
