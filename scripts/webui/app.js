@@ -217,13 +217,13 @@ function renderSpoolCards() {
               '<span class="spool-info">' +
                 '<span class="spool-card-name">' + (escapeHtml(d.name) || ('Gate ' + i)) + '</span>' +
                 '<span class="spool-card-sub">' + sub.join(' · ') + '</span>' +
+                '<span class="spool-card-status-row">' +
+                  '<span class="mini-badge active-badge" style="display: ' + (active ? 'inline-block' : 'none') + ';">Active</span>' +
+                  '<span class="mini-badge loaded-badge" style="display: ' + (loaded ? 'inline-block' : 'none') + ';">Loaded</span>' +
+                '</span>' +
               '</span>' +
             '</div>' +
             '<button class="spool-edit" title="Edit spool" onclick="openSpoolEdit(' + i + ')">✎</button>' +
-            '<div class="spool-card-badges">' +
-              '<span class="mini-badge active-badge" style="display: ' + (active ? 'inline-block' : 'none') + ';">Active</span>' +
-              '<span class="mini-badge loaded-badge" style="display: ' + (loaded ? 'inline-block' : 'none') + ';">Loaded</span>' +
-            '</div>' +
             '<div class="spool-edit-form" id="spool-edit-' + i + '" hidden>' +
               '<label>Material<input type="text" id="se-material-' + i + '"></label>' +
               '<label>Color<input type="color" id="se-color-' + i + '"></label>' +

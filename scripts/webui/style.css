@@ -407,33 +407,31 @@ body {
     background: linear-gradient(135deg, rgba(0, 242, 195, 0.12), rgba(255, 74, 96, 0.08));
 }
 
-.spool-card-badges {
-    position: absolute;
-    top: 8px;
-    right: 32px;
+.spool-card-status-row {
     display: flex;
-    gap: 4px;
+    gap: 6px;
+    margin-top: 6px;
 }
 
 .mini-badge {
-    font-size: 0.62rem;
-    font-weight: 800;
-    letter-spacing: 0.3px;
-    padding: 2px 5px;
-    border-radius: 3px;
+    font-size: 0.60rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    padding: 2px 6px;
+    border-radius: 4px;
     text-transform: uppercase;
     line-height: 1;
 }
 
 .active-badge {
-    background: rgba(0, 242, 195, 0.15);
-    border: 1px solid var(--neon-teal);
+    background: rgba(0, 242, 195, 0.08);
+    border: 1px solid rgba(0, 242, 195, 0.35);
     color: var(--neon-teal);
 }
 
 .loaded-badge {
-    background: rgba(255, 74, 96, 0.15);
-    border: 1px solid var(--neon-coral);
+    background: rgba(255, 74, 96, 0.08);
+    border: 1px solid rgba(255, 74, 96, 0.35);
     color: var(--neon-coral);
 }
 
