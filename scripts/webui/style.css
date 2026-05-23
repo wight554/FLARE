@@ -395,6 +395,48 @@ body {
     background: linear-gradient(135deg, rgba(0, 242, 195, 0.10), rgba(255, 74, 96, 0.04));
 }
 
+.spool-card.loaded {
+    border-color: var(--neon-coral);
+    box-shadow: 0 0 15px rgba(255, 74, 96, 0.12);
+    background: linear-gradient(135deg, rgba(255, 74, 96, 0.03), rgba(255, 255, 255, 0.01));
+}
+
+.spool-card.active.loaded {
+    border-color: var(--neon-teal);
+    box-shadow: 0 0 20px rgba(0, 242, 195, 0.15), 0 0 10px rgba(255, 74, 96, 0.1);
+    background: linear-gradient(135deg, rgba(0, 242, 195, 0.12), rgba(255, 74, 96, 0.08));
+}
+
+.spool-card-badges {
+    position: absolute;
+    top: 8px;
+    right: 32px;
+    display: flex;
+    gap: 4px;
+}
+
+.mini-badge {
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    padding: 2px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    line-height: 1;
+}
+
+.active-badge {
+    background: rgba(0, 242, 195, 0.15);
+    border: 1px solid var(--neon-teal);
+    color: var(--neon-teal);
+}
+
+.loaded-badge {
+    background: rgba(255, 74, 96, 0.15);
+    border: 1px solid var(--neon-coral);
+    color: var(--neon-coral);
+}
+
 .spool-card-main {
     display: flex;
     align-items: center;

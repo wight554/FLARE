@@ -14,3 +14,7 @@ Track development tasks and verification steps.
 ## Phase 3: Safety Prompt Refining (Refined loaded check)
 - [x] 3.1 Refactor safety checks in `scripts/webui/app.js` to use `isLaneLoaded()` based on `out && y_split`.
 - [x] 3.2 Verify javascript syntax.
+
+## Phase 4: Loaded vs Active Visual Indicators
+- [x] 4.1 Edit `scripts/webui/style.css` to add custom border glow, dual gradient backgrounds, and mini-badges styling for Active and Loaded statuses.
+- [x] 4.2 Edit `scripts/webui/app.js` to dynamically apply `.loaded` / `.active` classes and toggle mini-badges.

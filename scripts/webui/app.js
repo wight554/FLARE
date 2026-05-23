@@ -203,7 +203,9 @@ function renderSpoolCards() {
         else if (d.spool_id >= 0) sub.push('#' + d.spool_id);
 
         const card = document.createElement('div');
-        card.className = 'spool-card' + (activeLane === lane ? ' active' : '');
+        const active = activeLane === lane;
+        const loaded = isLaneLoaded(lane, lastTelemetryData);
+        card.className = 'spool-card' + (active ? ' active' : '') + (loaded ? ' loaded' : '');
         card.dataset.lane = String(lane);
         card.innerHTML =
             '<div class="spool-card-main" onclick="selectLane(' + lane + ')">' +
@@ -218,6 +220,10 @@ function renderSpoolCards() {
               '</span>' +
             '</div>' +
             '<button class="spool-edit" title="Edit spool" onclick="openSpoolEdit(' + i + ')">✎</button>' +
+            '<div class="spool-card-badges">' +
+              '<span class="mini-badge active-badge" style="display: ' + (active ? 'inline-block' : 'none') + ';">Active</span>' +
+              '<span class="mini-badge loaded-badge" style="display: ' + (loaded ? 'inline-block' : 'none') + ';">Loaded</span>' +
+            '</div>' +
             '<div class="spool-edit-form" id="spool-edit-' + i + '" hidden>' +
               '<label>Material<input type="text" id="se-material-' + i + '"></label>' +
               '<label>Color<input type="color" id="se-color-' + i + '"></label>' +
@@ -234,7 +240,17 @@ function renderSpoolCards() {
 
 function updateLaneHighlight() {
     document.querySelectorAll('#spool-cards .spool-card').forEach((c) => {
-        c.classList.toggle('active', Number(c.dataset.lane) === activeLane);
+        const lane = Number(c.dataset.lane);
+        const isActive = lane === activeLane;
+        const loaded = isLaneLoaded(lane, lastTelemetryData);
+
+        c.classList.toggle('active', isActive);
+        c.classList.toggle('loaded', loaded);
+
+        const activeBadge = c.querySelector('.active-badge');
+        const loadedBadge = c.querySelector('.loaded-badge');
+        if (activeBadge) activeBadge.style.display = isActive ? 'inline-block' : 'none';
+        if (loadedBadge) loadedBadge.style.display = loaded ? 'inline-block' : 'none';
     });
 }
 
