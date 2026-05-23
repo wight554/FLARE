@@ -379,6 +379,24 @@ body {
     gap: 12px;
 }
 
+.action-span-2 {
+    grid-column: 1 / -1;
+}
+
+.btn:disabled,
+.btn-lane:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    filter: grayscale(0.5);
+    box-shadow: none;
+    pointer-events: none;
+}
+
+.btn:disabled:hover,
+.btn-lane:disabled:hover {
+    transform: none;
+}
+
 .btn {
     border-radius: 8px;
     padding: 14px;

@@ -219,4 +219,24 @@ We parse this string using Python's safe `ast.literal_eval`. For each gate in th
   - **Rule**: a strand cannot occupy a sensor it has not reached. In `mmu.get_status`, once the per-lane gear (OUT) sensor (`mmu_gear`) is clear, force the downstream shared sensors (`mmu_gate`, `toolhead`) clear.
   - **Anchor at gear, not pre-gate**: pre-gate (IN) sits before the drive; a spool runout can clear IN while filament remains threaded past the gear, so cascading from pre-gate would wrongly blank a still-loaded path. Gear (OUT) is the first post-drive, per-lane sensor and is the correct cascade anchor.
 
+## 15. Standalone WebUI Control Deck Parity with Fluidd
+
+The daemon-served dashboard (`scripts/webui/`) mirrors Fluidd's `MmuControls.vue` button set, naming, and enable/disable gating, adapted to FLARE C-commands (the WebUI talks to the board via `POST /cmd`, not Klipper G-code).
+
+- **Button → FLARE command map** (acts on the active lane):
+
+  | Fluidd button | FLARE cmd | Enabled when (active lane gate_status `g`) |
+  |:---|:---|:---|
+  | Preload | `LO:` (run to OUT) | `g == 0` (empty) |
+  | Eject | `UM:` (unload to IN clear) | `g != 0` |
+  | Check Gate | `?:` (status query) | online |
+  | Unload | `UL:` (unload extruder) | `g == 2` (loaded to toolhead) |
+  | Load | `FL:` (full load to toolhead) | `g != 2` |
+
+- **gate_status in JS**: derived client-side from the SSE telemetry exactly as the daemon's klipper-syncer does — `2` if `in && out && y_split && toolhead`, `1` if `in`, else `0`. The per-lane OUT switch gates the shared `y_split`/`toolhead`, so a non-active lane never reads loaded. All controls disable while disconnected/offline.
+- **Lane selector**: `Lane 1`/`Lane 2` retained as FLARE-native naming (not renamed to Gate 0/1). Fixed to send `T:n` (select, no motion); the previous `LN:n` is not a firmware command and was a no-op.
+- **Dropped**: `Cut Filament` (`CU:`) and `Unload Model` removed to match Fluidd's deck. `Load` is the primary (teal) action; `Unload` secondary.
+- **Recover / Unlock**: omitted — FLARE firmware has no error-lock or recover command (`RS:` is reset-settings, not recover). These cannot be removed from upstream Fluidd's `MmuControls.vue` without forking it; in our mock they stay inert (Unlock is gated by `isMmuPausedAndLocked`, which the mock never reports; Recover calls `MMU_RECOVER`, a harmless ack).
+- **Load semantics in standalone**: `FL:` loads to the toolhead sensor only. Hotend push/purge (`_FLARE_POST_TC_LOAD`) is Klipper-macro-only and not available in the daemon-only path, so the WebUI Load stops at the toolhead.
+
 

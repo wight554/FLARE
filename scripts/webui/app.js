@@ -85,6 +85,10 @@ function updateUIOffline() {
     document.getElementById('badge-reload-mode').className = 'badge';
     document.getElementById('badge-reload-mode').textContent = 'MMU MODE';
     document.getElementById('val-tc-state').textContent = 'UNKNOWN';
+
+    // Disable every control while disconnected
+    ['btn-lane-1', 'btn-lane-2', 'btn-preload', 'btn-eject',
+     'btn-checkgate', 'btn-unload', 'btn-load'].forEach((id) => setBtnEnabled(id, false));
 }
 
 function updateUIState(data) {
@@ -148,6 +152,49 @@ function updateUIState(data) {
     updateSensor('sensor-out2', data.out2);
     updateSensor('sensor-y-split', data.y_split);
     updateSensor('sensor-toolhead', data.toolhead);
+
+    // 6. Action button states (mirror Fluidd MMU widget gating)
+    updateButtonStates(data);
+}
+
+// Happy Hare gate_status for a lane: 0 = empty, 1 = available (preloaded),
+// 2 = loaded/buffer (fully loaded to toolhead). Matches the daemon's
+// klipper-syncer derivation; out-switch gates the shared y_split/toolhead so a
+// non-active lane never reads loaded.
+function gateStatusForLane(lane, data) {
+    const inSw = lane === 1 ? data.in1 : (lane === 2 ? data.in2 : 0);
+    const outSw = lane === 1 ? data.out1 : (lane === 2 ? data.out2 : 0);
+    if (inSw && outSw && data.y_split && data.toolhead) return 2;
+    if (inSw) return 1;
+    return 0;
+}
+
+function setBtnEnabled(id, enabled) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !enabled;
+}
+
+function updateButtonStates(data) {
+    const online = !!data.board_online;
+    const lane = data.active_lane;
+    const hasLane = lane === 1 || lane === 2;
+    const gateStatus = hasLane ? gateStatusForLane(lane, data) : -1;
+    const loaded = gateStatus === 2;
+
+    // Lane selection always available while online
+    setBtnEnabled('btn-lane-1', online);
+    setBtnEnabled('btn-lane-2', online);
+
+    // Preload (LO:): only when the active gate is empty
+    setBtnEnabled('btn-preload', online && hasLane && gateStatus === 0);
+    // Eject (UM:): only when the active gate holds filament
+    setBtnEnabled('btn-eject', online && hasLane && gateStatus !== 0);
+    // Check Gate (?:): always available while online
+    setBtnEnabled('btn-checkgate', online);
+    // Unload (UL:): only when filament is loaded to the toolhead
+    setBtnEnabled('btn-unload', online && hasLane && loaded);
+    // Load (FL:): only when not already loaded
+    setBtnEnabled('btn-load', online && hasLane && !loaded);
 }
 
 function updateSensor(id, state) {

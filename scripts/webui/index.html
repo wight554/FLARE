@@ -75,18 +75,19 @@
                 <div class="lane-selector">
                     <h3>Active Lane</h3>
                     <div class="lane-buttons">
-                        <button class="btn-lane" id="btn-lane-1" onclick="sendCustomCommand('LN:1')">LANE 1</button>
-                        <button class="btn-lane" id="btn-lane-2" onclick="sendCustomCommand('LN:2')">LANE 2</button>
+                        <button class="btn-lane" id="btn-lane-1" onclick="sendCustomCommand('T:1')">LANE 1</button>
+                        <button class="btn-lane" id="btn-lane-2" onclick="sendCustomCommand('T:2')">LANE 2</button>
                     </div>
                 </div>
 
                 <div class="control-actions">
                     <h3>Sequences</h3>
                     <div class="action-grid">
-                        <button class="btn btn-primary" id="btn-load" onclick="sendCustomCommand('FL')">Preload / Load</button>
-                        <button class="btn btn-secondary" id="btn-unload" onclick="sendCustomCommand('UL')">Unload Lane</button>
-                        <button class="btn btn-secondary" id="btn-unload-model" onclick="sendCustomCommand('UM')">Unload Model</button>
-                        <button class="btn btn-secondary" id="btn-cut" onclick="sendCustomCommand('CU')">Cut Filament</button>
+                        <button class="btn btn-secondary" id="btn-preload" onclick="sendCustomCommand('LO:')">Preload</button>
+                        <button class="btn btn-secondary" id="btn-eject" onclick="sendCustomCommand('UM:')">Eject</button>
+                        <button class="btn btn-secondary action-span-2" id="btn-checkgate" onclick="sendCustomCommand('?:')">Check Gate</button>
+                        <button class="btn btn-secondary" id="btn-unload" onclick="sendCustomCommand('UL:')">Unload</button>
+                        <button class="btn btn-primary" id="btn-load" onclick="sendCustomCommand('FL:')">Load</button>
                     </div>
                 </div>
 
