@@ -219,6 +219,17 @@ function updateSensor(id, state) {
     }
 }
 
+// Eject the lane currently selected in the UI. Sends an explicit UM:<lane>
+// (matching Fluidd's explicit-gate eject) so the target is pinned to the
+// active lane rather than relying on the board's bare-UM active default.
+function ejectActiveLane() {
+    if (activeLane === 1 || activeLane === 2) {
+        sendCustomCommand('UM:' + activeLane);
+    } else {
+        sendCustomCommand('UM:');
+    }
+}
+
 // REST Command execution helper
 function sendCustomCommand(cmdString) {
     const feedback = document.getElementById('cmd-feedback');
