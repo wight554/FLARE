@@ -11,7 +11,7 @@ In `cmd_MMU_LOAD(self, gcmd)`:
         other_gate = 1 - gate
         if other_gate < len(self.gate_status):
             if self.gate_status[other_gate] == 2:
-                gcmd.respond_info(f"FLARE: Gate {other_gate} is currently loaded. Performing auto-unload and switching to lane {lane} (Gate {gate})")
+                gcmd.respond_info(f"FLARE: Gate {other_gate} is currently loaded. Performing auto-unload and switching to lane {lane} (Gate {gate})...")
                 self.gcode.run_script_from_command(f"_FLARE_CHANGE_LANE LANE={lane}")
                 return
 ```
@@ -29,18 +29,24 @@ Inside `updateUIState(data)`:
     lastTelemetryData = data;
 ```
 
+#### Add `isLaneLoaded` helper
+```javascript
+function isLaneLoaded(lane, data) {
+    if (!data) return false;
+    const outSw = lane === 1 ? data.out1 : (lane === 2 ? data.out2 : 0);
+    return !!(outSw && data.y_split);
+}
+```
+
 #### Add `loadActiveLane` helper
 ```javascript
 function loadActiveLane() {
     if (lastTelemetryData) {
         const lane = lastTelemetryData.active_lane;
         const otherLane = lane === 1 ? 2 : (lane === 2 ? 1 : 0);
-        if (otherLane > 0) {
-            const otherLoaded = gateStatusForLane(otherLane, lastTelemetryData) === 2;
-            if (otherLoaded) {
-                if (!confirm("Make sure you unloaded the current lane from the toolhead. Proceed?")) {
-                    return;
-                }
+        if (otherLane > 0 && isLaneLoaded(otherLane, lastTelemetryData)) {
+            if (!confirm("Make sure you unloaded the current lane from the toolhead before loading. Proceed?")) {
+                return;
             }
         }
     }
@@ -51,12 +57,9 @@ function loadActiveLane() {
 #### Add `unloadActiveLane` helper
 ```javascript
 function unloadActiveLane() {
-    if (lastTelemetryData) {
-        const gateStatus = gateStatusForLane(activeLane, lastTelemetryData);
-        if (gateStatus === 2) {
-            if (!confirm("Make sure you unloaded the current lane from the toolhead before unloading. Proceed?")) {
-                return;
-            }
+    if (lastTelemetryData && isLaneLoaded(activeLane, lastTelemetryData)) {
+        if (!confirm("Make sure you unloaded the current lane from the toolhead before unloading. Proceed?")) {
+            return;
         }
     }
     sendCustomCommand('UL:');
@@ -66,12 +69,9 @@ function unloadActiveLane() {
 #### Modify `ejectActiveLane` helper
 ```javascript
 function ejectActiveLane() {
-    if (lastTelemetryData) {
-        const gateStatus = gateStatusForLane(activeLane, lastTelemetryData);
-        if (gateStatus === 2) {
-            if (!confirm("Make sure you unloaded the current lane from the toolhead before ejecting. Proceed?")) {
-                return;
-            }
+    if (lastTelemetryData && isLaneLoaded(activeLane, lastTelemetryData)) {
+        if (!confirm("Make sure you unloaded the current lane from the toolhead before ejecting. Proceed?")) {
+            return;
         }
     }
     if (activeLane === 1 || activeLane === 2) {

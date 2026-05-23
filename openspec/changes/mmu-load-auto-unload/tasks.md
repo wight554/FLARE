@@ -10,3 +10,7 @@ Track development tasks and verification steps.
 - [x] 2.1 Edit `scripts/webui/app.js` to store `lastTelemetryData`, implement `loadActiveLane()` and `unloadActiveLane()`, and update `ejectActiveLane()` to prompt with confirmation dialogs if a lane is loaded in the toolhead.
 - [x] 2.2 Edit `scripts/webui/index.html` to change the click handlers for Load and Unload.
 - [x] 2.3 Verify javascript syntax and visual rendering.
+
+## Phase 3: Safety Prompt Refining (Refined loaded check)
+- [x] 3.1 Refactor safety checks in `scripts/webui/app.js` to use `isLaneLoaded()` based on `out && y_split`.
+- [x] 3.2 Verify javascript syntax.

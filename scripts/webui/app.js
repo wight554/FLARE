@@ -336,31 +336,32 @@ function updateSensor(id, state) {
     }
 }
 
-// Load the active lane. Prompts the user with a confirmation dialog if the other lane is loaded to the toolhead.
+// Check if a lane is loaded, judged by OUT sensor and y_split combiner sensor (YS).
+function isLaneLoaded(lane, data) {
+    if (!data) return false;
+    const outSw = lane === 1 ? data.out1 : (lane === 2 ? data.out2 : 0);
+    return !!(outSw && data.y_split);
+}
+
+// Load the active lane. Prompts the user with a confirmation dialog if the other lane is loaded (judged by OUT and YS).
 function loadActiveLane() {
     if (lastTelemetryData) {
         const lane = lastTelemetryData.active_lane;
         const otherLane = lane === 1 ? 2 : (lane === 2 ? 1 : 0);
-        if (otherLane > 0) {
-            const otherLoaded = gateStatusForLane(otherLane, lastTelemetryData) === 2;
-            if (otherLoaded) {
-                if (!confirm("Make sure you unloaded the current lane from the toolhead before loading. Proceed?")) {
-                    return;
-                }
+        if (otherLane > 0 && isLaneLoaded(otherLane, lastTelemetryData)) {
+            if (!confirm("Make sure you unloaded current lane from toolhead. Proceed?")) {
+                return;
             }
         }
     }
     sendCustomCommand('FL:');
 }
 
-// Unload the active lane. Prompts the user with a confirmation dialog if the lane is loaded to the toolhead.
+// Unload the active lane. Prompts the user with a confirmation dialog if the lane is loaded (judged by OUT and YS).
 function unloadActiveLane() {
-    if (lastTelemetryData) {
-        const gateStatus = gateStatusForLane(activeLane, lastTelemetryData);
-        if (gateStatus === 2) {
-            if (!confirm("Make sure you unloaded the current lane from the toolhead before unloading. Proceed?")) {
-                return;
-            }
+    if (lastTelemetryData && isLaneLoaded(activeLane, lastTelemetryData)) {
+        if (!confirm("Make sure you unloaded current lane from toolhead. Proceed?")) {
+            return;
         }
     }
     sendCustomCommand('UL:');
@@ -369,14 +370,11 @@ function unloadActiveLane() {
 // Eject the lane currently selected in the UI. Sends an explicit UM:<lane>
 // (matching Fluidd's explicit-gate eject) so the target is pinned to the
 // active lane rather than relying on the board's bare-UM active default.
-// Prompts the user with a confirmation dialog if the lane is loaded to the toolhead.
+// Prompts the user with a confirmation dialog if the lane is loaded (judged by OUT and YS).
 function ejectActiveLane() {
-    if (lastTelemetryData) {
-        const gateStatus = gateStatusForLane(activeLane, lastTelemetryData);
-        if (gateStatus === 2) {
-            if (!confirm("Make sure you unloaded the current lane from the toolhead before ejecting. Proceed?")) {
-                return;
-            }
+    if (lastTelemetryData && isLaneLoaded(activeLane, lastTelemetryData)) {
+        if (!confirm("Make sure you unloaded current lane from toolhead. Proceed?")) {
+            return;
         }
     }
     if (activeLane === 1 || activeLane === 2) {
