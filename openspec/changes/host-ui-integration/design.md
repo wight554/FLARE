@@ -331,4 +331,12 @@ Consumption is tracked host-side so it works without Moonraker, mirroring Happy 
 - **Reset handling**: a `TF` rewind (board reboot) re-baselines instead of counting a negative delta.
 - **UI**: the spool card shows Spoolman remaining weight when available, otherwise the locally-tracked `used Ng`. `GET /gatemap` includes `used` per gate.
 
+## 23. Action Label ("Loading: X mm")
+
+Fluidd's filament-path status line reads `${action}: ${filamentPosition} mm` when `mmu.action` is exactly `Loading` or `Unloading` (else it shows `Filament: X mm` / `Printing (N swaps)`). We never set `action`, so it stayed `Idle`.
+
+- The daemon now parses the per-lane task fields `L1T`/`L2T` and derives `action` from the active lane's task + `tc_state` (`_derive_action`): toolchange `LOAD*`/`SWAP`/`RELOAD*` or lane task `AUTOLOAD`/`LOAD_FULL` → `Loading`; `UNLOAD*` or task `UNLOAD` → `Unloading`; `FEED`/`MOVE`/idle → `Idle`. It is pushed via `SET_MMU ACTION=...`.
+- Combined with the synthetic `filament_position` (§20), the widget animates "Loading: X mm" / "Unloading: X mm" as the strand crosses the path sensors, then returns to "Filament: X mm" when idle.
+- `L1T`/`L2T` are added only to the syncer's change-detection (not to the `_FLARE_STATE` variable list, which has no such fields).
+
 

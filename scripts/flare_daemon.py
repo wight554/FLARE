@@ -498,6 +498,10 @@ def parse_status_line(line):
                 new_data["active_lane"] = int(val)
             elif key == "TC":
                 new_data["tc_state"] = val
+            elif key == "L1T":
+                new_data["lane1_task"] = val
+            elif key == "L2T":
+                new_data["lane2_task"] = val
             elif key == "BP":
                 new_data["g_buf_pos"] = float(val)
                 # Rescale to Happy Hare -1.0 to 1.0 (assuming 15.0mm max travel)
@@ -863,6 +867,22 @@ def _moonraker_set_active_spool(moonraker_url, spool_id):
     except Exception:
         return False
 
+def _derive_action(tc_state, active_lane, lane1_task, lane2_task):
+    """Map FLARE toolchange/lane-task state to a Happy Hare action string so
+    Fluidd shows 'Loading: X mm' / 'Unloading: X mm' during operations."""
+    ts = (tc_state or "").upper()
+    if ts.startswith("LOAD") or ts == "SWAP" or ts.startswith("RELOAD"):
+        return "Loading"
+    if ts.startswith("UNLOAD"):
+        return "Unloading"
+    task = lane1_task if active_lane == 1 else (lane2_task if active_lane == 2 else "")
+    task = (task or "").upper()
+    if task in ("AUTOLOAD", "LOAD_FULL"):
+        return "Loading"
+    if task == "UNLOAD":
+        return "Unloading"
+    return "Idle"
+
 def klipper_syncer(moonraker_url):
     """Background thread to push status updates to Moonraker at 4Hz."""
     last_sync = {}
@@ -885,8 +905,8 @@ def klipper_syncer(moonraker_url):
 
         # Detect changes in values of interest
         keys = [
-            "board_online", "active_lane", "tc_state", "g_buf_pos", 
-            "buf_state", "sps", "in1", "out1", "in2", "out2", 
+            "board_online", "active_lane", "tc_state", "g_buf_pos",
+            "buf_state", "sps", "in1", "out1", "in2", "out2",
             "toolhead", "y_split", "reload_mode"
         ]
         
@@ -895,6 +915,10 @@ def klipper_syncer(moonraker_url):
             if state.get(k) != last_sync.get(k):
                 changed = True
                 break
+        # Lane-task changes drive the action label but are not _FLARE_STATE vars
+        for k in ("lane1_task", "lane2_task"):
+            if state.get(k) != last_sync.get(k):
+                changed = True
 
         # Force full sync every 10 seconds to recover if Klipper/Moonraker restarted
         if time.time() - last_force_sync > 10.0:
@@ -990,8 +1014,13 @@ def klipper_syncer(moonraker_url):
         with stats_lock:
             st = dict(mmu_stats)
 
+        action = _derive_action(tc_state, active_lane,
+                                state.get("lane1_task", "IDLE"),
+                                state.get("lane2_task", "IDLE"))
+
         mmu_cmd = (
             f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={klipper_gate} TOOL={klipper_tool} "
+            f"ACTION='{action}' "
             f"GATE_STATUS='{gate_status_1},{gate_status_2}' GATE_SENSOR='{in1},{in2}' "
             f"TOOLHEAD_SENSOR={toolhead} SYNC_FEEDBACK={sync_feedback:.3f} "
             f"SYNC_FEEDBACK_STATE='{buf_state}' PRINT_JOB_STATE='{print_job_state}' "
