@@ -273,6 +273,9 @@ The daemon-served dashboard (`scripts/webui/`) mirrors Fluidd's `MmuControls.vue
 ### Buttons we cannot back, and what we can/can't disable
 Fluidd buttons gated only by `!klippyReady || !canSend` have **no `printer.mmu` field** to disable them from the mock — they cannot be greyed without forking Fluidd. This includes **Recover**, Check Gate, Motors On/Off, Sync Gear Motor.
 - **Hidden via mock feature flags** (already): Servo/Home/Grip/Release (`selector_type = VirtualSelector`), LEDs (`mmu_leds` absent), Encoder (`encoder` absent), Bypass (`has_bypass = false`).
-- **Cannot disable, so handled gracefully** (avoid "Unknown command"): `MMU_RECOVER` → honest no-op message (no error-lock on FLARE); `MMU_SYNC_GEAR_MOTOR SYNC=0/1` → mapped to real `SM:0/1` (extruder sync); `MMU_MOTORS_ON/OFF` → no-op (drivers firmware-managed).
+- **Cannot disable, so handled gracefully** (avoid "Unknown command"): `MMU_RECOVER` → emits a `!!`-prefixed "not implemented on FLARE" message (Klipper renders `!!` as a console error, so the user sees it is not a real action); `MMU_SYNC_GEAR_MOTOR SYNC=0/1` → mapped to real `SM:0/1` (extruder sync); `MMU_MOTORS_ON/OFF` → no-op (drivers firmware-managed).
+
+### Double-load guard on FD:
+`FD:` (raw forward feed) now rejects `OTHER_LANE_ACTIVE` when the hub is occupied by the other lane (same guard as `FL:`/`RL:`), since it could otherwise feed a second filament into the hub. `MV:` is intentionally left unguarded as the raw escape hatch for worst-case manual recovery.
 
 

@@ -329,10 +329,10 @@ class MMUMock:
         self.gcode.run_script_from_command(f"FLARE_EJECT LANE={lane}")
 
     def cmd_MMU_RECOVER(self, gcmd):
-        """Acknowledge MMU recovery. FLARE has no error-lock state to recover
-        from; this is a harmless no-op kept because Fluidd's Recover button
+        """Report that recovery is not implemented. FLARE has no error-lock state
+        to recover from; this message exists because Fluidd's Recover button
         cannot be disabled from the mock."""
-        gcmd.respond_info("FLARE: No error-lock state on FLARE; nothing to recover")
+        gcmd.respond_raw("!! MMU_RECOVER is not implemented on FLARE (no error-lock state to recover from).")
 
     def cmd_MMU_SYNC_GEAR_MOTOR(self, gcmd):
         """Map Happy Hare gear-sync toggle to FLARE SM: (extruder sync)."""

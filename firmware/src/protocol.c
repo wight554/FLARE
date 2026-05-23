@@ -531,6 +531,17 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
     } else if (!strcmp(cmd, "FD")) {
         lane_t *A = get_active_lane_and_clear_error();
         if (!A) return;
+        /* Double-load guard: do not feed the active lane into a hub already
+           occupied by the other lane. MV: stays unguarded for raw recovery. */
+        if (on_al(&g_y_split) && !lane_out_present(A)) {
+            cmd_reply("ER", "OTHER_LANE_ACTIVE");
+            return;
+        }
+        lane_t *other = lane_ptr(other_lane(active_lane));
+        if (other && lane_out_present(other) && other->task == TASK_IDLE) {
+            cmd_reply("ER", "OTHER_LANE_ACTIVE");
+            return;
+        }
         sync_retract_assist_set(false);
         sync_set_state(SYNC_OFF);
         lane_start(A, TASK_FEED, FEED_SPS, true, now_ms, 0);
