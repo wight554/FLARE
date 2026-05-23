@@ -317,13 +317,11 @@ function escapeHtml(s) {
 }
 
 // Happy Hare gate_status for a lane: 0 = empty, 1 = available (preloaded),
-// 2 = loaded/buffer (fully loaded to toolhead). Matches the daemon's
-// klipper-syncer derivation; out-switch gates the shared y_split/toolhead so a
-// non-active lane never reads loaded.
+// 2 = loaded/buffer (loaded past the gate and occupying splitter).
 function gateStatusForLane(lane, data) {
     const inSw = lane === 1 ? data.in1 : (lane === 2 ? data.in2 : 0);
     const outSw = lane === 1 ? data.out1 : (lane === 2 ? data.out2 : 0);
-    if (inSw && outSw && data.y_split && data.toolhead) return 2;
+    if (outSw && data.y_split) return 2;
     if (inSw) return 1;
     return 0;
 }
