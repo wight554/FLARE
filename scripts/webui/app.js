@@ -155,6 +155,19 @@ function updateUIState(data) {
 
     // 6. Action button states (mirror Fluidd MMU widget gating)
     updateButtonStates(data);
+
+    // 7. Usage statistics
+    if (data.mmu_stats) updateStats(data.mmu_stats);
+}
+
+function updateStats(stats) {
+    const total = stats.swaps_total || 0;
+    const rate = total ? (100 * (stats.swaps_success || 0) / total) : 100;
+    document.getElementById('stat-swaps-total').textContent = total;
+    document.getElementById('stat-success-rate').innerHTML = `${rate.toFixed(0)} <span class="unit">%</span>`;
+    document.getElementById('stat-loads').textContent = stats.loads_success || 0;
+    document.getElementById('stat-unloads').textContent = stats.unloads_success || 0;
+    document.getElementById('stat-last-error').textContent = stats.last_error || 'None';
 }
 
 // Happy Hare gate_status for a lane: 0 = empty, 1 = available (preloaded),

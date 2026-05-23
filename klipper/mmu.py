@@ -72,6 +72,16 @@ class MMUMock:
         self.pre_gate_sensor_active = 0
         self.hub_sensor_active = 0
 
+        # Usage statistics, pushed as absolute totals by the daemon (which counts
+        # them from board events and persists them). Mirrored here for MMU_STATS
+        # and num_toolchanges; not accumulated locally to stay idempotent.
+        self.swaps_total = 0
+        self.swaps_success = 0
+        self.swaps_failed = 0
+        self.loads_success = 0
+        self.unloads_success = 0
+        self.last_error = "None"
+
         # Register command to update status
         self.gcode = self.printer.lookup_object('gcode')
         self._load_vars()
@@ -141,6 +151,13 @@ class MMUMock:
         self.pre_gate_sensor_active = gcmd.get_int('PRE_GATE_SENSOR_ACTIVE', self.pre_gate_sensor_active)
         self.hub_sensor_active = gcmd.get_int('HUB_SENSOR_ACTIVE', self.hub_sensor_active)
         self.spoolman_support = gcmd.get('SPOOLMAN_SUPPORT', self.spoolman_support).strip("'\"")
+
+        self.swaps_total = gcmd.get_int('SWAPS_TOTAL', self.swaps_total)
+        self.swaps_success = gcmd.get_int('SWAPS_SUCCESS', self.swaps_success)
+        self.swaps_failed = gcmd.get_int('SWAPS_FAILED', self.swaps_failed)
+        self.loads_success = gcmd.get_int('LOADS_SUCCESS', self.loads_success)
+        self.unloads_success = gcmd.get_int('UNLOADS_SUCCESS', self.unloads_success)
+        self.last_error = gcmd.get('MMU_LAST_ERROR', self.last_error).strip("'\"")
  
         # Parse gate_status list with quote stripping
         gate_status_str = gcmd.get('GATE_STATUS', None)
@@ -204,17 +221,27 @@ class MMUMock:
         self._ensure_array_lengths()
 
     def cmd_MMU_STATS(self, gcmd):
-        """Report mock statistics to satisfy Mainsail/Fluidd dashboard status calls."""
-        gcmd.respond_info(
-            "================ MMU Statistics (FLARE Mock) ================\n"
-            "Tool swaps total: 0\n"
-            "Swaps successful: 0\n"
-            "Swaps failed:     0\n"
-            "Success rate:     100.0%\n"
-            "Preload successes:0\n"
-            "Unload successes: 0\n"
-            "Current error:    None"
+        """Report live usage statistics (counted by the daemon from board events)."""
+        total = self.swaps_total
+        rate = (100.0 * self.swaps_success / total) if total else 100.0
+        msg = (
+            "================ MMU Statistics (FLARE) ================\n"
+            f"Tool swaps total:   {self.swaps_total}\n"
+            f"Swaps successful:   {self.swaps_success}\n"
+            f"Swaps failed:       {self.swaps_failed}\n"
+            f"Success rate:       {rate:.1f}%\n"
+            f"Loads successful:   {self.loads_success}\n"
+            f"Unloads successful: {self.unloads_success}\n"
+            f"Current error:      {self.last_error}"
         )
+        if gcmd.get_int('SHOWCOUNTS', 0):
+            lines = ["\n--------------- Per-gate -----------------"]
+            for i in range(self.num_gates):
+                status = self.gate_status[i] if i < len(self.gate_status) else 0
+                spool = self.gate_spool_id[i] if i < len(self.gate_spool_id) else -1
+                lines.append(f"Gate {i}: status={status} spool_id={spool}")
+            msg += "\n".join(lines)
+        gcmd.respond_info(msg)
 
     def cmd_MMU_PRELOAD(self, gcmd):
         """Map Happy Hare preload to FLARE_LOAD command."""
@@ -727,6 +754,13 @@ class MMUMock:
             'tool_name': self.tool_name,
             'tool_filament_name': self.tool_filament_name,
             'action': self.action,
+            'num_toolchanges': self.swaps_total,
+            'swaps_total': self.swaps_total,
+            'swaps_success': self.swaps_success,
+            'swaps_failed': self.swaps_failed,
+            'loads_success': self.loads_success,
+            'unloads_success': self.unloads_success,
+            'last_error': self.last_error,
             'toolhead_sensor': self.toolhead_sensor,
             'sync_feedback': self.sync_feedback,
             'sync_feedback_state': self.sync_feedback_state,

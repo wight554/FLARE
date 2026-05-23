@@ -90,6 +90,74 @@ def add_event_to_history(evt_type, evt_data):
         if len(event_history) > 100:
             event_history.pop(0)
 
+# MMU usage statistics, counted from board events and persisted across restarts.
+# The daemon is the single source of truth; absolute totals are pushed to the
+# Klipper mmu mock via SET_MMU so MMU_STATS / num_toolchanges reflect them.
+stats_lock = threading.Lock()
+mmu_stats = {
+    "swaps_total": 0,
+    "swaps_success": 0,
+    "swaps_failed": 0,
+    "loads_success": 0,
+    "unloads_success": 0,
+    "last_error": "None",
+}
+
+def _stats_path():
+    for p in (
+        os.path.expanduser("~/printer_data/config/flare_mmu_stats.json"),
+        os.path.expanduser("~/flare_mmu_stats.json"),
+        "/tmp/flare_mmu_stats.json",
+    ):
+        d = os.path.dirname(p)
+        if os.path.isdir(d) and os.access(d, os.W_OK):
+            return p
+    return "/tmp/flare_mmu_stats.json"
+
+def load_mmu_stats():
+    try:
+        path = _stats_path()
+        if os.path.exists(path):
+            with open(path) as f:
+                data = json.load(f)
+            with stats_lock:
+                for k in mmu_stats:
+                    if k in data:
+                        mmu_stats[k] = data[k]
+    except Exception as e:
+        print(f"flare_daemon: failed to load stats: {e}", file=sys.stderr)
+
+def save_mmu_stats():
+    try:
+        with stats_lock:
+            snapshot = dict(mmu_stats)
+        with open(_stats_path(), "w") as f:
+            json.dump(snapshot, f)
+    except Exception as e:
+        print(f"flare_daemon: failed to save stats: {e}", file=sys.stderr)
+
+def record_event_stats(evt_type, evt_data):
+    """Increment usage counters from board events. TC: drives swaps; lane tasks
+    drive loads/unloads. Events are reliable (firmware emits TC:DONE/TC:ERROR/
+    LOADED/UNLOADED), so this never miscounts a transient poll."""
+    changed = True
+    with stats_lock:
+        if evt_type == "TC:DONE":
+            mmu_stats["swaps_total"] += 1
+            mmu_stats["swaps_success"] += 1
+        elif evt_type == "TC:ERROR":
+            mmu_stats["swaps_total"] += 1
+            mmu_stats["swaps_failed"] += 1
+            mmu_stats["last_error"] = evt_data or "Unknown"
+        elif evt_type == "LOADED":
+            mmu_stats["loads_success"] += 1
+        elif evt_type == "UNLOADED":
+            mmu_stats["unloads_success"] += 1
+        else:
+            changed = False
+    if changed:
+        save_mmu_stats()
+
 def parse_status_line(line):
     """
     Parse a raw serial status line (e.g. 'OK:LN:1,TC:IDLE,L1T:NONE,...')
@@ -157,9 +225,11 @@ def parse_status_line(line):
         new_data["raw_status"] = raw_fields
         new_data["board_online"] = True
         new_data["timestamp"] = time.time()
+        with stats_lock:
+            new_data["mmu_stats"] = dict(mmu_stats)
         with status_lock:
             status_cache.update(new_data)
-        
+
         # Broadcast to all active SSE queues
         broadcast_telemetry(new_data)
 
@@ -202,6 +272,7 @@ def serial_reader(port_name, baud):
                     evt_data = evt_body.split(",", 1)[1] if "," in evt_body else ""
                     print(f"flare_daemon Event: {line}")
                     add_event_to_history(evt_type, evt_data)
+                    record_event_stats(evt_type, evt_data)
                     broadcast_telemetry({"event_type": evt_type, "event_data": evt_data})
                     
                 # Check for command reply
@@ -545,6 +616,9 @@ def klipper_syncer(moonraker_url):
         pre_gate_sensor_active = in1 if active_gate == 0 else (in2 if active_gate == 1 else 0)
         hub_sensor_active = y_split
 
+        with stats_lock:
+            st = dict(mmu_stats)
+
         mmu_cmd = (
             f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={klipper_gate} TOOL={klipper_tool} "
             f"GATE_STATUS='{gate_status_1},{gate_status_2}' GATE_SENSOR='{in1},{in2}' "
@@ -554,7 +628,10 @@ def klipper_syncer(moonraker_url):
             f"SPS={sps:.3f} RELOAD_MODE={reload_mode} ENABLE_CUTTER={enable_cutter} "
             f"UNLOAD_CUT={unload_cut} GATE_SENSOR_ACTIVE={gate_sensor_active} "
             f"EXTRUDER_SENSOR_ACTIVE={extruder_sensor_active} "
-            f"PRE_GATE_SENSOR_ACTIVE={pre_gate_sensor_active} HUB_SENSOR_ACTIVE={hub_sensor_active}"
+            f"PRE_GATE_SENSOR_ACTIVE={pre_gate_sensor_active} HUB_SENSOR_ACTIVE={hub_sensor_active} "
+            f"SWAPS_TOTAL={st['swaps_total']} SWAPS_SUCCESS={st['swaps_success']} "
+            f"SWAPS_FAILED={st['swaps_failed']} LOADS_SUCCESS={st['loads_success']} "
+            f"UNLOADS_SUCCESS={st['unloads_success']} MMU_LAST_ERROR='{st['last_error']}'"
         )
 
         lines.append(mmu_cmd)
@@ -604,7 +681,10 @@ def main():
         sys.exit(1)
         
     print(f"flare_daemon: resolved active port candidate -> {port_name}")
-    
+
+    # 1.5 Restore persisted MMU usage statistics
+    load_mmu_stats()
+
     # 2. Launch persistent background serial worker thread
     reader_t = threading.Thread(target=serial_reader, args=(port_name, args.baud), daemon=True)
     reader_t.start()

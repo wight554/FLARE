@@ -239,4 +239,22 @@ The daemon-served dashboard (`scripts/webui/`) mirrors Fluidd's `MmuControls.vue
 - **Recover / Unlock**: omitted — FLARE firmware has no error-lock or recover command (`RS:` is reset-settings, not recover). These cannot be removed from upstream Fluidd's `MmuControls.vue` without forking it; in our mock they stay inert (Unlock is gated by `isMmuPausedAndLocked`, which the mock never reports; Recover calls `MMU_RECOVER`, a harmless ack).
 - **Load semantics in standalone**: `FL:` loads to the toolhead sensor only. Hotend push/purge (`_FLARE_POST_TC_LOAD`) is Klipper-macro-only and not available in the daemon-only path, so the WebUI Load stops at the toolhead.
 
+## 16. MMU Usage Statistics (Event-Counted, Daemon-Owned)
+
+`MMU_STATS` was previously a static stub printing all zeros. Real counters are now derived from board events. Firmware does nothing for stats — counting is host-side only.
+
+- **Source of truth = daemon.** The board emits reliable events (`EV:TC:DONE`, `EV:TC:ERROR`, `EV:LOADED`, `EV:UNLOADED`). `flare_daemon.py` counts them in the serial-reader loop (which sees every event, so nothing is missed by a transient poll):
+  - `TC:DONE` → `swaps_total++`, `swaps_success++`
+  - `TC:ERROR` → `swaps_total++`, `swaps_failed++`, `last_error = data`
+  - `LOADED` → `loads_success++`
+  - `UNLOADED` → `unloads_success++`
+
+  Only `TC:` (and RELOAD) drive the firmware `tc_state` machine; `FL:`/`LO:`/`UL:`/`UM:` are lane tasks, so swaps are cleanly isolated from loads/unloads.
+- **Persistence.** Counters persist to `flare_mmu_stats.json` (`~/printer_data/config` → `~` → `/tmp` fallback) and reload on daemon start, surviving restarts.
+- **Push to Klipper, idempotent.** The daemon pushes **absolute** totals via `SET_MMU` (`SWAPS_TOTAL`, `SWAPS_SUCCESS`, `SWAPS_FAILED`, `LOADS_SUCCESS`, `UNLOADS_SUCCESS`, `MMU_LAST_ERROR`). `mmu.py` mirrors them (never accumulates locally), so a Klipper restart can't double-count — the next `SET_MMU` overwrites with the persisted totals.
+- **Consumers**:
+  - `cmd_MMU_STATS` renders live values + success rate; `SHOWCOUNTS=1` appends a per-gate status/spool breakdown.
+  - `mmu.get_status` exports `num_toolchanges = swaps_total` so Fluidd's filament-path "(N swaps)" counter works, plus the raw stat fields.
+  - The daemon includes `mmu_stats` in every SSE telemetry frame; the WebUI shows Tool Swaps / Success Rate / Loads / Unloads / Last Error in a Usage Statistics panel.
+
 

@@ -181,6 +181,10 @@ body {
     gap: 24px;
 }
 
+.panel-stats {
+    grid-column: 1 / -1;
+}
+
 /* Glass Panels */
 .panel {
     background: var(--panel-bg);
