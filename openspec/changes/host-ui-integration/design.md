@@ -267,8 +267,8 @@ The daemon-served dashboard (`scripts/webui/`) mirrors Fluidd's `MmuControls.vue
 
 ### Preload = stage to gate (LO:), not full load
 - `MMU_PRELOAD` previously ran `FLARE_LOAD` (`T:n; FL:`) = a full load to the toolhead, which FL:'s `OTHER_LANE_ACTIVE` guard then blocked while another lane was loaded. Now `MMU_PRELOAD` runs the new `FLARE_PRELOAD` macro (`T:n; LO:`) — a true preload to the lane's own OUT, matching Happy Hare semantics and the WebUI.
-- **Dry-spin guard**: `LO:` runs forward expecting filament; on an empty lane it would dry-spin. `cmd_MMU_PRELOAD` checks the gate's IN sensor (`gate_sensor[gate]`) and refuses with a message if absent. The WebUI Preload button is enabled only when the active lane's `gate_status == 1` (IN present, not loaded) for the same reason.
-- Preload is mostly redundant on FLARE (auto-preload fires on insertion); it is kept for setups with `AUTO_PRELOAD` disabled.
+- **Enabled only on an empty gate** (`gate_status == 0`, no IN) in both Fluidd (`GATE_EMPTY`) and the WebUI. `LO:` spins the gear and grabs filament as it is inserted, so preload is the "spin-and-insert" flow; on a gate that already has filament it is disabled (nothing to preload — use Load). The earlier IN-present guard was removed because it blocked exactly this spin-and-insert use.
+- Preload is mostly redundant on FLARE (auto-preload fires on insertion); it is kept for setups with `AUTO_PRELOAD` disabled, where the operator clicks Preload then inserts.
 
 ### Buttons we cannot back, and what we can/can't disable
 Fluidd buttons gated only by `!klippyReady || !canSend` have **no `printer.mmu` field** to disable them from the mock — they cannot be greyed without forking Fluidd. This includes **Recover**, Check Gate, Motors On/Off, Sync Gear Motor.

@@ -198,10 +198,10 @@ function updateButtonStates(data) {
     setBtnEnabled('btn-lane-1', online);
     setBtnEnabled('btn-lane-2', online);
 
-    // Preload (LO:): stage filament present at the entry sensor to the gate.
-    // Requires IN present (status 1) so LO: never dry-spins an empty lane.
-    // Mainly for setups with AUTO_PRELOAD disabled (FLARE auto-preloads on insert).
-    setBtnEnabled('btn-preload', online && hasLane && gateStatus === 1);
+    // Preload (LO:): only when the gate is empty (no IN). LO: spins the gear
+    // and grabs filament as it is inserted (the manual preload flow for setups
+    // with AUTO_PRELOAD disabled). Disabled once filament is present.
+    setBtnEnabled('btn-preload', online && hasLane && gateStatus === 0);
     // Eject (UM:): only when the active gate holds filament
     setBtnEnabled('btn-eject', online && hasLane && gateStatus !== 0);
     // Check Gate (?:): always available while online

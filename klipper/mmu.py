@@ -256,17 +256,13 @@ class MMUMock:
 
     def cmd_MMU_PRELOAD(self, gcmd):
         """Preload (stage to gate) the selected gate via LO:, not a full load.
-        Requires filament at the gate's IN sensor; otherwise LO: would dry-spin
-        an empty lane. Note: FLARE auto-preloads on insertion, so this is mainly
-        for setups with AUTO_PRELOAD disabled."""
+        LO: spins the gear and grabs filament as it is inserted, so it is meant
+        for an empty gate (the manual preload flow when AUTO_PRELOAD is off).
+        Fluidd only enables Preload when the gate is empty."""
         gate = gcmd.get_int('GATE', self.active_gate)
         if gate < 0:
             gate = 0
         lane = gate + 1
-        in_present = gate < len(self.gate_sensor) and self.gate_sensor[gate]
-        if not in_present:
-            gcmd.respond_info(f"FLARE: No filament at gate {gate} entry sensor; insert filament first")
-            return
         gcmd.respond_info(f"FLARE: Preloading lane {lane} (Gate {gate}) to gate")
         self.gcode.run_script_from_command(f"FLARE_PRELOAD LANE={lane}")
 
