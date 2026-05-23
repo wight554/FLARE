@@ -194,4 +194,24 @@ We parse this string using Python's safe `ast.literal_eval`. For each gate in th
 - **Problem**: When selecting a preloaded gate card (`T1`) while another gate (`T0`) is loaded, Klipper evaluates `is_physically_loaded` as `True` because `self.toolhead_sensor == 1` globally. This incorrectly sets `self.gate` and `self.tool` to `1` (as if Gate 1 is loaded), and the daemon subsequently overwrites it back to `0` (since Gate 0 is physically loaded). This feedback loop forces Fluidd's UI to jump selection back to `T0` and misreports Gate 1 loaded state.
 - **Solution**: Refine `is_physically_loaded` in `cmd_MMU_SELECT` to check if `self.gate == gate` and `self.toolhead_sensor == 1`. During pure UI gate selection, preserve `self.gate` and `self.tool` unchanged by defaulting them to `self.gate`/`self.tool` if not physically loaded, keeping physical loaded state intact while setting `self.active_gate = gate` to correctly select/highlight the preloaded gate card and display its filament details without any jump-back.
 
+## 14. Fluidd Filament-Path Sensor Key Contract
+
+- **Problem**: Only 2 of the expected sensors (Extruder, Toolhead) render on Fluidd's MMU filament-path widget. The "Runout Sensors" card lists all sensors fine, masking the bug.
+- **Root cause**: Fluidd's `MmuFilamentStatus.vue` renders a track dot only when an exact key exists in `printer.mmu.sensors` (`hasSensor(name) = name in this.sensors`). It looks for `mmu_pre_gate`, `mmu_gear`, `mmu_gate`, `extruder`, `toolhead`, plus sync `filament_tension` / `filament_compression` / `filament_proportional`. The mock `sensors` dict used `pre_gate`, `gate`, `hub`, `tension`, `compression` — so only `extruder` and `toolhead` matched. The "Runout Sensors" card is a separate Klipper path that enumerates `filament_switch_sensor` objects (registered by `mmu_sensors.py`) and is unrelated to the MMU widget.
+- **Sensor key contract** (FLARE physical → Fluidd path slot):
+
+  | FLARE physical | `mmu.sensors` key | Fluidd label |
+  |:---|:---|:---|
+  | IN switch (active lane) | `mmu_pre_gate` | Pre-Gate |
+  | OUT switch | `mmu_gear` | Gear |
+  | Y-splitter / hub (shared) | `mmu_gate` | Gate |
+  | toolhead sensor | `toolhead` | Toolhead |
+  | buffer state | `filament_tension` / `filament_compression` | sync piston |
+
+  Fluidd's single path exposes ONE `mmu_pre_gate` slot (active lane only); the inactive lane's pre-gate appears on the spool/gate cards, not the track. FLARE has a single physical toolhead sensor (`TS:`), so only the `toolhead` slot is emitted; the `extruder` slot is intentionally omitted to avoid a duplicate dot (both would read the same `toolhead_sensor`). `toolhead` is preferred over `extruder` because Fluidd's fill animation (`endOfBowdenPos`, `filamentRectHeight`) keys off `sensors['toolhead']`. Realistic maximum is 4 dots + the sync piston.
+
+- **Sync-feedback (buffer piston) fixes**:
+  1. **State vocabulary**: firmware emits `TENSION`/`COMPRESSION`/`NEUTRAL`; daemon lowercases to `tension`/`compression`. Fluidd expects `tension`/`compressed`/`neutral` (`SYNC_FEEDBACK_COMPRESSED='compressed'`). Daemon normalizes `compression → compressed` so both the path booleans and `sync_feedback_state` label render. The dead `== "expanded"` checks are removed (firmware never emits that token).
+  2. **Piston position**: Fluidd reads `sync_feedback_bias_modelled` (not `sync_feedback`). Export `sync_feedback_bias_modelled` (= rescaled `-1..1` value) and `sync_feedback_enabled` from `mmu.get_status` so the piston animates instead of freezing at center.
+
 

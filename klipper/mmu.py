@@ -717,6 +717,8 @@ class MMUMock:
             'toolhead_sensor': self.toolhead_sensor,
             'sync_feedback': self.sync_feedback,
             'sync_feedback_state': self.sync_feedback_state,
+            'sync_feedback_bias_modelled': self.sync_feedback,
+            'sync_feedback_enabled': True,
             'print_job_state': self.print_job_state,
             'print_state': self.print_state,
             'board_online': self.board_online,
@@ -732,13 +734,12 @@ class MMUMock:
             'pre_gate_sensor_active': self.pre_gate_sensor_active,
             'hub_sensor_active': self.hub_sensor_active,
             'sensors': {
-                'pre_gate': bool(self.pre_gate_sensor_active),
-                'gate': bool(self.gate_sensor_active),
-                'hub': bool(self.hub_sensor_active),
-                'extruder': bool(self.toolhead_sensor),
+                'mmu_pre_gate': bool(self.pre_gate_sensor_active),
+                'mmu_gear': bool(self.gate_sensor_active),
+                'mmu_gate': bool(self.hub_sensor_active),
                 'toolhead': bool(self.toolhead_sensor),
-                'tension': self.sync_feedback_state == "expanded",
-                'compression': self.sync_feedback_state == "compressed",
+                'filament_tension': self.sync_feedback_state == "tension",
+                'filament_compression': self.sync_feedback_state == "compressed",
             }
         }
 

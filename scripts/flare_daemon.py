@@ -492,6 +492,8 @@ def klipper_syncer(moonraker_url):
         g_buf_pos = state.get("g_buf_pos", 0.0)
         sync_feedback = max(-1.0, min(1.0, g_buf_pos / 15.0))
         buf_state = state.get("buf_state", "NEUTRAL").lower()
+        if buf_state == "compression":
+            buf_state = "compressed"
         tc_state = state.get("tc_state", "UNKNOWN")
         board_online = 1 if state.get("board_online", False) else 0
         sps = state.get("sps", 0.0)

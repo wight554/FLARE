@@ -107,7 +107,7 @@ class MMUSensorsMock:
             toolhead = False
             hub = False
 
-        tension = mmu.sync_feedback_state == "expanded"
+        tension = mmu.sync_feedback_state == "tension"
         compression = mmu.sync_feedback_state == "compressed"
 
         return {
