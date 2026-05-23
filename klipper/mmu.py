@@ -117,6 +117,17 @@ class MMUMock:
         self.gcode.register_command('FLARE_WAIT_TC', self.cmd_FLARE_WAIT_TC,
                                     desc="Wait for toolchange physical completion")
 
+        # Graceful handlers for Fluidd maintenance-dialog buttons that cannot be
+        # disabled from the mock (gated only by canSend). Map to a real FLARE
+        # command where one exists, otherwise no-op so they never throw
+        # "Unknown command".
+        self.gcode.register_command('MMU_SYNC_GEAR_MOTOR', self.cmd_MMU_SYNC_GEAR_MOTOR,
+                                    desc="Enable/disable extruder sync (maps to FLARE SM:)")
+        self.gcode.register_command('MMU_MOTORS_ON', self.cmd_MMU_MOTORS_NOOP,
+                                    desc="No-op: FLARE drivers are always enabled")
+        self.gcode.register_command('MMU_MOTORS_OFF', self.cmd_MMU_MOTORS_NOOP,
+                                    desc="No-op: FLARE drivers are always enabled")
+
     def cmd_SET_MMU(self, gcmd):
         """Update MMU state parameters dynamically."""
         enabled = gcmd.get_int('ENABLED', None)
@@ -244,11 +255,20 @@ class MMUMock:
         gcmd.respond_info(msg)
 
     def cmd_MMU_PRELOAD(self, gcmd):
-        """Map Happy Hare preload to FLARE_LOAD command."""
-        gate = gcmd.get_int('GATE', 0)
+        """Preload (stage to gate) the selected gate via LO:, not a full load.
+        Requires filament at the gate's IN sensor; otherwise LO: would dry-spin
+        an empty lane. Note: FLARE auto-preloads on insertion, so this is mainly
+        for setups with AUTO_PRELOAD disabled."""
+        gate = gcmd.get_int('GATE', self.active_gate)
+        if gate < 0:
+            gate = 0
         lane = gate + 1
-        gcmd.respond_info(f"FLARE: Preloading lane {lane} (Gate {gate})")
-        self.gcode.run_script_from_command(f"FLARE_LOAD LANE={lane}")
+        in_present = gate < len(self.gate_sensor) and self.gate_sensor[gate]
+        if not in_present:
+            gcmd.respond_info(f"FLARE: No filament at gate {gate} entry sensor; insert filament first")
+            return
+        gcmd.respond_info(f"FLARE: Preloading lane {lane} (Gate {gate}) to gate")
+        self.gcode.run_script_from_command(f"FLARE_PRELOAD LANE={lane}")
 
     def cmd_MMU_UNLOAD(self, gcmd):
         """Map Happy Hare unload to FLARE_UNLOAD_TOOLHEAD and FLARE_UNLOAD commands."""
@@ -309,8 +329,20 @@ class MMUMock:
         self.gcode.run_script_from_command(f"FLARE_EJECT LANE={lane}")
 
     def cmd_MMU_RECOVER(self, gcmd):
-        """Acknowledge MMU recovery command and log status."""
-        gcmd.respond_info("FLARE: Resetting error state and recovering")
+        """Acknowledge MMU recovery. FLARE has no error-lock state to recover
+        from; this is a harmless no-op kept because Fluidd's Recover button
+        cannot be disabled from the mock."""
+        gcmd.respond_info("FLARE: No error-lock state on FLARE; nothing to recover")
+
+    def cmd_MMU_SYNC_GEAR_MOTOR(self, gcmd):
+        """Map Happy Hare gear-sync toggle to FLARE SM: (extruder sync)."""
+        sync = gcmd.get_int('SYNC', 1)
+        self.gcode.run_script_from_command(f'RUN_SHELL_COMMAND CMD=flare PARAMS="SM:{1 if sync else 0}"')
+        gcmd.respond_info(f"FLARE: Extruder sync {'enabled' if sync else 'disabled'}")
+
+    def cmd_MMU_MOTORS_NOOP(self, gcmd):
+        """No-op: FLARE stepper drivers are always enabled; no host toggle."""
+        gcmd.respond_info("FLARE: Motor enable is firmware-managed; no action")
 
     def cmd_MMU_CHECK_GATE(self, gcmd):
         """Acknowledge MMU gate check command and report status."""

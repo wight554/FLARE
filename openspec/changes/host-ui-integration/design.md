@@ -263,4 +263,16 @@ The daemon-served dashboard (`scripts/webui/`) mirrors Fluidd's `MmuControls.vue
 - **Fix**: At the auto-start point, before enabling sync, adopt the physically loaded lane — if filament is at the hub (`on_al(&g_y_split)`), set active to whichever lane has its OUT sensor engaged (`lane_out_present`). Re-fetch the active lane pointer after switching so tail-assist/bootstrap use the corrected lane.
 - **Safety**: Double-load (both OUT engaged) is already excluded by the existing guard, so the correction never fires ambiguously. The switch only happens when a single lane's OUT is engaged at the hub, and only when it differs from the current active lane.
 
+## 18. Preload Semantics + Unsupported-Button Handling
+
+### Preload = stage to gate (LO:), not full load
+- `MMU_PRELOAD` previously ran `FLARE_LOAD` (`T:n; FL:`) = a full load to the toolhead, which FL:'s `OTHER_LANE_ACTIVE` guard then blocked while another lane was loaded. Now `MMU_PRELOAD` runs the new `FLARE_PRELOAD` macro (`T:n; LO:`) — a true preload to the lane's own OUT, matching Happy Hare semantics and the WebUI.
+- **Dry-spin guard**: `LO:` runs forward expecting filament; on an empty lane it would dry-spin. `cmd_MMU_PRELOAD` checks the gate's IN sensor (`gate_sensor[gate]`) and refuses with a message if absent. The WebUI Preload button is enabled only when the active lane's `gate_status == 1` (IN present, not loaded) for the same reason.
+- Preload is mostly redundant on FLARE (auto-preload fires on insertion); it is kept for setups with `AUTO_PRELOAD` disabled.
+
+### Buttons we cannot back, and what we can/can't disable
+Fluidd buttons gated only by `!klippyReady || !canSend` have **no `printer.mmu` field** to disable them from the mock — they cannot be greyed without forking Fluidd. This includes **Recover**, Check Gate, Motors On/Off, Sync Gear Motor.
+- **Hidden via mock feature flags** (already): Servo/Home/Grip/Release (`selector_type = VirtualSelector`), LEDs (`mmu_leds` absent), Encoder (`encoder` absent), Bypass (`has_bypass = false`).
+- **Cannot disable, so handled gracefully** (avoid "Unknown command"): `MMU_RECOVER` → honest no-op message (no error-lock on FLARE); `MMU_SYNC_GEAR_MOTOR SYNC=0/1` → mapped to real `SM:0/1` (extruder sync); `MMU_MOTORS_ON/OFF` → no-op (drivers firmware-managed).
+
 
