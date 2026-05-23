@@ -459,6 +459,59 @@ body {
     filter: brightness(1.1);
 }
 
+.control-move {
+    margin-bottom: 24px;
+}
+
+.move-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.move-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+
+.move-field > span:first-child {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.move-field input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-family: var(--font-outfit);
+    font-size: 0.9rem;
+    text-align: right;
+}
+
+.move-field input:focus {
+    outline: none;
+}
+
+.move-unit {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.move-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
 .custom-command {
     margin-top: auto;
     padding-top: 24px;

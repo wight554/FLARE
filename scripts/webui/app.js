@@ -87,8 +87,8 @@ function updateUIOffline() {
     document.getElementById('val-tc-state').textContent = 'UNKNOWN';
 
     // Disable every control while disconnected
-    ['btn-lane-1', 'btn-lane-2', 'btn-preload', 'btn-eject',
-     'btn-checkgate', 'btn-unload', 'btn-load'].forEach((id) => setBtnEnabled(id, false));
+    ['btn-lane-1', 'btn-lane-2', 'btn-preload', 'btn-eject', 'btn-checkgate',
+     'btn-unload', 'btn-load', 'btn-extrude', 'btn-retract'].forEach((id) => setBtnEnabled(id, false));
 }
 
 function updateUIState(data) {
@@ -210,6 +210,10 @@ function updateButtonStates(data) {
     setBtnEnabled('btn-unload', online && hasLane && loaded);
     // Load (FL:): only when not already loaded
     setBtnEnabled('btn-load', online && hasLane && !loaded);
+
+    // Manual move (MV:) acts on the active lane; needs one selected
+    setBtnEnabled('btn-extrude', online && hasLane);
+    setBtnEnabled('btn-retract', online && hasLane);
 }
 
 function updateSensor(id, state) {
@@ -230,6 +234,23 @@ function ejectActiveLane() {
     } else {
         sendCustomCommand('UM:');
     }
+}
+
+// Manual filament move on the active lane via MV:<mm>:<feed_mm_min>.
+// Inputs are mm and mm/s; firmware wants mm/min, so speed is multiplied by 60.
+// Positive distance = extrude (forward), negative = retract.
+function moveFilament(dir) {
+    const len = parseFloat(document.getElementById('mv-length').value);
+    const spd = parseFloat(document.getElementById('mv-speed').value);
+    const feedback = document.getElementById('cmd-feedback');
+    if (!(len > 0) || !(spd > 0)) {
+        feedback.className = 'cmd-feedback error';
+        feedback.textContent = 'Manual move: length and speed must be > 0';
+        return;
+    }
+    const mm = (dir < 0 ? -len : len).toFixed(2);
+    const feedMmMin = Math.round(spd * 60);
+    sendCustomCommand(`MV:${mm}:${feedMmMin}`);
 }
 
 // REST Command execution helper

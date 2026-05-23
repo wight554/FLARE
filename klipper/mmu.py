@@ -352,8 +352,8 @@ class MMUMock:
         gcmd.respond_info(f"FLARE: Extruder sync {'enabled' if sync else 'disabled'}")
 
     def cmd_MMU_MOTORS_NOOP(self, gcmd):
-        """No-op: FLARE stepper drivers are always enabled; no host toggle."""
-        gcmd.respond_info("FLARE: Motor enable is firmware-managed; no action")
+        """No-op: FLARE stepper drivers are firmware-managed; no host toggle."""
+        gcmd.respond_raw("!! MMU motor on/off is not implemented on FLARE (drivers are firmware-managed).")
 
     def cmd_MMU_CHECK_GATE(self, gcmd):
         """Acknowledge MMU gate check command and report status."""

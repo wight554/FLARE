@@ -283,4 +283,13 @@ The maintenance dialog issues `MMU_LOAD EXTRUDER_ONLY=1` / `MMU_UNLOAD EXTRUDER_
 - `MMU_LOAD EXTRUDER_ONLY=1` → `_FLARE_LOAD_HOTEND` (push parked filament through the meltzone + purge); skips the leading `FL:` and the MMU approach/sync grab.
 - `MMU_UNLOAD EXTRUDER_ONLY=1` → `FLARE_UNLOAD_TOOLHEAD` (tip forming + gear retract); skips the trailing `UL:` gate unload.
 
+No-op handlers use the same `!!`-prefixed style as Recover so they read as "not implemented" in the console: `MMU_MOTORS_ON/OFF` emits `!! MMU motor on/off is not implemented on FLARE`.
+
+## 19. WebUI Manual Move (MV:) Panel
+
+The WebUI Control Deck has a Fluidd-style manual-move block driving the FLARE lane motor via `MV:`.
+- **Inputs**: Length (mm) and Speed (**mm/s**). `MV:` expects mm/min, so the handler multiplies speed by 60. Extrude sends `MV:<+len>:<feed>`, Retract sends `MV:<-len>:<feed>` (firmware takes direction from the sign).
+- **Lane awareness**: `MV:` acts on the firmware active lane. The WebUI's `Lane 1`/`Lane 2` selector (`T:n`) sets that, so the move targets the selected lane. Extrude/Retract are gated on a lane being active (and disabled while offline).
+- `MV:` disables sync for the finite move (firmware behavior); validation requires length > 0 and speed > 0.
+
 
