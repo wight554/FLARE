@@ -319,4 +319,15 @@ The standalone WebUI shows painted spool cards in the Active Lane selector and l
 - **Spoolman enrichment**: for gates with `spool_id >= 0`, the daemon fetches name/material/color_hex/remaining via **Moonraker proxy first, then direct Spoolman API** (`--spoolman-url`, default `:7912`); cached 30 s. Display precedence is local gate-map value first, Spoolman second.
 - **UI**: each card shows a color-painted spool icon, name, material, lane, and remaining weight; clicking the card body selects the lane (`T:n`), the ✎ button opens an inline editor (material / color picker / name / spool ID). Cards refresh on connect, after edits, and every 30 s.
 
+## 22. Filament Usage Tracking (Standalone, No Moonraker Required)
+
+Consumption is tracked host-side so it works without Moonraker, mirroring Happy Hare's "bill the active spool" behavior.
+
+- **Signal**: firmware exposes a new status field `TF:<mm>` = `g_sync_mmu_total_mm`, the cumulative filament the MMU feeds during sync (≈ what the print consumes on the active lane). It only grows during sync (print), not during load/unload, so loads aren't miscounted.
+- **Tracker**: a daemon thread (`filament_usage_tracker`, runs regardless of `--no-klipper`) watches `TF` deltas, attributes each positive delta to the **loaded gate's spool**, and:
+  - **Spoolman reachable**: `POST /v1/spool/{id}/use {use_length: <mm>}` (Moonraker proxy first, then direct `--spoolman-url`). Spoolman computes grams from its own filament density — no math on our side.
+  - **Spoolman unavailable**: accumulate per-gate `used_mm` + estimated `used_g` (1.75 mm × 1.24 g/cm³ default) in `flare_spool_usage.json`.
+- **Reset handling**: a `TF` rewind (board reboot) re-baselines instead of counting a negative delta.
+- **UI**: the spool card shows Spoolman remaining weight when available, otherwise the locally-tracked `used Ng`. `GET /gatemap` includes `used` per gate.
+
 

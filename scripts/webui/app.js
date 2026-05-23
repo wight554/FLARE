@@ -177,7 +177,12 @@ function spoolDisplay(g) {
     const material = (g.material && g.material.trim()) ? g.material : (sp.material || '');
     const localName = (g.name && g.name.trim() && !/^Gate \d+$/.test(g.name)) ? g.name : '';
     const name = localName || sp.name || g.name || '';
-    return { color, material, name, remaining: sp.remaining_weight, spool_id: g.spool_id };
+    return {
+        color, material, name,
+        remaining: sp.remaining_weight,
+        used: g.used,
+        spool_id: g.spool_id,
+    };
 }
 
 function renderSpoolCards() {
@@ -192,6 +197,7 @@ function renderSpoolCards() {
         if (d.material) sub.push(escapeHtml(d.material));
         sub.push('Lane ' + lane);
         if (typeof d.remaining === 'number') sub.push(Math.round(d.remaining) + 'g');
+        else if (d.used && d.used.used_g) sub.push('used ' + Math.round(d.used.used_g) + 'g');
         else if (d.spool_id >= 0) sub.push('#' + d.spool_id);
 
         const card = document.createElement('div');

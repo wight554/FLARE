@@ -241,7 +241,7 @@ static void status_dump(void) {
         snprintf(b + blen, sizeof(b) - (size_t)blen,
             ",RT:%.2f,RD:%.2f,TT:%u,CT:%u,CW:%u,EA:%u,SK:%u,CF:%.2f,RI:%.2f,RC:%d,ES:%.2f,EC:%d"
             ",BPR:%.2f,BPD:%.2f,BPN:%d,TPX:%d,RDC:%d,CB:%d,NC:%d,VB:%d,BPV:%d,MK:%u:%s"
-            ",SYNC_REFILL_MM:%d,SYNC_RELIEVE_MM:%d",
+            ",SYNC_REFILL_MM:%d,SYNC_RELIEVE_MM:%d,TF:%.1f",
             (double)sync_reserve_target_mm(),
             (double)sync_reserve_deadband_mm(),
             (unsigned)ad_ms,
@@ -266,7 +266,8 @@ static void status_dump(void) {
             g_marker_seq,
             g_marker_tag,
             (int)g_sync_refill_effort_mm,
-            (int)g_sync_relieve_effort_mm);
+            (int)g_sync_relieve_effort_mm,
+            (double)g_sync_mmu_total_mm);
     }
 
     cmd_reply("OK", b);

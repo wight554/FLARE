@@ -61,3 +61,4 @@ float sync_bp_drift_correction_applied_mm(void);
 
 extern float g_sync_refill_effort_mm;
 extern float g_sync_relieve_effort_mm;
+extern float g_sync_mmu_total_mm;

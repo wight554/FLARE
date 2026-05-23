@@ -13,6 +13,7 @@ Exposes:
 import os
 import sys
 import time
+import math
 import argparse
 import threading
 import queue
@@ -309,8 +310,118 @@ def _spoolman_get_spool(spool_id):
         _spool_cache[spool_id] = (now, data)
     return data
 
+# --- Filament usage tracking (consumption) ---
+FILAMENT_DIAMETER_MM = 1.75
+DEFAULT_DENSITY_G_CM3 = 1.24  # ~PETG; only used for the offline local estimate
+_usage_lock = threading.Lock()
+
+def _usage_path():
+    for p in (
+        os.path.expanduser("~/printer_data/config/flare_spool_usage.json"),
+        os.path.expanduser("~/flare_spool_usage.json"),
+        "/tmp/flare_spool_usage.json",
+    ):
+        d = os.path.dirname(p)
+        if os.path.isdir(d) and os.access(d, os.W_OK):
+            return p
+    return "/tmp/flare_spool_usage.json"
+
+def _mm_to_grams(length_mm):
+    r = FILAMENT_DIAMETER_MM / 2.0
+    vol_cm3 = (math.pi * r * r * length_mm) / 1000.0
+    return vol_cm3 * DEFAULT_DENSITY_G_CM3
+
+def _spoolman_use_length(spool_id, length_mm):
+    """Report consumed length to Spoolman (it computes grams from its own
+    filament density). Moonraker proxy first, then direct Spoolman API."""
+    payload = json.dumps({"use_length": round(length_mm, 4)})
+    try:
+        body = json.dumps({"request_method": "POST",
+                           "path": f"/v1/spool/{spool_id}/use",
+                           "body": payload}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{MOONRAKER_URL}/server/spoolman/proxy",
+            data=body, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            resp.read()
+        return True
+    except Exception:
+        pass
+    try:
+        req = urllib.request.Request(
+            f"{SPOOLMAN_URL}/v1/spool/{spool_id}/use",
+            data=payload.encode("utf-8"), headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            resp.read()
+        return True
+    except Exception:
+        return False
+
+def _local_usage_read():
+    with _usage_lock:
+        try:
+            with open(_usage_path()) as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+def _local_usage_add(gate, spool_id, length_mm):
+    with _usage_lock:
+        try:
+            with open(_usage_path()) as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+        key = str(gate)
+        ent = data.get(key, {"used_mm": 0.0, "used_g": 0.0})
+        ent["used_mm"] = round(ent.get("used_mm", 0.0) + length_mm, 2)
+        ent["used_g"] = round(ent.get("used_g", 0.0) + _mm_to_grams(length_mm), 3)
+        ent["spool_id"] = spool_id
+        data[key] = ent
+        try:
+            with open(_usage_path(), "w") as f:
+                json.dump(data, f)
+        except Exception:
+            pass
+
+def filament_usage_tracker():
+    """Attribute MMU sync feed (TF delta = filament consumed by the print) to the
+    loaded gate's spool: report to Spoolman if reachable, else accumulate locally.
+    Runs regardless of Klipper/Moonraker so standalone setups still track usage."""
+    last_total = None
+    while True:
+        time.sleep(1.0)
+        with status_lock:
+            s = dict(status_cache)
+        total = s.get("total_fed_mm")
+        if total is None:
+            continue
+        if last_total is None or total < last_total - 1.0:
+            last_total = total  # init, or board reset (TF rewound)
+            continue
+        delta = total - last_total
+        last_total = total
+        if delta <= 0.05:
+            continue
+        ys, th = s.get("y_split", 0), s.get("toolhead", 0)
+        loaded = -1
+        if s.get("in1") and s.get("out1") and ys and th:
+            loaded = 0
+        elif s.get("in2") and s.get("out2") and ys and th:
+            loaded = 1
+        if loaded < 0:
+            continue
+        gm = _read_gate_map()
+        sid = gm["gate_spool_id"][loaded] if loaded < len(gm["gate_spool_id"]) else -1
+        recorded = False
+        if isinstance(sid, int) and sid >= 0:
+            recorded = _spoolman_use_length(sid, delta)
+        if not recorded:
+            _local_usage_add(loaded, sid, delta)
+
 def build_gatemap_response():
     gm = _read_gate_map()
+    usage = _local_usage_read()
     gates = []
     for i in range(gm["num_gates"]):
         sid = gm["gate_spool_id"][i]
@@ -321,6 +432,7 @@ def build_gatemap_response():
             "name": gm["gate_name"][i],
             "spool_id": sid,
             "spool": spool,
+            "used": usage.get(str(i)),
         })
     return {"num_gates": gm["num_gates"], "gates": gates}
 
@@ -395,6 +507,8 @@ def parse_status_line(line):
                 new_data["enable_cutter"] = int(val)
             elif key == "UC":
                 new_data["unload_cut"] = int(val)
+            elif key == "TF":
+                new_data["total_fed_mm"] = float(val)
         except ValueError:
             pass # ignore malformed metrics
             
@@ -944,6 +1058,10 @@ def main():
     # 3. Launch background status poller thread
     poller_t = threading.Thread(target=status_poller, daemon=True)
     poller_t.start()
+
+    # 3.1 Launch filament-usage tracker (Spoolman or local; runs without Klipper)
+    usage_t = threading.Thread(target=filament_usage_tracker, daemon=True)
+    usage_t.start()
     
     # 3.5 Launch Klipper telemetry syncer if enabled
     if not args.no_klipper:
