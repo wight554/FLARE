@@ -1,6 +1,9 @@
 # FLARE MMU Mock Klipper Extra Module
 # Enables native MMU panel support in Mainsail/Fluidd without full Happy Hare installation.
 
+import json
+import urllib.request
+
 class MMUMachineMock:
     def __init__(self, mmu):
         self.mmu = mmu
@@ -81,6 +84,11 @@ class MMUMock:
         self.loads_success = 0
         self.unloads_success = 0
         self.last_error = "None"
+
+        # FLARE daemon HTTP endpoint, used to read live board sensor state
+        # directly. The SET_MMU-pushed mirror cannot update while a command holds
+        # the gcode lock, so synchronous waits read the daemon out-of-band.
+        self.daemon_url = config.get('daemon_url', 'http://127.0.0.1:8088')
 
         # Register command to update status
         self.gcode = self.printer.lookup_object('gcode')
@@ -587,17 +595,28 @@ class MMUMock:
                 gcmd.respond_info(f"FLARE: Warning: Failed to send T:{lane} to board: {str(e)}")
 
     def _is_toolhead_sensor_triggered(self):
-        # 1. Try to query the filament switch sensor object in Klipper directly
+        # 1. A real Klipper filament switch sensor object, for setups that wire
+        #    the toolhead sensor to the printer MCU instead of the FLARE board.
         try:
             sensor_obj = self.printer.lookup_object('filament_switch_sensor toolhead_sensor')
             eventtime = self.printer.get_reactor().monotonic()
-            status = sensor_obj.get_status(eventtime)
-            if status.get('filament_detected'):
+            if sensor_obj.get_status(eventtime).get('filament_detected'):
                 return True
         except Exception:
             pass
 
-        # 2. Fall back to the synchronizer-driven cached property
+        # 2. The board toolhead sensor (TH), read live from the daemon. The FLARE
+        #    board owns this sensor; Klipper only learns it through the SET_MMU
+        #    mirror, which is frozen while this command holds the gcode lock. The
+        #    daemon HTTP read runs in a separate process and is immune to that.
+        try:
+            with urllib.request.urlopen(f"{self.daemon_url}/status", timeout=1.0) as resp:
+                if int(json.loads(resp.read().decode("utf-8")).get("toolhead", 0)):
+                    return True
+        except Exception:
+            pass
+
+        # 3. Last resort: the (possibly stale) SET_MMU-pushed mirror.
         return self.toolhead_sensor == 1
 
     def cmd_FLARE_WAIT_TC(self, gcmd):
