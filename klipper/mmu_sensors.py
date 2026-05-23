@@ -72,12 +72,6 @@ class MMUSensorsMock:
             'mmu_extruder': 'extruder',
             'mmu_toolhead': 'toolhead',
             'mmu_hub': 'hub',
-            'pre_gate_0': 'pre_gate_0',
-            'pre_gate_1': 'pre_gate_1',
-            'gate': 'gate',
-            'extruder': 'extruder',
-            'toolhead': 'toolhead',
-            'hub': 'hub'
         }
 
         for name, sensor_type in sensors_to_register.items():
