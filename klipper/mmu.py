@@ -271,14 +271,25 @@ class MMUMock:
         self.gcode.run_script_from_command(f"FLARE_PRELOAD LANE={lane}")
 
     def cmd_MMU_UNLOAD(self, gcmd):
-        """Map Happy Hare unload to FLARE_UNLOAD_TOOLHEAD and FLARE_UNLOAD commands."""
+        """Map Happy Hare unload to FLARE_UNLOAD_TOOLHEAD and FLARE_UNLOAD.
+        EXTRUDER_ONLY=1 runs only the extruder portion (tip forming + gear
+        retract) and skips the trailing UL: gate unload."""
         gcmd.respond_info("FLARE: Unloading toolhead gears")
         self.gcode.run_script_from_command("FLARE_UNLOAD_TOOLHEAD")
+        if gcmd.get_int('EXTRUDER_ONLY', 0):
+            return
         gcmd.respond_info("FLARE: Unloading lane to gate")
         self.gcode.run_script_from_command("FLARE_UNLOAD")
 
     def cmd_MMU_LOAD(self, gcmd):
-        """Map Happy Hare load to selected-gate FLARE_LOAD and hotend handoff."""
+        """Map Happy Hare load to selected-gate FLARE_LOAD and hotend handoff.
+        EXTRUDER_ONLY=1 runs only the hotend load + purge (no gate movement,
+        no leading FL:)."""
+        if gcmd.get_int('EXTRUDER_ONLY', 0):
+            gcmd.respond_info("FLARE: Loading hotend only (extruder)")
+            self.gcode.run_script_from_command("_FLARE_LOAD_HOTEND")
+            return
+
         gate = gcmd.get_int('GATE', self.active_gate)
         if gate < 0:
             gate = 0

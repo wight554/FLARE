@@ -278,4 +278,9 @@ Fluidd buttons gated only by `!klippyReady || !canSend` have **no `printer.mmu` 
 ### Double-load guard on FD:
 `FD:` (raw forward feed) now rejects `OTHER_LANE_ACTIVE` when the hub is occupied by the other lane (same guard as `FL:`/`RL:`), since it could otherwise feed a second filament into the hub. `MV:` is intentionally left unguarded as the raw escape hatch for worst-case manual recovery.
 
+### Maintenance-dialog extruder-only load/unload
+The maintenance dialog issues `MMU_LOAD EXTRUDER_ONLY=1` / `MMU_UNLOAD EXTRUDER_ONLY=1` — operate on the extruder/hotend portion only, no MMU gate movement:
+- `MMU_LOAD EXTRUDER_ONLY=1` → `_FLARE_LOAD_HOTEND` (push parked filament through the meltzone + purge); skips the leading `FL:` and the MMU approach/sync grab.
+- `MMU_UNLOAD EXTRUDER_ONLY=1` → `FLARE_UNLOAD_TOOLHEAD` (tip forming + gear retract); skips the trailing `UL:` gate unload.
+
 
