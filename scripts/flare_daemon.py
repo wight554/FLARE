@@ -331,6 +331,29 @@ def _mm_to_grams(length_mm):
     vol_cm3 = (math.pi * r * r * length_mm) / 1000.0
     return vol_cm3 * DEFAULT_DENSITY_G_CM3
 
+_mr_spoolman_cache = {"ts": 0.0, "active": False}
+_mr_spoolman_lock = threading.Lock()
+
+def _moonraker_spoolman_active():
+    """True when Moonraker's Spoolman integration is connected. If so, Moonraker
+    already bills the active spool (which we set) from extruder moves, so the
+    daemon must NOT also report usage or it would double-count. Cached 15 s."""
+    now = time.time()
+    with _mr_spoolman_lock:
+        if now - _mr_spoolman_cache["ts"] < 15.0:
+            return _mr_spoolman_cache["active"]
+    active = False
+    try:
+        with urllib.request.urlopen(f"{MOONRAKER_URL}/server/spoolman/status", timeout=1.0) as resp:
+            d = json.loads(resp.read().decode("utf-8"))
+        active = bool(d.get("result", {}).get("spoolman_connected", False))
+    except Exception:
+        active = False
+    with _mr_spoolman_lock:
+        _mr_spoolman_cache["ts"] = now
+        _mr_spoolman_cache["active"] = active
+    return active
+
 def _spoolman_use_length(spool_id, length_mm):
     """Report consumed length to Spoolman (it computes grams from its own
     filament density). Moonraker proxy first, then direct Spoolman API."""
@@ -402,6 +425,10 @@ def filament_usage_tracker():
         delta = total - last_total
         last_total = total
         if delta <= 0.05:
+            continue
+        # If Klipper's Moonraker is already tracking Spoolman usage (it bills the
+        # active spool we set, from extruder moves), do not double-count here.
+        if _moonraker_spoolman_active():
             continue
         ys, th = s.get("y_split", 0), s.get("toolhead", 0)
         loaded = -1

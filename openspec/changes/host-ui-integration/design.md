@@ -327,6 +327,7 @@ Consumption is tracked host-side so it works without Moonraker, mirroring Happy 
 - **Tracker**: a daemon thread (`filament_usage_tracker`, runs regardless of `--no-klipper`) watches `TF` deltas, attributes each positive delta to the **loaded gate's spool**, and:
   - **Spoolman reachable**: `POST /v1/spool/{id}/use {use_length: <mm>}` (Moonraker proxy first, then direct `--spoolman-url`). Spoolman computes grams from its own filament density — no math on our side.
   - **Spoolman unavailable**: accumulate per-gate `used_mm` + estimated `used_g` (1.75 mm × 1.24 g/cm³ default) in `flare_spool_usage.json`.
+- **No double-counting**: if Moonraker's Spoolman integration is connected (`GET /server/spoolman/status` → `spoolman_connected`), Moonraker already bills the active spool we set (§19) from extruder moves, so the daemon tracker **skips** reporting (neither Spoolman `use` nor local) — checked, cached 15 s. The daemon only tracks when Klipper/Moonraker is not handling it (true standalone, or Spoolman used directly without the Moonraker integration).
 - **Reset handling**: a `TF` rewind (board reboot) re-baselines instead of counting a negative delta.
 - **UI**: the spool card shows Spoolman remaining weight when available, otherwise the locally-tracked `used Ng`. `GET /gatemap` includes `used` per gate.
 
