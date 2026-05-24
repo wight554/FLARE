@@ -889,6 +889,17 @@ class MMUMock:
             filament_position = path_len * 0.1
         else:
             filament_position = 0.0
+
+        sensors_dict = {
+            'toolhead': path_toolhead,
+            'filament_tension': self.sync_feedback_state == "tension",
+            'filament_compression': self.sync_feedback_state == "compressed",
+        }
+        if not self.bypass:
+            sensors_dict['mmu_pre_gate'] = path_pre_gate
+            sensors_dict['mmu_gear'] = path_gear
+            sensors_dict['mmu_gate'] = path_gate
+
         return {
             'enabled': self.enabled,
             'is_homed': self.is_homed,
@@ -940,14 +951,7 @@ class MMUMock:
             'extruder_sensor_active': self.extruder_sensor_active,
             'pre_gate_sensor_active': self.pre_gate_sensor_active,
             'hub_sensor_active': self.hub_sensor_active,
-            'sensors': {
-                'mmu_pre_gate': path_pre_gate,
-                'mmu_gear': path_gear,
-                'mmu_gate': path_gate,
-                'toolhead': path_toolhead,
-                'filament_tension': self.sync_feedback_state == "tension",
-                'filament_compression': self.sync_feedback_state == "compressed",
-            }
+            'sensors': sensors_dict
         }
 
 def load_config(config):
