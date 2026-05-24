@@ -320,6 +320,9 @@ class MMUMock:
         mapped through the tool-to-gate map."""
         gate = gcmd.get_int('GATE', -1)
         tool = gcmd.get_int('TOOL', -1)
+        if gate == -2 or tool == -2:
+            self._select_bypass(gcmd)
+            return
         if gate < 0 and 0 <= tool < len(self.ttg_map):
             gate = self.ttg_map[tool]
         if gate < 0:
@@ -367,6 +370,9 @@ class MMUMock:
 
     def cmd_MMU_EJECT(self, gcmd):
         """Map Happy Hare eject to selected-gate FLARE_EJECT command."""
+        if self.bypass:
+            gcmd.respond_info("FLARE: Bypass active; no physical eject needed. Please manually pull the filament strand out.")
+            return
         gate = gcmd.get_int('GATE', self.active_gate)
         if gate < 0:
             gate = 0
@@ -860,7 +866,12 @@ class MMUMock:
         path_gear = bool(self.gate_sensor_active)
         path_gate = bool(self.hub_sensor_active)
         path_toolhead = bool(self.toolhead_sensor)
-        if not path_gear:
+        if self.bypass:
+            path_pre_gate = False
+            path_gear = False
+            path_gate = False
+            path_toolhead = bool(self.toolhead_sensor)
+        elif not path_gear:
             path_gate = False
             path_toolhead = False
         # Synthesize a filament tip position (mm) for the Fluidd "Filament: X mm"
@@ -885,6 +896,7 @@ class MMUMock:
             'active_gate': self.active_gate,
             'gate': self.gate,
             'tool': self.tool,
+            'bypass': self.bypass,
             'gate_status': self.gate_status,
             'gate_sensor': self.gate_sensor,
             'gate_color': self.gate_color,

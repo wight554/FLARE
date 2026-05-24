@@ -55,6 +55,7 @@ status_lock = threading.Lock()
 status_cache = {
     "board_online": False,
     "active_lane": 0,
+    "bypass": False,
     "tc_state": "UNKNOWN",
     "g_buf_pos": 0.0,
     "buf_state": "NEUTRAL",
@@ -495,7 +496,10 @@ def parse_status_line(line):
         
         try:
             if key == "LN":
-                new_data["active_lane"] = int(val)
+                val_int = int(val)
+                new_data["active_lane"] = val_int
+                if val_int in [1, 2]:
+                    new_data["bypass"] = False
             elif key == "TC":
                 new_data["tc_state"] = val
             elif key == "L1T":
@@ -745,8 +749,16 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                 self.send_error(400, "Missing cmd parameter")
                 return
             
-            # Send command directly to board with lock
-            response = self.execute_serial_command(cmd_str)
+            # Intercept virtual bypass commands to handle locally, avoiding serial ER:ARG
+            if cmd_str == "T:0" or cmd_str == "BYPASS":
+                with status_lock:
+                    status_cache["bypass"] = True
+                    status_cache["active_lane"] = 0
+                broadcast_telemetry({"bypass": True, "active_lane": 0})
+                response = "OK"
+            else:
+                # Send command directly to board with lock
+                response = self.execute_serial_command(cmd_str)
             
             if response is None:
                 self.send_response(504) # Gateway Timeout
@@ -853,6 +865,17 @@ def _moonraker_get_gate_spool_ids(moonraker_url):
     except Exception:
         return []
 
+def _moonraker_get_mmu_bypass(moonraker_url):
+    """Read the bypass status from Klipper mmu object via Moonraker."""
+    try:
+        url = f"{moonraker_url}/printer/objects/query?mmu=bypass"
+        with urllib.request.urlopen(url, timeout=1.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return bool(data.get("result", {}).get("status", {}).get("mmu", {}).get("bypass", False))
+    except Exception:
+        return False
+
+
 def _moonraker_set_active_spool(moonraker_url, spool_id):
     """Set Moonraker's active Spoolman spool (None clears it). Moonraker then
     bills filament consumption to this spool. No-op/ignored if Spoolman is not
@@ -899,8 +922,12 @@ def klipper_syncer(moonraker_url):
         if backoff > time.time():
             continue
 
-        # Get copy of current cache
+        # Get copy of current cache and update bypass status from Moonraker
+        klipper_bypass = _moonraker_get_mmu_bypass(moonraker_url)
         with status_lock:
+            if status_cache.get("bypass", False) != klipper_bypass:
+                status_cache["bypass"] = klipper_bypass
+                broadcast_telemetry({"bypass": klipper_bypass})
             state = dict(status_cache)
 
         # Detect changes in values of interest
@@ -1001,15 +1028,23 @@ def klipper_syncer(moonraker_url):
             loaded_gate = 1
 
         # Align klipper_tool and klipper_gate to active_gate so that UI highlights the selected card
-        # and displays its spool details correctly.
-        klipper_tool = active_gate
-        klipper_gate = active_gate
-
-        # Physical sensor states for active gate and combiner
-        gate_sensor_active = out1 if active_gate == 0 else (out2 if active_gate == 1 else 0)
-        extruder_sensor_active = y_split
-        pre_gate_sensor_active = in1 if active_gate == 0 else (in2 if active_gate == 1 else 0)
-        hub_sensor_active = y_split
+        # and displays its spool details correctly. If bypassed, enforce the -2 sentinels.
+        if state.get("bypass", False):
+            active_gate = -2
+            klipper_gate = -2
+            klipper_tool = -2
+            gate_sensor_active = 0
+            extruder_sensor_active = 0
+            pre_gate_sensor_active = 0
+            hub_sensor_active = 0
+        else:
+            klipper_tool = active_gate
+            klipper_gate = active_gate
+            # Physical sensor states for active gate and combiner
+            gate_sensor_active = out1 if active_gate == 0 else (out2 if active_gate == 1 else 0)
+            extruder_sensor_active = y_split
+            pre_gate_sensor_active = in1 if active_gate == 0 else (in2 if active_gate == 1 else 0)
+            hub_sensor_active = y_split
 
         with stats_lock:
             st = dict(mmu_stats)
