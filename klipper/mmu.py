@@ -314,27 +314,31 @@ class MMUMock:
         self._load_gate(gcmd, gate)
 
     def _load_gate(self, gcmd, gate):
-        """Bring `gate` to the toolhead. If the other gate is loaded, run a
-        firmware toolchange (it unloads the current lane first). Otherwise select
-        the lane and load it. Both go through the proven _FLARE_CHANGE_LANE path:
-        TC: drives to the toolhead, FLARE_WAIT_TC blocks on the toolhead sensor,
-        then the hotend is loaded."""
+        """Bring `gate` to the toolhead. If a different lane occupies the shared
+        path, unload it first via a firmware toolchange; otherwise load the lane
+        directly. Both go through _FLARE_CHANGE_LANE: TC: drives to the toolhead,
+        FLARE_WAIT_TC blocks on the toolhead sensor, then the hotend is loaded."""
         lane = gate + 1
+        current = self.active_gate
 
-        other_gate = 1 - gate
-        if other_gate < len(self.gate_status):
-            if self.gate_status[other_gate] == 2:
-                gcmd.respond_info(f"FLARE: Gate {other_gate} is currently loaded. Performing auto-unload and switching to lane {lane} (Gate {gate})...")
-                # Do not pre-select with T:: the firmware's active lane is the
-                # loaded one, so TC: performs a real swap (unload then load).
-                self.gcode.run_script_from_command(f"_FLARE_CHANGE_LANE LANE={lane}")
-                return
+        # A different lane occupying the shared path -- filament past its gate
+        # (OUT), at the hub/Y, or loaded to the toolhead -- must be cleared before
+        # the new lane can load. The firmware TC: does unload-then-load whenever
+        # the target differs from the active lane, including a gate-only occupant
+        # (TC_UNLOAD_REVERSE), so route the swap through _FLARE_CHANGE_LANE
+        # WITHOUT pre-selecting the target (keep the firmware's active = occupant).
+        current_occupies = (
+            0 <= current < self.num_gates and current != gate
+            and (self.gate_sensor_active or self.hub_sensor_active
+                 or (current < len(self.gate_status) and self.gate_status[current] == 2))
+        )
+        if current_occupies:
+            gcmd.respond_info(f"FLARE: Lane {current + 1} (Gate {current}) occupies the path; unloading it, then loading lane {lane} (Gate {gate})...")
+            self.gcode.run_script_from_command(f"_FLARE_CHANGE_LANE LANE={lane}")
+            return
 
-        if self.hub_sensor_active and not self.gate_sensor_active:
-            raise gcmd.error(f"FLARE: Cannot load gate {gate} - Y-splitter is occupied by another lane.")
-
-        # Fresh load (nothing at the toolhead): select the lane so TC: sees
-        # target == active and runs TC_LOAD_START (a load, not a swap).
+        # Path clear: select the lane so TC: sees target == active and runs
+        # TC_LOAD_START (a load, not a swap).
         gcmd.respond_info(f"FLARE: Loading lane {lane} (Gate {gate})")
         self.gcode.run_script_from_command(f'RUN_SHELL_COMMAND CMD=flare PARAMS="T:{lane}"')
         self.gcode.run_script_from_command(f"_FLARE_CHANGE_LANE LANE={lane}")
