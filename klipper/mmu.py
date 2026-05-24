@@ -1,9 +1,6 @@
 # FLARE MMU Mock Klipper Extra Module
 # Enables native MMU panel support in Mainsail/Fluidd without full Happy Hare installation.
 
-import json
-import urllib.request
-
 class MMUMachineMock:
     def __init__(self, mmu):
         self.mmu = mmu
@@ -84,11 +81,6 @@ class MMUMock:
         self.loads_success = 0
         self.unloads_success = 0
         self.last_error = "None"
-
-        # FLARE daemon HTTP endpoint, used to read live board sensor state
-        # directly. The SET_MMU-pushed mirror cannot update while a command holds
-        # the gcode lock, so synchronous waits read the daemon out-of-band.
-        self.daemon_url = config.get('daemon_url', 'http://127.0.0.1:8088')
 
         # Register command to update status
         self.gcode = self.printer.lookup_object('gcode')
@@ -621,13 +613,16 @@ class MMUMock:
                 gcmd.respond_info(f"FLARE: Warning: Failed to send T:{lane} to board: {str(e)}")
 
     def _is_toolhead_sensor_triggered(self):
-        # 1. The real Klipper filament switch sensor wired to the printer MCU.
-        #    Use the name configured in _FLARE_VARS (what the macros key off),
-        #    not a hardcoded "toolhead_sensor". The sensor object is MCU-driven,
-        #    so it reflects filament arrival immediately even while this command
-        #    holds the gcode lock (the SET_MMU mirror and the sensor's own
-        #    insert-gcode TS: are both starved by the lock; reading the object is
-        #    not).
+        # Read the real Klipper filament switch sensor object directly, by the
+        # name configured in _FLARE_VARS (what the macros key off). It is
+        # MCU-driven, so it reflects filament arrival in real time even while this
+        # command holds the gcode lock.
+        #
+        # Deliberately NO fallback to the SET_MMU mirror or the firmware toolhead
+        # flag: both are stale for "did filament arrive THIS load". The mirror is
+        # frozen under the gcode lock, and the firmware flag (toolhead_has_filament)
+        # persists from the previous load until an unload. Falling back to them
+        # made the wait return immediately on a re-load and report a false load.
         sensor_name = 'toolhead_sensor'
         macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
         if macro is not None:
@@ -635,24 +630,9 @@ class MMUMock:
         try:
             sensor_obj = self.printer.lookup_object('filament_switch_sensor ' + sensor_name)
             eventtime = self.printer.get_reactor().monotonic()
-            if sensor_obj.get_status(eventtime).get('filament_detected'):
-                return True
+            return bool(sensor_obj.get_status(eventtime).get('filament_detected'))
         except Exception:
-            pass
-
-        # 2. The board toolhead sensor (TH), read live from the daemon. The FLARE
-        #    board owns this sensor; Klipper only learns it through the SET_MMU
-        #    mirror, which is frozen while this command holds the gcode lock. The
-        #    daemon HTTP read runs in a separate process and is immune to that.
-        try:
-            with urllib.request.urlopen(f"{self.daemon_url}/status", timeout=1.0) as resp:
-                if int(json.loads(resp.read().decode("utf-8")).get("toolhead", 0)):
-                    return True
-        except Exception:
-            pass
-
-        # 3. Last resort: the (possibly stale) SET_MMU-pushed mirror.
-        return self.toolhead_sensor == 1
+            return False
 
     def cmd_FLARE_WAIT_TC(self, gcmd):
         """Wait synchronously for physical toolchange toolhead insertion."""
