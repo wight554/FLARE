@@ -218,15 +218,22 @@ class MMUMock:
                 loaded_gate = g
                 break
 
-        is_loaded = False
-        if self.toolhead_sensor == 1 and (self.gate == loaded_gate or loaded_gate == -1):
-            is_loaded = True
-        elif 0 <= self.gate < len(self.gate_status) and self.gate_status[self.gate] == 2:
-            is_loaded = True
+        at_toolhead = (
+            (self.toolhead_sensor == 1 and (self.gate == loaded_gate or loaded_gate == -1))
+            or (0 <= self.gate < len(self.gate_status) and self.gate_status[self.gate] == 2)
+        )
 
-        if is_loaded:
+        if at_toolhead:
+            # Fully loaded to the toolhead: UNLOAD enabled, LOAD disabled.
             self.filament = "Loaded"
             self.filament_pos = 10
+        elif self.gate_sensor_active:
+            # Past the gate (OUT triggered) but not at the toolhead: partially
+            # loaded. Report an intermediate filament_pos so Fluidd keeps BOTH
+            # LOAD (advance to toolhead) and UNLOAD (retract from gate) enabled,
+            # instead of treating the lane as fully unloaded.
+            self.filament = "Loaded"
+            self.filament_pos = 4
         else:
             self.filament = "Unloaded"
             self.filament_pos = 0
