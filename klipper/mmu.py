@@ -20,8 +20,8 @@ class MMUMachineMock:
                 'require_bowden_move': True,
                 'filament_always_gripped': False,
                 'can_crossload': False,
-                'has_bypass': False,
                 'multi_gear': False,
+                'has_bypass': True,
                 'environment_sensor': '',
                 'filament_heater': ''
             }
@@ -42,6 +42,7 @@ class MMUMock:
         self.active_gate = -1
         self.gate = -1
         self.tool = -1
+        self.bypass = False # bypass selected: MMU disengaged, filament fed directly (gate -2)
         self.gate_status = [0, 0] # 0 = empty, 1 = loaded/available, 2 = buffer
         self.gate_sensor = [0, 0] # pre-gate sensor states (filament detected)
         self.gate_color = ["", ""] # color names or hex codes (e.g. "ff0000")
@@ -115,7 +116,9 @@ class MMUMock:
         self.gcode.register_command('MMU_SPOOLMAN', self.cmd_MMU_SPOOLMAN,
                                     desc="Mock Spoolman mapping command")
         self.gcode.register_command('MMU_SELECT', self.cmd_MMU_SELECT,
-                                    desc="Select MMU gate or tool")
+                                    desc="Select MMU gate, tool, or bypass")
+        self.gcode.register_command('MMU_SELECT_BYPASS', self.cmd_MMU_SELECT_BYPASS,
+                                    desc="Select bypass (MMU disengaged, direct feed)")
         self.gcode.register_command('FLARE_WAIT_TC', self.cmd_FLARE_WAIT_TC,
                                     desc="Wait for toolchange physical completion")
 
@@ -144,6 +147,14 @@ class MMUMock:
         self.active_gate = gcmd.get_int('ACTIVE_GATE', self.active_gate)
         self.gate = gcmd.get_int('GATE', self.gate)
         self.tool = gcmd.get_int('TOOL', self.tool)
+
+        # While bypass is selected the MMU is disengaged; keep the gate/tool at
+        # the bypass sentinel (-2) so the daemon's periodic SET_MMU push does not
+        # clobber it back to a lane.
+        if self.bypass:
+            self.active_gate = -2
+            self.gate = -2
+            self.tool = -2
 
         self.toolhead_sensor = gcmd.get_int('TOOLHEAD_SENSOR', self.toolhead_sensor)
         self.sync_feedback = gcmd.get_float('SYNC_FEEDBACK', self.sync_feedback)
@@ -281,7 +292,8 @@ class MMUMock:
         retract) and skips the trailing UL: gate unload."""
         gcmd.respond_info("FLARE: Unloading toolhead gears")
         self.gcode.run_script_from_command("FLARE_UNLOAD_TOOLHEAD")
-        if gcmd.get_int('EXTRUDER_ONLY', 0):
+        # Bypass or EXTRUDER_ONLY: no gate to retract to, stop after the extruder.
+        if self.bypass or gcmd.get_int('EXTRUDER_ONLY', 0):
             return
         gcmd.respond_info("FLARE: Unloading lane to gate")
         self.gcode.run_script_from_command("FLARE_UNLOAD")
@@ -290,7 +302,9 @@ class MMUMock:
         """Map Happy Hare load to the selected gate: drive the lane to the
         toolhead (via the toolchange path) and hand off to the hotend.
         EXTRUDER_ONLY=1 runs only the hotend load + purge (no gate movement)."""
-        if gcmd.get_int('EXTRUDER_ONLY', 0):
+        # Bypass (no GATE given) or explicit EXTRUDER_ONLY: just load the hotend;
+        # the MMU lanes are not involved.
+        if (self.bypass and gcmd.get('GATE', None) is None) or gcmd.get_int('EXTRUDER_ONLY', 0):
             gcmd.respond_info("FLARE: Loading hotend only (extruder)")
             self.gcode.run_script_from_command("_FLARE_LOAD_HOTEND")
             return
@@ -325,6 +339,7 @@ class MMUMock:
         path, unload it first via a firmware toolchange; otherwise load the lane
         directly. Both go through _FLARE_CHANGE_LANE: TC: drives to the toolhead,
         FLARE_WAIT_TC blocks on the toolhead sensor, then the hotend is loaded."""
+        self.bypass = False  # loading a real lane exits bypass
         lane = gate + 1
         current = self.active_gate
 
@@ -581,22 +596,43 @@ class MMUMock:
         else:
             gcmd.respond_info(f"Gate {gate} currently mapped to Spool ID {self.gate_spool_id[gate]}")
 
+    def cmd_MMU_SELECT_BYPASS(self, gcmd):
+        """Select bypass: disengage the MMU and feed filament straight to the
+        extruder. Maps Happy Hare's bypass (gate -2)."""
+        self._select_bypass(gcmd)
+
+    def _select_bypass(self, gcmd):
+        self.bypass = True
+        self.active_gate = -2
+        self.gate = -2
+        self.tool = -2
+        self._ensure_array_lengths()
+        gcmd.respond_info("FLARE: Bypass selected - MMU disengaged; feed filament directly to the extruder.")
+
     def cmd_MMU_SELECT(self, gcmd):
-        """Map Happy Hare select to FLARE toolchange or pure UI active gate selection."""
+        """Map Happy Hare select to FLARE toolchange, pure UI active gate
+        selection, or bypass (BYPASS=1 / GATE=-2 / TOOL=-2)."""
         gate = gcmd.get_int('GATE', -1)
         tool = gcmd.get_int('TOOL', -1)
-        
+
+        if gcmd.get_int('BYPASS', 0) or gate == -2 or tool == -2:
+            self._select_bypass(gcmd)
+            return
+
         # Check if TOOL was explicitly passed to distinguish between UI gate selection
         # and physical toolchange.
         has_tool = gcmd.get('TOOL', None) is not None
-        
+
         if gate < 0 and tool >= 0:
             if tool < len(self.ttg_map):
                 gate = self.ttg_map[tool]
-        
+
         if gate < 0:
-            gcmd.respond_info("Error: MMU_SELECT requires either GATE or TOOL parameter")
+            gcmd.respond_info("Error: MMU_SELECT requires a GATE, TOOL, or BYPASS parameter")
             return
+
+        # A real gate/tool selection exits bypass.
+        self.bypass = False
             
         if gate >= self.num_gates:
             gcmd.respond_info(f"Error: Gate index {gate} exceeds maximum gates ({self.num_gates})")
