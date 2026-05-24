@@ -229,10 +229,10 @@ class MMUMock:
             self.filament_pos = 10
         elif self.gate_sensor_active:
             # Past the gate (OUT triggered) but not at the toolhead: partially
-            # loaded. Report an intermediate filament_pos so Fluidd keeps BOTH
-            # LOAD (advance to toolhead) and UNLOAD (retract from gate) enabled,
-            # instead of treating the lane as fully unloaded.
-            self.filament = "Loaded"
+            # loaded. Fluidd disables LOAD when filament == "Loaded" and UNLOAD
+            # when filament == "Unloaded", so report a THIRD string here to keep
+            # BOTH enabled (advance to toolhead, or retract from the gate).
+            self.filament = "Partially Loaded"
             self.filament_pos = 4
         else:
             self.filament = "Unloaded"
