@@ -498,8 +498,6 @@ def parse_status_line(line):
             if key == "LN":
                 val_int = int(val)
                 new_data["active_lane"] = val_int
-                if val_int in [1, 2]:
-                    new_data["bypass"] = False
             elif key == "TC":
                 new_data["tc_state"] = val
             elif key == "L1T":
@@ -755,8 +753,21 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                     status_cache["bypass"] = True
                     status_cache["active_lane"] = 0
                 broadcast_telemetry({"bypass": True, "active_lane": 0})
+                # Drive Klipper's bypass too, otherwise the syncer reads
+                # mmu.bypass=False from Moonraker and resets the flag (the card
+                # flickers off). Klipper is the source of truth the syncer pulls.
+                _moonraker_run_gcode("MMU_SELECT_BYPASS")
                 response = "OK"
             else:
+                # If explicitly switching to a physical lane, clear the virtual bypass state
+                if cmd_str in ["T:1", "T:2"]:
+                    lane = int(cmd_str[2:])
+                    with status_lock:
+                        status_cache["bypass"] = False
+                        status_cache["active_lane"] = lane
+                    broadcast_telemetry({"bypass": False, "active_lane": lane})
+                    # Clear Klipper's bypass so the syncer does not re-assert it.
+                    _moonraker_run_gcode(f"MMU_SELECT GATE={lane - 1}")
                 # Send command directly to board with lock
                 response = self.execute_serial_command(cmd_str)
             
@@ -872,6 +883,20 @@ def _moonraker_get_mmu_bypass(moonraker_url):
         with urllib.request.urlopen(url, timeout=1.0) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         return bool(data.get("result", {}).get("status", {}).get("mmu", {}).get("bypass", False))
+    except Exception:
+        return False
+
+
+def _moonraker_run_gcode(gcode):
+    """Best-effort fire-and-forget gcode to Klipper via Moonraker. No-op if
+    Moonraker/Klipper is unreachable (e.g. --no-klipper)."""
+    try:
+        payload = json.dumps({"script": gcode}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{MOONRAKER_URL}/printer/gcode/script",
+            data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        urllib.request.urlopen(req, timeout=2.0)
+        return True
     except Exception:
         return False
 
