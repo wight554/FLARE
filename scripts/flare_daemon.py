@@ -55,7 +55,6 @@ status_lock = threading.Lock()
 status_cache = {
     "board_online": False,
     "active_lane": 0,
-    "bypass": False,
     "tc_state": "UNKNOWN",
     "g_buf_pos": 0.0,
     "buf_state": "NEUTRAL",
@@ -747,29 +746,8 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                 self.send_error(400, "Missing cmd parameter")
                 return
             
-            # Intercept virtual bypass commands to handle locally, avoiding serial ER:ARG
-            if cmd_str == "T:0" or cmd_str == "BYPASS":
-                with status_lock:
-                    status_cache["bypass"] = True
-                    status_cache["active_lane"] = 0
-                broadcast_telemetry({"bypass": True, "active_lane": 0})
-                # Drive Klipper's bypass too, otherwise the syncer reads
-                # mmu.bypass=False from Moonraker and resets the flag (the card
-                # flickers off). Klipper is the source of truth the syncer pulls.
-                _moonraker_run_gcode("MMU_SELECT_BYPASS")
-                response = "OK"
-            else:
-                # If explicitly switching to a physical lane, clear the virtual bypass state
-                if cmd_str in ["T:1", "T:2"]:
-                    lane = int(cmd_str[2:])
-                    with status_lock:
-                        status_cache["bypass"] = False
-                        status_cache["active_lane"] = lane
-                    broadcast_telemetry({"bypass": False, "active_lane": lane})
-                    # Clear Klipper's bypass so the syncer does not re-assert it.
-                    _moonraker_run_gcode(f"MMU_SELECT GATE={lane - 1}")
-                # Send command directly to board with lock
-                response = self.execute_serial_command(cmd_str)
+            # Send command directly to board with lock
+            response = self.execute_serial_command(cmd_str)
             
             if response is None:
                 self.send_response(504) # Gateway Timeout
@@ -876,31 +854,6 @@ def _moonraker_get_gate_spool_ids(moonraker_url):
     except Exception:
         return []
 
-def _moonraker_get_mmu_bypass(moonraker_url):
-    """Read the bypass status from Klipper mmu object via Moonraker."""
-    try:
-        url = f"{moonraker_url}/printer/objects/query?mmu=bypass"
-        with urllib.request.urlopen(url, timeout=1.0) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        return bool(data.get("result", {}).get("status", {}).get("mmu", {}).get("bypass", False))
-    except Exception:
-        return False
-
-
-def _moonraker_run_gcode(gcode):
-    """Best-effort fire-and-forget gcode to Klipper via Moonraker. No-op if
-    Moonraker/Klipper is unreachable (e.g. --no-klipper)."""
-    try:
-        payload = json.dumps({"script": gcode}).encode("utf-8")
-        req = urllib.request.Request(
-            f"{MOONRAKER_URL}/printer/gcode/script",
-            data=payload, headers={"Content-Type": "application/json"}, method="POST")
-        urllib.request.urlopen(req, timeout=2.0)
-        return True
-    except Exception:
-        return False
-
-
 def _moonraker_set_active_spool(moonraker_url, spool_id):
     """Set Moonraker's active Spoolman spool (None clears it). Moonraker then
     bills filament consumption to this spool. No-op/ignored if Spoolman is not
@@ -947,12 +900,8 @@ def klipper_syncer(moonraker_url):
         if backoff > time.time():
             continue
 
-        # Get copy of current cache and update bypass status from Moonraker
-        klipper_bypass = _moonraker_get_mmu_bypass(moonraker_url)
+        # Get copy of current cache
         with status_lock:
-            if status_cache.get("bypass", False) != klipper_bypass:
-                status_cache["bypass"] = klipper_bypass
-                broadcast_telemetry({"bypass": klipper_bypass})
             state = dict(status_cache)
 
         # Detect changes in values of interest
@@ -1053,23 +1002,15 @@ def klipper_syncer(moonraker_url):
             loaded_gate = 1
 
         # Align klipper_tool and klipper_gate to active_gate so that UI highlights the selected card
-        # and displays its spool details correctly. If bypassed, enforce the -2 sentinels.
-        if state.get("bypass", False):
-            active_gate = -2
-            klipper_gate = -2
-            klipper_tool = -2
-            gate_sensor_active = 0
-            extruder_sensor_active = 0
-            pre_gate_sensor_active = 0
-            hub_sensor_active = 0
-        else:
-            klipper_tool = active_gate
-            klipper_gate = active_gate
-            # Physical sensor states for active gate and combiner
-            gate_sensor_active = out1 if active_gate == 0 else (out2 if active_gate == 1 else 0)
-            extruder_sensor_active = y_split
-            pre_gate_sensor_active = in1 if active_gate == 0 else (in2 if active_gate == 1 else 0)
-            hub_sensor_active = y_split
+        # and displays its spool details correctly. Bypass is owned by Klipper's
+        # mmu object (MMU_SELECT_BYPASS), which forces the -2 sentinels itself.
+        klipper_tool = active_gate
+        klipper_gate = active_gate
+        # Physical sensor states for active gate and combiner
+        gate_sensor_active = out1 if active_gate == 0 else (out2 if active_gate == 1 else 0)
+        extruder_sensor_active = y_split
+        pre_gate_sensor_active = in1 if active_gate == 0 else (in2 if active_gate == 1 else 0)
+        hub_sensor_active = y_split
 
         with stats_lock:
             st = dict(mmu_stats)

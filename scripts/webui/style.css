@@ -422,54 +422,6 @@ body {
     transform: scale(1.06);
 }
 
-/* Filament Bypass Card Styling */
-.bypass-card {
-    border-style: dashed;
-    border-color: rgba(255, 255, 255, 0.12);
-    background: rgba(255, 255, 255, 0.01);
-}
-
-.bypass-card:hover {
-    background: rgba(0, 242, 195, 0.02);
-    border-color: rgba(0, 242, 195, 0.3);
-    box-shadow: 0 4px 15px rgba(0, 242, 195, 0.05);
-}
-
-.bypass-card.active {
-    border-style: dashed;
-    border-color: var(--neon-teal);
-    background: linear-gradient(135deg, rgba(0, 242, 195, 0.08), rgba(0, 0, 0, 0.2));
-    box-shadow: 0 0 15px rgba(0, 242, 195, 0.15), inset 0 0 8px rgba(0, 242, 195, 0.04);
-}
-
-.bypass-card.loaded {
-    border-color: var(--neon-coral);
-    box-shadow: 0 0 15px rgba(255, 74, 96, 0.12);
-    background: linear-gradient(135deg, rgba(255, 74, 96, 0.04), rgba(0, 0, 0, 0.2));
-}
-
-.bypass-card.active.loaded {
-    border-color: var(--neon-teal);
-    box-shadow: 0 0 20px rgba(0, 242, 195, 0.2), 0 0 10px rgba(255, 74, 96, 0.12);
-    background: linear-gradient(135deg, rgba(0, 242, 195, 0.10), rgba(255, 74, 96, 0.06));
-}
-
-.bypass-card .spool-icon svg circle {
-    stroke-dasharray: 6,4;
-    transform-origin: center;
-    transition: transform 0.3s ease;
-}
-
-.bypass-card.active .spool-icon svg circle,
-.bypass-card:hover .spool-icon svg circle {
-    animation: rotate-bypass 20s linear infinite;
-}
-
-@keyframes rotate-bypass {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
 .spool-card-main {
     display: flex;
     align-items: center;

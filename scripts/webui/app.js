@@ -235,56 +235,13 @@ function renderSpoolCards() {
             '</div>';
         wrap.appendChild(card);
     });
-
-    // Render the virtual Filament Bypass card
-    const bypassCard = document.createElement('div');
-    const isBypassActive = lastTelemetryData ? !!lastTelemetryData.bypass : false;
-    const isBypassLoaded = lastTelemetryData ? !!lastTelemetryData.toolhead : false;
-    bypassCard.className = 'spool-card bypass-card' + (isBypassActive ? ' active' : '') + (isBypassLoaded ? ' loaded' : '');
-    bypassCard.dataset.lane = '0';
-
-    let statusHtml = '';
-    if (isBypassActive && isBypassLoaded) {
-        statusHtml = '<span class="status-active">Active</span> &amp; <span class="status-loaded">Loaded</span>';
-    } else if (isBypassActive) {
-        statusHtml = '<span class="status-active">Active</span>';
-    } else if (isBypassLoaded) {
-        statusHtml = '<span class="status-loaded">Loaded</span>';
-    }
-
-    bypassCard.innerHTML =
-        '<div class="spool-card-main" onclick="selectBypass()">' +
-          '<span class="spool-icon" style="--c:#00f2c3">' +
-            '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="none" stroke="var(--c)" stroke-width="3" stroke-dasharray="6,4"/>' +
-            '<path d="M16 24h16M24 16v16" stroke="var(--c)" stroke-width="4" stroke-linecap="round"/>' +
-            '</svg>' +
-          '</span>' +
-          '<span class="spool-info">' +
-            '<span class="spool-card-name">Filament Bypass</span>' +
-            '<span class="spool-card-sub">Direct Extruder Feed' +
-              (statusHtml ? ' · <span class="spool-card-status">' + statusHtml + '</span>' : '') +
-            '</span>' +
-          '</span>' +
-        '</div>';
-    wrap.appendChild(bypassCard);
 }
 
 function updateLaneHighlight() {
-    const isBypass = lastTelemetryData ? !!lastTelemetryData.bypass : false;
-    const isBypassLoaded = lastTelemetryData ? !!lastTelemetryData.toolhead : false;
-
     document.querySelectorAll('#spool-cards .spool-card').forEach((c) => {
         const lane = Number(c.dataset.lane);
-        let isActive = false;
-        let loaded = false;
-
-        if (lane === 0) {
-            isActive = isBypass;
-            loaded = isBypassLoaded;
-        } else {
-            isActive = !isBypass && (lane === activeLane);
-            loaded = isLaneLoaded(lane, lastTelemetryData);
-        }
+        const isActive = (lane === activeLane);
+        const loaded = isLaneLoaded(lane, lastTelemetryData);
 
         c.classList.toggle('active', isActive);
         c.classList.toggle('loaded', loaded);
@@ -314,10 +271,6 @@ function updateLaneHighlight() {
 
 function selectLane(lane) {
     sendCustomCommand('T:' + lane);
-}
-
-function selectBypass() {
-    sendCustomCommand('T:0');
 }
 
 function openSpoolEdit(i) {
@@ -380,40 +333,27 @@ function setBtnEnabled(id, enabled) {
 
 function updateButtonStates(data) {
     const online = !!data.board_online;
-    const isBypass = !!data.bypass;
+    const lane = data.active_lane;
+    const hasLane = lane === 1 || lane === 2;
+    const gateStatus = hasLane ? gateStatusForLane(lane, data) : -1;
+    const loaded = gateStatus === 2;
 
-    if (isBypass) {
-        const loaded = !!data.toolhead;
-        setBtnEnabled('btn-preload', false);
-        setBtnEnabled('btn-eject', false);
-        setBtnEnabled('btn-checkgate', online);
-        setBtnEnabled('btn-unload', online && loaded);
-        setBtnEnabled('btn-load', online && !loaded);
-        setBtnEnabled('btn-extrude', false);
-        setBtnEnabled('btn-retract', false);
-    } else {
-        const lane = data.active_lane;
-        const hasLane = lane === 1 || lane === 2;
-        const gateStatus = hasLane ? gateStatusForLane(lane, data) : -1;
-        const loaded = gateStatus === 2;
+    // Preload (LO:): only when the gate is empty (no IN). LO: spins the gear
+    // and grabs filament as it is inserted (the manual preload flow for setups
+    // with AUTO_PRELOAD disabled). Disabled once filament is present.
+    setBtnEnabled('btn-preload', online && hasLane && gateStatus === 0);
+    // Eject (UM:): only when the active gate holds filament
+    setBtnEnabled('btn-eject', online && hasLane && gateStatus !== 0);
+    // Check Gate (?:): always available while online
+    setBtnEnabled('btn-checkgate', online);
+    // Unload (UL:): only when filament is loaded to the toolhead
+    setBtnEnabled('btn-unload', online && hasLane && loaded);
+    // Load (FL:): only when not already loaded
+    setBtnEnabled('btn-load', online && hasLane && !loaded);
 
-        // Preload (LO:): only when the gate is empty (no IN). LO: spins the gear
-        // and grabs filament as it is inserted (the manual preload flow for setups
-        // with AUTO_PRELOAD disabled). Disabled once filament is present.
-        setBtnEnabled('btn-preload', online && hasLane && gateStatus === 0);
-        // Eject (UM:): only when the active gate holds filament
-        setBtnEnabled('btn-eject', online && hasLane && gateStatus !== 0);
-        // Check Gate (?:): always available while online
-        setBtnEnabled('btn-checkgate', online);
-        // Unload (UL:): only when filament is loaded to the toolhead
-        setBtnEnabled('btn-unload', online && hasLane && loaded);
-        // Load (FL:): only when not already loaded
-        setBtnEnabled('btn-load', online && hasLane && !loaded);
-
-        // Manual move (MV:) acts on the active lane; needs one selected
-        setBtnEnabled('btn-extrude', online && hasLane);
-        setBtnEnabled('btn-retract', online && hasLane);
-    }
+    // Manual move (MV:) acts on the active lane; needs one selected
+    setBtnEnabled('btn-extrude', online && hasLane);
+    setBtnEnabled('btn-retract', online && hasLane);
 }
 
 function updateSensor(id, state) {
