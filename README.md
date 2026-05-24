@@ -249,6 +249,28 @@ sidecar + Klipper UDS calibration prints -> analyze CSV/state -> review config.p
 - `main`: primary branch, expected to stay buildable and flashable
 - `feature/*`, `fix/*`, `hw/*`: optional short-lived branches for risky or long-running work
 
+## AI-Assisted Development
+
+FLARE is developed with heavy use of AI coding agents for implementation, design,
+and test scaffolding — but it is **spec-driven and human-directed**, not "AI slop."
+
+- **Human owns intent.** Every change starts from a precise, human-written
+  description of the behavior to add, fix, or improve: the problem, the
+  constraints, the expected firmware/hardware interaction, and the acceptance
+  criteria. Requirements and design direction come from the maintainer, and
+  non-trivial work is captured as a spec under [`openspec/`](openspec/) before
+  code is written.
+- **AI executes against the spec.** Agents locate code, draft implementations,
+  refactor, and write tests to the stated requirements — they do not decide what
+  to build or silently expand scope.
+- **Everything is reviewed and tested.** Diffs are read and reasoned about, root
+  causes are diagnosed rather than papered over, and changes are validated by the
+  static regression gate and real hardware before landing on `main`.
+
+In short: the maintainer drives requirements, architecture, and verification; AI
+accelerates the implementation. AI tooling, MCP setup, and agent conventions live
+in [`AI.md`](AI.md) and [`AGENTS.md`](AGENTS.md).
+
 ---
 
 ## Safety
