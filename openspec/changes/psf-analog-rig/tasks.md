@@ -75,8 +75,8 @@
 - [ ] 11.3 **BLOCKER: requires PSF rig** — Verify Layer 1 PD: smooth speed tracking, no oscillation; gradual response to slow drift.
 - [ ] 11.4 **BLOCKER: requires PSF rig** — Verify Layer 2 soft walls: progressive blend at 0.1/0.9, no cliff.
 - [ ] 11.5 **BLOCKER: requires PSF rig** — Verify Layer 3: rapid jump → reversible brake; slowdown recovers; real stop → relief_pause; saturation → relief/fault.
-- [ ] 11.6 **BLOCKER: requires PSF rig** — `compression_recovery` (#7): confirm trigger correct OR confirm superseded/removed for type-P by Layer 3 (pending-analog-rig #7).
-- [ ] 11.7 **BLOCKER: requires PSF rig** — estimator drag-down L1498-1504 (H2): confirm removed for type-P under D9, or correct if still present (pending-analog-rig H2).
+- [ ] 11.6 **BLOCKER: requires PSF rig** — `compression_recovery` (carried item #7): confirm trigger correct OR confirm superseded/removed for type-P by Layer 3.
+- [ ] 11.7 **BLOCKER: requires PSF rig** — estimator drag-down L1498-1504 (carried item H2): confirm removed for type-P under D9, or correct if still present.
 - [ ] 11.8 **BLOCKER: requires PSF rig** — Regression: type-D relay path unchanged (re-run relay steady-state check).
 
 ## 12. Loop-Rate Bump (stretch, D16)
@@ -91,6 +91,6 @@
 ## 14. Build and Closeout
 
 - [ ] 14.1 `cmake --build build_local` — confirm clean build, no warnings for modified files.
-- [ ] 14.2 Update `openspec/changes/pending-analog-rig/tasks.md`: mark 2.1 (#6) resolved; mark 2.2 (#7) and 2.3 (H2) resolved or superseded per tasks 11.6/11.7.
+- [ ] 14.2 Confirm carried items resolved: #6 (compression_floor) removed in group 5; #7 and H2 resolved or superseded per tasks 11.6/11.7. (Supersedes the former `pending-analog-rig` tracker, now merged here.)
 - [ ] 14.3 `openspec validate psf-analog-rig --strict` — passes.
 - [ ] 14.4 Commit milestone(s) — split firmware foundation (groups 1-7) from control redesign (groups 8-10) into separate commits per AGENTS.md one-milestone-per-commit.

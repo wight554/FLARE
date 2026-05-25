@@ -11,7 +11,10 @@ Type-P was stubbed with a symmetric normalization (`BUF_RANGE`, `BUF_INVERT`),
 no endpoint calibration, a unit mismatch in the PD loop (normalized pos vs
 mm target), and an inverted compression-floor that fights drain when buffer
 is full. None of this was observable on type-D hardware; the `pending-analog-rig`
-change tracked it as deferred. PSF hardware now exists.
+change tracked it as deferred. PSF hardware now exists. This change **supersedes
+and merges** `pending-analog-rig`: its three carried items (#6 compression_floor,
+#7 compression_recovery, H2 estimator drag) are folded in here and resolved
+on-rig, so that tracker is removed.
 
 Type-D PD infrastructure (`reserve_error_mm`, `kp_window`, `compression_recovery`
 cap, `sync_apply_scaling`, integral centering) duplicates what type-P needs.
