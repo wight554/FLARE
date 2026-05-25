@@ -3,8 +3,9 @@
 - [x] 1.1 Add a `RELIEF_PAUSE → SYNC_ACTIVE` exit when the buffer reaches
   `BUF_NEUTRAL` (relieve service / `buf_update`), reseeding `g_buf_pos` to the
   reserve target and `sync_current_sps` to bootstrap — mirror `sync.c:1258-1262`.
-- [ ] 1.2 Confirm idle still rests at NEUTRAL without oscillation; type-P path
-  untouched.
+- [x] 1.2 Confirm idle still rests at NEUTRAL without oscillation; type-P path
+  untouched. Validated by M1 Recipe B (5.2, PASS 2026-05-26): idle RELIEF_PAUSE
+  with 0 spurious re-arms. Type-P path compile-time gated, unchanged.
 
 ## 2. Estimator overwrite (high — item 2)
 
@@ -103,7 +104,7 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
 
 ### HW maneuvers (ordered safe→risky; fill result + log excerpt under each)
 
-- [ ] 5.2 M1 — boot guard + no spurious re-arm (D1; covers 1.2). Use the bench
+- [x] 5.2 M1 — boot guard + no spurious re-arm (D1; covers 1.2). Use the bench
   recipes above instead of a real boot: Recipe A (`MV`→COMPRESSION → `BS`) for the
   STABILIZE branch, Recipe B (auto-start → RELIEF_PAUSE → idle relieve) for the
   idle branch. PASS: stabilize/relieve reach NEUTRAL with **no** `SYNC,AUTO_START`
@@ -111,8 +112,10 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   new `--mode stabilize` (BUF_STAB DONE → NEUTRAL, AUTO_START: 0). Run decoupled
   via daemon: issue the maneuver through `flare_cmd.py`, then judge from history
   with `flare_sync_check.py --daemon --mode <...>`.
-  Result: Recipe B PASS on 2026-05-26 (`--mode rearm --idle`: RELIEF_PAUSE 1,
-  re-arms 0). Recipe A pending one stabilize capture.
+  Result: PASS on 2026-05-26. Recipe B (`--mode rearm --idle`): RELIEF_PAUSE 1,
+  re-arms 0 (no spurious idle re-arm). Recipe A (`--mode stabilize`): BUF_STAB
+  START 2 / DONE 2 / TIMEOUT 0, AUTO_START 0 — stabilize reaches DONE with no
+  spurious re-arm. Both branches of the D1 boot/idle guard hold.
 - [x] 5.3 M2 — steady print 10–15 min (D6 × item-3 + D2).
   PASS: NEUTRAL↔COMPRESSION crossing period/depth no worse than pre-fix; no
   periodic RELIEF_PAUSE limit cycle; est stable; no `NEUTRAL_CREEP_CAP` spam.
