@@ -505,7 +505,7 @@ static bool predict_tension_coming(void) {
 }
 
 static void buf_analog_update(void) {
-    adc_select_input(PIN_BUF_ANALOG - 26);
+    adc_select_input(PIN_PSF - 26);
     uint32_t sum = 0;
     for (int i = 0; i < 4; i++) sum += adc_read();
     float fraction = (float)(sum >> 2) / 4095.0f;

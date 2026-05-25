@@ -418,7 +418,7 @@ int main(void) {
     din_init(&g_buf_compression_din, PIN_BUF_COMPRESSION);
 
     adc_init();
-    adc_gpio_init(PIN_BUF_ANALOG);
+    adc_gpio_init(PIN_PSF);
 
     neopixel_init(PIN_NEOPIXEL);
 

@@ -31,7 +31,7 @@
 
 #define PIN_BUF_TENSION  18
 #define PIN_BUF_COMPRESSION 12
-#define PIN_BUF_ANALOG   26  // GP26 = ADC0; change to 27/28/29 if needed
+#define PIN_PSF          29  // GP29 = ADC3 — type-P (PSF) analog sensor
 
 #define PIN_L1_EN        8
 #define PIN_L1_DIR       9
