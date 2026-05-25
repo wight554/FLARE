@@ -132,6 +132,10 @@ class MMUMock:
                                     desc="No-op: FLARE drivers are always enabled")
         self.gcode.register_command('MMU_MOTORS_OFF', self.cmd_MMU_MOTORS_NOOP,
                                     desc="No-op: FLARE drivers are always enabled")
+        self.gcode.register_command('MMU_SLICER_TOOL_MAP', self.cmd_MMU_NOOP,
+                                    desc="No-op: slicer compatibility stub")
+        self.gcode.register_command('MMU_ENDLESS_SPOOL', self.cmd_MMU_NOOP,
+                                    desc="No-op: slicer compatibility stub")
 
     def cmd_SET_MMU(self, gcmd):
         """Update MMU state parameters dynamically."""
@@ -406,6 +410,10 @@ class MMUMock:
     def cmd_MMU_MOTORS_NOOP(self, gcmd):
         """No-op: FLARE stepper drivers are firmware-managed; no host toggle."""
         gcmd.respond_raw("!! MMU motor on/off is not implemented on FLARE (drivers are firmware-managed).")
+
+    def cmd_MMU_NOOP(self, gcmd):
+        """No-op: slicer compatibility stub, command accepted and ignored."""
+        pass
 
     def cmd_MMU_CHECK_GATE(self, gcmd):
         """Acknowledge MMU gate check command and report status."""
