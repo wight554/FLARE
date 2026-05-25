@@ -132,7 +132,7 @@ DEFAULTS = {
     "unload_max_mm": "3000",
     "unload_tension_block_ms": "5000",
     "autoload_max_mm": "600",
-    "autoload_retract_mm": "5",
+    "autoload_retract_mm": "3",
     "reload_y_timeout_ms": "10000",
     "auto_mode": "1",
     "auto_preload": "True",
