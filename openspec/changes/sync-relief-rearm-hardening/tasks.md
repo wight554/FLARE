@@ -10,7 +10,9 @@
 
 - [x] 2.1 At `sync.c:801-802`, replace the hard `extruder_est_sps = est_sps`
   on TENSION→COMPRESSION with a blended / rate-capped update.
-- [ ] 2.2 Verify a fast TENSION→COMPRESSION no longer spikes the next NEUTRAL feed.
+- [x] 2.2 Verify a fast TENSION→COMPRESSION no longer spikes the next NEUTRAL feed.
+  Validated by M4 (5.5, PASS 2026-05-22): est did not jump to the rail (worst
+  ratio 0.85x, cap 2.00), next NEUTRAL feed had no overshoot back to COMPRESSION.
 
 ## 3. Medium items (decide firmware vs config)
 
@@ -20,13 +22,15 @@
   can't pull against a slow active extrusion. (Evaluated: handled via POST_PRINT_STAB_MS configuration.)
 - [x] 3.3 Item 5 — per-lane: rescale `extruder_est_sps` on active-lane change when
   `MM_PER_STEP` differs (no-op for identical lanes).
-- [ ] 3.4 Item 12 (D6) — extend the type-D fast-brake (instant stop) to
+- [x] 3.4 Item 12 (D6) — extend the type-D fast-brake (instant stop) to
   NEUTRAL→COMPRESSION, not only TENSION→COMPRESSION (`sync.c:1112`); or defer with
   rationale. Pairs with 2.x — the item-2 spike terminates in exactly this path.
-  Deferred: HW M2 steady-print capture on 2026-05-22 failed after commit
-  `ecd3f5d` with 19 COMPRESSION episodes, 18 RELIEF_PAUSE events, 19
-  `cannot_relieve`, and 6 `TENSION_RISK_HIGH` over 180 s. Reverted `ecd3f5d`;
-  a future D6 fix needs a different design.
+  Resolved by deferral (task permits "or defer with rationale"): HW M2
+  steady-print capture on 2026-05-22 failed after commit `ecd3f5d` with 19
+  COMPRESSION episodes, 18 RELIEF_PAUSE events, 19 `cannot_relieve`, and 6
+  `TENSION_RISK_HIGH` over 180 s. Reverted `ecd3f5d`; a future D6 fix needs a
+  different design (candidate: type-P Layer-3 derivative catch in
+  `psf-analog-rig` is the analog-native successor to this idea).
 
 ## 4. Low items (notes; fix opportunistically)
 
@@ -103,7 +107,12 @@ the switch and grinds the hard wall). `BS` runs the *same* stabilize path as boo
   recipes above instead of a real boot: Recipe A (`MV`→COMPRESSION → `BS`) for the
   STABILIZE branch, Recipe B (auto-start → RELIEF_PAUSE → idle relieve) for the
   idle branch. PASS: stabilize/relieve reach NEUTRAL with **no** `SYNC,AUTO_START`
-  (motor quiet); Recipe B: `--mode rearm --idle` = PASS. Result: __
+  (motor quiet). Recipe B judged by `--mode rearm --idle`; Recipe A judged by the
+  new `--mode stabilize` (BUF_STAB DONE → NEUTRAL, AUTO_START: 0). Run decoupled
+  via daemon: issue the maneuver through `flare_cmd.py`, then judge from history
+  with `flare_sync_check.py --daemon --mode <...>`.
+  Result: Recipe B PASS on 2026-05-26 (`--mode rearm --idle`: RELIEF_PAUSE 1,
+  re-arms 0). Recipe A pending one stabilize capture.
 - [x] 5.3 M2 — steady print 10–15 min (D6 × item-3 + D2).
   PASS: NEUTRAL↔COMPRESSION crossing period/depth no worse than pre-fix; no
   periodic RELIEF_PAUSE limit cycle; est stable; no `NEUTRAL_CREEP_CAP` spam.

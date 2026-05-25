@@ -416,6 +416,40 @@ def analyze_rearm(samples: List[Sample], events, idle: bool,
     return "PASS", report + extra
 
 
+def analyze_stabilize(samples: List[Sample], events) -> Tuple[str, List[str]]:
+    """D1 (M1 Recipe A): a boot/BS stabilize must drive the buffer to NEUTRAL
+    (BUF_STAB DONE) without a spurious SYNC AUTO_START. Sync stays off during
+    the stabilize path, so any AUTO_START means the !g_boot_stabilizing guard
+    let it re-arm. Scope the capture to the maneuver (MV->COMPRESSION then BS)."""
+    report: List[str] = []
+    n_start = sum(1 for (_, e) in events if "BUF_STAB" in e and "START" in e)
+    n_done = sum(1 for (_, e) in events if "BUF_STAB" in e and "DONE" in e)
+    n_timeout = sum(1 for (_, e) in events if "BUF_STAB" in e and "TIMEOUT" in e)
+    n_auto = sum(1 for (_, e) in events if "AUTO_START" in e)
+    done_idx = next((si for (si, e) in events
+                     if "BUF_STAB" in e and "DONE" in e), None)
+
+    report.append(f"  BUF_STAB START: {n_start}, DONE: {n_done}, "
+                  f"TIMEOUT: {n_timeout}; AUTO_START: {n_auto}")
+    if done_idx is not None:
+        report.append(f"  BUF at DONE: {_buf_at(samples, done_idx) or '?'}")
+
+    if n_start == 0 and n_done == 0 and n_timeout == 0:
+        return "INCONCLUSIVE", report + [
+            "  No BUF_STAB captured — run Recipe A (MV:25:600 -> BS)."]
+    if n_auto > 0:
+        return "FAIL", report + [
+            "  spurious SYNC AUTO_START during stabilize "
+            "(check the !g_boot_stabilizing guard)."]
+    if n_timeout > 0:
+        return "FAIL", report + [
+            "  BUF_STAB TIMEOUT — stabilize did not reach NEUTRAL."]
+    if n_done > 0:
+        return "PASS", report + [
+            "  stabilize reached DONE with no spurious re-arm."]
+    return "INCONCLUSIVE", report
+
+
 # ---------------------------------------------------------------------------
 # ESTIMATOR analysis (D2 — maneuver M4)
 # ---------------------------------------------------------------------------
@@ -605,10 +639,11 @@ def main() -> int:
     ap.add_argument("--csv", help="Write parsed samples to this CSV path")
     ap.add_argument("--mode",
                     choices=("purge", "regression", "rearm", "estimator",
-                             "both", "all"),
+                             "stabilize", "both", "all"),
                     default="both",
                     help="Which check(s) to run ('both'=purge+regression, "
-                         "'all'=every analyzer)")
+                         "'all'=every analyzer). 'stabilize'=M1 Recipe A "
+                         "(BUF_STAB -> NEUTRAL, no spurious AUTO_START)")
     ap.add_argument("--idle", action="store_true",
                     help="rearm mode: this capture is idle — any re-arm is a FAIL")
     ap.add_argument("--allow-terminal-idle-relief", action="store_true",
@@ -675,6 +710,12 @@ def main() -> int:
                                    args.est_window, args.est_floor,
                                    args.est_transition_gap)
         print(f"\nESTIMATOR (D2): {v}")
+        for line in rep:
+            print(line)
+        verdicts.append(v)
+    if args.mode in ("stabilize", "all"):
+        v, rep = analyze_stabilize(samples, events)
+        print(f"\nSTABILIZE (D1, M1-A): {v}")
         for line in rep:
             print(line)
         verdicts.append(v)
