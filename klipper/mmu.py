@@ -692,29 +692,42 @@ class MMUMock:
         lane = gcmd.get_int('LANE', 0)
         load_delay = gcmd.get_float('LOAD_DELAY', 2.0)
         timeout = gcmd.get_float('TIMEOUT', 300.0)
-        
+        unload_timeout = gcmd.get_float('UNLOAD_TIMEOUT', 30.0)
+
         gcmd.respond_info(f"FLARE: FLARE_WAIT_TC waiting for toolhead sensor (Lane {lane}, timeout {timeout}s)...")
-        
+
         # Flush existing moves first
         toolhead = self.printer.lookup_object('toolhead')
         toolhead.wait_moves()
-        
+
         reactor = self.printer.get_reactor()
+
+        # Phase 1: edge-detect — if previous filament is still at the sensor,
+        # wait for it to clear before watching for new filament.  Without this,
+        # FLARE_WAIT_TC exits immediately on residual TH presence and
+        # _FLARE_POST_TC_LOAD runs while the firmware TC is still in progress.
+        if self._is_toolhead_sensor_triggered():
+            gcmd.respond_info("FLARE: FLARE_WAIT_TC waiting for toolhead sensor to clear (unload)...")
+            clear_start = reactor.monotonic()
+            while self._is_toolhead_sensor_triggered():
+                if reactor.monotonic() - clear_start > unload_timeout:
+                    raise gcmd.error("FLARE Error: Toolhead sensor did not clear after unload.")
+                reactor.pause(reactor.monotonic() + 0.2)
+            gcmd.respond_info("FLARE: Toolhead sensor cleared.")
+
+        # Phase 2: wait for new filament to arrive
         start_time = reactor.monotonic()
-        
-        # Poll toolhead sensor status in a non-blocking loop
         while not self._is_toolhead_sensor_triggered():
             if reactor.monotonic() - start_time > timeout:
                 raise gcmd.error("FLARE Error: Toolchange timed out.")
-            
             reactor.pause(reactor.monotonic() + 0.2)
-            
+
         gcmd.respond_info(f"FLARE: Toolhead sensor triggered. Waiting load_delay of {load_delay}s for stabilization...")
-        
+
         # Additional stabilization delay
         if load_delay > 0:
             reactor.pause(reactor.monotonic() + load_delay)
-            
+
         gcmd.respond_info("FLARE: FLARE_WAIT_TC wait complete.")
 
     def _get_vars_path(self):
