@@ -147,7 +147,8 @@ static uint32_t       g_bl_prime_post_start_ms = 0;    /* when post-click settle
 static float          g_bl_prime_post_cap_mm   = 0.0f; /* abs 2: post-click extra travel = (max-span)/2 */
 static uint32_t       g_bl_catch_start_ms = 0;   /* when catch slam began */
 static float          g_bl_catch_mm_per_s = 0.0f; /* slam speed in mm/s */
-static float          g_bl_catch_cap_mm   = 0.0f; /* abs 2: switch_span + post_switch_margin */
+static float          g_bl_catch_cap_mm   = 0.0f; /* full-travel safety net */
+static bool           g_bl_catch_observed_non_target = false; /* raw left target during catch */
 static uint32_t       g_bl_watchdog_ms = 0;
 #define BL_WATCHDOG_DEFAULT_MS 30000u
 /* Suppress sync auto-start on BUF_TENSION after a BL abort (ST path).
@@ -1021,6 +1022,7 @@ void sync_retract_assist_set(bool enabled) {
             g_bl_catch_start_ms = 0;
             g_bl_catch_mm_per_s = 0.0f;
             g_bl_catch_cap_mm   = 0.0f;
+            g_bl_catch_observed_non_target = false;
             g_bl_watchdog_ms = 0;
             sync_set_state(SYNC_OFF);
             /* Suppress auto-start: buffer is at the BL extreme, not extruder-driven. */
@@ -1196,18 +1198,21 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
             motor_set_dir(&A->m, forward);
             motor_set_rate_sps(&A->m, slam_sps);
 
-            /* Absolute 2: catch cap = (max_travel - switch_span) / 2
-             *   = room between a switch and the nearest hard stop.
-             *   e.g. (25 - 10) / 2 = 7.5 mm
-             * Stops the slam before the hard stop if the opposite switch
-             * fails to fire. */
-            float sw_span_mm = BUF_SWITCH_SPAN_HALF_MM * 2.0f;
+            /* Catch distance cap = full buffer travel as a safety net.
+             * Primary terminator is "buffer returns to armed target" (MMU
+             * caught up, extruder move ended); the cap exists only to
+             * abort runaway catches. Sizing it small (e.g. 7.5 mm) caused
+             * the catch to stop mid-extruder-move, after which the still-
+             * retracting extruder filled the buffer all the way to the
+             * opposite extreme — observed as a compression slam ~165 ms
+             * into a 240 ms park move. */
             float post_sw_mm = (BUF_MAX_TRAVEL_MM > 0)
-                ? ((float)BUF_MAX_TRAVEL_MM - sw_span_mm) * 0.5f
-                : 7.5f;
+                ? (float)BUF_MAX_TRAVEL_MM
+                : 25.0f;
             g_bl_catch_start_ms = now_ms;
             g_bl_catch_mm_per_s = (float)slam_sps * MM_PER_STEP[idx];
             g_bl_catch_cap_mm   = post_sw_mm;
+            g_bl_catch_observed_non_target = true;  /* lock-break = raw left target */
 
             g_bl_sub_state = BL_CATCH;
             g_bl_watchdog_ms = now_ms + BL_WATCHDOG_DEFAULT_MS;
@@ -1221,29 +1226,45 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         }
 
     } else if (g_bl_sub_state == BL_CATCH) {
-        /* Keep driving toward opposite extreme.
-         * Over-drive past the armed extreme is safe (asymmetric safety,
-         * D5) and does NOT terminate the catch. */
+        /* Catch is mirroring the external force that broke the lock.
+         * Termination priority:
+         *   1. Buffer returned to armed target (MMU caught up + extruder
+         *      move ended → buffer naturally drains back to TENSION for
+         *      BL:T or fills back to COMPRESSION for BL:C). SUCCESS path.
+         *   2. Buffer reached opposite extreme. OVERWHELM path (MMU
+         *      couldn't keep up).
+         *   3. Distance cap (full buffer travel) — safety net only.
+         *   4. Watchdog — time safety net.
+         */
         buf_state_t raw = buf_state_raw();
         buf_state_t opposite = (g_bl_target_state == BUF_TENSION)
             ? BUF_COMPRESSION : BUF_TENSION;
+
+        if (raw != g_bl_target_state) {
+            g_bl_catch_observed_non_target = true;
+        }
 
         float catch_traveled = (g_bl_catch_mm_per_s > 0.0f)
             ? ((float)(now_ms - g_bl_catch_start_ms) / 1000.0f * g_bl_catch_mm_per_s)
             : g_bl_catch_cap_mm;
         bool catch_overrun = (catch_traveled >= g_bl_catch_cap_mm);
 
-        if (raw == opposite) {
-            /* Buffer has reached opposite extreme — auto-release */
-            cmd_event("BL", "CATCH_SETTLE");
+        if (g_bl_catch_observed_non_target && raw == g_bl_target_state) {
+            /* Buffer returned to armed extreme — catch succeeded, MMU
+             * mirrored the external force and the move has ended. */
+            cmd_event("BL", "CATCH_DONE");
+            sync_retract_assist_release(now_ms);
+        } else if (raw == opposite) {
+            /* Buffer reached opposite extreme despite MMU effort — catch
+             * overwhelmed. Release; subsequent stabilize handles cleanup. */
+            cmd_event("BL", "CATCH_OVERWHELM");
             sync_retract_assist_release(now_ms);
         } else if (catch_overrun) {
-            /* Distance cap hit before opposite switch — hard stop short of wall */
+            /* Distance cap (full travel) hit — defensive safety net. */
             cmd_event("EV:BL", "CATCH_OVERRUN");
             sync_retract_assist_release(now_ms);
         } else if (g_bl_watchdog_ms != 0 &&
                    (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
-            /* Catch watchdog expired — force release */
             cmd_event("EV:BL", "CATCH_TIMEOUT");
             sync_retract_assist_release(now_ms);
         }
