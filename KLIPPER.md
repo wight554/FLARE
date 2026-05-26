@@ -141,11 +141,27 @@ The [LH-Stinger Pico MMU toolhead distance calibration guide](https://github.com
 
 `FLARE_TEST_TIP_FORMING` follows the LH-Stinger `SP_TEST_MANUAL_TIP_FORMING` flow: it accepts tip-forming override parameters, loads the hotend, simulates a print pause, runs `FLARE_UNLOAD_TOOLHEAD` (which forms the tip via `_FLARE_TIP_FORMING` and retracts past the extruder gears), then retracts the filament further for manual inspection and removal.
 
-Tip forming starts a finite FLARE reverse move before the final park retract:
-`MV:-<derived distance>:<slow feed>:I`. `flare_cmd.py` returns after firmware accepts `MV:`, so the printer-side retract can run concurrently with the MMU move. The `I` option tells firmware to ignore buffer state during that exact move, so it can pull the old lane clear of the toolhead gears/bowden exit without reacting to temporary compression or tension. The distance is derived from `_FLARE_VARS` as
-`dist_sensor_to_extruder + dist_extruder_to_meltzone +
-dist_meltzone_to_nozzle_tip`. Tune `dist_meltzone_to_nozzle_tip` to your hotend geometry; it is 46 mm in the shared example. The later printer-side gear retract is not mirrored by another FLARE `MV:` and runs at
-`speed_hub_to_extruder * 60` (`50 mm/s` by default, matching LH-Stinger).
+Tip forming can use either the legacy open-loop move or the new closed-loop
+**Buffer Lock** (`BL`) gate, controlled by the `use_buffer_lock` flag in
+`_FLARE_VARS` (default `0` — disabled).
+
+**Legacy mode (`use_buffer_lock: 0`):** a finite FLARE reverse move is started
+before the final park retract: `MV:-<derived distance>:<slow feed>:I`.
+`flare_cmd.py` returns after firmware accepts `MV:`, so the printer-side retract
+can run concurrently. The `I` option tells firmware to ignore buffer state during
+that exact move so it can pull the old lane clear of the toolhead gears/bowden
+exit without reacting to temporary compression or tension. The distance is
+derived from `_FLARE_VARS` as `dist_sensor_to_extruder +
+dist_extruder_to_meltzone + dist_meltzone_to_nozzle_tip`.
+
+**Buffer-lock mode (`use_buffer_lock: 1`):** instead of the open-loop move, the
+macro sends `BL:T` to arm FLARE's buffer-lock sequence. FLARE pre-charges the
+buffer to full tension (capped at half the physical buffer travel), then holds
+the motor energized in a locked state. The printer's own tip-forming retract
+breaks the lock; firmware instantly mirrors the motion (catch drive) to keep
+the buffer from snapping hard during the transition. After the park retract the
+macro sends `BS` to release buffer lock and return to normal sync. Set
+`variable_use_buffer_lock: 1` in `_FLARE_VARS` to enable.
 
 > **Temperature management:** `gcode_shell_command` holds the Klipper scheduler
 > while the shell process runs — heaters stay regulated, but no additional G-code

@@ -6,39 +6,39 @@
 
 ## 2. Firmware: Lifecycle + Catch Engine
 
-- [ ] 2.1 Repurpose `SYNC_RETRACT_ASSIST` state in `firmware/src/sync.c` to host the buffer-lock lifecycle (prime / locked / catch / settle sub-states), preserving the "learning paused, estimator preserved" contract.
-- [ ] 2.2 Restore an aggressive slam drive helper (analogue of the deleted `retract_assist_drive` from commit `f19f41a`) that writes `current_sps = target` directly, bypassing `SYNC_RAMP_UP_SPS`.
-- [ ] 2.3 Wire the sync tick to detect raw `BUF_*` departure from the armed extreme while in the locked sub-state and transition to the catch sub-state on the same tick (no hyst debounce on the break edge).
-- [ ] 2.4 Implement the locked-state watchdog (default 30s) that auto-releases and emits `EV:BL:TIMEOUT`.
+- [x] 2.1 Repurpose `SYNC_RETRACT_ASSIST` state in `firmware/src/sync.c` to host the buffer-lock lifecycle (prime / locked / catch / settle sub-states), preserving the "learning paused, estimator preserved" contract.
+- [x] 2.2 Restore an aggressive slam drive helper (analogue of the deleted `retract_assist_drive` from commit `f19f41a`) that writes `current_sps = target` directly, bypassing `SYNC_RAMP_UP_SPS`.
+- [x] 2.3 Wire the sync tick to detect raw `BUF_*` departure from the armed extreme while in the locked sub-state and transition to the catch sub-state on the same tick (no hyst debounce on the break edge).
+- [x] 2.4 Implement the locked-state watchdog (default 30s) that auto-releases and emits `EV:BL:TIMEOUT`.
 
 ## 3. Firmware: Prime Move
 
-- [ ] 3.1 Add a sync-owned prime drive that retracts (or feeds) the active lane until raw target state OR `BUF_MAX_TRAVEL_MM / 2` of MMU travel, whichever comes first.
-- [ ] 3.2 Emit `EV:BL:PRIME_BOUND` when the half-travel cap stops the prime before target raw state.
-- [ ] 3.3 Verify prime runs without engaging the `TASK_MOVE` fault guards (it is sync-owned, not an `MV` task).
+- [x] 3.1 Add a sync-owned prime drive that retracts (or feeds) the active lane until raw target state OR `BUF_MAX_TRAVEL_MM / 2` of MMU travel, whichever comes first.
+- [x] 3.2 Emit `EV:BL:PRIME_BOUND` when the half-travel cap stops the prime before target raw state.
+- [x] 3.3 Verify prime runs without engaging the `TASK_MOVE` fault guards (it is sync-owned, not an `MV` task).
 
 ## 4. Firmware: Protocol Surface
 
-- [ ] 4.1 Add `BL` command parser to `firmware/src/protocol.c` accepting `BL`, `BL:T`, `BL:C`; reject with `ER:BUSY` when sync is active or a non-idle task is running.
-- [ ] 4.2 Add `BL` to the status GET output (`BL:T` / `BL:C` / `BL:0`).
-- [ ] 4.3 Remove the legacy `RA` command parser, `RA` status field, and the `sync_retract_assist_*` host-facing wiring; replies to `RA:*` become `ER:CMD`.
-- [ ] 4.4 Ensure `BS` releases lock and catch immediately and returns to `SYNC_OFF` with a normal stabilization pass.
+- [x] 4.1 Add `BL` command parser to `firmware/src/protocol.c` accepting `BL`, `BL:T`, `BL:C`; reject with `ER:BUSY` when sync is active or a non-idle task is running.
+- [x] 4.2 Add `BL` to the status GET output (`BL:T` / `BL:C` / `BL:0`).
+- [x] 4.3 Remove the legacy `RA` command parser, `RA` status field, and the `sync_retract_assist_*` host-facing wiring; replies to `RA:*` become `ER:CMD`.
+- [x] 4.4 Ensure `BS` releases lock and catch immediately and returns to `SYNC_OFF` with a normal stabilization pass.
 
 ## 5. Firmware: MV Guard Interaction
 
-- [ ] 5.1 Document and enforce the spec rule that `MV` buffer fault guards (`FAULT:MOVE_TENSION` / `FAULT:MOVE_COMPRESSION`) are suppressed only while in `SYNC_RETRACT_ASSIST` catch sub-state; outside it they remain active unchanged.
-- [ ] 5.2 Add a sanity assert / event if a `TASK_MOVE` ever starts while the catch is active (should be unreachable by the protocol layer).
+- [x] 5.1 Document and enforce the spec rule that `MV` buffer fault guards (`FAULT:MOVE_TENSION` / `FAULT:MOVE_COMPRESSION`) are suppressed only while in `SYNC_RETRACT_ASSIST` catch sub-state; outside it they remain active unchanged.
+- [x] 5.2 Add a sanity assert / event if a `TASK_MOVE` ever starts while the catch is active (should be unreachable by the protocol layer).
 
 ## 6. Klipper Macros
 
-- [ ] 6.1 Add `variable_use_buffer_lock: 0` default flag to `_FLARE_VARS` (or equivalent) for staged rollout.
-- [ ] 6.2 When the flag is `1`: in `_FLARE_TIP_FORMING`, (a) prepend a `BS` + `G4 P1000` preamble before any extruder move so the buffer starts from a stabilized baseline; (b) replace the blind `RUN_SHELL_COMMAND CMD=flare PARAMS="MV:-{mmu_tip_retract}:{park_speed*60*0.2}:I"` with the sequence `BL:T` → `G4 P1000` → `G0 E-{park_distance-dist_to_meltzone_now} F{park_speed*60}`, and `BS` after the post-park `M400`. The `G4 P1000` settle pause MUST sit between `BL:T` and the retract so the prime drives the buffer to deep tension and the lock energizes before the printer move begins.
-- [ ] 6.3 When the flag is `1`: in `_FLARE_UNLOAD_TOOLHEAD`, apply the same sequence around the gear clear — `BL:T` → `G4 P1000` → `G1 E-{gear_retract} F{v.speed_hub_to_extruder*60}` → `M400` → `BS`. The settle pause requirement applies the same way.
+- [x] 6.1 Add `variable_use_buffer_lock: 0` default flag to `_FLARE_VARS` (or equivalent) for staged rollout.
+- [x] 6.2 When the flag is `1`: in `_FLARE_TIP_FORMING`, (a) prepend a `BS` + `G4 P1000` preamble before any extruder move so the buffer starts from a stabilized baseline; (b) replace the blind `RUN_SHELL_COMMAND CMD=flare PARAMS="MV:-{mmu_tip_retract}:{park_speed*60*0.2}:I"` with the sequence `BL:T` → `G4 P1000` → `G0 E-{park_distance-dist_to_meltzone_now} F{park_speed*60}`, and `BS` after the post-park `M400`.
+- [x] 6.3 When the flag is `1`: in `_FLARE_UNLOAD_TOOLHEAD`, apply the same sequence around the gear clear — `BL:T` → `G4 P1000` → `G1 E-{gear_retract} F{v.speed_hub_to_extruder*60}` → `M400` → `BS`.
 - [ ] 6.4 Remove the `mmu_tip_retract` variable computation once the flag is the only path.
 
 ## 7. Acceptance Validation
 
-- [ ] 7.1 Add a `scripts/flare_sync_check.py` mode (e.g. `--mode buffer-lock`) that asserts: `BL:T` → `OK`, lifecycle transitions through prime/locked/catch/settle, and no `FAULT:MOVE_*` during the catch.
+- [x] 7.1 Add a `scripts/flare_sync_check.py` mode (e.g. `--mode buffer-lock`) that asserts: `BL:T` → `OK`, lifecycle transitions through prime/locked/catch/settle, and no `FAULT:MOVE_*` during the catch.
 - [ ] 7.2 Verify on bench: tip-forming sequence end-to-end, no buffer slam, peak excursion under the design envelope (D6).
 - [ ] 7.3 Verify on bench: unload-toolhead sequence end-to-end with the gear retract guarded by `BL`, no buffer slam.
 - [ ] 7.4 Verify watchdog timeout fires when `BL:T` is armed and no break/`BS` arrives.
@@ -47,5 +47,5 @@
 
 - [ ] 8.1 Remove the `:I` ignore-buffer branch from `_FLARE_TIP_FORMING` after a release window confirms no regressions.
 - [ ] 8.2 Drop the `variable_use_buffer_lock` flag once `BL` is the only path.
-- [ ] 8.3 Update `BEHAVIOR.md` / `KLIPPER.md` to describe `BL` and the buffer-lock lifecycle; remove references to the legacy blind retract.
+- [x] 8.3 Update `BEHAVIOR.md` / `KLIPPER.md` to describe `BL` and the buffer-lock lifecycle; remove references to the legacy blind retract.
 - [ ] 8.4 Archive this change with `openspec archive buffer-state-lock`.

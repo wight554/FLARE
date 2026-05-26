@@ -153,7 +153,7 @@ def daemon_status_to_line(status: Dict[str, object]) -> Optional[str]:
         ("BUF", status.get("buf_state", "NEUTRAL")),
         ("SM", status.get("sync_enabled", 0)),
         ("MM", f"{float(status.get('sps', 0.0)):.3f}"),
-        ("BL", f"{float(status.get('baseline_sps', 0.0)):.3f}"),
+        ("BF", f"{float(status.get('baseline_sps', 0.0)):.3f}"),
         ("EST", f"{float(status.get('extruder_est_sps', 0.0)):.3f}"),
         ("RE", f"{float(status.get('reserve_error_mm', 0.0)):.3f}"),
         ("AV", "0.000"),
@@ -416,6 +416,88 @@ def analyze_rearm(samples: List[Sample], events, idle: bool,
     return "PASS", report + extra
 
 
+# ---------------------------------------------------------------------------
+# BUFFER-LOCK analysis (task 7.1)
+# ---------------------------------------------------------------------------
+def analyze_buffer_lock(samples: List[Sample], events) -> Tuple[str, List[str]]:
+    """BL lifecycle check (task 7.1).
+
+    Asserts:
+      1. BL:PRIME event seen (arm accepted).
+      2. BL:LOCKED event seen (prime completed to target state or bound).
+      3. BL:BREAK event seen (lock-break triggered the catch).
+      4. Either BL:CATCH_SETTLE or EV:BL:TIMEOUT seen (lifecycle completed).
+      5. No FAULT:MOVE_TENSION or FAULT:MOVE_COMPRESSION events between
+         BL:BREAK and CATCH_SETTLE/TIMEOUT (catch does not trigger MV guards).
+
+    Inconclusive when no BL events found — run with BL:T active and
+    a printer-side retract to exercise the full lifecycle.
+    """
+    report: List[str] = []
+
+    n_prime   = sum(1 for (_, e) in events if "BL" in e and "PRIME" in e and "BOUND" not in e)
+    n_locked  = sum(1 for (_, e) in events if "BL" in e and "LOCKED" in e)
+    n_break   = sum(1 for (_, e) in events if "BL" in e and "BREAK" in e)
+    n_settle  = sum(1 for (_, e) in events if "BL" in e and ("CATCH_SETTLE" in e or "TIMEOUT" in e))
+    n_timeout = sum(1 for (_, e) in events if "EV:BL" in e and "TIMEOUT" in e)
+    n_bound   = sum(1 for (_, e) in events if "EV:BL" in e and "PRIME_BOUND" in e)
+    n_mv_fault = sum(1 for (_, e) in events
+                     if "FAULT:MOVE_TENSION" in e or "FAULT:MOVE_COMPRESSION" in e)
+
+    report.append(f"  BL PRIME: {n_prime}  LOCKED: {n_locked}  BREAK: {n_break}"
+                  f"  SETTLE/TIMEOUT: {n_settle}  PRIME_BOUND: {n_bound}")
+    if n_bound:
+        report.append(f"  WARNING: prime hit half-travel cap {n_bound}x "
+                      "(buffer may not have reached target extreme).")
+    if n_timeout:
+        report.append(f"  NOTE: watchdog timeout fired {n_timeout}x.")
+
+    if n_prime == 0 and n_locked == 0 and n_break == 0:
+        return "INCONCLUSIVE", report + [
+            "  No BL lifecycle events found. Run: BL:T, wait ~1s, "
+            "perform a printer-side retract, then BS."]
+
+    failed = False
+    if n_prime == 0:
+        report.append("  FAIL: no BL:PRIME event — arm never started.")
+        failed = True
+    if n_locked == 0:
+        report.append("  FAIL: no BL:LOCKED event — prime never completed.")
+        failed = True
+    if n_break == 0:
+        report.append("  FAIL: no BL:BREAK event — lock-break never triggered "
+                      "(was a printer retract executed after BL:T?).")
+        failed = True
+    if n_settle == 0 and n_break > 0:
+        report.append("  FAIL: lock-break fired but no CATCH_SETTLE or TIMEOUT "
+                      "— catch never released (was BS sent after M400?).")
+        failed = True
+
+    # Check for MV faults during catch window
+    # (approximate: any FAULT:MOVE_* after the first BL:BREAK is suspicious)
+    break_idx = next((si for (si, e) in events
+                      if "BL" in e and "BREAK" in e), None)
+    settle_idx = next((si for (si, e) in events
+                       if "BL" in e and ("CATCH_SETTLE" in e or "TIMEOUT" in e)), None)
+    mv_during_catch = []
+    for si, e in events:
+        if "FAULT:MOVE_TENSION" in e or "FAULT:MOVE_COMPRESSION" in e:
+            if break_idx is not None and si > break_idx:
+                if settle_idx is None or si < settle_idx:
+                    mv_during_catch.append(e.strip())
+
+    if mv_during_catch:
+        report.append(f"  FAIL: {len(mv_during_catch)} MV fault(s) during catch "
+                      f"window: {mv_during_catch[:3]}")
+        failed = True
+    else:
+        report.append("  no FAULT:MOVE_* during catch window (correct).")
+
+    if failed:
+        return "FAIL", report
+    return "PASS", report + ["  full prime→locked→catch→settle lifecycle verified."]
+
+
 def analyze_stabilize(samples: List[Sample], events) -> Tuple[str, List[str]]:
     """D1 (M1 Recipe A): a boot/BS stabilize must drive the buffer to NEUTRAL
     (BUF_STAB DONE) without a spurious SYNC AUTO_START. Sync stays off during
@@ -639,11 +721,13 @@ def main() -> int:
     ap.add_argument("--csv", help="Write parsed samples to this CSV path")
     ap.add_argument("--mode",
                     choices=("purge", "regression", "rearm", "estimator",
-                             "stabilize", "both", "all"),
+                             "stabilize", "buffer-lock", "both", "all"),
                     default="both",
                     help="Which check(s) to run ('both'=purge+regression, "
                          "'all'=every analyzer). 'stabilize'=M1 Recipe A "
-                         "(BUF_STAB -> NEUTRAL, no spurious AUTO_START)")
+                         "(BUF_STAB -> NEUTRAL, no spurious AUTO_START). "
+                         "'buffer-lock'=BL lifecycle (prime/locked/catch/settle "
+                         "and no MV faults during catch).")
     ap.add_argument("--idle", action="store_true",
                     help="rearm mode: this capture is idle — any re-arm is a FAIL")
     ap.add_argument("--allow-terminal-idle-relief", action="store_true",
@@ -716,6 +800,12 @@ def main() -> int:
     if args.mode in ("stabilize", "all"):
         v, rep = analyze_stabilize(samples, events)
         print(f"\nSTABILIZE (D1, M1-A): {v}")
+        for line in rep:
+            print(line)
+        verdicts.append(v)
+    if args.mode in ("buffer-lock", "all"):
+        v, rep = analyze_buffer_lock(samples, events)
+        print(f"\nBUFFER-LOCK: {v}")
         for line in rep:
             print(line)
         verdicts.append(v)

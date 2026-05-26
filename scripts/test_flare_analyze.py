@@ -45,7 +45,7 @@ def write_csv(path, rows):
 
 
 def write_tuner_csv(path, rows):
-    fields = ["wall_ts", "BUF", "BP", "BPV", "BL", "EST", "RT", "feature", "v_fil"]
+    fields = ["wall_ts", "BUF", "BP", "BPV", "BF", "EST", "RT", "feature", "v_fil"]
     with open(path, "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=fields)
         writer.writeheader()
@@ -425,7 +425,7 @@ def test_buf_variance_blend_ref_mm_from_bp_not_bl():
                     "BUF": "NEUTRAL",
                     "BP": f"{bp:.3f}",
                     "BPV": "0.1",
-                    "BL": "707.5",
+                    "BF": "707.5",
                     "EST": "1000",
                     "RT": "0.0",
                     "feature": feature,
@@ -445,7 +445,7 @@ def test_buf_variance_blend_ref_mm_from_bp_not_bl():
         assert 0.1 <= var_ref <= 5.0, var_ref
         assert abs(var_ref - 0.5) < 0.001, var_ref
         assert var_ref != 707.5, var_ref
-        return "variance blend reference derives from BP scatter, not BL baseline"
+        return "variance blend reference derives from BP scatter, not BF baseline"
 
 
 def test_neutral_creep_timeout_default_when_insufficient_data():

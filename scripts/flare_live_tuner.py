@@ -234,7 +234,7 @@ class CsvEmitter:
         self.path = path
         self.fields = [
             "wall_ts", "run_seq", "layer", "feature", "v_fil",
-            "BL", "BP", "BPV", "EST", "MM", "RT", "TT", "TPX", "CF", "TC", "BUF",
+            "BF", "BP", "BPV", "EST", "MM", "RT", "TT", "TPX", "CF", "TC", "BUF",
             "MK_seq"
         ]
         parent = os.path.dirname(os.path.abspath(path))

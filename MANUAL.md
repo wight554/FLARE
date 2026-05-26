@@ -84,7 +84,7 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `?:` | Status | **Full Status** — returns all sensors, tasks, and rates. |
 | `VR:` | Version| **Version** — returns firmware version. |
 | `TS:<0\|1>`| OK | **Toolhead Sensor** — report toolhead filament status (sent by host). |
-| `RA:<0\|1>`| OK | **Retract Assist Gate** — `RA:1` suppresses sync and buffer reaction during printer-side tip forming; `RA:0` releases it and immediately attempts reverse buffer service if compressed. `TS:1`, `TC:`, `UL:`, and other motion commands auto-clear assist. |
+| `BL:<T|C>` | OK | **Buffer Lock** — arm the active lane to drive the buffer to the requested extreme and hold there. `BL:T` (tension, default) or `BL:C` (compression). The prime move is capped at `BUF_MAX_TRAVEL_MM / 2`; once at the extreme the lane holds with motor energized. On any external force (printer retract) the lock breaks automatically and the catch drive engages. Rejected with `ER:BUSY` when sync is active or a non-idle task is running. Use `BS` to release manually. |
 | `SM:<0\|1>`| OK | **Sync Mode** — manually toggle buffer sync. |
 | `BI:<0\|1>`| OK | **Buffer Invert** — invert buffer endstop logic. |
 | `MARK:<tag>` | `OK:MARK` | **Telemetry Marker** — stores a short host marker in firmware. Subsequent status replies expose it as `MK:<seq>:<tag>`. |
@@ -209,7 +209,7 @@ Config-only schedule keys:
 
 `BASELINE_RATE` remains a persistent bootstrap target. AUTO sync no longer rewrites it during startup.
 
-Runtime status `BL` is the active control baseline after flow-schedule lookup
+Runtime status `BF` is the active control baseline after flow-schedule lookup
 and any ephemeral live segment ratchet. `GET:` / `SET:` / `SV:` / `LD:` for
 `BASELINE_RATE` operate on the configured bootstrap target.
 
@@ -229,17 +229,18 @@ Pre-rename half-travel and size serial tokens are removed; use full-range
 ### Runtime-only Controls
 | Parameter | Description |
 |-----------|-------------|
-| `GET:RA` | Returns `RA:1` while retract-assist mode is active, else `RA:0`. |
+| `GET:BL` | Returns `BL:T`, `BL:C`, or `BL:0` for the current buffer-lock arm state. |
 
 ### Diagnostic Status Fields
 
 These fields are included in the `?:` response. Most diagnostics are appended
-after `SS:`; `RA` appears with the core sync fields near `SM`.
+after `SS:`; `BL` and `BF` appear with the core sync fields near `SM`.
 
 | Field | Unit | Description |
 |-------|------|-------------|
 | `RT` | mm (signed) | Reserve target position. Negative = compression side. Set by `SYNC_RESERVE_PCT`, active flow-schedule bias (or scalar `COMPRESSION_BIAS_FRAC` fallback), and half of `BUF_SWITCH_SPAN`. |
-| `RA` | bool | Retract-assist gate state from `RA:1` / `RA:0`. |
+| `BL` | T/C/0 | Buffer-lock arm state: `T` = tension-armed, `C` = compression-armed, `0` = disarmed. Set by `BL:T` / `BL:C`; cleared by `BS` or watchdog timeout. |
+| `BF` | SPS | Active control baseline after flow-schedule lookup and any live-segment ratchet. |
 | `CB` | % (int) | Active compression bias fraction × 100 after flow-schedule lookup. |
 | `NC` | SPS | Neutral-zone creep component added to target rate |
 | `VB` | % (int) | Variance blend distrust percentage |

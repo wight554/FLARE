@@ -129,6 +129,20 @@ uint32_t last_slope_update_ms = 0;
 char g_marker_tag[32] = {0};
 uint16_t g_marker_seq = 0;
 
+/* Buffer-lock (BL) lifecycle sub-states — active while g_sync_state == SYNC_RETRACT_ASSIST */
+typedef enum {
+    BL_IDLE = 0,
+    BL_PRIME,   /* driving lane toward armed extreme at BUF_STAB_SPS */
+    BL_LOCKED,  /* holding at extreme; motor energized, zero net feed */
+    BL_CATCH,   /* instant-slam mirror drive after lock-break */
+} bl_sub_state_t;
+
+static bl_sub_state_t g_bl_sub_state = BL_IDLE;
+static buf_state_t    g_bl_target_state = BUF_TENSION;
+static uint32_t       g_bl_prime_deadline_ms = 0;
+static uint32_t       g_bl_watchdog_ms = 0;
+#define BL_WATCHDOG_DEFAULT_MS 30000u
+
 float g_buf_pos = 0.0f;
 float g_buf_pos_raw_status = 0.0f;
 
@@ -977,7 +991,17 @@ void sync_retract_assist_set(bool enabled) {
         sync_set_state(SYNC_RETRACT_ASSIST);
         if (A && A->task == TASK_FEED) lane_stop(A);
     } else {
-        if (g_sync_state == SYNC_RETRACT_ASSIST) sync_set_state(SYNC_OFF);
+        if (g_sync_state == SYNC_RETRACT_ASSIST) {
+            /* Stop any BL-driven motor motion before transitioning to SYNC_OFF */
+            if (g_bl_sub_state != BL_IDLE && A) {
+                motor_set_rate_sps(&A->m, 0);
+                motor_enable(&A->m, false);
+            }
+            g_bl_sub_state = BL_IDLE;
+            g_bl_prime_deadline_ms = 0;
+            g_bl_watchdog_ms = 0;
+            sync_set_state(SYNC_OFF);
+        }
     }
 }
 
@@ -991,6 +1015,133 @@ void sync_retract_assist_release(uint32_t now_ms) {
 
 bool sync_retract_assist_enabled(void) {
     return g_sync_state == SYNC_RETRACT_ASSIST;
+}
+
+/* Arm the buffer-lock: drive the active lane to the requested extreme and lock.
+ * Accepts BUF_TENSION ("BL:T") or BUF_COMPRESSION ("BL:C").
+ * Safe to call when already in SYNC_RETRACT_ASSIST (re-arms with a fresh prime). */
+void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms) {
+    lane_t *A = lane_ptr(active_lane);
+    if (!A) return;
+
+    /* Stop any in-progress BL motor drive before re-arming */
+    if (g_bl_sub_state != BL_IDLE) {
+        motor_set_rate_sps(&A->m, 0);
+        motor_enable(&A->m, false);
+    }
+
+    /* Enter (or stay in) SYNC_RETRACT_ASSIST */
+    sync_current_sps = 0;
+    sync_auto_started = false;
+    sync_tail_assist_active = false;
+    sync_idle_since_ms = 0;
+    sync_set_state(SYNC_RETRACT_ASSIST);
+    if (A->task == TASK_FEED) lane_stop(A);
+
+    g_bl_target_state = target;
+
+    /* Calculate prime deadline from the half-travel cap:
+     * cap_mm = BUF_MAX_TRAVEL_MM / 2; rate = BUF_STAB_SPS * mm_per_step */
+    int idx = A->lane_id - 1;
+    float mm_per_s = (float)BUF_STAB_SPS * MM_PER_STEP[idx];
+    float cap_mm = (BUF_MAX_TRAVEL_MM > 0) ? ((float)BUF_MAX_TRAVEL_MM * 0.5f) : 12.5f;
+    uint32_t cap_ms = (mm_per_s > 0.0f)
+        ? (uint32_t)(cap_mm / mm_per_s * 1000.0f + 0.5f)
+        : 5000u;
+    g_bl_prime_deadline_ms = now_ms + cap_ms;
+    g_bl_watchdog_ms = 0;
+    g_bl_sub_state = BL_PRIME;
+
+    /* BL:T → retract (forward=false) to drain buffer toward tension extreme.
+     * BL:C → feed (forward=true) to fill buffer toward compression extreme. */
+    bool forward = (target == BUF_COMPRESSION);
+    motor_enable(&A->m, true);
+    motor_set_dir(&A->m, forward);
+    motor_set_rate_sps(&A->m, BUF_STAB_SPS);
+
+    cmd_event("BL", "PRIME");
+}
+
+/* Return the status string for the BL arm field: "T", "C", or "0". */
+const char *sync_buffer_lock_arm_str(void) {
+    if (g_sync_state != SYNC_RETRACT_ASSIST || g_bl_sub_state == BL_IDLE) return "0";
+    return (g_bl_target_state == BUF_TENSION) ? "T" : "C";
+}
+
+/* Returns true while the BL catch (instant-slam mirror drive) is active.
+ * Used by the MV handler to emit a defensive sanity event (task 5.2). */
+bool sync_buffer_lock_catch_active(void) {
+    return g_sync_state == SYNC_RETRACT_ASSIST && g_bl_sub_state == BL_CATCH;
+}
+
+/* Per-tick handler for the buffer-lock lifecycle.
+ * Called every sync_tick iteration while g_sync_state == SYNC_RETRACT_ASSIST
+ * and g_bl_sub_state != BL_IDLE.
+ * Runs at main-loop rate (no SYNC_TICK_MS gating) so lock-break is detected
+ * on the same tick as the raw buffer edge. */
+static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
+    if (!A) return;
+
+    if (g_bl_sub_state == BL_PRIME) {
+        buf_state_t raw = buf_state_raw();
+        bool reached = (raw == g_bl_target_state);
+        bool deadline_hit = ((int32_t)(now_ms - g_bl_prime_deadline_ms) >= 0);
+
+        if (reached || deadline_hit) {
+            /* Prime done — stop motor but keep enabled for holding torque */
+            motor_set_rate_sps(&A->m, 0);
+            /* motor_enable stays true: locked hold needs energized stepper */
+
+            if (deadline_hit && !reached) {
+                cmd_event("EV:BL", "PRIME_BOUND");
+            }
+
+            g_bl_sub_state = BL_LOCKED;
+            g_bl_watchdog_ms = now_ms + BL_WATCHDOG_DEFAULT_MS;
+            cmd_event("BL", "LOCKED");
+        }
+
+    } else if (g_bl_sub_state == BL_LOCKED) {
+        /* Detect raw departure from armed extreme — lock-break.
+         * No debounce: D4 explicitly requires same-tick transition. */
+        buf_state_t raw = buf_state_raw();
+
+        if (raw != g_bl_target_state) {
+            /* Lock-break: instant slam in mirror direction */
+            int idx = A->lane_id - 1;
+            (void)idx;
+            int slam_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
+            /* Mirror direction: same as prime direction */
+            bool forward = (g_bl_target_state == BUF_COMPRESSION);
+            motor_set_dir(&A->m, forward);
+            motor_set_rate_sps(&A->m, slam_sps);
+
+            g_bl_sub_state = BL_CATCH;
+            g_bl_watchdog_ms = 0;
+            cmd_event("BL", "BREAK");
+
+        } else if (g_bl_watchdog_ms != 0 &&
+                   (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
+            /* Watchdog expired — auto-release */
+            cmd_event("EV:BL", "TIMEOUT");
+            sync_retract_assist_release(now_ms);
+        }
+
+    } else if (g_bl_sub_state == BL_CATCH) {
+        /* Keep slamming. Auto-settle when buffer reaches opposite extreme.
+         * Over-drive back toward the armed extreme is safe (asymmetric safety,
+         * D5) and does NOT terminate the catch. */
+        buf_state_t raw = buf_state_raw();
+        buf_state_t opposite = (g_bl_target_state == BUF_TENSION)
+            ? BUF_COMPRESSION : BUF_TENSION;
+
+        if (raw == opposite) {
+            /* Buffer has reached opposite extreme — auto-release */
+            cmd_event("BL", "CATCH_SETTLE");
+            sync_retract_assist_release(now_ms);
+        }
+        /* Motor continues at slam_sps; no change needed here */
+    }
 }
 
 void sync_relief_pause(void) {
@@ -1281,6 +1432,9 @@ void sync_tick(uint32_t now_ms) {
             return;
         }
     } else if (g_sync_state == SYNC_RETRACT_ASSIST || g_sync_state == SYNC_RELIEF_PAUSE) {
+        if (g_sync_state == SYNC_RETRACT_ASSIST && g_bl_sub_state != BL_IDLE) {
+            sync_buffer_lock_tick(A, now_ms);
+        }
         return;
     }
 

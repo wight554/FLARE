@@ -185,7 +185,7 @@ static void status_dump(void) {
     int blen = snprintf(b, sizeof(b),
         "LN:%d,TC:%s,L1T:%s,L2T:%s,"
         "I1:%d,O1:%d,I2:%d,O2:%d,"
-        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BL:%.1f,BP:%.2f,SM:%d,RA:%d,ST:%d,BI:%d,TPR:%d,CU:%d,RELOAD:%d,UC:%d,"
+        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BF:%.1f,BP:%.2f,SM:%d,BL:%s,ST:%d,BI:%d,TPR:%d,CU:%d,RELOAD:%d,UC:%d,"
         "EST:%.1f,RE:%.2f,DP:%d,PR:%d,AV:%.2f,SC:%.1f,SA:%d,GC:0x%X,TP:%u,TS:%u,PW:0x%X,"
         "RS:%d%d%d%d%d,SS:%d",
         active_lane, tc_state_name(g_tc_ctx.state),
@@ -201,7 +201,7 @@ static void status_dump(void) {
         (double)sps_to_mm_per_min(active_flow_param.baseline_sps),
         (double)g_buf_pos,
         sync_enabled ? 1 : 0,
-        sync_retract_assist_enabled() ? 1 : 0,
+        sync_buffer_lock_arm_str(),
         (int)g_sync_state,
         BUF_INVERT ? 1 : 0,
         AUTO_PRELOAD ? 1 : 0,
@@ -622,9 +622,15 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             return;
         }
 
+        /* Task 5.2: sanity event if MV starts while BL catch active.
+         * Should be unreachable by a correct macro sequence. The BL catch
+         * is sync-owned (task=TASK_IDLE) so MV buffer fault guards never
+         * fire during it by construction (task 5.1). */
+        bool bl_catch_was_active = sync_buffer_lock_catch_active();
         sync_retract_assist_set(false);
         sync_set_state(SYNC_OFF);
         sync_disable(false);
+        if (bl_catch_was_active) cmd_event("BL", "MV_DURING_CATCH");
         lane_start(A, TASK_MOVE, sps, forward, now_ms, limit);
         A->move_ignore_buffer = ignore_buffer;
         cmd_reply("OK", NULL);
@@ -641,6 +647,13 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
     } else if (!strcmp(cmd, "BS")) {
         if (controller_activity_in_progress() || sync_enabled) {
             cmd_reply("ER", "BUSY");
+            return;
+        }
+        /* If buffer-lock is active, release it first (task 4.4: BS releases
+         * lock and catch immediately and returns to SYNC_OFF). */
+        if (g_sync_state == SYNC_RETRACT_ASSIST) {
+            sync_retract_assist_release(now_ms);
+            cmd_reply("OK", NULL);
             return;
         }
         if (!buffer_stabilize_request(now_ms)) {
@@ -661,13 +674,19 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             cmd_reply("ER", "ARG");
         }
     } else if (!strcmp(cmd, "RA")) {
-        int v = atoi(p);
-        if (v == 0 || v == 1) {
-            if (v == 1) sync_retract_assist_set(true);
-            else sync_retract_assist_release(now_ms);
-            cmd_reply("OK", NULL);
+        /* Legacy RA command removed; BL replaces it (task 4.3). */
+        cmd_reply("ER", "CMD");
+    } else if (!strcmp(cmd, "BL")) {
+        /* Buffer-lock arm command (task 4.1).
+         * BL or BL:T → arm tension; BL:C → arm compression.
+         * Reject if sync active or non-idle task running. */
+        if (sync_enabled || controller_activity_in_progress()) {
+            cmd_reply("ER", "BUSY");
         } else {
-            cmd_reply("ER", "ARG");
+            buf_state_t target = BUF_TENSION;
+            if (p[0] == 'C') target = BUF_COMPRESSION;
+            sync_buffer_lock_arm(target, now_ms);
+            cmd_reply("OK", NULL);
         }
     } else if (!strcmp(cmd, "SM")) {
         int v = atoi(p);
@@ -958,7 +977,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "BUF_HYST")) snprintf(out, sizeof(out), "BUF_HYST:%d", BUF_HYST_MS);
         else if (!strcmp(param, "BUF_PREDICT_THR_MS")) snprintf(out, sizeof(out), "BUF_PREDICT_THR_MS:%d", BUF_PREDICT_THR_MS);
         else if (!strcmp(param, "AUTO_PRELOAD")) snprintf(out, sizeof(out), "AUTO_PRELOAD:%d", AUTO_PRELOAD ? 1 : 0);
-        else if (!strcmp(param, "RA")) snprintf(out, sizeof(out), "RA:%d", sync_retract_assist_enabled() ? 1 : 0);
+        else if (!strcmp(param, "BL")) snprintf(out, sizeof(out), "BL:%s", sync_buffer_lock_arm_str());
         else if (!strcmp(param, "SYNC_STATE")) snprintf(out, sizeof(out), "SYNC_STATE:%d", (int)g_sync_state);
         else if (!strcmp(param, "RETRACT_MM")) snprintf(out, sizeof(out), "RETRACT_MM:%d", AUTOLOAD_RETRACT_MM);
         else if (!strcmp(param, "CUTTER")) snprintf(out, sizeof(out), "CUTTER:%d", ENABLE_CUTTER ? 1 : 0);

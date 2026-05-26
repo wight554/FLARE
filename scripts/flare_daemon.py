@@ -515,7 +515,7 @@ def parse_status_line(line):
                 new_data["sync_drive"] = (int(val) == 1)
             elif key == "MM":
                 new_data["sps"] = float(val)
-            elif key == "BL":
+            elif key == "BF":
                 new_data["baseline_sps"] = float(val)
             elif key == "EST":
                 new_data["extruder_est_sps"] = float(val)

@@ -163,24 +163,32 @@ stored value.
 
 ---
 
-## Retract Assist — `RA:<0|1>`
+## Buffer Lock — `BL:<T|C>`
 
-`RA:1` arms a quiet retract gate for printer-side tip-forming moves. Normal
-`sync_tick` behavior and the post-print `BUFFER_SERVICE_NEG_SYNC` service are
-suppressed while retract assist is active, and firmware does not react to
-buffer-side changes during the gated window.
+`BL:T` (tension) or `BL:C` (compression) arms a closed-loop buffer-lock
+sequence that replaces the legacy blind `RA`-gated retract. The lifecycle has
+four sub-states inside `SYNC_RETRACT_ASSIST`:
 
-`RA:0` releases the gate and immediately attempts the existing
-`BUFFER_SERVICE_NEG_SYNC` path once. If the buffer is already in
-`BUF_COMPRESSION` and the controller is idle, FLARE starts reverse buffer
-service without waiting for an idle dwell. The shared Klipper MMU macro no
-longer uses this gate for tip forming; it uses a finite
-`MV:-distance:feed:I` move to pull the old lane clear while ignoring buffer
-state during that exact move.
+1. **PRIME** — the active-lane motor drives toward the requested extreme at
+   `BUF_STAB_SPS`. The prime is bounded to `BUF_MAX_TRAVEL_MM / 2` of travel
+   (approximately half the physical buffer range). When the target extreme is
+   reached or the deadline elapses the state advances to LOCKED and emits
+   `EV:BL,PRIME_BOUND` on deadline or `EV:BL,LOCKED` on success.
+2. **LOCKED** — motor stays energized at zero feed, holding the buffer at the
+   extreme. Any external force (printer-side retract) that causes a raw sensor
+   flip away from the target extreme breaks the lock immediately.
+3. **CATCH** — on lock-break (`EV:BL,BREAK`) the motor slams in the mirror
+   direction at `SYNC_MAX_SPS`, following the printer retract. The catch ends
+   when the buffer reaches the opposite extreme (`EV:BL,CATCH_SETTLE`). A
+   watchdog caps the total arm time (`BL_WATCHDOG_DEFAULT_MS`, default 30 s);
+   timeout emits `EV:BL,WATCHDOG` and releases via `sync_retract_assist_set`.
+4. **Release** — `BS` sent by the host (or watchdog expiry) calls
+   `sync_retract_assist_release` which drops back to `SYNC_ACTIVE` and
+   re-enables normal sync.
 
-`TS:1`, `TC:`, `UL:`, active-lane `UM`, and other explicit active-path motion
-commands also clear retract assist before starting their own motion. Inactive
-standby `UM:1` / `UM:2` eject does not touch retract assist.
+The `RA:<0|1>` command is removed. `GET:BL` returns the current arm state
+(`BL:T`, `BL:C`, or `BL:0`). The status field previously named `BL` (baseline
+flow) is renamed to `BF` in the serial protocol and all host tooling.
 
 ---
 
