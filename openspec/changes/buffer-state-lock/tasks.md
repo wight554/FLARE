@@ -1,8 +1,8 @@
 ## 1. HW Bench (gating)
 
-- [ ] 1.1 Measure MMU sustained top speed on rig (target ≥ 110 mm/s = 6600 mm/min) and document the figure.
-- [ ] 1.2 Characterize instant-slam practical accel (0 → N sps without lost steps) and record the safe slam ceiling per lane.
-- [ ] 1.3 Confirm operator's hard upper bound for `park_speed` if HW ceiling is below the worst-case envelope from `design.md` §D6.
+- [x] 1.1 Measure MMU sustained top speed on rig. **Result:** unloaded ~100 mm/s (6000 mm/min) sustained without stall; ~117 mm/s (7000 mm/min) is the beep onset. Loaded (FL) ceiling is ~50 mm/s (3000 mm/min) — path friction (PTFE/hub/extruder) lowers torque headroom. Below the 110 mm/s ideal target, but the design.md §D6 envelope at 40 mm @ 150 mm/s still fits with the raw-edge lock-break (3.2 mm margin). Recorded in design.md §D6.
+- [x] 1.2 Characterize instant-slam practical accel. **Result:** `ramp_step_rate=1000` (~3500 mm/s²) holds without stall on the rig motor (1.2 A, 16 µsteps, 22.6789511 rot_dist). `1500` (~5000 mm/s²) stalls earlier and drops the achievable top to 6000 mm/min. Picked **3500 mm/s² as the operator value**; default ships at 3500 in `gen_config.py` (`global_max_accel: 3500`). Recorded in design.md §D6.
+- [x] 1.3 Confirm operator's hard upper bound for `park_speed`. **Result:** unloaded motor top = 100 mm/s; the BL catch envelope was validated for extruder retracts at 150 mm/s with the asymmetric-safety design (catch can over-drain back to tension safely, only compression slam fails). The operator's accepted `park_speed` ceiling for `BL`-guarded retracts is **150 mm/s** with the bench-validated geometry (40 mm @ 150 mm/s → 16.76 mm peak excursion vs 20 mm runway). Recorded in design.md §D6.
 
 ## 2. Firmware: Lifecycle + Catch Engine
 
