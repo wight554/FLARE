@@ -114,7 +114,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `DIST_OUT_Y` | `dist_out_y` | Distance between OUT sensor and Y-splitter | 100 |
 | `DIST_Y_BUF` | `dist_y_buf` | Distance between Y-splitter and buffer entry | 300 |
 | `BUF_BODY_LEN`| `buf_body_len`| Physical length of the buffer body/tube | 200 |
-| `BUF_SWITCH_SPAN` | `buf_switch_span_mm` | Full switch-to-switch sensing span for the type-D buffer sensor | 10 |
+| `BUF_SWITCH_SPAN` | `buf_switch_span_mm` | Full switch-to-switch sensing span for the buffer sensor | 10 |
 | `BUF_MAX_TRAVEL` | `buf_max_travel_mm` | Full mechanical buffer travel | 25 |
 
 ### Speeds & Rates (mm/min)
