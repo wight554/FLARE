@@ -14,7 +14,7 @@
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 56u
+#define SETTINGS_VERSION 57u
 
 typedef struct {
     uint32_t magic;
@@ -98,6 +98,7 @@ typedef struct {
     float relay_catchup_frac;
     float relay_neutral_frac;
     float relay_min_flip_mm;
+    float kd_psf;
     int   relay_collapse_delay_ms;
     int   relay_collapse_ramp_mult;
     int   relay_collapse_cap_ms;
@@ -219,6 +220,7 @@ void settings_defaults(void) {
     BUF_GOAL = CONF_BUF_GOAL;
     BUF_ANALOG_ALPHA = CONF_BUF_ANALOG_ALPHA;
     SYNC_KP_SPS = CONF_SYNC_KP_SPS;
+    KD_PSF = CONF_KD_PSF;
     SYNC_OVERSHOOT_PCT = clamp_i(CONF_SYNC_OVERSHOOT_PCT, 0, 200);
     SYNC_RESERVE_PCT = clamp_i(CONF_SYNC_RESERVE_PCT, 0, 150);
     TS_BUF_FALLBACK_MS = CONF_TS_BUF_FALLBACK_MS;
@@ -377,6 +379,7 @@ void settings_save(void) {
     s.sync_tension_ramp_delay_ms = SYNC_TENSION_RAMP_DELAY_MS;
     s.sync_overshoot_neutral_extend = SYNC_OVERSHOOT_NEUTRAL_EXTEND;
     s.sync_reserve_integral_gain = SYNC_RESERVE_INTEGRAL_GAIN;
+    s.kd_psf = KD_PSF;
     s.sync_reserve_integral_clamp_mm = SYNC_RESERVE_INTEGRAL_CLAMP_MM;
     s.sync_reserve_integral_decay_ms = SYNC_RESERVE_INTEGRAL_DECAY_MS;
     s.est_sigma_hard_cap_mm = EST_SIGMA_HARD_CAP_MM;
@@ -564,6 +567,7 @@ void settings_load(void) {
     BUF_GOAL = s->buf_psf_goal;
     BUF_ANALOG_ALPHA = s->buf_analog_alpha;
     SYNC_KP_SPS = s->sync_kp_sps;
+    KD_PSF = clamp_f(s->kd_psf, 0.0f, 100.0f);
     SYNC_OVERSHOOT_PCT = clamp_i(s->sync_overshoot_pct, 0, 200);
     SYNC_RESERVE_PCT = clamp_i(s->sync_reserve_pct, 0, 150);
     TS_BUF_FALLBACK_MS = s->ts_buf_fallback_ms;

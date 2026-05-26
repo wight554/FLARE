@@ -181,6 +181,7 @@ extern float BUF_PSF_NEUTRAL;
 extern float BUF_GOAL;
 extern float BUF_ANALOG_ALPHA;
 extern int SYNC_KP_SPS;
+extern float KD_PSF;
 extern int SYNC_OVERSHOOT_PCT;
 extern int SYNC_RESERVE_PCT;
 extern int TS_BUF_FALLBACK_MS;
