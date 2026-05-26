@@ -208,15 +208,24 @@ new one duplicates protocol/status surface).
 
 - Remove `mmu_tip_retract` variable and the `RUN_SHELL_COMMAND CMD=flare
   PARAMS="MV:-{mmu_tip_retract}:{park_speed*60*0.2}:I"` line.
+- At the very start of `_FLARE_TIP_FORMING`, before any extruder activity
+  (i.e. before the first `G0 E{pause_push_dist}`), emit a `BS` + `G4 P1000`
+  preamble. This stabilizes the buffer to a known good state and gives the
+  controller a clean baseline before the tip-forming sequence kicks off —
+  the lock primitive assumes a sane starting point, and a print that
+  finished mid-COMPRESSION is not one.
 - Before each gated extruder retract, emit `RUN_SHELL_COMMAND CMD=flare
   PARAMS="BL:T"` immediately followed by a fixed settle pause `G4 P1000`
   (~1 second). The pause ensures the half-travel prime has driven the
   buffer to deep tension and the lock has energized before the printer
   retract begins — without it, a fast `G0`/`G1` can fire during the prime
   and the runway is not actually pre-charged.
-- The two gated retracts are:
+- The composite sequence is:
   ```gcode
   ; _FLARE_TIP_FORMING (replaces the blind MV:...:I)
+  RUN_SHELL_COMMAND CMD=flare PARAMS="BS"
+  G4 P1000
+  ; ... existing tip-forming push/cooldown/dip moves ...
   RUN_SHELL_COMMAND CMD=flare PARAMS="BL:T"
   G4 P1000
   G0 E-{park_distance-dist_to_meltzone_now} F{park_speed*60}

@@ -54,7 +54,10 @@ open-loop distance/feedrate.
   `_FLARE_UNLOAD_TOOLHEAD`) — each followed by a fixed settle pause
   (`G4 P1000`, ~1s) so the half-travel prime drives to deep tension and the
   lock energizes before the printer-side retract starts. Each retract gets a
-  freshly-primed full runway. Remove the magic `mmu_tip_retract` distance.
+  freshly-primed full runway. Additionally emit a `BS` + `G4 P1000`
+  preamble at the very start of `_FLARE_TIP_FORMING` to stabilize the
+  buffer to a known good state before any extruder activity. Remove the
+  magic `mmu_tip_retract` distance.
 - **Document HW limitations and the survival envelope** (min MMU speed vs move
   distance/speed) in design, with the explicit finding that the 140mm/s park
   retract is the binding wall.

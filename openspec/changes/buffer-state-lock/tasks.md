@@ -32,7 +32,7 @@
 ## 6. Klipper Macros
 
 - [ ] 6.1 Add `variable_use_buffer_lock: 0` default flag to `_FLARE_VARS` (or equivalent) for staged rollout.
-- [ ] 6.2 When the flag is `1`: in `_FLARE_TIP_FORMING`, replace the blind `RUN_SHELL_COMMAND CMD=flare PARAMS="MV:-{mmu_tip_retract}:{park_speed*60*0.2}:I"` with the sequence `BL:T` → `G4 P1000` → `G0 E-{park_distance-dist_to_meltzone_now} F{park_speed*60}`, and `BS` after the post-park `M400`. The `G4 P1000` settle pause MUST sit between `BL:T` and the retract so the prime drives the buffer to deep tension and the lock energizes before the printer move begins.
+- [ ] 6.2 When the flag is `1`: in `_FLARE_TIP_FORMING`, (a) prepend a `BS` + `G4 P1000` preamble before any extruder move so the buffer starts from a stabilized baseline; (b) replace the blind `RUN_SHELL_COMMAND CMD=flare PARAMS="MV:-{mmu_tip_retract}:{park_speed*60*0.2}:I"` with the sequence `BL:T` → `G4 P1000` → `G0 E-{park_distance-dist_to_meltzone_now} F{park_speed*60}`, and `BS` after the post-park `M400`. The `G4 P1000` settle pause MUST sit between `BL:T` and the retract so the prime drives the buffer to deep tension and the lock energizes before the printer move begins.
 - [ ] 6.3 When the flag is `1`: in `_FLARE_UNLOAD_TOOLHEAD`, apply the same sequence around the gear clear — `BL:T` → `G4 P1000` → `G1 E-{gear_retract} F{v.speed_hub_to_extruder*60}` → `M400` → `BS`. The settle pause requirement applies the same way.
 - [ ] 6.4 Remove the `mmu_tip_retract` variable computation once the flag is the only path.
 
