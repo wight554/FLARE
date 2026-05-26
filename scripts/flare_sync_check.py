@@ -533,6 +533,90 @@ def analyze_stabilize(samples: List[Sample], events) -> Tuple[str, List[str]]:
 
 
 # ---------------------------------------------------------------------------
+# STABILITY analysis (buffer-state-lock task 9.10 — sync loop ringing)
+# ---------------------------------------------------------------------------
+def analyze_stability(samples: List[Sample], events,
+                      poll_ms: int = 100,
+                      cycle_threshold_hz: float = 1.0,
+                      window_sec: int = 3) -> Tuple[str, List[str]]:
+    """Detect closed-loop sync ringing. Sustained BUF state oscillation greater
+    than 1 cycle/sec (2 transitions/sec) over any window_sec window indicates
+    loop instability — typically sync_kp_rate too high for the active
+    sync_ramp_accel. Tune via sync_kp_rate <- sync_kp_rate / k, where
+    k = sync_ramp_accel / 33.
+
+    Run during a typical print soak with mixed flow; capture at the default
+    100ms poll for at least 30 seconds. PASS = peak window rate within
+    threshold; FAIL = peak exceeds threshold; INCONCLUSIVE = capture too short.
+    """
+    report: List[str] = []
+    if len(samples) < 30:
+        return "INCONCLUSIVE", report + [
+            "  too few samples; capture at least ~30s of print activity."]
+
+    samples_per_sec = max(1, int(round(1000.0 / max(1, poll_ms))))
+    window_n = samples_per_sec * window_sec
+    # 2 transitions per cycle; allow the threshold rate over the full window.
+    transitions_threshold = int(round(cycle_threshold_hz * 2 * window_sec))
+
+    transitions: List[int] = []
+    prev = None
+    for i, smp in enumerate(samples):
+        cur = smp.s("BUF")
+        if cur is None:
+            continue
+        if prev is not None and cur != prev:
+            transitions.append(i)
+        prev = cur
+
+    total_transitions = len(transitions)
+    duration_s = len(samples) * poll_ms / 1000.0
+    avg_hz = (total_transitions / duration_s) if duration_s > 0 else 0.0
+
+    peak_count = 0
+    peak_at = -1
+    for start_idx in range(0, max(1, len(samples) - window_n + 1)):
+        end_idx = start_idx + window_n
+        count = sum(1 for t in transitions if start_idx <= t < end_idx)
+        if count > peak_count:
+            peak_count = count
+            peak_at = start_idx
+    peak_hz = peak_count / window_sec if window_sec else 0.0
+    peak_cycles_hz = peak_hz / 2.0
+
+    state_counts: Dict[str, int] = {}
+    for smp in samples:
+        cur = smp.s("BUF")
+        if cur:
+            state_counts[cur] = state_counts.get(cur, 0) + 1
+    total_known = sum(state_counts.values())
+    state_pct = {k: (100.0 * v / total_known if total_known else 0.0)
+                 for k, v in state_counts.items()}
+
+    report.append(f"  capture: {len(samples)} samples ({duration_s:.1f}s "
+                  f"@ {poll_ms}ms poll = {samples_per_sec}/s)")
+    report.append(f"  BUF transitions: {total_transitions} total "
+                  f"({avg_hz:.2f} transitions/s avg)")
+    report.append(f"  peak in {window_sec}s window: {peak_count} transitions "
+                  f"({peak_hz:.2f}/s = {peak_cycles_hz:.2f} cycles/s) "
+                  f"starting at sample {peak_at}")
+    report.append("  BUF time-in-state: " +
+                  ", ".join(f"{k} {v:.0f}%" for k, v in
+                            sorted(state_pct.items(), key=lambda x: -x[1])))
+
+    if peak_count > transitions_threshold:
+        return "FAIL", report + [
+            f"  ringing: peak {peak_cycles_hz:.2f} cycles/s > "
+            f"{cycle_threshold_hz:.2f} threshold over {window_sec}s window.",
+            "  mitigation: SET:SYNC_KP_RATE:<current/k> where "
+            "k = sync_ramp_accel / 33. See design.md §D6a."]
+
+    return "PASS", report + [
+        f"  no sustained ringing: peak {peak_cycles_hz:.2f} cycles/s under "
+        f"{cycle_threshold_hz:.2f} threshold."]
+
+
+# ---------------------------------------------------------------------------
 # ESTIMATOR analysis (D2 — maneuver M4)
 # ---------------------------------------------------------------------------
 def analyze_estimator(samples: List[Sample], events, factor: float,
@@ -721,13 +805,21 @@ def main() -> int:
     ap.add_argument("--csv", help="Write parsed samples to this CSV path")
     ap.add_argument("--mode",
                     choices=("purge", "regression", "rearm", "estimator",
-                             "stabilize", "buffer-lock", "both", "all"),
+                             "stabilize", "stability", "buffer-lock",
+                             "both", "all"),
                     default="both",
                     help="Which check(s) to run ('both'=purge+regression, "
                          "'all'=every analyzer). 'stabilize'=M1 Recipe A "
                          "(BUF_STAB -> NEUTRAL, no spurious AUTO_START). "
-                         "'buffer-lock'=BL lifecycle (prime/locked/catch/settle "
-                         "and no MV faults during catch).")
+                         "'stability'=sync-loop ringing during print soak "
+                         "(task 9.10). 'buffer-lock'=BL lifecycle "
+                         "(prime/locked/catch/settle and no MV faults).")
+    ap.add_argument("--stability-cycle-hz", type=float, default=1.0,
+                    help="stability mode: max allowed BUF cycles/sec over the "
+                         "sliding window before FAIL (default 1.0).")
+    ap.add_argument("--stability-window-sec", type=int, default=3,
+                    help="stability mode: sliding window length in seconds "
+                         "(default 3).")
     ap.add_argument("--idle", action="store_true",
                     help="rearm mode: this capture is idle — any re-arm is a FAIL")
     ap.add_argument("--allow-terminal-idle-relief", action="store_true",
@@ -800,6 +892,14 @@ def main() -> int:
     if args.mode in ("stabilize", "all"):
         v, rep = analyze_stabilize(samples, events)
         print(f"\nSTABILIZE (D1, M1-A): {v}")
+        for line in rep:
+            print(line)
+        verdicts.append(v)
+    if args.mode in ("stability", "all"):
+        v, rep = analyze_stability(samples, events, args.poll,
+                                   args.stability_cycle_hz,
+                                   args.stability_window_sec)
+        print(f"\nSTABILITY (task 9.10): {v}")
         for line in rep:
             print(line)
         verdicts.append(v)
