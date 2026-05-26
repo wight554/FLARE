@@ -132,7 +132,7 @@ uint16_t g_marker_seq = 0;
 /* Buffer-lock (BL) lifecycle sub-states — active while g_sync_state == SYNC_RETRACT_ASSIST */
 typedef enum {
     BL_IDLE = 0,
-    BL_PRIME,   /* driving lane toward armed extreme at BUF_STAB_SPS */
+    BL_PRIME,   /* driving lane toward armed extreme at SYNC_MAX_SPS */
     BL_LOCKED,  /* holding at extreme; motor energized, zero net feed */
     BL_CATCH,   /* instant-slam mirror drive after lock-break */
 } bl_sub_state_t;
@@ -1064,15 +1064,13 @@ void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms) {
 
     g_bl_target_state = target;
 
-    /* Compute prime distance cap.
-     * Use the full BUF_MAX_TRAVEL_MM as the cap so prime always reaches the
-     * target endstop regardless of arm starting position or physical switch
-     * placement.  The reduced (max+span)/2*0.9 formula was too conservative
-     * and could stop short of the tension switch when the arm starts near
-     * neutral.  Running at the slow BUF_STAB_SPS speed means overshoot is
-     * negligible once the switch fires. */
+    /* Prime runs at SYNC_MAX_SPS (same as catch).
+     * Overtravel is controlled by the two-phase gates:
+     *   phase 1 — search until switch fires (outer cap: BUF_MAX_TRAVEL_MM)
+     *   phase 2 — settle exactly (max-span)/2 past the switch, then lock. */
     int idx = A->lane_id - 1;
-    float mm_per_s    = (float)BUF_STAB_SPS * MM_PER_STEP[idx];
+    int prime_sps  = sync_clamp_max_sps(SYNC_MAX_SPS);
+    float mm_per_s = (float)prime_sps * MM_PER_STEP[idx];
     float max_cap_mm  = (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : 25.0f;
     float sw_span_mm  = BUF_SWITCH_SPAN_HALF_MM * 2.0f;
     float post_cap_mm = (BUF_MAX_TRAVEL_MM > 0)
@@ -1092,7 +1090,7 @@ void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms) {
     bool forward = (target == BUF_COMPRESSION);
     motor_enable(&A->m, true);
     motor_set_dir(&A->m, forward);
-    motor_set_rate_sps(&A->m, BUF_STAB_SPS);
+    motor_set_rate_sps(&A->m, prime_sps);
 
     cmd_event("BL", "PRIME");
 }
