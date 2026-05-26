@@ -146,9 +146,11 @@ static bool           g_bl_prime_switch_hit    = false; /* switch fired during s
 static uint32_t       g_bl_prime_post_start_ms = 0;    /* when post-click settle began */
 static float          g_bl_prime_post_cap_mm   = 0.0f; /* abs 2: post-click extra travel = (max-span)/2 */
 static uint32_t       g_bl_catch_start_ms = 0;   /* when catch slam began */
-static float          g_bl_catch_mm_per_s = 0.0f; /* slam speed in mm/s */
+static float          g_bl_catch_mm_per_s = 0.0f; /* slam target speed in mm/s */
 static float          g_bl_catch_cap_mm   = 0.0f; /* full-travel safety net */
 static bool           g_bl_catch_observed_non_target = false; /* raw left target during catch */
+static int            g_bl_catch_target_sps = 0;     /* commanded ceiling */
+static int            g_bl_catch_current_sps = 0;    /* ramped command */
 static uint32_t       g_bl_watchdog_ms = 0;
 #define BL_WATCHDOG_DEFAULT_MS 30000u
 /* Suppress sync auto-start on BUF_TENSION after a BL abort (ST path).
@@ -1023,6 +1025,8 @@ void sync_retract_assist_set(bool enabled) {
             g_bl_catch_mm_per_s = 0.0f;
             g_bl_catch_cap_mm   = 0.0f;
             g_bl_catch_observed_non_target = false;
+            g_bl_catch_target_sps = 0;
+            g_bl_catch_current_sps = 0;
             g_bl_watchdog_ms = 0;
             sync_set_state(SYNC_OFF);
             /* Suppress auto-start: buffer is at the BL extreme, not extruder-driven. */
@@ -1196,7 +1200,18 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
             int slam_sps = motion_clamp_rate_sps(GLOBAL_MAX_SPS);
             bool forward = (g_bl_target_state == BUF_COMPRESSION);
             motor_set_dir(&A->m, forward);
-            motor_set_rate_sps(&A->m, slam_sps);
+
+            /* Don't instant-slam to slam_sps: from 0 to ~60 mm/s in a
+             * single command exceeds motor accel and skips steps even
+             * under light load (observed: stall during catch, OVERRUN
+             * fires with motor not actually retracting). Seed the
+             * commanded rate at RAMP_STEP_SPS (the lane cold-start
+             * velocity, tuned to be within motor pull-in) and let the
+             * tick body below ramp it up at lane-equivalent accel. */
+            g_bl_catch_target_sps = slam_sps;
+            g_bl_catch_current_sps = motion_clamp_rate_sps(RAMP_STEP_SPS);
+            if (g_bl_catch_current_sps > slam_sps) g_bl_catch_current_sps = slam_sps;
+            motor_set_rate_sps(&A->m, g_bl_catch_current_sps);
 
             /* Catch distance cap = full buffer travel as a safety net.
              * Primary terminator is "buffer returns to armed target" (MMU
@@ -1242,6 +1257,23 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
 
         if (raw != g_bl_target_state) {
             g_bl_catch_observed_non_target = true;
+        }
+
+        /* Ramp commanded rate up to target across catch ticks. Step =
+         * RAMP_STEP_SPS scaled to the sync tick period (sync_tick is
+         * typically 4× ramp_tick, so multiply step by the ratio).
+         * Same effective accel as the lane ramp, just sampled at sync
+         * cadence. Reaches target in ~1–2 sync ticks at typical config. */
+        if (g_bl_catch_current_sps < g_bl_catch_target_sps) {
+            int ramp_ratio = (RAMP_TICK_MS > 0) ? (SYNC_TICK_MS / RAMP_TICK_MS) : 1;
+            if (ramp_ratio < 1) ramp_ratio = 1;
+            int step = RAMP_STEP_SPS * ramp_ratio;
+            if (step < 1) step = 1;
+            g_bl_catch_current_sps += step;
+            if (g_bl_catch_current_sps > g_bl_catch_target_sps) {
+                g_bl_catch_current_sps = g_bl_catch_target_sps;
+            }
+            motor_set_rate_sps(&A->m, g_bl_catch_current_sps);
         }
 
         float catch_traveled = (g_bl_catch_mm_per_s > 0.0f)
