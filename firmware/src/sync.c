@@ -1072,16 +1072,17 @@ void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms) {
     int prime_sps  = sync_clamp_max_sps(SYNC_MAX_SPS);
     float mm_per_s = (float)prime_sps * MM_PER_STEP[idx];
     float max_cap_mm  = (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : 25.0f;
-    float sw_span_mm  = BUF_SWITCH_SPAN_HALF_MM * 2.0f;
-    float post_cap_mm = (BUF_MAX_TRAVEL_MM > 0)
-        ? ((float)BUF_MAX_TRAVEL_MM - sw_span_mm) * 0.5f
-        : 7.5f;
+    /* Lock at the switch click — no post-settle travel past the switch.
+     * Locking deeper (toward the hard end) leaves the filament over-
+     * tensioned and steals catch runway. The switch boundary is enough
+     * lock position for the lock-break edge detection. */
+    float post_cap_mm = 0.0f;
     g_bl_prime_start_ms      = now_ms;
     g_bl_prime_mm_per_s      = mm_per_s;
     g_bl_prime_cap_mm        = max_cap_mm;  /* outer safety: abort if switch never fires */
     g_bl_prime_switch_hit    = false;
     g_bl_prime_post_start_ms = 0;
-    g_bl_prime_post_cap_mm   = post_cap_mm; /* settle distance past the switch click */
+    g_bl_prime_post_cap_mm   = post_cap_mm; /* 0 = lock at switch click */
     g_bl_watchdog_ms = 0;
     g_bl_sub_state = BL_PRIME;
 
