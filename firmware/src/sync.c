@@ -1143,11 +1143,9 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
             motor_set_dir(&A->m, forward);
             motor_set_rate_sps(&A->m, slam_sps);
 
-            /* Absolute 2: catch cap = switch_span + post_switch_margin.
-             * post_switch_margin = (max_travel - switch_span) / 2
-             *   = room between switch and hard stop on each side.
-             * catch_cap = switch_span + post_switch_margin
-             *           = (max_travel + switch_span) / 2  (e.g. 17.5 mm)
+            /* Absolute 2: catch cap = (max_travel - switch_span) / 2
+             *   = room between a switch and the nearest hard stop.
+             *   e.g. (25 - 10) / 2 = 7.5 mm
              * Stops the slam before the hard stop if the opposite switch
              * fails to fire. */
             float sw_span_mm = BUF_SWITCH_SPAN_HALF_MM * 2.0f;
@@ -1156,7 +1154,7 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
                 : 7.5f;
             g_bl_catch_start_ms = now_ms;
             g_bl_catch_mm_per_s = (float)slam_sps * MM_PER_STEP[idx];
-            g_bl_catch_cap_mm   = sw_span_mm + post_sw_mm;
+            g_bl_catch_cap_mm   = post_sw_mm;
 
             g_bl_sub_state = BL_CATCH;
             g_bl_watchdog_ms = now_ms + BL_WATCHDOG_DEFAULT_MS;
