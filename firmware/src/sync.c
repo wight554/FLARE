@@ -1160,13 +1160,24 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         buf_state_t raw = buf_state_raw();
 
         if (raw != g_bl_target_state) {
-            /* Lock-break: controlled release toward the opposite extreme.
-             * BL:T locked at TENSION → catch extrudes (forward=true) toward COMPRESSION.
-             * BL:C locked at COMPRESSION → catch retracts (forward=false) toward TENSION.
-             * Settle fires when the opposite extreme is reached, then releases. */
+            /* Lock-break: mirror the external (extruder) force that pushed
+             * the buffer off the armed extreme.
+             *
+             * BL:T armed at TENSION → extruder is retracting (filling the
+             *   buffer toward COMPRESSION); MMU must also RETRACT
+             *   (forward=false) to drain in lockstep and keep buffer near
+             *   TENSION. Same direction as the prime — both pull filament
+             *   out of the buffer.
+             * BL:C armed at COMPRESSION → extruder is extruding (draining
+             *   the buffer toward TENSION); MMU must also FORWARD
+             *   (forward=true) to push filament back in.
+             *
+             * Direction == prime direction (NOT inverted). Asymmetric
+             * safety: over-drive back past the armed extreme is recoverable
+             * by design (D5), so the catch does not throttle on re-entry. */
             int idx = A->lane_id - 1;
             int slam_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
-            bool forward = (g_bl_target_state == BUF_TENSION);
+            bool forward = (g_bl_target_state == BUF_COMPRESSION);
             motor_set_dir(&A->m, forward);
             motor_set_rate_sps(&A->m, slam_sps);
 
