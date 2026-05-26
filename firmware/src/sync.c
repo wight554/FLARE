@@ -134,6 +134,7 @@ typedef enum {
     BL_IDLE = 0,
     BL_PRIME,   /* driving lane toward armed extreme at SYNC_MAX_SPS */
     BL_LOCKED,  /* holding at extreme; motor energized, zero net feed */
+    BL_FOLLOW,  /* event-triggered follow-on retract concurrent with extruder */
 } bl_sub_state_t;
 
 static bl_sub_state_t g_bl_sub_state = BL_IDLE;
@@ -144,6 +145,10 @@ static float          g_bl_prime_cap_mm   = 0.0f; /* abs 1: outer safety cap = B
 static bool           g_bl_prime_switch_hit    = false; /* switch fired during search phase */
 static uint32_t       g_bl_prime_post_start_ms = 0;    /* when post-click settle began */
 static float          g_bl_prime_post_cap_mm   = 0.0f; /* abs 2: post-click extra travel = (max-span)/2 */
+static float          g_bl_follow_mm        = 0.0f;    /* armed follow-on distance; 0 = disabled */
+static float          g_bl_follow_rate_mmpm = 0.0f;    /* armed follow-on rate (mm/min) */
+static uint32_t       g_bl_follow_start_ms  = 0;       /* when FOLLOW motion began */
+static float          g_bl_follow_mm_per_s  = 0.0f;    /* FOLLOW commanded speed in mm/s */
 static uint32_t       g_bl_watchdog_ms = 0;
 #define BL_WATCHDOG_DEFAULT_MS 30000u
 /* Suppress sync auto-start on BUF_TENSION after a BL abort (ST path).
@@ -1014,6 +1019,10 @@ void sync_retract_assist_set(bool enabled) {
             g_bl_prime_switch_hit    = false;
             g_bl_prime_post_start_ms = 0;
             g_bl_prime_post_cap_mm   = 0.0f;
+            g_bl_follow_mm           = 0.0f;
+            g_bl_follow_rate_mmpm    = 0.0f;
+            g_bl_follow_start_ms     = 0;
+            g_bl_follow_mm_per_s     = 0.0f;
             g_bl_watchdog_ms = 0;
             sync_set_state(SYNC_OFF);
             /* Suppress auto-start: buffer is at the BL extreme, not extruder-driven. */
@@ -1036,8 +1045,12 @@ bool sync_retract_assist_enabled(void) {
 
 /* Arm the buffer-lock: drive the active lane to the requested extreme and lock.
  * Accepts BUF_TENSION ("BL:T") or BUF_COMPRESSION ("BL:C").
+ * Optional follow_mm/follow_rate_mmpm arm an event-triggered follow-on
+ * retract (same direction as prime) that fires on the first raw transition
+ * after LOCKED. Pass 0 for both to skip the follow-on (passive lock only).
  * Safe to call when already in SYNC_RETRACT_ASSIST (re-arms with a fresh prime). */
-void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms) {
+void sync_buffer_lock_arm(buf_state_t target, float follow_mm,
+                          float follow_rate_mmpm, uint32_t now_ms) {
     lane_t *A = lane_ptr(active_lane);
     if (!A) return;
 
@@ -1057,25 +1070,24 @@ void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms) {
 
     g_bl_target_state = target;
 
-    /* Prime runs at SYNC_MAX_SPS (same as catch).
-     * Overtravel is controlled by the two-phase gates:
+    /* Prime runs at SYNC_MAX_SPS. Overtravel is controlled by the two-phase
+     * gates:
      *   phase 1 — search until switch fires (outer cap: BUF_MAX_TRAVEL_MM)
-     *   phase 2 — settle exactly (max-span)/2 past the switch, then lock. */
+     *   phase 2 — lock at switch click (no post-settle travel). */
     int idx = A->lane_id - 1;
     int prime_sps  = sync_clamp_max_sps(SYNC_MAX_SPS);
     float mm_per_s = (float)prime_sps * MM_PER_STEP[idx];
     float max_cap_mm  = (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : 25.0f;
-    /* Lock at the switch click — no post-settle travel past the switch.
-     * Locking deeper (toward the hard end) leaves the filament over-
-     * tensioned and steals catch runway. The switch boundary is enough
-     * lock position for the lock-break edge detection. */
-    float post_cap_mm = 0.0f;
     g_bl_prime_start_ms      = now_ms;
     g_bl_prime_mm_per_s      = mm_per_s;
-    g_bl_prime_cap_mm        = max_cap_mm;  /* outer safety: abort if switch never fires */
+    g_bl_prime_cap_mm        = max_cap_mm;
     g_bl_prime_switch_hit    = false;
     g_bl_prime_post_start_ms = 0;
-    g_bl_prime_post_cap_mm   = post_cap_mm; /* 0 = lock at switch click */
+    g_bl_prime_post_cap_mm   = 0.0f;
+    g_bl_follow_mm           = (follow_mm > 0.0f && follow_rate_mmpm > 0.0f) ? follow_mm : 0.0f;
+    g_bl_follow_rate_mmpm    = (g_bl_follow_mm > 0.0f) ? follow_rate_mmpm : 0.0f;
+    g_bl_follow_start_ms     = 0;
+    g_bl_follow_mm_per_s     = 0.0f;
     g_bl_watchdog_ms = 0;
     g_bl_sub_state = BL_PRIME;
 
@@ -1095,12 +1107,13 @@ const char *sync_buffer_lock_arm_str(void) {
     return (g_bl_target_state == BUF_TENSION) ? "T" : "C";
 }
 
-/* True while BL is driving the lane motor (PRIME only). False during
+/* True while BL is driving the lane motor (PRIME or FOLLOW). False during
  * LOCKED (motor at zero) and outside of SYNC_RETRACT_ASSIST. Used by
  * autopreload to know when IN-sensor edges come from BL motion (consume)
  * vs real operator insertion (process). */
 bool sync_buffer_lock_motor_moving(void) {
-    return g_sync_state == SYNC_RETRACT_ASSIST && g_bl_sub_state == BL_PRIME;
+    return g_sync_state == SYNC_RETRACT_ASSIST &&
+           (g_bl_sub_state == BL_PRIME || g_bl_sub_state == BL_FOLLOW);
 }
 
 /* Per-tick handler for the buffer-lock lifecycle.
@@ -1151,14 +1164,52 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         }
 
     } else if (g_bl_sub_state == BL_LOCKED) {
-        /* Passive lock: motor energized at zero rate (holding torque),
-         * buffer free to migrate via external force (extruder retract
-         * fills buffer toward opposite extreme — that's fine, mass
-         * balance absorbs it). No reactive catch — the macro is
-         * responsible for calling BS to release after the move. Only
-         * the watchdog can break the lock from inside the firmware. */
+        /* Passive lock: motor energized at zero rate (holding torque).
+         * If a follow-on retract is armed, watch for the first raw
+         * transition off the armed extreme (extruder started filling
+         * the buffer) and fire concurrent MMU motion in the prime
+         * direction. Otherwise, buffer is free to migrate via external
+         * force; only the watchdog can break the lock from firmware. */
+        if (g_bl_follow_mm > 0.0f) {
+            buf_state_t raw = buf_state_raw();
+            if (raw != g_bl_target_state) {
+                int idx = A->lane_id - 1;
+                int follow_sps = (int)(g_bl_follow_rate_mmpm / 60.0f / MM_PER_STEP[idx] + 0.5f);
+                if (follow_sps < 1) follow_sps = 1;
+                follow_sps = motion_clamp_rate_sps(follow_sps);
+                bool forward = (g_bl_target_state == BUF_COMPRESSION);
+                motor_set_dir(&A->m, forward);
+                motor_set_rate_sps(&A->m, follow_sps);
+
+                g_bl_follow_start_ms = now_ms;
+                g_bl_follow_mm_per_s = (float)follow_sps * MM_PER_STEP[idx];
+                g_bl_sub_state = BL_FOLLOW;
+                cmd_event("BL", "FOLLOW");
+                return;
+            }
+        }
         if (g_bl_watchdog_ms != 0 &&
             (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
+            cmd_event("EV:BL", "TIMEOUT");
+            sync_retract_assist_release(now_ms);
+        }
+    } else if (g_bl_sub_state == BL_FOLLOW) {
+        /* Concurrent follow-on retract. Mass-balances the extruder fill
+         * over a known distance; when the armed distance is consumed,
+         * stop the motor and return to LOCKED (waiting for BS or watchdog). */
+        float traveled = (g_bl_follow_mm_per_s > 0.0f)
+            ? ((float)(now_ms - g_bl_follow_start_ms) / 1000.0f * g_bl_follow_mm_per_s)
+            : g_bl_follow_mm;
+        if (traveled >= g_bl_follow_mm) {
+            motor_set_rate_sps(&A->m, 0);
+            g_bl_follow_mm        = 0.0f;
+            g_bl_follow_rate_mmpm = 0.0f;
+            g_bl_follow_start_ms  = 0;
+            g_bl_follow_mm_per_s  = 0.0f;
+            g_bl_sub_state = BL_LOCKED;
+            cmd_event("BL", "FOLLOW_DONE");
+        } else if (g_bl_watchdog_ms != 0 &&
+                   (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
             cmd_event("EV:BL", "TIMEOUT");
             sync_retract_assist_release(now_ms);
         }

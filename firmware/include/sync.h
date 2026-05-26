@@ -26,7 +26,8 @@ void sync_set_state(sync_state_t new_state);
 void sync_retract_assist_set(bool enabled);
 void sync_retract_assist_release(uint32_t now_ms);
 bool sync_retract_assist_enabled(void);
-void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms);
+void sync_buffer_lock_arm(buf_state_t target, float follow_mm,
+                          float follow_rate_mmpm, uint32_t now_ms);
 const char *sync_buffer_lock_arm_str(void);
 bool sync_buffer_lock_motor_moving(void);
 void sync_relief_pause(void);
