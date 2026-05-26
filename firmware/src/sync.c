@@ -1076,9 +1076,9 @@ void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms) {
     g_bl_watchdog_ms = 0;
     g_bl_sub_state = BL_PRIME;
 
-    /* BL:T → retract (forward=false) to drain buffer toward tension extreme.
-     * BL:C → feed (forward=true) to fill buffer toward compression extreme. */
-    bool forward = (target == BUF_COMPRESSION);
+    /* BL:T → feed (forward=true) to fill buffer toward tension extreme.
+     * BL:C → retract (forward=false) to drain buffer toward compression extreme. */
+    bool forward = (target == BUF_TENSION);
     motor_enable(&A->m, true);
     motor_set_dir(&A->m, forward);
     motor_set_rate_sps(&A->m, BUF_STAB_SPS);
@@ -1135,13 +1135,13 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
 
         if (raw != g_bl_target_state) {
             /* Lock-break: controlled release toward the opposite extreme.
-             * BL:T → feed (forward=true) to fill buffer toward COMPRESSION.
-             * BL:C → retract (forward=false) to drain buffer toward TENSION.
+             * BL:T → retract (forward=false) to drain buffer toward COMPRESSION.
+             * BL:C → feed (forward=true) to fill buffer toward TENSION.
              * Settle fires when the opposite extreme is reached, then releases. */
             int idx = A->lane_id - 1;
             (void)idx;
             int slam_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
-            bool forward = (g_bl_target_state == BUF_TENSION);
+            bool forward = (g_bl_target_state == BUF_COMPRESSION);
             motor_set_dir(&A->m, forward);
             motor_set_rate_sps(&A->m, slam_sps);
 
