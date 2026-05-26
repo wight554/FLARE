@@ -1053,23 +1053,16 @@ void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms) {
     g_bl_target_state = target;
 
     /* Compute prime distance cap.
-     * Worst-case starting position: arm at max over-compression, i.e.
-     *   (max_travel - switch_span) / 2  past the COMPRESSION switch.
-     * Distance from there to the TENSION switch:
-     *   max_travel - (max_travel - switch_span) / 2
-     *   = (max_travel + switch_span) / 2
-     * Multiply by 0.9 to leave a 10% margin before the mechanical hard stop.
-     * BUF_MAX_TRAVEL_MM is the absolute sanity ceiling.
-     * Prime runs at BUF_STAB_SPS (slow stabilization speed) to avoid
-     * overtravel past the endstop between switch detection ticks. */
+     * Use the full BUF_MAX_TRAVEL_MM as the cap so prime always reaches the
+     * target endstop regardless of arm starting position or physical switch
+     * placement.  The reduced (max+span)/2*0.9 formula was too conservative
+     * and could stop short of the tension switch when the arm starts near
+     * neutral.  Running at the slow BUF_STAB_SPS speed means overshoot is
+     * negligible once the switch fires. */
     int idx = A->lane_id - 1;
     float mm_per_s = (float)BUF_STAB_SPS * MM_PER_STEP[idx];
-    float switch_span_mm = BUF_SWITCH_SPAN_HALF_MM * 2.0f;
-    float cap_mm = (BUF_MAX_TRAVEL_MM > 0)
-        ? ((float)BUF_MAX_TRAVEL_MM + switch_span_mm) * 0.5f * 0.9f
-        : 15.75f;
     float max_cap_mm = (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : 25.0f;
-    if (cap_mm < 5.0f || cap_mm > max_cap_mm) cap_mm = max_cap_mm;
+    float cap_mm = max_cap_mm;
     g_bl_prime_start_ms = now_ms;
     g_bl_prime_mm_per_s = mm_per_s;
     g_bl_prime_cap_mm   = cap_mm;
