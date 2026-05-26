@@ -16,6 +16,19 @@
 - [x] 3.1 Add a sync-owned prime drive that retracts (or feeds) the active lane until raw target state OR `BUF_MAX_TRAVEL_MM / 2` of MMU travel, whichever comes first.
 - [x] 3.2 Emit `EV:BL:PRIME_BOUND` when the half-travel cap stops the prime before target raw state.
 - [x] 3.3 Verify prime runs without engaging the `TASK_MOVE` fault guards (it is sync-owned, not an `MV` task).
+- [x] 3.4 Fix prime motor direction convention: `forward=false` (retract) → TENSION, `forward=true` (extrude) → COMPRESSION. Revert wrong inversion from `57ab7be` (commit `57850b8`).
+- [x] 3.5 Two absolute prime caps:
+  - **Absolute 1** — outer safety search cap = `BUF_MAX_TRAVEL_MM` (25 mm); motor searches the full physical range before giving up with `PRIME_BOUND` (commit `5a8d2b5`).
+  - **Absolute 2** — post-click settle cap = `(BUF_MAX_TRAVEL_MM - switch_span) / 2` = 7.5 mm; motor continues this distance past the switch click to seat the arm firmly against the extreme (commits `7026762`, `c32db19`).
+- [x] 3.6 Two-phase prime: **Phase 1** drives at `SYNC_MAX_SPS` until target switch fires (or 25 mm outer cap → `PRIME_BOUND`). **Phase 2** continues exactly 7.5 mm past the switch click, then stops → `BL:LOCKED`. Distance tracked via `mm_per_s = prime_sps × MM_PER_STEP` from two independent start timestamps (commit `c32db19`).
+- [x] 3.7 Run prime at `SYNC_MAX_SPS` (same ceiling as catch); two-phase distance gates handle overtravel at any speed — slow `BUF_STAB_SPS` no longer needed (commit `deaafeb`).
+- [x] 3.8 Add BL_CATCH distance cap = `(max_travel - switch_span) / 2` = 7.5 mm from catch-start; emit `EV:BL:CATCH_OVERRUN` and force-release if opposite switch fails to register within that budget (commit `68fb61d`, corrected formula `7026762`).
+
+### HW: Validate §3.5–3.8
+- [ ] HW:3.5a Verify `BL:T` prime reaches TENSION switch within 25 mm search budget: `BUF:TENSION` appears in poll trace before `BL:LOCKED`.
+- [ ] HW:3.5b Verify `BL:T` post-click settle: after TENSION click, motor continues ~7.5 mm more (arm visibly pushed against extreme), then `BL:LOCKED`.
+- [ ] HW:3.6 Verify `PRIME_BOUND` fires when TENSION sensor deliberately blocked (e.g. `BUF_INVERT=1` test): `EV:BL:PRIME_BOUND` in trace, then `BL:LOCKED` anyway.
+- [ ] HW:3.8 Verify `CATCH_OVERRUN` fires when compression sensor blocked: issue `BL:T`, trigger lock-break manually, confirm `EV:BL:CATCH_OVERRUN` appears before 7.5 mm budget expires.
 
 ## 4. Firmware: Protocol Surface
 
@@ -43,6 +56,7 @@
 - [ ] 7.2a Bench the rig-validated operator envelope (D6: 40 mm @ 150 mm/s extruder retract with `ramp_step_rate=1000`, MMU cap 6000 mm/min). Confirm peak buffer excursion ≤ ~17 mm (≤ 20 mm runway) and that lock-break uses the raw edge, not the hyst-debounced state. If observed excursion exceeds 18 mm, revisit `BUF_HYST_MS` handling on the break edge or tighten the retract speed/distance bound.
 - [ ] 7.3 Verify on bench: unload-toolhead sequence end-to-end with the gear retract guarded by `BL`, no buffer slam.
 - [ ] 7.4 Verify watchdog timeout fires when `BL:T` is armed and no break/`BS` arrives.
+- [ ] 7.5 Full BL:T lifecycle smoke on bench: `BL:T` → TENSION switch fires → 7.5 mm settle → `BL:LOCKED` event → extruder triggers lock-break → `BL:BREAK` → catch slams to COMPRESSION → `BL:CATCH_SETTLE` → sync resumes. No `PRIME_BOUND`, no `CATCH_OVERRUN`, no faults.
 
 ## 8. Cleanup + Archive
 
