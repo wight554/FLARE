@@ -199,9 +199,10 @@ run_current:
 # Happy Hare types: D=0 (Dual two-switch), P=1 (Proportional analog).
 # TO/CO are recognized type names but are not implemented in FLARE.
 # buf_sensor_type: 0
-# buf_analog_neutral: 0.5
-# buf_range: 0.45
-# buf_thr: 0.30
+# buf_psf_max_comp: 0.0
+# buf_psf_max_tens: 1.0
+# buf_psf_neutral: 0.5
+# buf_psf_goal: 0.3
 # buf_analog_alpha: 0.20
 
 # ─── TS Fallback ─────────────────────────────────────────────────────────────

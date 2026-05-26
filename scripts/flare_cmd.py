@@ -142,11 +142,12 @@ DUMP_PARAMS = [
     ("BUF_MAX_TRAVEL",    "buf_max_travel_mm",       False),
     # --- Sync-Feedback Sensor ---
     ("BUF_SENSOR",        "buf_sensor_type",         False),
-    ("BUF_ANALOG_NEUTRAL", "buf_analog_neutral",             False),
-    ("BUF_RANGE",         "buf_range",               False),
-    ("BUF_THR",           "buf_thr",                 False),
-    ("BUF_ALPHA",         "buf_analog_alpha",        False),
-    ("TS_BUF_MS",         "ts_buf_fallback_ms",      False),
+    ("BUF_PSF_MAX_COMP",  "buf_psf_max_comp",       False),
+    ("BUF_PSF_MAX_TENS",  "buf_psf_max_tens",       False),
+    ("BUF_PSF_NEUTRAL",   "buf_psf_neutral",        False),
+    ("BUF_GOAL",          "buf_psf_goal",           False),
+    ("BUF_ALPHA",         "buf_analog_alpha",       False),
+    ("TS_BUF_MS",         "ts_buf_fallback_ms",     False),
     # --- Flow / Reload ---
     ("AUTO_MODE",         "auto_mode",               False),
     ("RELOAD_MODE",       "reload_mode",             False),

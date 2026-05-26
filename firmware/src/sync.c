@@ -532,32 +532,75 @@ static bool predict_tension_coming(void) {
     return neutral_count > 0 && (short_count * 2 >= neutral_count);
 }
 
-static void buf_analog_update(void) {
+void buf_analog_update(void) {
     adc_select_input(PIN_PSF - 26);
     uint32_t sum = 0;
     for (int i = 0; i < 4; i++) sum += adc_read();
     float fraction = (float)(sum >> 2) / 4095.0f;
+    g_buf_pos_raw_status = fraction;
 
-    float delta = fraction - BUF_ANALOG_NEUTRAL;
-    float scale = (BUF_RANGE > 0.001f) ? BUF_RANGE : 0.001f;
-    float norm = clamp_f(delta / scale, -1.0f, 1.0f);
-    if (BUF_INVERT) norm = -norm;
+    bool reversed = (BUF_PSF_MAX_COMP < BUF_PSF_MAX_TENS);
+    float neutral = BUF_PSF_NEUTRAL;
+    float norm = 0.0f;
+
+    if (reversed) {
+        float d_comp = neutral - BUF_PSF_MAX_COMP;
+        float d_tens = BUF_PSF_MAX_TENS - neutral;
+        if (d_comp < 0.001f) d_comp = 0.001f;
+        if (d_tens < 0.001f) d_tens = 0.001f;
+        norm = (fraction <= neutral)
+             ? -(neutral - fraction) / d_comp
+             :  (fraction - neutral) / d_tens;
+    } else {
+        float d_comp = BUF_PSF_MAX_COMP - neutral;
+        float d_tens = neutral - BUF_PSF_MAX_TENS;
+        if (d_comp < 0.001f) d_comp = 0.001f;
+        if (d_tens < 0.001f) d_tens = 0.001f;
+        norm = (fraction >= neutral)
+             ? -(fraction - neutral) / d_comp
+             :  (neutral - fraction) / d_tens;
+    }
+    norm = clamp_f(norm, -1.0f, 1.0f);
 
     g_buf_pos = BUF_ANALOG_ALPHA * norm + (1.0f - BUF_ANALOG_ALPHA) * g_buf_pos;
 }
 
 buf_state_t buf_state_raw(void) {
     if (BUF_SENSOR_TYPE == 1) {
-        if (g_buf_pos > BUF_THR) return BUF_TENSION;
-        if (g_buf_pos < -BUF_THR) return BUF_COMPRESSION;
+        float goal_norm = 0.0f;
+        bool reversed = (BUF_PSF_MAX_COMP < BUF_PSF_MAX_TENS);
+        float goal_raw = BUF_GOAL;
+
+        if (reversed) {
+            float d_comp = BUF_PSF_NEUTRAL - BUF_PSF_MAX_COMP;
+            float d_tens = BUF_PSF_MAX_TENS - BUF_PSF_NEUTRAL;
+            if (d_comp < 0.001f) d_comp = 0.001f;
+            if (d_tens < 0.001f) d_tens = 0.001f;
+            goal_norm = (goal_raw <= BUF_PSF_NEUTRAL)
+                      ? -(BUF_PSF_NEUTRAL - goal_raw) / d_comp
+                      :  (goal_raw - BUF_PSF_NEUTRAL) / d_tens;
+        } else {
+            float d_comp = BUF_PSF_MAX_COMP - BUF_PSF_NEUTRAL;
+            float d_tens = BUF_PSF_NEUTRAL - BUF_PSF_MAX_TENS;
+            if (d_comp < 0.001f) d_comp = 0.001f;
+            if (d_tens < 0.001f) d_tens = 0.001f;
+            goal_norm = (goal_raw >= BUF_PSF_NEUTRAL)
+                      ? -(goal_raw - BUF_PSF_NEUTRAL) / d_comp
+                      :  (BUF_PSF_NEUTRAL - goal_raw) / d_tens;
+        }
+
+        const float deadband = 0.1f;
+        if (g_buf_pos > goal_norm + deadband) return BUF_TENSION;
+        if (g_buf_pos < goal_norm - deadband) return BUF_COMPRESSION;
         return BUF_NEUTRAL;
     }
 
     bool tension_raw = on_al(&g_buf_tension_din);
     bool compression_raw = on_al(&g_buf_compression_din);
 
-    bool tension = BUF_INVERT ? compression_raw : tension_raw;
-    bool compression = BUF_INVERT ? tension_raw : compression_raw;
+    bool reversed = (BUF_PSF_MAX_COMP < BUF_PSF_MAX_TENS);
+    bool tension = reversed ? compression_raw : tension_raw;
+    bool compression = reversed ? tension_raw : compression_raw;
 
     if (tension && compression) return BUF_FAULT;
     if (tension) return BUF_TENSION;

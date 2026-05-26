@@ -14,7 +14,7 @@
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 55u
+#define SETTINGS_VERSION 56u
 
 typedef struct {
     uint32_t magic;
@@ -57,7 +57,7 @@ typedef struct {
     int ramp_step_sps, ramp_tick_ms;
 
     int buf_sensor_type;
-    float buf_analog_neutral, buf_range, buf_thr, buf_analog_alpha;
+    float buf_psf_max_comp, buf_psf_max_tens, buf_psf_neutral, buf_psf_goal, buf_analog_alpha;
     int sync_kp_sps;
     int sync_overshoot_pct;
     int sync_reserve_pct;
@@ -73,7 +73,6 @@ typedef struct {
     int zone_bias_base_sps, zone_bias_ramp_sps_s, zone_bias_max_sps;
     float reload_lean_factor;
 
-    bool buf_invert;
     bool auto_preload;
     bool enable_cutter;
     bool unload_cut;
@@ -179,7 +178,6 @@ void settings_defaults(void) {
     g_baseline_target_sps = CONF_BASELINE_SPS;
     g_baseline_sps = CONF_BASELINE_SPS;
     g_baseline_alpha = CONF_BASELINE_ALPHA;
-    BUF_INVERT = false;
     AUTO_PRELOAD = true;
     AUTOLOAD_RETRACT_MM = CONF_AUTOLOAD_RETRACT_MM;
     ENABLE_CUTTER = CONF_ENABLE_CUTTER;
@@ -215,9 +213,10 @@ void settings_defaults(void) {
     RAMP_TICK_MS = CONF_RAMP_TICK_MS;
 
     BUF_SENSOR_TYPE = CONF_BUF_SENSOR_TYPE;
-    BUF_ANALOG_NEUTRAL = CONF_BUF_ANALOG_NEUTRAL;
-    BUF_RANGE = CONF_BUF_RANGE;
-    BUF_THR = CONF_BUF_THR;
+    BUF_PSF_MAX_COMP = CONF_BUF_PSF_MAX_COMP;
+    BUF_PSF_MAX_TENS = CONF_BUF_PSF_MAX_TENS;
+    BUF_PSF_NEUTRAL = CONF_BUF_PSF_NEUTRAL;
+    BUF_GOAL = CONF_BUF_GOAL;
     BUF_ANALOG_ALPHA = CONF_BUF_ANALOG_ALPHA;
     SYNC_KP_SPS = CONF_SYNC_KP_SPS;
     SYNC_OVERSHOOT_PCT = clamp_i(CONF_SYNC_OVERSHOOT_PCT, 0, 200);
@@ -323,7 +322,6 @@ void settings_save(void) {
     s.buf_predict_thr_ms = BUF_PREDICT_THR_MS;
     s.baseline_sps = g_baseline_target_sps;
     s.baseline_alpha = g_baseline_alpha;
-    s.buf_invert = BUF_INVERT;
     s.auto_preload = AUTO_PRELOAD;
     s.autoload_retract_mm = AUTOLOAD_RETRACT_MM;
     s.enable_cutter = ENABLE_CUTTER;
@@ -356,9 +354,10 @@ void settings_save(void) {
     s.ramp_tick_ms = RAMP_TICK_MS;
 
     s.buf_sensor_type = BUF_SENSOR_TYPE;
-    s.buf_analog_neutral = BUF_ANALOG_NEUTRAL;
-    s.buf_range = BUF_RANGE;
-    s.buf_thr = BUF_THR;
+    s.buf_psf_max_comp = BUF_PSF_MAX_COMP;
+    s.buf_psf_max_tens = BUF_PSF_MAX_TENS;
+    s.buf_psf_neutral = BUF_PSF_NEUTRAL;
+    s.buf_psf_goal = BUF_GOAL;
     s.buf_analog_alpha = BUF_ANALOG_ALPHA;
     s.sync_kp_sps = SYNC_KP_SPS;
     s.sync_overshoot_pct = SYNC_OVERSHOOT_PCT;
@@ -510,7 +509,6 @@ void settings_load(void) {
     g_baseline_target_sps = motion_clamp_rate_sps(s->baseline_sps);
     g_baseline_sps = g_baseline_target_sps;
     g_baseline_alpha = s->baseline_alpha;
-    BUF_INVERT = s->buf_invert;
     AUTO_PRELOAD = s->auto_preload;
     AUTOLOAD_RETRACT_MM = s->autoload_retract_mm;
     ENABLE_CUTTER = s->enable_cutter;
@@ -560,9 +558,10 @@ void settings_load(void) {
     RAMP_TICK_MS = s->ramp_tick_ms;
 
     BUF_SENSOR_TYPE = s->buf_sensor_type;
-    BUF_ANALOG_NEUTRAL = s->buf_analog_neutral;
-    BUF_RANGE = s->buf_range;
-    BUF_THR = s->buf_thr;
+    BUF_PSF_MAX_COMP = s->buf_psf_max_comp;
+    BUF_PSF_MAX_TENS = s->buf_psf_max_tens;
+    BUF_PSF_NEUTRAL = s->buf_psf_neutral;
+    BUF_GOAL = s->buf_psf_goal;
     BUF_ANALOG_ALPHA = s->buf_analog_alpha;
     SYNC_KP_SPS = s->sync_kp_sps;
     SYNC_OVERSHOOT_PCT = clamp_i(s->sync_overshoot_pct, 0, 200);

@@ -86,7 +86,9 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `TS:<0\|1>`| OK | **Toolhead Sensor** — report toolhead filament status (sent by host). |
 | `BL:<T|C>` | OK | **Buffer Lock** — arm the active lane to drive the buffer to the requested extreme and hold there. `BL:T` (tension, default) or `BL:C` (compression). The prime move is capped at `BUF_MAX_TRAVEL_MM / 2`; once at the extreme the lane holds with motor energized. On any external force (printer retract) the lock breaks automatically and the catch drive engages. Rejected with `ER:BUSY` when sync is active or a non-idle task is running. Use `BS` to release manually. |
 | `SM:<0\|1>`| OK | **Sync Mode** — manually toggle buffer sync. |
-| `BI:<0\|1>`| OK | **Buffer Invert** — invert buffer endstop logic. |
+| `CAL:PSF_COMP` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_COMP`. |
+| `CAL:PSF_TENS` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_TENS`. |
+| `CAL:PSF_NEUT` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_NEUTRAL`. |
 | `MARK:<tag>` | `OK:MARK` | **Telemetry Marker** — stores a short host marker in firmware. Subsequent status replies expose it as `MK:<seq>:<tag>`. |
 | `SV:` | OK | **Save Settings** — persist current runtime parameters to flash. Rejected with `ER:PERSIST_BUSY` while motion, toolchange, cutter activity, or buffer stabilization is active. |
 | `LD:` | OK | **Load Settings** — reload persisted settings from flash. Rejected with `ER:PERSIST_BUSY` while motion, toolchange, cutter activity, or buffer stabilization is active. |
@@ -116,6 +118,16 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `BUF_BODY_LEN`| `buf_body_len`| Physical length of the buffer body/tube | 200 |
 | `BUF_SWITCH_SPAN` | `buf_switch_span_mm` | Full switch-to-switch sensing span for the buffer sensor | 10 |
 | `BUF_MAX_TRAVEL` | `buf_max_travel_mm` | Full mechanical buffer travel | 25 |
+
+### Sync-Feedback Sensor (PSF Analog)
+| Parameter | `config.ini` Key | Description | Default |
+|-----------|------------------|-------------|---------|
+| `BUF_SENSOR` | `buf_sensor_type` | Sync-feedback sensor type (`0` = dual-switch, `1` = PSF analog) | 0 |
+| `BUF_PSF_MAX_COMP` | `buf_psf_max_comp` | Raw ADC fraction at compression extreme | 0.0 |
+| `BUF_PSF_MAX_TENS` | `buf_psf_max_tens` | Raw ADC fraction at tension extreme | 1.0 |
+| `BUF_PSF_NEUTRAL` | `buf_psf_neutral` | Raw ADC fraction at neutral calibration point | 0.5 |
+| `BUF_GOAL` | `buf_psf_goal` | Raw ADC goal bias used by type-P zone control | 0.3 |
+| `BUF_ALPHA` | `buf_analog_alpha` | EWMA smoothing factor for analog position | 0.20 |
 
 ### Speeds & Rates (mm/min)
 | Parameter | `config.ini` Key | Description | Default |

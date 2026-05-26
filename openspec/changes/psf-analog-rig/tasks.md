@@ -1,25 +1,25 @@
 ## 1. NVM and Variables
 
-- [ ] 1.1 `settings_store.c`: remove `buf_range` (float) and `buf_invert` (bool) fields from `settings_t`; add `buf_psf_max_comp`, `buf_psf_max_tens`, `buf_psf_neutral` (replaces `buf_analog_neutral`), `buf_psf_goal` (float). Verify `sizeof(settings_t) <= 512`.
-- [ ] 1.2 `settings_store.c`: update `settings_defaults()` — `buf_psf_max_comp=0.0`, `buf_psf_max_tens=1.0`, `buf_psf_neutral=0.5`, `buf_psf_goal=0.3`.
-- [ ] 1.3 `settings_store.c`: update `settings_save()` and `settings_load()` for new fields.
-- [ ] 1.4 `main.c`: remove `BUF_INVERT` declaration; add `BUF_PSF_MAX_COMP`, `BUF_PSF_MAX_TENS`, `BUF_PSF_NEUTRAL` (replaces `BUF_ANALOG_NEUTRAL`), `BUF_GOAL` float declarations with defaults.
-- [ ] 1.5 `controller_shared.h`: update externs (remove `BUF_INVERT`, `BUF_RANGE`, `BUF_ANALOG_NEUTRAL`; add new vars).
-- [ ] 1.6 `tune.h`: remove `CONF_BUF_RANGE`; add `CONF_BUF_PSF_MAX_COMP=0.0f`, `CONF_BUF_PSF_MAX_TENS=1.0f`, `CONF_BUF_PSF_NEUTRAL=0.5f`, `CONF_BUF_GOAL=0.3f`.
+- [x] 1.1 `settings_store.c`: remove `buf_range` (float) and `buf_invert` (bool) fields from `settings_t`; add `buf_psf_max_comp`, `buf_psf_max_tens`, `buf_psf_neutral` (replaces `buf_analog_neutral`), `buf_psf_goal` (float). Verify `sizeof(settings_t) <= 512`.
+- [x] 1.2 `settings_store.c`: update `settings_defaults()` — `buf_psf_max_comp=0.0`, `buf_psf_max_tens=1.0`, `buf_psf_neutral=0.5`, `buf_psf_goal=0.3`.
+- [x] 1.3 `settings_store.c`: update `settings_save()` and `settings_load()` for new fields.
+- [x] 1.4 `main.c`: remove `BUF_INVERT` declaration; add `BUF_PSF_MAX_COMP`, `BUF_PSF_MAX_TENS`, `BUF_PSF_NEUTRAL` (replaces `BUF_ANALOG_NEUTRAL`), `BUF_GOAL` float declarations with defaults.
+- [x] 1.5 `controller_shared.h`: update externs (remove `BUF_INVERT`, `BUF_RANGE`, `BUF_ANALOG_NEUTRAL`; add new vars).
+- [x] 1.6 `tune.h`: remove `CONF_BUF_RANGE`; add `CONF_BUF_PSF_MAX_COMP=0.0f`, `CONF_BUF_PSF_MAX_TENS=1.0f`, `CONF_BUF_PSF_NEUTRAL=0.5f`, `CONF_BUF_GOAL=0.3f`.
 
 ## 2. Protocol
 
-- [ ] 2.1 `protocol.c`: remove `BUF_RANGE` and `BUF_INVERT` SET/GET handlers.
-- [ ] 2.2 `protocol.c`: rename `BUF_ANALOG_NEUTRAL` → `BUF_PSF_NEUTRAL` in GET/SET.
-- [ ] 2.3 `protocol.c`: add `BUF_PSF_MAX_COMP`, `BUF_PSF_MAX_TENS`, `BUF_GOAL` SET/GET handlers (clamp to [0,1]).
-- [ ] 2.4 `protocol.c`: add `CAL:PSF_COMP` handler — call `buf_analog_update()` once, store raw ADC fraction to `BUF_PSF_MAX_COMP`, call `settings_save()`.
-- [ ] 2.5 `protocol.c`: add `CAL:PSF_TENS` handler — same pattern for `BUF_PSF_MAX_TENS`.
-- [ ] 2.6 `protocol.c`: add `CAL:PSF_NEUT` handler — same pattern for `BUF_PSF_NEUTRAL`.
+- [x] 2.1 `protocol.c`: remove `BUF_RANGE` and `BUF_INVERT` SET/GET handlers.
+- [x] 2.2 `protocol.c`: rename `BUF_ANALOG_NEUTRAL` → `BUF_PSF_NEUTRAL` in GET/SET.
+- [x] 2.3 `protocol.c`: add `BUF_PSF_MAX_COMP`, `BUF_PSF_MAX_TENS`, `BUF_GOAL` SET/GET handlers (clamp to [0,1]).
+- [x] 2.4 `protocol.c`: add `CAL:PSF_COMP` handler — call `buf_analog_update()` once, store raw ADC fraction to `BUF_PSF_MAX_COMP`, call `settings_save()`.
+- [x] 2.5 `protocol.c`: add `CAL:PSF_TENS` handler — same pattern for `BUF_PSF_MAX_TENS`.
+- [x] 2.6 `protocol.c`: add `CAL:PSF_NEUT` handler — same pattern for `BUF_PSF_NEUTRAL`.
 
 ## 3. Analog Normalization
 
-- [ ] 3.1 `sync.c` `buf_analog_update()`: replace symmetric delta/scale formula with asymmetric HH-style mapping (D4). Remove `BUF_INVERT` reference. Auto-derive `reversed = (BUF_PSF_MAX_COMP < BUF_PSF_MAX_TENS)`.
-- [ ] 3.2 `sync.c` `buf_state_raw()` type-P branch: replace `BUF_THR` comparison with goal-relative zone boundaries (D3). Compute `goal_norm` from `BUF_GOAL` via same asymmetric formula; use `PSF_ZONE_DEADBAND = 0.1f`.
+- [x] 3.1 `sync.c` `buf_analog_update()`: replace symmetric delta/scale formula with asymmetric HH-style mapping (D4). Remove `BUF_INVERT` reference. Auto-derive `reversed = (BUF_PSF_MAX_COMP < BUF_PSF_MAX_TENS)`.
+- [x] 3.2 `sync.c` `buf_state_raw()` type-P branch: replace `BUF_THR` comparison with goal-relative zone boundaries (D3). Compute `goal_norm` from `BUF_GOAL` via same asymmetric formula; use `PSF_ZONE_DEADBAND = 0.1f`.
 
 ## 4. Unified PD Normalization
 
@@ -94,3 +94,5 @@
 - [ ] 14.2 Confirm carried items resolved: #6 (compression_floor) removed in group 5; #7 and H2 resolved or superseded per tasks 11.6/11.7. (Supersedes the former `pending-analog-rig` tracker, now merged here.)
 - [ ] 14.3 `openspec validate psf-analog-rig --strict` — passes.
 - [ ] 14.4 Commit milestone(s) — split firmware foundation (groups 1-7) from control redesign (groups 8-10) into separate commits per AGENTS.md one-milestone-per-commit.
+
+2026-05-27 validation: `python3 -m py_compile scripts/*.py`, `python3 scripts/gen_config.py`, `git diff --check`, `ninja -C build_local`.

@@ -185,7 +185,7 @@ static void status_dump(void) {
     int blen = snprintf(b, sizeof(b),
         "LN:%d,TC:%s,L1T:%s,L2T:%s,"
         "I1:%d,O1:%d,I2:%d,O2:%d,"
-        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BF:%.1f,BP:%.2f,SM:%d,BL:%s,ST:%d,BI:%d,TPR:%d,CU:%d,RELOAD:%d,UC:%d,"
+        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BF:%.1f,BP:%.2f,SM:%d,BL:%s,ST:%d,TPR:%d,CU:%d,RELOAD:%d,UC:%d,"
         "EST:%.1f,RE:%.2f,DP:%d,PR:%d,AV:%.2f,SC:%.1f,SA:%d,GC:0x%X,TP:%u,TS:%u,PW:0x%X,"
         "RS:%d%d%d%d%d,SS:%d",
         active_lane, tc_state_name(g_tc_ctx.state),
@@ -203,7 +203,6 @@ static void status_dump(void) {
         sync_enabled ? 1 : 0,
         sync_buffer_lock_arm_str(),
         (int)g_sync_state,
-        BUF_INVERT ? 1 : 0,
         AUTO_PRELOAD ? 1 : 0,
         ENABLE_CUTTER ? 1 : 0,
         RELOAD_MODE,
@@ -716,14 +715,6 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         } else {
             cmd_reply("ER", "ARG");
         }
-    } else if (!strcmp(cmd, "BI")) {
-        int v = atoi(p);
-        if (v == 0 || v == 1) {
-            BUF_INVERT = (v == 1);
-            cmd_reply("OK", NULL);
-        } else {
-            cmd_reply("ER", "ARG");
-        }
     } else if (!strcmp(cmd, "CA")) {
         int ln = 0;
         int ma = 0;
@@ -739,6 +730,25 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             } else {
                 cmd_reply("ER", "CA:NO_RESPONSE");
             }
+        } else {
+            cmd_reply("ER", "ARG");
+        }
+    } else if (!strcmp(cmd, "CAL")) {
+        if (!strcmp(p, "PSF_COMP")) {
+            buf_analog_update();
+            BUF_PSF_MAX_COMP = clamp_f(g_buf_pos_raw_status, 0.0f, 1.0f);
+            settings_save();
+            cmd_reply("OK", NULL);
+        } else if (!strcmp(p, "PSF_TENS")) {
+            buf_analog_update();
+            BUF_PSF_MAX_TENS = clamp_f(g_buf_pos_raw_status, 0.0f, 1.0f);
+            settings_save();
+            cmd_reply("OK", NULL);
+        } else if (!strcmp(p, "PSF_NEUT")) {
+            buf_analog_update();
+            BUF_PSF_NEUTRAL = clamp_f(g_buf_pos_raw_status, 0.0f, 1.0f);
+            settings_save();
+            cmd_reply("OK", NULL);
         } else {
             cmd_reply("ER", "ARG");
         }
@@ -905,9 +915,10 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             BUF_SENSOR_TYPE = clamp_i(iv, 0, 1);
             sync_disable(false);
         }
-        else if (!strcmp(base_param, "BUF_ANALOG_NEUTRAL")) BUF_ANALOG_NEUTRAL = clamp_f(fv, 0.0f, 1.0f);
-        else if (!strcmp(base_param, "BUF_RANGE")) BUF_RANGE = clamp_f(fv, 0.01f, 0.5f);
-        else if (!strcmp(base_param, "BUF_THR")) BUF_THR = clamp_f(fv, 0.01f, 0.99f);
+        else if (!strcmp(base_param, "BUF_PSF_MAX_COMP")) BUF_PSF_MAX_COMP = clamp_f(fv, 0.0f, 1.0f);
+        else if (!strcmp(base_param, "BUF_PSF_MAX_TENS")) BUF_PSF_MAX_TENS = clamp_f(fv, 0.0f, 1.0f);
+        else if (!strcmp(base_param, "BUF_PSF_NEUTRAL")) BUF_PSF_NEUTRAL = clamp_f(fv, 0.0f, 1.0f);
+        else if (!strcmp(base_param, "BUF_GOAL")) BUF_GOAL = clamp_f(fv, 0.0f, 1.0f);
         else if (!strcmp(base_param, "BUF_ALPHA")) BUF_ANALOG_ALPHA = clamp_f(fv, 0.01f, 1.0f);
         else if (!strcmp(base_param, "AUTOLOAD_MAX")) AUTOLOAD_MAX_MM = clamp_i(iv, 10, 10000);
         else if (!strcmp(base_param, "LOAD_MAX")) LOAD_MAX_MM = clamp_i(iv, 100, 10000);
@@ -1042,9 +1053,10 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "BASELINE_SPS")) snprintf(out, sizeof(out), "BASELINE_SPS:%d", g_baseline_target_sps);
         else if (!strcmp(param, "BASELINE_ALPHA")) snprintf(out, sizeof(out), "BASELINE_ALPHA:%.3f", (double)g_baseline_alpha);
         else if (!strcmp(param, "BUF_SENSOR")) snprintf(out, sizeof(out), "BUF_SENSOR:%d", BUF_SENSOR_TYPE);
-        else if (!strcmp(param, "BUF_ANALOG_NEUTRAL")) snprintf(out, sizeof(out), "BUF_ANALOG_NEUTRAL:%.3f", (double)BUF_ANALOG_NEUTRAL);
-        else if (!strcmp(param, "BUF_RANGE")) snprintf(out, sizeof(out), "BUF_RANGE:%.3f", (double)BUF_RANGE);
-        else if (!strcmp(param, "BUF_THR")) snprintf(out, sizeof(out), "BUF_THR:%.3f", (double)BUF_THR);
+        else if (!strcmp(param, "BUF_PSF_MAX_COMP")) snprintf(out, sizeof(out), "BUF_PSF_MAX_COMP:%.3f", (double)BUF_PSF_MAX_COMP);
+        else if (!strcmp(param, "BUF_PSF_MAX_TENS")) snprintf(out, sizeof(out), "BUF_PSF_MAX_TENS:%.3f", (double)BUF_PSF_MAX_TENS);
+        else if (!strcmp(param, "BUF_PSF_NEUTRAL")) snprintf(out, sizeof(out), "BUF_PSF_NEUTRAL:%.3f", (double)BUF_PSF_NEUTRAL);
+        else if (!strcmp(param, "BUF_GOAL")) snprintf(out, sizeof(out), "BUF_GOAL:%.3f", (double)BUF_GOAL);
         else if (!strcmp(param, "BUF_ALPHA")) snprintf(out, sizeof(out), "BUF_ALPHA:%.3f", (double)BUF_ANALOG_ALPHA);
         else if (!strcmp(param, "AUTOLOAD_MAX")) snprintf(out, sizeof(out), "AUTOLOAD_MAX:%d", AUTOLOAD_MAX_MM);
         else if (!strcmp(param, "LOAD_MAX")) snprintf(out, sizeof(out), "LOAD_MAX:%d", LOAD_MAX_MM);
