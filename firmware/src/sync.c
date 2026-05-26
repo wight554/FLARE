@@ -141,7 +141,10 @@ static bl_sub_state_t g_bl_sub_state = BL_IDLE;
 static buf_state_t    g_bl_target_state = BUF_TENSION;
 static uint32_t       g_bl_prime_start_ms = 0;   /* when prime began (for distance tracking) */
 static float          g_bl_prime_mm_per_s = 0.0f; /* stab speed in mm/s at prime start */
-static float          g_bl_prime_cap_mm   = 0.0f; /* distance cap for this prime */
+static float          g_bl_prime_cap_mm   = 0.0f; /* abs 1: full max travel search range */
+static uint32_t       g_bl_catch_start_ms = 0;   /* when catch slam began */
+static float          g_bl_catch_mm_per_s = 0.0f; /* slam speed in mm/s */
+static float          g_bl_catch_cap_mm   = 0.0f; /* abs 2: switch_span + post_switch_margin */
 static uint32_t       g_bl_watchdog_ms = 0;
 #define BL_WATCHDOG_DEFAULT_MS 30000u
 /* Suppress sync auto-start on BUF_TENSION after a BL abort (ST path).
@@ -1009,6 +1012,9 @@ void sync_retract_assist_set(bool enabled) {
             g_bl_prime_start_ms = 0;
             g_bl_prime_mm_per_s = 0.0f;
             g_bl_prime_cap_mm   = 0.0f;
+            g_bl_catch_start_ms = 0;
+            g_bl_catch_mm_per_s = 0.0f;
+            g_bl_catch_cap_mm   = 0.0f;
             g_bl_watchdog_ms = 0;
             sync_set_state(SYNC_OFF);
             /* Suppress auto-start: buffer is at the BL extreme, not extruder-driven. */
@@ -1132,11 +1138,25 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
              * BL:C locked at COMPRESSION → catch retracts (forward=false) toward TENSION.
              * Settle fires when the opposite extreme is reached, then releases. */
             int idx = A->lane_id - 1;
-            (void)idx;
             int slam_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
             bool forward = (g_bl_target_state == BUF_TENSION);
             motor_set_dir(&A->m, forward);
             motor_set_rate_sps(&A->m, slam_sps);
+
+            /* Absolute 2: catch cap = switch_span + post_switch_margin.
+             * post_switch_margin = (max_travel - switch_span) / 2
+             *   = room between switch and hard stop on each side.
+             * catch_cap = switch_span + post_switch_margin
+             *           = (max_travel + switch_span) / 2  (e.g. 17.5 mm)
+             * Stops the slam before the hard stop if the opposite switch
+             * fails to fire. */
+            float sw_span_mm = BUF_SWITCH_SPAN_HALF_MM * 2.0f;
+            float post_sw_mm = (BUF_MAX_TRAVEL_MM > 0)
+                ? ((float)BUF_MAX_TRAVEL_MM - sw_span_mm) * 0.5f
+                : 7.5f;
+            g_bl_catch_start_ms = now_ms;
+            g_bl_catch_mm_per_s = (float)slam_sps * MM_PER_STEP[idx];
+            g_bl_catch_cap_mm   = sw_span_mm + post_sw_mm;
 
             g_bl_sub_state = BL_CATCH;
             g_bl_watchdog_ms = now_ms + BL_WATCHDOG_DEFAULT_MS;
@@ -1157,9 +1177,18 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         buf_state_t opposite = (g_bl_target_state == BUF_TENSION)
             ? BUF_COMPRESSION : BUF_TENSION;
 
+        float catch_traveled = (g_bl_catch_mm_per_s > 0.0f)
+            ? ((float)(now_ms - g_bl_catch_start_ms) / 1000.0f * g_bl_catch_mm_per_s)
+            : g_bl_catch_cap_mm;
+        bool catch_overrun = (catch_traveled >= g_bl_catch_cap_mm);
+
         if (raw == opposite) {
             /* Buffer has reached opposite extreme — auto-release */
             cmd_event("BL", "CATCH_SETTLE");
+            sync_retract_assist_release(now_ms);
+        } else if (catch_overrun) {
+            /* Distance cap hit before opposite switch — hard stop short of wall */
+            cmd_event("EV:BL", "CATCH_OVERRUN");
             sync_retract_assist_release(now_ms);
         } else if (g_bl_watchdog_ms != 0 &&
                    (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
