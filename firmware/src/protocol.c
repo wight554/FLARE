@@ -799,7 +799,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "AUTO_RATE")) AUTO_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
         else if (!strcmp(base_param, "SYNC_MAX_RATE")) SYNC_MAX_SPS = sync_clamp_max_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
         else if (!strcmp(base_param, "GLOBAL_MAX_RATE")) {
-            GLOBAL_MAX_SPS = clamp_i(mm_per_min_to_sps(fv), mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(5000.0f));
+            GLOBAL_MAX_SPS = clamp_i(mm_per_min_to_sps(fv), mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
         }
         else if (!strcmp(base_param, "SYNC_MIN_RATE")) SYNC_MIN_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, 50000));
         else if (!strcmp(base_param, "SYNC_UP_RATE")) SYNC_RAMP_UP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 1, 50000));
