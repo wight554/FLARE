@@ -1052,7 +1052,7 @@ void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms) {
      * cap_mm = BUF_MAX_TRAVEL_MM / 2; rate = BUF_STAB_SPS * mm_per_step */
     int idx = A->lane_id - 1;
     float mm_per_s = (float)BUF_STAB_SPS * MM_PER_STEP[idx];
-    float cap_mm = (BUF_MAX_TRAVEL_MM > 0) ? ((float)BUF_MAX_TRAVEL_MM * 0.5f * 0.9f) : 11.25f;
+    float cap_mm = (BUF_MAX_TRAVEL_MM > 0) ? ((float)BUF_MAX_TRAVEL_MM * 0.5f) : 12.5f;
     uint32_t cap_ms = (mm_per_s > 0.0f)
         ? (uint32_t)(cap_mm / mm_per_s * 1000.0f + 0.5f)
         : 5000u;
