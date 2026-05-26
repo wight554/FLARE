@@ -139,9 +139,12 @@ typedef enum {
 
 static bl_sub_state_t g_bl_sub_state = BL_IDLE;
 static buf_state_t    g_bl_target_state = BUF_TENSION;
-static uint32_t       g_bl_prime_start_ms = 0;   /* when prime began (for distance tracking) */
-static float          g_bl_prime_mm_per_s = 0.0f; /* stab speed in mm/s at prime start */
-static float          g_bl_prime_cap_mm   = 0.0f; /* abs 1: full max travel search range */
+static uint32_t       g_bl_prime_start_ms = 0;   /* when prime search began */
+static float          g_bl_prime_mm_per_s = 0.0f; /* stab speed in mm/s */
+static float          g_bl_prime_cap_mm   = 0.0f; /* abs 1: outer safety cap = BUF_MAX_TRAVEL_MM */
+static bool           g_bl_prime_switch_hit    = false; /* switch fired during search phase */
+static uint32_t       g_bl_prime_post_start_ms = 0;    /* when post-click settle began */
+static float          g_bl_prime_post_cap_mm   = 0.0f; /* abs 2: post-click extra travel = (max-span)/2 */
 static uint32_t       g_bl_catch_start_ms = 0;   /* when catch slam began */
 static float          g_bl_catch_mm_per_s = 0.0f; /* slam speed in mm/s */
 static float          g_bl_catch_cap_mm   = 0.0f; /* abs 2: switch_span + post_switch_margin */
@@ -1009,9 +1012,12 @@ void sync_retract_assist_set(bool enabled) {
                 motor_enable(&A->m, false);
             }
             g_bl_sub_state = BL_IDLE;
-            g_bl_prime_start_ms = 0;
-            g_bl_prime_mm_per_s = 0.0f;
-            g_bl_prime_cap_mm   = 0.0f;
+            g_bl_prime_start_ms      = 0;
+            g_bl_prime_mm_per_s      = 0.0f;
+            g_bl_prime_cap_mm        = 0.0f;
+            g_bl_prime_switch_hit    = false;
+            g_bl_prime_post_start_ms = 0;
+            g_bl_prime_post_cap_mm   = 0.0f;
             g_bl_catch_start_ms = 0;
             g_bl_catch_mm_per_s = 0.0f;
             g_bl_catch_cap_mm   = 0.0f;
@@ -1066,12 +1072,18 @@ void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms) {
      * neutral.  Running at the slow BUF_STAB_SPS speed means overshoot is
      * negligible once the switch fires. */
     int idx = A->lane_id - 1;
-    float mm_per_s = (float)BUF_STAB_SPS * MM_PER_STEP[idx];
-    float max_cap_mm = (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : 25.0f;
-    float cap_mm = max_cap_mm;
-    g_bl_prime_start_ms = now_ms;
-    g_bl_prime_mm_per_s = mm_per_s;
-    g_bl_prime_cap_mm   = cap_mm;
+    float mm_per_s    = (float)BUF_STAB_SPS * MM_PER_STEP[idx];
+    float max_cap_mm  = (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : 25.0f;
+    float sw_span_mm  = BUF_SWITCH_SPAN_HALF_MM * 2.0f;
+    float post_cap_mm = (BUF_MAX_TRAVEL_MM > 0)
+        ? ((float)BUF_MAX_TRAVEL_MM - sw_span_mm) * 0.5f
+        : 7.5f;
+    g_bl_prime_start_ms      = now_ms;
+    g_bl_prime_mm_per_s      = mm_per_s;
+    g_bl_prime_cap_mm        = max_cap_mm;  /* outer safety: abort if switch never fires */
+    g_bl_prime_switch_hit    = false;
+    g_bl_prime_post_start_ms = 0;
+    g_bl_prime_post_cap_mm   = post_cap_mm; /* settle distance past the switch click */
     g_bl_watchdog_ms = 0;
     g_bl_sub_state = BL_PRIME;
 
@@ -1108,17 +1120,34 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
     if (g_bl_sub_state == BL_PRIME) {
         buf_state_t raw = buf_state_raw();
         bool reached = (raw == g_bl_target_state);
+
+        /* Phase 1 — search: outer safety cap fires if switch never triggers */
         float traveled_mm = (g_bl_prime_mm_per_s > 0.0f)
             ? ((float)(now_ms - g_bl_prime_start_ms) / 1000.0f * g_bl_prime_mm_per_s)
             : g_bl_prime_cap_mm;
-        bool deadline_hit = (traveled_mm >= g_bl_prime_cap_mm);
+        bool deadline_hit = (!g_bl_prime_switch_hit && traveled_mm >= g_bl_prime_cap_mm);
 
-        if (reached || deadline_hit) {
+        /* Switch click: transition to post-click settle phase */
+        if (!g_bl_prime_switch_hit && reached) {
+            g_bl_prime_switch_hit    = true;
+            g_bl_prime_post_start_ms = now_ms;
+        }
+
+        /* Phase 2 — post-click settle: continue (max-span)/2 past the switch */
+        bool post_done = false;
+        if (g_bl_prime_switch_hit) {
+            float post_mm = (g_bl_prime_mm_per_s > 0.0f)
+                ? ((float)(now_ms - g_bl_prime_post_start_ms) / 1000.0f * g_bl_prime_mm_per_s)
+                : g_bl_prime_post_cap_mm;
+            post_done = (post_mm >= g_bl_prime_post_cap_mm);
+        }
+
+        if (post_done || deadline_hit) {
             /* Prime done — stop motor but keep enabled for holding torque */
             motor_set_rate_sps(&A->m, 0);
             /* motor_enable stays true: locked hold needs energized stepper */
 
-            if (deadline_hit && !reached) {
+            if (deadline_hit) {
                 cmd_event("EV:BL", "PRIME_BOUND");
             }
 
