@@ -802,10 +802,22 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             GLOBAL_MAX_SPS = clamp_i(mm_per_min_to_sps(fv), mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
         }
         else if (!strcmp(base_param, "SYNC_MIN_RATE")) SYNC_MIN_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, 50000));
-        else if (!strcmp(base_param, "SYNC_UP_RATE")) SYNC_RAMP_UP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 1, 50000));
-        else if (!strcmp(base_param, "SYNC_DN_RATE")) SYNC_RAMP_DN_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 1, 50000));
+        else if (!strcmp(base_param, "SYNC_RAMP_ACCEL")) {
+            float tick_s = (float)SYNC_TICK_MS / 1000.0f;
+            int sps = (int)(fv * tick_s / MM_PER_STEP[0] + 0.5f);
+            SYNC_RAMP_UP_SPS = motion_clamp_rate_sps(clamp_i(sps, 1, 50000));
+        }
+        else if (!strcmp(base_param, "SYNC_RAMP_DECEL")) {
+            float tick_s = (float)SYNC_TICK_MS / 1000.0f;
+            int sps = (int)(fv * tick_s / MM_PER_STEP[0] + 0.5f);
+            SYNC_RAMP_DN_SPS = motion_clamp_rate_sps(clamp_i(sps, 1, 50000));
+        }
         else if (!strcmp(base_param, "SYNC_TICK_MS")) SYNC_TICK_MS = clamp_i(iv, 1, 1000);
-        else if (!strcmp(base_param, "RAMP_STEP_RATE")) RAMP_STEP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 1, 30000));
+        else if (!strcmp(base_param, "GLOBAL_MAX_ACCEL")) {
+            float tick_s = (float)RAMP_TICK_MS / 1000.0f;
+            int sps = (int)(fv * tick_s / MM_PER_STEP[0] + 0.5f);
+            RAMP_STEP_SPS = motion_clamp_rate_sps(clamp_i(sps, 1, 30000));
+        }
         else if (!strcmp(base_param, "RAMP_TICK_MS")) RAMP_TICK_MS = clamp_i(iv, 1, 1000);
         else if (!strcmp(base_param, "PRE_RAMP_RATE")) PRE_RAMP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, 50000));
         else if (!strcmp(base_param, "BUF_SWITCH_SPAN")) {
@@ -968,10 +980,22 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "SYNC_MAX_RATE")) snprintf(out, sizeof(out), "SYNC_MAX_RATE:%.1f", (double)sps_to_mm_per_min_idx(SYNC_MAX_SPS, idx));
         else if (!strcmp(param, "GLOBAL_MAX_RATE")) snprintf(out, sizeof(out), "GLOBAL_MAX_RATE:%.1f", (double)sps_to_mm_per_min_idx(GLOBAL_MAX_SPS, idx));
         else if (!strcmp(param, "SYNC_MIN_RATE")) snprintf(out, sizeof(out), "SYNC_MIN_RATE:%.1f", (double)sps_to_mm_per_min_idx(SYNC_MIN_SPS, idx));
-        else if (!strcmp(param, "SYNC_UP_RATE")) snprintf(out, sizeof(out), "SYNC_UP_RATE:%.1f", (double)sps_to_mm_per_min_idx(SYNC_RAMP_UP_SPS, idx));
-        else if (!strcmp(param, "SYNC_DN_RATE")) snprintf(out, sizeof(out), "SYNC_DN_RATE:%.1f", (double)sps_to_mm_per_min_idx(SYNC_RAMP_DN_SPS, idx));
+        else if (!strcmp(param, "SYNC_RAMP_ACCEL")) {
+            float tick_s = (float)SYNC_TICK_MS / 1000.0f;
+            float accel = (float)SYNC_RAMP_UP_SPS * MM_PER_STEP[0] / tick_s;
+            snprintf(out, sizeof(out), "SYNC_RAMP_ACCEL:%.0f", (double)accel);
+        }
+        else if (!strcmp(param, "SYNC_RAMP_DECEL")) {
+            float tick_s = (float)SYNC_TICK_MS / 1000.0f;
+            float accel = (float)SYNC_RAMP_DN_SPS * MM_PER_STEP[0] / tick_s;
+            snprintf(out, sizeof(out), "SYNC_RAMP_DECEL:%.0f", (double)accel);
+        }
         else if (!strcmp(param, "SYNC_TICK_MS")) snprintf(out, sizeof(out), "SYNC_TICK_MS:%d", SYNC_TICK_MS);
-        else if (!strcmp(param, "RAMP_STEP_RATE")) snprintf(out, sizeof(out), "RAMP_STEP_RATE:%.1f", (double)sps_to_mm_per_min_idx(RAMP_STEP_SPS, idx));
+        else if (!strcmp(param, "GLOBAL_MAX_ACCEL")) {
+            float tick_s = (float)RAMP_TICK_MS / 1000.0f;
+            float accel = (float)RAMP_STEP_SPS * MM_PER_STEP[0] / tick_s;
+            snprintf(out, sizeof(out), "GLOBAL_MAX_ACCEL:%.0f", (double)accel);
+        }
         else if (!strcmp(param, "RAMP_TICK_MS")) snprintf(out, sizeof(out), "RAMP_TICK_MS:%d", RAMP_TICK_MS);
         else if (!strcmp(param, "PRE_RAMP_RATE")) snprintf(out, sizeof(out), "PRE_RAMP_RATE:%.1f", (double)sps_to_mm_per_min_idx(PRE_RAMP_SPS, idx));
         else if (!strcmp(param, "BUF_SWITCH_SPAN")) snprintf(out, sizeof(out), "BUF_SWITCH_SPAN:%.3f", (double)(BUF_SWITCH_SPAN_HALF_MM * 2.0f));

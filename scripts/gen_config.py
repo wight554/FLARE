@@ -43,14 +43,14 @@ DEFAULTS = {
 
     # Motion / Ramp
     "motion_startup_ms": "1000",
-    "ramp_step_rate": "1500",
+    "global_max_accel": "3500",   # mm/s² — raw lane accel for MV/AUTOLOAD/FEED/UNLOAD/BL.
     "ramp_tick_ms": "5",
 
     # Buffer Sync
     "buf_switch_span_mm": "10",
     "buf_hyst_ms": "30",
-    "sync_ramp_up_rate": "40",
-    "sync_ramp_dn_rate": "80",
+    "sync_ramp_accel": "150",     # mm/s² — sync loop UP slew (closed-loop bandwidth).
+    "sync_ramp_decel": "300",     # mm/s² — sync loop DN slew (typically 2× accel for safety).
     "sync_tick_ms": "20",
     "baseline_rate": "1600",
     "baseline_alpha": "0.02",
@@ -334,6 +334,12 @@ def main():
         if mm_min <= 0: return 0
         return int(round(mm_min / 60.0 / m_params["mm_per_step"]))
 
+    def accel_to_step_sps(accel_mm_s2_str, tick_ms_str, m_params):
+        accel = float(accel_mm_s2_str)
+        tick_s = float(tick_ms_str) / 1000.0
+        if accel <= 0 or tick_s <= 0: return 0
+        return int(round(accel * tick_s / m_params["mm_per_step"]))
+
     def parse_flow_schedule():
         cap = int(get("flow_schedule_cap") or "8")
         if cap < 1:
@@ -448,14 +454,14 @@ def main():
         "",
         "// --- Motion / Ramp ---",
         f"#define CONF_MOTION_STARTUP_MS  {get('motion_startup_ms')}",
-        f"#define CONF_RAMP_STEP_SPS      {mm_min_to_sps(get('ramp_step_rate'), l1)}",
+        f"#define CONF_RAMP_STEP_SPS      {accel_to_step_sps(get('global_max_accel'), get('ramp_tick_ms'), l1)}",
         f"#define CONF_RAMP_TICK_MS       {get('ramp_tick_ms')}",
         "",
         "// --- Buffer Sync ---",
         f"#define CONF_BUF_SWITCH_SPAN_MM {get_float('buf_switch_span_mm')}f",
         f"#define CONF_BUF_HYST_MS        {get('buf_hyst_ms')}",
-        f"#define CONF_SYNC_RAMP_UP_SPS   {mm_min_to_sps(get('sync_ramp_up_rate'), l1)}",
-        f"#define CONF_SYNC_RAMP_DN_SPS   {mm_min_to_sps(get('sync_ramp_dn_rate'), l1)}",
+        f"#define CONF_SYNC_RAMP_UP_SPS   {accel_to_step_sps(get('sync_ramp_accel'), get('sync_tick_ms'), l1)}",
+        f"#define CONF_SYNC_RAMP_DN_SPS   {accel_to_step_sps(get('sync_ramp_decel'), get('sync_tick_ms'), l1)}",
         f"#define CONF_SYNC_TICK_MS       {get('sync_tick_ms')}",
         f"#define CONF_BASELINE_SPS       {mm_min_to_sps(get('baseline_rate'), l1)}",
         f"#define CONF_BASELINE_ALPHA     {get_float('baseline_alpha')}f",

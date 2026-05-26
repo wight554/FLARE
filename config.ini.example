@@ -42,18 +42,24 @@ run_current:
 
 # ─── Motion / Ramp ───────────────────────────────────────────────────────────
 # motion_startup_ms: 1000
-# ramp_step_rate: 1500   # global_max_accel: applies to raw/open-loop lane motion
-#                        # (MV, AUTOLOAD, FEED, UNLOAD, RELOAD, BL prime, BL settle).
-#                        # 1500 mm/min -> ~10231 sps/tick @ 5ms -> ~5000 mm/s² lane accel.
-#                        # Also doubles as lane cold-start velocity (~25 mm/s).
-#                        # SYNC closed-loop follow uses sync_ramp_up_rate (print_max_accel)
-#                        # separately; BL catch slam bypasses both.
+# global_max_accel: 3500  # mm/s² — raw/open-loop lane motion (MV, AUTOLOAD, FEED,
+#                         # UNLOAD, RELOAD, BL prime/settle). Maps to RAMP_STEP_SPS
+#                         # per RAMP_TICK_MS tick. Also doubles as lane cold-start
+#                         # velocity (~step_sps · mm_per_step ≈ V_start mm/s).
+#                         # SYNC closed-loop follow uses sync_ramp_accel separately;
+#                         # BL catch slam bypasses both.
 # ramp_tick_ms: 5
 
 # ─── Buffer Sync ─────────────────────────────────────────────────────────────
 # buf_hyst_ms: 30
-# sync_ramp_up_rate: 40
-# sync_ramp_dn_rate: 80
+# sync_ramp_accel: 150   # mm/s² — sync closed-loop UP slew (loop bandwidth).
+#                        # Bounded by buffer-spring + filament-inertia resonance,
+#                        # NOT motor torque. Typical print E-accel range
+#                        # 50-500 mm/s²; 150 covers typical, 33 ultra-conservative,
+#                        # 300+ aggressive high-flow. Raising past the legacy 33
+#                        # may require lowering sync_kp_rate to keep loop damped.
+#                        # See openspec/changes/buffer-state-lock/design.md §D6a.
+# sync_ramp_decel: 300   # mm/s² — sync closed-loop DN slew. Typically 2× accel.
 # sync_tick_ms: 20
 # baseline_rate: 1600        # starting sync speed (mm/min); set to your print feed rate
 # baseline_alpha: 0.02

@@ -250,6 +250,58 @@ Result: **fits with ~3 mm margin** at the raw-edge / instant-slam design.
 The same case at 50 ms latency (i.e. if hyst was waited on) collapses
 the margin to ~0.2 mm — the D4 raw edge is load-bearing, not stylistic.
 
+### D6a — Sync-flow impact of raising sync ramp accel (coefficient form)
+
+The `sync_ramp_accel` knob (rename of legacy `sync_ramp_up_rate`, see D9
+below) controls the closed-loop sync controller's velocity slew per tick.
+Adjacent sync-flow elements scale with the slew, with different physical
+relationships. Define the **bandwidth coefficient** `k` as the ratio
+between the active sync slew and the historic baseline at which sync
+gains were last tuned:
+
+```
+k = sync_ramp_accel_active / sync_ramp_accel_baseline
+    (baseline = ~33 mm/s², the legacy SYNC_RAMP_UP_SPS = 273 sps/tick)
+```
+
+So at the new 150 mm/s² default, `k ≈ 4.5`. Each adjacent knob's
+sensitivity scales by a different function of `k`:
+
+| sync element | scales with | suggested tune target | rationale |
+|---|---|---|---|
+| **PD loop kp** (`SYNC_KP_SPS`) | `k¹` (linear) | `sync_kp_rate × (1/k)` | Loop bandwidth = kp × slew. To keep effective bandwidth constant when slew rises by k, cut kp by k. Same damping margin against the buffer-spring resonance. |
+| **Reserve integral** (`SYNC_RESERVE_INTEGRAL_GAIN`) | `k⁰` (independent) | unchanged | Integral acts on accumulated steady-state error in seconds; faster slew leaves less error to integrate. Off by default; no first-order coupling to slew. |
+| **Zone bias** (`ZONE_BIAS_BASE/RAMP/MAX_SPS`) | `k^0.5` (sublinear) | `zone_bias_max × (1/√k)` | Bias accumulates over zone-dwell time. Faster sync drains the zone faster → less dwell → bias contributes less to settle. Square-root because dwell time only halves when slew quadruples (the target overshoot itself is much smaller). |
+| **Compression collapse mult** (`SYNC_COMPRESSION_COLLAPSE_RAMP_MULT`) | `k⁰` (preserved) | unchanged | Multiplier of `ramp_dn`; when base ramp_dn scales with `sync_ramp_decel`, the absolute collapse slew rises by `k`, but the *multiplier* shape is preserved. |
+| **Drift observer EWMA** (`buf_drift_*`) | event-based | unchanged (self-adapts) | Operates on per-transition residuals with a long EWMA tau (60s); slew changes shift transition timing, residuals re-converge. |
+| **`neutral_creep`** (cap fraction of est_sps) | `k⁰` (independent) | unchanged | Cap is a fraction of extruder rate, not of slew. |
+| **Timer logic** (fault_hold, tension_dwell, fast_brake) | `k⁰` (independent) | unchanged | All wall-clock based. |
+| **Estimator alpha / confidence** | `k⁰` (independent) | unchanged | Per-tick math; slew is downstream of the estimator. |
+
+**The kp scaling is the only first-order risk.** Everything else is
+either independent or scales sublinearly. The proposed rule of thumb:
+
+```
+sync_kp_rate_new = sync_kp_rate_old / k         (primary, mandatory)
+zone_bias_max_new = zone_bias_max_old / √k       (secondary, optional)
+```
+
+For the default raise (k = 4.5): `sync_kp_rate` should drop from the
+historic 900 mm/min to ~200 mm/min if loop ringing appears; `zone_bias`
+re-tune optional. Both stay as separate knobs — the firmware does not
+auto-scale on slew change because operators may have already re-tuned.
+
+**Bench acceptance for the raise:**
+1. Run a long sync soak (typical print, mixed flow). Watch for buffer
+   ringing around `BUF_NEUTRAL` (oscillation between SWITCH ON/OFF more
+   than once per second indicates instability).
+2. If oscillating: apply `sync_kp_rate ← sync_kp_rate / k` and re-run.
+3. If quiet but laggy (buffer drifts during accel transients): bump
+   `sync_ramp_accel` further (k increases), re-apply the kp scaling.
+4. Default 150 mm/s² ships as a balanced midpoint; bench-tune per rig.
+
+### D6b — Operator guardrails
+
 **Operator guardrails** that fall out of this envelope:
 - `BL`-guarded extruder retract MUST NOT exceed **150 mm/s**.
 - `BL`-guarded extruder retract distance MUST be **≥ ~30 mm** at full
@@ -322,6 +374,43 @@ If bench data shows the prime consistently completes faster, the pause
 can be tightened later; the value lives in the macro, not firmware.
 
 The macro retains no distance/feedrate constants for the MMU side.
+
+### D9 — Accel-unit rename: `global_max_accel` + `sync_ramp_accel/decel`
+
+Two named knobs in **mm/s²** replace the legacy mm/min ramp keys. The
+project is in active development; no aliasing is provided — the old
+keys are dropped outright:
+
+| concept | new name (mm/s²) | drives | default | replaces (removed) |
+|---|---|---|---|---|
+| Raw lane motion ceiling | `global_max_accel` | `RAMP_STEP_SPS` (lane ramp + cold-start velocity) | 3500 | `ramp_step_rate` (mm/min) |
+| Sync loop UP slew | `sync_ramp_accel` | `SYNC_RAMP_UP_SPS` (closed-loop bandwidth) | 150 | `sync_ramp_up_rate` (mm/min) |
+| Sync loop DN slew | `sync_ramp_decel` | `SYNC_RAMP_DN_SPS` (typically 2× accel for safety) | 300 | `sync_ramp_dn_rate` (mm/min) |
+
+Conversion at config-time:
+
+```
+step_sps_per_tick = accel_mm_s2 · tick_s / mm_per_step (lane-1 baseline)
+```
+
+Runtime `SS` setters (`GLOBAL_MAX_ACCEL`, `SYNC_RAMP_ACCEL`,
+`SYNC_RAMP_DECEL`) accept mm/s² input and apply the same conversion
+using `MM_PER_STEP[0]` plus the appropriate tick (`RAMP_TICK_MS` for
+lane, `SYNC_TICK_MS` for sync). Internal SPS-per-tick variables
+(`RAMP_STEP_SPS`, `SYNC_RAMP_UP_SPS`, `SYNC_RAMP_DN_SPS`) are unchanged;
+only the input surface and units are renamed.
+
+**Why mm/s² and not mm/min:** mm/s² is the universal acceleration unit
+used by Klipper (`max_accel`, `max_extrude_only_accel`), every
+non-Klipper firmware, and every physics formula in this document.
+mm/min for a slew-rate-per-tick was a unit collision with velocity rates
+and produced unintuitive numbers (273 sps/tick = "40 mm/min" but
+actually behaves as 33 mm/s²). Naming the knob in mm/s² lets operators
+reason about it the same way they reason about Klipper accel.
+
+**Why no alias:** the project is pre-release and host integrations
+(Klipper macros, scripts) are owned in-tree. Carrying mm/min aliases
+multiplies the surface area for no real backward-compat win.
 
 ## Risks / Trade-offs
 
