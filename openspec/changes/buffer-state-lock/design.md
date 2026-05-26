@@ -201,9 +201,20 @@ rate-aware code.
 
 **Bench-validated operator envelope (rig data, NEMA17 + 50:17 gear).**
 
+Rig motor configuration the envelope was measured on:
+
+| motor param | rig value | gen_config default | notes |
+|---|---|---|---|
+| `microsteps` | 16 | 16 | unchanged |
+| `rotation_distance` | 22.6789511 | 23.0 | rig-calibrated |
+| `run_current` | **1.2 A** | 0.8 A | already at this motor's safe ceiling — no further bump |
+
+Performance envelope at that motor config:
+
 | param | bench-validated value |
 |---|---|
 | MMU practical top speed (no stall/beep) | **100 mm/s (6000 mm/min)** |
+| Stall onset (beep) | ~117 mm/s (~7000 mm/min) |
 | Effective lane accel (raw-slam capable) | **~3500 mm/s²** (= `ramp_step_rate` 1000 mm/min) |
 | Buffer runway (deep tension → deep compression) | 20 mm |
 | Lock-break detection latency (raw edge, no hyst) | ~20 ms (1 sync tick) |
@@ -212,6 +223,10 @@ The motor beeps/stalls above ~7000 mm/min and the stall threshold drops
 when lane accel is pushed above ~3500 mm/s² (jerk increases the
 torque-vs-speed pressure). The operator's chosen sane limit is therefore
 **6000 mm/min / 3500 mm/s²** with one-tick headroom below stall.
+Current is already at the motor's safe ceiling — the "raise run current"
+lever from earlier tuning guidance is exhausted on this rig. Further
+headroom would require lower microsteps for the catch only, or chopper
+tuning, or different motor hardware.
 
 **Worst-case retract envelope: 40 mm at 150 mm/s.** Operator-declared
 upper bound for any extruder retract guarded by `BL:T`. With the bench
