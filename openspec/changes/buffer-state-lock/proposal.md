@@ -48,9 +48,13 @@ open-loop distance/feedrate.
 - **Remove the legacy `RA:1` / `RA:0` host commands** and the `RA` status
   field. `RA` is unused by Klipper and any external host today, so it is
   deleted outright rather than aliased — the new surface is `BL` only.
-- **Klipper:** replace the blind `MV:...:I` with two `BL` arm calls — one before
-  each extruder retract — so each move gets a freshly-primed full runway. Remove
-  the magic `mmu_tip_retract` distance.
+- **Klipper:** replace the blind `MV:...:I` with two `BL:T` arm calls — one
+  before each extruder retract (the `G0 E-{park_distance}` park retract in
+  `_FLARE_TIP_FORMING` and the `G1 E-{gear_retract}` gear clear in
+  `_FLARE_UNLOAD_TOOLHEAD`) — each followed by a fixed settle pause
+  (`G4 P1000`, ~1s) so the half-travel prime drives to deep tension and the
+  lock energizes before the printer-side retract starts. Each retract gets a
+  freshly-primed full runway. Remove the magic `mmu_tip_retract` distance.
 - **Document HW limitations and the survival envelope** (min MMU speed vs move
   distance/speed) in design, with the explicit finding that the 140mm/s park
   retract is the binding wall.

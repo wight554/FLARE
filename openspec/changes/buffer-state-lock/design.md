@@ -208,14 +208,35 @@ new one duplicates protocol/status surface).
 
 - Remove `mmu_tip_retract` variable and the `RUN_SHELL_COMMAND CMD=flare
   PARAMS="MV:-{mmu_tip_retract}:{park_speed*60*0.2}:I"` line.
-- Before the park retract (`G0 E-{park_distance...}`): emit
-  `RUN_SHELL_COMMAND CMD=flare PARAMS="BL:T"`.
-- After the park retract completes (`M400` post-park): emit
-  `RUN_SHELL_COMMAND CMD=flare PARAMS="BS"` to release the lock cleanly
-  (or rely on lock-break auto-release once buffer settles — final TBD,
-  see Open Questions).
-- Around the second retract (`G1 E-{gear_retract}`): same pattern —
-  `BL:T` before, `BS` after, with `M400`s as needed for ordering.
+- Before each gated extruder retract, emit `RUN_SHELL_COMMAND CMD=flare
+  PARAMS="BL:T"` immediately followed by a fixed settle pause `G4 P1000`
+  (~1 second). The pause ensures the half-travel prime has driven the
+  buffer to deep tension and the lock has energized before the printer
+  retract begins — without it, a fast `G0`/`G1` can fire during the prime
+  and the runway is not actually pre-charged.
+- The two gated retracts are:
+  ```gcode
+  ; _FLARE_TIP_FORMING (replaces the blind MV:...:I)
+  RUN_SHELL_COMMAND CMD=flare PARAMS="BL:T"
+  G4 P1000
+  G0 E-{park_distance-dist_to_meltzone_now} F{park_speed*60}
+
+  ; _FLARE_UNLOAD_TOOLHEAD (around the existing gear clear)
+  RUN_SHELL_COMMAND CMD=flare PARAMS="BL:T"
+  G4 P1000
+  G1 E-{gear_retract} F{v.speed_hub_to_extruder*60}
+  ```
+- After each retract completes (`M400` for ordering), emit
+  `RUN_SHELL_COMMAND CMD=flare PARAMS="BS"` to release the lock cleanly,
+  or rely on lock-break auto-release once buffer settles (final TBD, see
+  Open Questions).
+
+The 1-second pause is a safe upper bound: the prime is capped at
+`BUF_MAX_TRAVEL_MM / 2` = 12.5mm at `BUF_STAB_SPS` ≈ 4092 sps ≈ 10mm/s,
+so the prime completes in ≤ ~1.25s in the worst case but usually
+much faster (buffer is rarely a full half-travel away from `BUF_TENSION`).
+If bench data shows the prime consistently completes faster, the pause
+can be tightened later; the value lives in the macro, not firmware.
 
 The macro retains no distance/feedrate constants for the MMU side.
 
