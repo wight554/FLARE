@@ -142,6 +142,11 @@ static buf_state_t    g_bl_target_state = BUF_TENSION;
 static uint32_t       g_bl_prime_deadline_ms = 0;
 static uint32_t       g_bl_watchdog_ms = 0;
 #define BL_WATCHDOG_DEFAULT_MS 30000u
+/* Suppress sync auto-start on BUF_TENSION after a BL abort (ST path).
+ * The buffer is at tension because BL put it there, not because the
+ * extruder is pulling. Cleared when the buffer physically departs tension
+ * or BL is re-armed. */
+static bool g_bl_autostart_suppressed = false;
 
 float g_buf_pos = 0.0f;
 float g_buf_pos_raw_status = 0.0f;
@@ -988,6 +993,7 @@ void sync_retract_assist_set(bool enabled) {
         sync_auto_started = false;
         sync_tail_assist_active = false;
         sync_idle_since_ms = 0;
+        g_bl_autostart_suppressed = false;
         sync_set_state(SYNC_RETRACT_ASSIST);
         if (A && A->task == TASK_FEED) lane_stop(A);
     } else {
@@ -1001,6 +1007,8 @@ void sync_retract_assist_set(bool enabled) {
             g_bl_prime_deadline_ms = 0;
             g_bl_watchdog_ms = 0;
             sync_set_state(SYNC_OFF);
+            /* Suppress auto-start: buffer is at the BL extreme, not extruder-driven. */
+            g_bl_autostart_suppressed = true;
         }
     }
 }
@@ -1282,6 +1290,8 @@ static void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t
         g_tension_pin_ts_idx = (g_tension_pin_ts_idx + 1) % TENSION_PIN_WINDOW_LEN;
     } else if (prev == BUF_TENSION) {
         sync_tension_pin_since_ms = 0;
+        /* Buffer physically departed tension — safe to allow auto-start again. */
+        g_bl_autostart_suppressed = false;
     }
 
     if (!sync_tail_assist_active) {
@@ -1450,6 +1460,7 @@ void sync_tick(uint32_t now_ms) {
        The guard clears automatically once one lane's OUT sensor drops (i.e.
        after the operator unloads the unwanted lane). */
     if (AUTO_MODE && !sync_enabled && auto_start_allowed && s == BUF_TENSION &&
+            !g_bl_autostart_suppressed &&
             !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
         /* Auto-correct the active lane to the physically loaded one. The operator
            may have switched the UI selection to an unloaded lane (to inspect or
