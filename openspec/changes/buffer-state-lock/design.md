@@ -199,6 +199,54 @@ Keeping the catch slaved to `GLOBAL_MAX_SPS` avoids two parallel rate-cap
 trees and makes the catch's worst-case ramp implicitly visible to other
 rate-aware code.
 
+**Bench-validated operator envelope (rig data, NEMA17 + 50:17 gear).**
+
+| param | bench-validated value |
+|---|---|
+| MMU practical top speed (no stall/beep) | **100 mm/s (6000 mm/min)** |
+| Effective lane accel (raw-slam capable) | **~3500 mm/s²** (= `ramp_step_rate` 1000 mm/min) |
+| Buffer runway (deep tension → deep compression) | 20 mm |
+| Lock-break detection latency (raw edge, no hyst) | ~20 ms (1 sync tick) |
+
+The motor beeps/stalls above ~7000 mm/min and the stall threshold drops
+when lane accel is pushed above ~3500 mm/s² (jerk increases the
+torque-vs-speed pressure). The operator's chosen sane limit is therefore
+**6000 mm/min / 3500 mm/s²** with one-tick headroom below stall.
+
+**Worst-case retract envelope: 40 mm at 150 mm/s.** Operator-declared
+upper bound for any extruder retract guarded by `BL:T`. With the bench
+envelope above and the design's required raw-edge lock-break (D4) plus
+instant slam (D5):
+
+```
+move time             = 40 / 150            = 0.267 s
+MMU accel-to-100      = 100 / 3500          = 0.029 s
+accel-gap distance    = V_e·t − 0.5·V_m·t   = 4.29 − 1.43 = 2.86 mm
+
+latency_fill (20 ms)  = 150 · 0.020         =  3.00 mm
+steady_fill           = (150 − 100) · (0.267 − 0.029 − 0.020)
+                      = 50 · 0.218          = 10.90 mm
+
+peak excursion        = 2.86 + 3.00 + 10.90 = 16.76 mm
+                                              vs 20 mm runway → 3.2 mm margin
+```
+
+Result: **fits with ~3 mm margin** at the raw-edge / instant-slam design.
+The same case at 50 ms latency (i.e. if hyst was waited on) collapses
+the margin to ~0.2 mm — the D4 raw edge is load-bearing, not stylistic.
+
+**Operator guardrails** that fall out of this envelope:
+- `BL`-guarded extruder retract MUST NOT exceed **150 mm/s**.
+- `BL`-guarded extruder retract distance MUST be **≥ ~30 mm** at full
+  speed; shorter moves enter the triangular-ramp regime where the MMU
+  never reaches `V_m` and the worked formula above does not apply
+  directly.
+- `ramp_step_rate` SHOULD be tuned per-rig but MUST allow the
+  motor to reach 100 mm/s without stalling. The default ships at
+  `1500` (~5000 mm/s²) for headroom on more capable motors; rigs that
+  stall at this default should drop to `1000` (~3500 mm/s²), the
+  rig-bench validated value.
+
 ### D7 — State home: `SYNC_BUFFER_LOCK` (rename `SYNC_RETRACT_ASSIST`)
 
 The existing `SYNC_RETRACT_ASSIST` enum slot is the right home — it already
