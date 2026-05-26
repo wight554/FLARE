@@ -21,7 +21,7 @@
 
 - [ ] 4.1 Add `BL` command parser to `firmware/src/protocol.c` accepting `BL`, `BL:T`, `BL:C`; reject with `ER:BUSY` when sync is active or a non-idle task is running.
 - [ ] 4.2 Add `BL` to the status GET output (`BL:T` / `BL:C` / `BL:0`).
-- [ ] 4.3 Keep the legacy `RA:1` / `RA:0` host commands as aliases for `BL:T` / `BS` per the modified `sync-state-model` spec.
+- [ ] 4.3 Remove the legacy `RA` command parser, `RA` status field, and the `sync_retract_assist_*` host-facing wiring; replies to `RA:*` become `ER:CMD`.
 - [ ] 4.4 Ensure `BS` releases lock and catch immediately and returns to `SYNC_OFF` with a normal stabilization pass.
 
 ## 5. Firmware: MV Guard Interaction

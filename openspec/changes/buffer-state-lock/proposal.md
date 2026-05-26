@@ -45,6 +45,9 @@ open-loop distance/feedrate.
 - **Repurpose the `SYNC_RETRACT_ASSIST` shell** (or add `SYNC_BUFFER_LOCK`) as
   the home state for prime → lock → catch → settle, replacing the dead
   reactive-at-compression logic.
+- **Remove the legacy `RA:1` / `RA:0` host commands** and the `RA` status
+  field. `RA` is unused by Klipper and any external host today, so it is
+  deleted outright rather than aliased — the new surface is `BL` only.
 - **Klipper:** replace the blind `MV:...:I` with two `BL` arm calls — one before
   each extruder retract — so each move gets a freshly-primed full runway. Remove
   the magic `mmu_tip_retract` distance.

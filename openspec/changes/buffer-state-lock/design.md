@@ -83,8 +83,10 @@ unlock command — keep the surface small.
 
 **Alternatives considered:** extending `MV` with a "drive-to-state-and-hold"
 mode (rejected: `MV` is a distance/feedrate primitive, semantics differ);
-reusing `RA:1` (rejected: confusing because the existing `RA` is the gutted
-"quiet gate," and the new behavior must drive the motor, not be quiet).
+keeping `RA:1` as the host surface (rejected: `RA` is the gutted "quiet
+gate" name and the new behavior must drive the motor — the slot is reused,
+but the host-facing command is renamed to `BL` and the `RA` token is
+removed outright since no caller uses it).
 
 ### D2 — Half-max-travel bounded prime
 
@@ -281,6 +283,7 @@ The macro retains no distance/feedrate constants for the MMU side.
    now.
 3. **Locked-state watchdog timeout value.** 30s is a guess; size against
    the longest realistic delay between `BL` and the gated extruder move.
-4. **Whether to keep the `RA` protocol symbol.** Cleanest is to deprecate
-   `RA` and standardize on `BL`; backward-compat could also keep `RA:1` as
-   an alias for `BL:T`. Decide in implementation.
+4. ~~Whether to keep the `RA` protocol symbol.~~ **Resolved:** removed.
+   `RA:1` / `RA:0` and the `RA` status field are deleted; `RA` was unused
+   by Klipper and any external host, so no alias is needed. The new
+   surface is `BL` only.

@@ -8,11 +8,11 @@ preserved, and learning paused. While locked the gate SHALL NOT react to
 buffer changes; on raw departure from the armed extreme it SHALL transition
 into an instant-slam catch sub-state. The gate MUST NOT destructively reset
 estimator, drift, sigma, or reserve integrator state. The legacy `RA:1` /
-`RA:0` host commands SHALL remain accepted as aliases for `BL:T` and `BS`
-respectively for backward compatibility.
+`RA:0` host commands and the `RA` status field SHALL be removed; no alias
+is provided.
 
 #### Scenario: Host requests buffer lock
-- **WHEN** the host sends `BL:T` (or the legacy `RA:1`)
+- **WHEN** the host sends `BL:T`
 - **THEN** the controller enters `SYNC_RETRACT_ASSIST`
 - **AND** closed-loop sync and post-print negative sync stop
 - **AND** estimator/drift/sigma state is preserved
@@ -31,7 +31,12 @@ respectively for backward compatibility.
   `min(GLOBAL_MAX_SPS, SYNC_MAX_SPS)` with no PD ramp on the first step
 
 #### Scenario: Host clears buffer lock
-- **WHEN** the host sends `BS` (or the legacy `RA:0`)
+- **WHEN** the host sends `BS`
 - **THEN** the controller leaves `SYNC_RETRACT_ASSIST`
 - **AND** immediately attempts post-print negative sync once so an already
   compressed buffer can start reversing without an idle dwell
+
+#### Scenario: Legacy RA command is rejected
+- **WHEN** the host sends `RA:1` or `RA:0`
+- **THEN** the controller replies `ER:CMD`
+- **AND** no state change occurs
