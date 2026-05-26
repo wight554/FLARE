@@ -1115,17 +1115,19 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         buf_state_t raw = buf_state_raw();
 
         if (raw != g_bl_target_state) {
-            /* Lock-break: instant slam in mirror direction */
+            /* Lock-break: controlled release toward the opposite extreme.
+             * BL:T → feed (forward=true) to fill buffer toward COMPRESSION.
+             * BL:C → retract (forward=false) to drain buffer toward TENSION.
+             * Settle fires when the opposite extreme is reached, then releases. */
             int idx = A->lane_id - 1;
             (void)idx;
             int slam_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
-            /* Mirror direction: same as prime direction */
-            bool forward = (g_bl_target_state == BUF_COMPRESSION);
+            bool forward = (g_bl_target_state == BUF_TENSION);
             motor_set_dir(&A->m, forward);
             motor_set_rate_sps(&A->m, slam_sps);
 
             g_bl_sub_state = BL_CATCH;
-            g_bl_watchdog_ms = 0;
+            g_bl_watchdog_ms = now_ms + BL_WATCHDOG_DEFAULT_MS;
             cmd_event("BL", "BREAK");
 
         } else if (g_bl_watchdog_ms != 0 &&
@@ -1136,8 +1138,8 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         }
 
     } else if (g_bl_sub_state == BL_CATCH) {
-        /* Keep slamming. Auto-settle when buffer reaches opposite extreme.
-         * Over-drive back toward the armed extreme is safe (asymmetric safety,
+        /* Keep driving toward opposite extreme.
+         * Over-drive past the armed extreme is safe (asymmetric safety,
          * D5) and does NOT terminate the catch. */
         buf_state_t raw = buf_state_raw();
         buf_state_t opposite = (g_bl_target_state == BUF_TENSION)
@@ -1147,8 +1149,12 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
             /* Buffer has reached opposite extreme — auto-release */
             cmd_event("BL", "CATCH_SETTLE");
             sync_retract_assist_release(now_ms);
+        } else if (g_bl_watchdog_ms != 0 &&
+                   (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
+            /* Catch watchdog expired — force release */
+            cmd_event("EV:BL", "CATCH_TIMEOUT");
+            sync_retract_assist_release(now_ms);
         }
-        /* Motor continues at slam_sps; no change needed here */
     }
 }
 
