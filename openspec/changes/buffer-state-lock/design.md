@@ -180,13 +180,24 @@ envelope must be sized against the *worst case* the macro might emit.
 **Tuning levers** (any one resolves the worst case):
 
 1. Bump `global_max_rate` to ≥ 6500 mm/min (≈110 mm/s) — covers both moves
-   at 150mm/s extruder. Requires hardware that can sustain it.
+   at 150mm/s extruder. Requires hardware that can sustain it. Note the
+   runtime setter `SS:GLOBAL_MAX_RATE` is itself hard-clamped to
+   1000..5000 mm/min in `protocol.c:801`; lifting the catch ceiling above
+   83.3 mm/s requires raising that outer constant and reflashing.
 2. Bound the extruder-side retract feedrate to ≤ ~50 mm/s for the moves
    guarded by `BL:T`. No HW change; macro responsibility.
 3. Cut `BUF_HYST_MS` for the locked-state edge specifically (D4) —
    reclaims up to 4–5mm of runway at 140mm/s.
 
 Levers 2 and 3 stack with whatever ceiling we end up with.
+
+**Catch ceiling source.** The catch uses `min(GLOBAL_MAX_SPS, SYNC_MAX_SPS)`
+directly — **no separate `BL_CATCH_MAX_SPS` constant**. Raising the catch
+ceiling is therefore the same operation as raising the overall
+`GLOBAL_MAX_RATE` (and, if needed, the `protocol.c:801` outer hard-cap).
+Keeping the catch slaved to `GLOBAL_MAX_SPS` avoids two parallel rate-cap
+trees and makes the catch's worst-case ramp implicitly visible to other
+rate-aware code.
 
 ### D7 — State home: `SYNC_BUFFER_LOCK` (rename `SYNC_RETRACT_ASSIST`)
 
