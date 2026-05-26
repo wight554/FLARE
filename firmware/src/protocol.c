@@ -680,10 +680,15 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
     } else if (!strcmp(cmd, "BL")) {
         /* Buffer-lock arm command (task 4.1).
          * BL or BL:T → arm tension; BL:C → arm compression.
-         * Reject if sync active or non-idle task running. */
-        if (sync_enabled || controller_activity_in_progress()) {
+         * BL is allowed to take over from SYNC_ACTIVE: macros that issue
+         * BL during tip-forming run right after extruder moves that may
+         * have auto-engaged sync (AUTO_MODE + buffer tension). Disable
+         * sync non-destructively before arming. Reject only if a non-sync
+         * task (FL/UL/MV/AUTOLOAD/TC/cutter/manual_unload) is running. */
+        if (controller_activity_in_progress()) {
             cmd_reply("ER", "BUSY");
         } else {
+            if (sync_enabled) sync_disable(false);
             buf_state_t target = BUF_TENSION;
             if (p[0] == 'C') target = BUF_COMPRESSION;
             sync_buffer_lock_arm(target, now_ms);

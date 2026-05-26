@@ -19,9 +19,21 @@ in status as `BL:T`, `BL:C`, or `BL:0` (disarmed).
 - **THEN** the controller acknowledges with `OK`
 - **AND** status reports `BL:C` until the lock is broken or released
 
-#### Scenario: BL rejected while sync active
+#### Scenario: BL takes over from active sync
 - **WHEN** the host sends `BL:T`
-- **AND** the controller is in `SYNC_ACTIVE` or running a non-idle task
+- **AND** the controller is in `SYNC_ACTIVE`
+- **AND** no non-sync task (FL/UL/MV/AUTOLOAD/TC/cutter/manual_unload) is
+  running on either lane
+- **THEN** the controller calls `sync_disable(false)` (non-destructive;
+  estimator/drift/sigma/integrator preserved)
+- **AND** acknowledges with `OK`
+- **AND** enters the prime sub-state of the buffer-lock lifecycle
+
+#### Scenario: BL rejected while non-sync task running
+- **WHEN** the host sends `BL:T`
+- **AND** a non-sync task is running on either lane, or the toolchange
+  orchestrator is mid-flight, or the cutter is busy, or a manual unload
+  state machine is active, or boot stabilize is still in progress
 - **THEN** the controller rejects with `ER:BUSY`
 - **AND** no motor motion is started
 
