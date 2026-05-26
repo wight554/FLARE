@@ -139,7 +139,9 @@ typedef enum {
 
 static bl_sub_state_t g_bl_sub_state = BL_IDLE;
 static buf_state_t    g_bl_target_state = BUF_TENSION;
-static uint32_t       g_bl_prime_deadline_ms = 0;
+static uint32_t       g_bl_prime_start_ms = 0;   /* when prime began (for distance tracking) */
+static float          g_bl_prime_mm_per_s = 0.0f; /* stab speed in mm/s at prime start */
+static float          g_bl_prime_cap_mm   = 0.0f; /* distance cap for this prime */
 static uint32_t       g_bl_watchdog_ms = 0;
 #define BL_WATCHDOG_DEFAULT_MS 30000u
 /* Suppress sync auto-start on BUF_TENSION after a BL abort (ST path).
@@ -1004,7 +1006,9 @@ void sync_retract_assist_set(bool enabled) {
                 motor_enable(&A->m, false);
             }
             g_bl_sub_state = BL_IDLE;
-            g_bl_prime_deadline_ms = 0;
+            g_bl_prime_start_ms = 0;
+            g_bl_prime_mm_per_s = 0.0f;
+            g_bl_prime_cap_mm   = 0.0f;
             g_bl_watchdog_ms = 0;
             sync_set_state(SYNC_OFF);
             /* Suppress auto-start: buffer is at the BL extreme, not extruder-driven. */
@@ -1048,16 +1052,27 @@ void sync_buffer_lock_arm(buf_state_t target, uint32_t now_ms) {
 
     g_bl_target_state = target;
 
-    /* Calculate prime deadline from the full-travel cap.
-     * The arm may rest anywhere in the travel range, so worst-case is full
-     * travel distance to the target endstop: cap_mm = BUF_MAX_TRAVEL_MM. */
+    /* Compute prime distance cap.
+     * Worst-case starting position: arm at max over-compression, i.e.
+     *   (max_travel - switch_span) / 2  past the COMPRESSION switch.
+     * Distance from there to the TENSION switch:
+     *   max_travel - (max_travel - switch_span) / 2
+     *   = (max_travel + switch_span) / 2
+     * Multiply by 0.9 to leave a 10% margin before the mechanical hard stop.
+     * BUF_MAX_TRAVEL_MM is the absolute sanity ceiling.
+     * Prime runs at BUF_STAB_SPS (slow stabilization speed) to avoid
+     * overtravel past the endstop between switch detection ticks. */
     int idx = A->lane_id - 1;
     float mm_per_s = (float)BUF_STAB_SPS * MM_PER_STEP[idx];
-    float cap_mm = (BUF_MAX_TRAVEL_MM > 0) ? ((float)BUF_MAX_TRAVEL_MM) : 25.0f;
-    uint32_t cap_ms = (mm_per_s > 0.0f)
-        ? (uint32_t)(cap_mm / mm_per_s * 1000.0f + 0.5f)
-        : 5000u;
-    g_bl_prime_deadline_ms = now_ms + cap_ms;
+    float switch_span_mm = BUF_SWITCH_SPAN_HALF_MM * 2.0f;
+    float cap_mm = (BUF_MAX_TRAVEL_MM > 0)
+        ? ((float)BUF_MAX_TRAVEL_MM + switch_span_mm) * 0.5f * 0.9f
+        : 15.75f;
+    float max_cap_mm = (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : 25.0f;
+    if (cap_mm < 5.0f || cap_mm > max_cap_mm) cap_mm = max_cap_mm;
+    g_bl_prime_start_ms = now_ms;
+    g_bl_prime_mm_per_s = mm_per_s;
+    g_bl_prime_cap_mm   = cap_mm;
     g_bl_watchdog_ms = 0;
     g_bl_sub_state = BL_PRIME;
 
@@ -1094,7 +1109,10 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
     if (g_bl_sub_state == BL_PRIME) {
         buf_state_t raw = buf_state_raw();
         bool reached = (raw == g_bl_target_state);
-        bool deadline_hit = ((int32_t)(now_ms - g_bl_prime_deadline_ms) >= 0);
+        float traveled_mm = (g_bl_prime_mm_per_s > 0.0f)
+            ? ((float)(now_ms - g_bl_prime_start_ms) / 1000.0f * g_bl_prime_mm_per_s)
+            : g_bl_prime_cap_mm;
+        bool deadline_hit = (traveled_mm >= g_bl_prime_cap_mm);
 
         if (reached || deadline_hit) {
             /* Prime done — stop motor but keep enabled for holding torque */
