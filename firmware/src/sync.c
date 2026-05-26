@@ -1174,9 +1174,14 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
              *
              * Direction == prime direction (NOT inverted). Asymmetric
              * safety: over-drive back past the armed extreme is recoverable
-             * by design (D5), so the catch does not throttle on re-entry. */
+             * by design (D5), so the catch does not throttle on re-entry.
+             *
+             * Catch ceiling = GLOBAL_MAX_SPS (lane motor cap), NOT
+             * SYNC_MAX_SPS. Normal sync PD (SYNC_ACTIVE branch) keeps its
+             * own SYNC_MAX_SPS ceiling; raising the catch ceiling does not
+             * affect print-time sync. */
             int idx = A->lane_id - 1;
-            int slam_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
+            int slam_sps = motion_clamp_rate_sps(GLOBAL_MAX_SPS);
             bool forward = (g_bl_target_state == BUF_COMPRESSION);
             motor_set_dir(&A->m, forward);
             motor_set_rate_sps(&A->m, slam_sps);

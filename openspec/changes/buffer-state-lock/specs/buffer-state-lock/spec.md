@@ -94,7 +94,7 @@ to the catch sub-state on the first raw edge, without waiting for the
 ### Requirement: Instant-Slam Catch With Asymmetric Safety
 On lock-break the firmware SHALL drive the active lane in the mirror
 direction (retract for `BL:T` break, feed for `BL:C` break) at
-`min(GLOBAL_MAX_SPS, SYNC_MAX_SPS)` via an instant `current_sps = target`
+`GLOBAL_MAX_SPS` via an instant `current_sps = target`
 write, bypassing `SYNC_RAMP_UP_SPS`. The catch MUST tolerate transient
 over-drive back toward the armed extreme as a safe recoverable direction
 and SHALL NOT throttle the catch to avoid it.
@@ -102,7 +102,7 @@ and SHALL NOT throttle the catch to avoid it.
 #### Scenario: Tension-armed catch slams retract
 - **WHEN** the lane was locked at `BUF_TENSION` and the lock is broken
 - **THEN** the active lane drives in the retract direction at
-  `min(GLOBAL_MAX_SPS, SYNC_MAX_SPS)` on the same tick as the break
+  `GLOBAL_MAX_SPS` on the same tick as the break
 - **AND** no PD ramp is applied to the initial step
 
 #### Scenario: Over-drive back to tension is permitted

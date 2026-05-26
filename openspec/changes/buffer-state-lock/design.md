@@ -134,7 +134,8 @@ sentinel command (rejected: round-trip latency worse than sensor).
 ### D5 — Catch = instant slam SPS, asymmetric safety
 
 On lock-break, the active lane is driven in the **mirror direction** at
-`min(GLOBAL_MAX_SPS, SYNC_MAX_SPS)` using an instant `current_sps = target`
+`GLOBAL_MAX_SPS` (lane motor ceiling, decoupled from `SYNC_MAX_SPS`)
+using an instant `current_sps = target`
 write (no `SYNC_RAMP_UP_SPS`). This is the exact mechanism the deleted
 `retract_assist_drive` used at `f19f41a:firmware/src/sync.c:962`. The
 soft PD ramp is bypassed for the catch; effective acceleration is
@@ -191,13 +192,21 @@ envelope must be sized against the *worst case* the macro might emit.
 
 Levers 2 and 3 stack with whatever ceiling we end up with.
 
-**Catch ceiling source.** The catch uses `min(GLOBAL_MAX_SPS, SYNC_MAX_SPS)`
-directly — **no separate `BL_CATCH_MAX_SPS` constant**. Raising the catch
-ceiling is therefore the same operation as raising the overall
-`GLOBAL_MAX_RATE` (and, if needed, the `protocol.c:801` outer hard-cap).
-Keeping the catch slaved to `GLOBAL_MAX_SPS` avoids two parallel rate-cap
-trees and makes the catch's worst-case ramp implicitly visible to other
-rate-aware code.
+**Catch ceiling source.** The catch uses `GLOBAL_MAX_SPS` directly — the
+lane motor ceiling — **NOT** `SYNC_MAX_SPS` and **NOT** a separate
+`BL_CATCH_MAX_SPS` constant. This decouples the catch ceiling from the
+normal-sync PD ceiling (`SYNC_MAX_SPS`), so:
+
+- raising `GLOBAL_MAX_RATE` makes the catch slam faster without changing
+  the print-time sync feel (which stays capped by `SYNC_MAX_RATE`);
+- raising `SYNC_MAX_RATE` makes the print-time sync more responsive
+  without inadvertently raising the BL catch slam.
+
+Raising the catch ceiling past 5000 mm/min still requires lifting the
+`protocol.c:801` outer hard-cap and reflashing. Keeping the catch slaved
+to `GLOBAL_MAX_SPS` avoids two parallel rate-cap trees in the BL state
+machine itself, and matches the catch's open-loop slam character — bounded
+by motor capability, not by closed-loop stability.
 
 **Bench-validated operator envelope (rig data, NEMA17 + 50:17 gear).**
 
