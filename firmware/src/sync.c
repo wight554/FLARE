@@ -134,7 +134,6 @@ typedef enum {
     BL_IDLE = 0,
     BL_PRIME,   /* driving lane toward armed extreme at SYNC_MAX_SPS */
     BL_LOCKED,  /* holding at extreme; motor energized, zero net feed */
-    BL_CATCH,   /* instant-slam mirror drive after lock-break */
 } bl_sub_state_t;
 
 static bl_sub_state_t g_bl_sub_state = BL_IDLE;
@@ -145,12 +144,6 @@ static float          g_bl_prime_cap_mm   = 0.0f; /* abs 1: outer safety cap = B
 static bool           g_bl_prime_switch_hit    = false; /* switch fired during search phase */
 static uint32_t       g_bl_prime_post_start_ms = 0;    /* when post-click settle began */
 static float          g_bl_prime_post_cap_mm   = 0.0f; /* abs 2: post-click extra travel = (max-span)/2 */
-static uint32_t       g_bl_catch_start_ms = 0;   /* when catch slam began */
-static float          g_bl_catch_mm_per_s = 0.0f; /* slam target speed in mm/s */
-static float          g_bl_catch_cap_mm   = 0.0f; /* full-travel safety net */
-static bool           g_bl_catch_observed_non_target = false; /* raw left target during catch */
-static int            g_bl_catch_target_sps = 0;     /* commanded ceiling */
-static int            g_bl_catch_current_sps = 0;    /* ramped command */
 static uint32_t       g_bl_watchdog_ms = 0;
 #define BL_WATCHDOG_DEFAULT_MS 30000u
 /* Suppress sync auto-start on BUF_TENSION after a BL abort (ST path).
@@ -1021,12 +1014,6 @@ void sync_retract_assist_set(bool enabled) {
             g_bl_prime_switch_hit    = false;
             g_bl_prime_post_start_ms = 0;
             g_bl_prime_post_cap_mm   = 0.0f;
-            g_bl_catch_start_ms = 0;
-            g_bl_catch_mm_per_s = 0.0f;
-            g_bl_catch_cap_mm   = 0.0f;
-            g_bl_catch_observed_non_target = false;
-            g_bl_catch_target_sps = 0;
-            g_bl_catch_current_sps = 0;
             g_bl_watchdog_ms = 0;
             sync_set_state(SYNC_OFF);
             /* Suppress auto-start: buffer is at the BL extreme, not extruder-driven. */
@@ -1108,19 +1095,12 @@ const char *sync_buffer_lock_arm_str(void) {
     return (g_bl_target_state == BUF_TENSION) ? "T" : "C";
 }
 
-/* Returns true while the BL catch (instant-slam mirror drive) is active.
- * Used by the MV handler to emit a defensive sanity event (task 5.2). */
-bool sync_buffer_lock_catch_active(void) {
-    return g_sync_state == SYNC_RETRACT_ASSIST && g_bl_sub_state == BL_CATCH;
-}
-
-/* True while BL is driving the lane motor (PRIME or CATCH). False during
+/* True while BL is driving the lane motor (PRIME only). False during
  * LOCKED (motor at zero) and outside of SYNC_RETRACT_ASSIST. Used by
  * autopreload to know when IN-sensor edges come from BL motion (consume)
  * vs real operator insertion (process). */
 bool sync_buffer_lock_motor_moving(void) {
-    return g_sync_state == SYNC_RETRACT_ASSIST &&
-           (g_bl_sub_state == BL_PRIME || g_bl_sub_state == BL_CATCH);
+    return g_sync_state == SYNC_RETRACT_ASSIST && g_bl_sub_state == BL_PRIME;
 }
 
 /* Per-tick handler for the buffer-lock lifecycle.
@@ -1171,133 +1151,15 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         }
 
     } else if (g_bl_sub_state == BL_LOCKED) {
-        /* Detect raw departure from armed extreme — lock-break.
-         * No debounce: D4 explicitly requires same-tick transition. */
-        buf_state_t raw = buf_state_raw();
-
-        if (raw != g_bl_target_state) {
-            /* Lock-break: mirror the external (extruder) force that pushed
-             * the buffer off the armed extreme.
-             *
-             * BL:T armed at TENSION → extruder is retracting (filling the
-             *   buffer toward COMPRESSION); MMU must also RETRACT
-             *   (forward=false) to drain in lockstep and keep buffer near
-             *   TENSION. Same direction as the prime — both pull filament
-             *   out of the buffer.
-             * BL:C armed at COMPRESSION → extruder is extruding (draining
-             *   the buffer toward TENSION); MMU must also FORWARD
-             *   (forward=true) to push filament back in.
-             *
-             * Direction == prime direction (NOT inverted). Asymmetric
-             * safety: over-drive back past the armed extreme is recoverable
-             * by design (D5), so the catch does not throttle on re-entry.
-             *
-             * Catch ceiling = GLOBAL_MAX_SPS (lane motor cap), NOT
-             * SYNC_MAX_SPS. Normal sync PD (SYNC_ACTIVE branch) keeps its
-             * own SYNC_MAX_SPS ceiling; raising the catch ceiling does not
-             * affect print-time sync. */
-            int idx = A->lane_id - 1;
-            int slam_sps = motion_clamp_rate_sps(GLOBAL_MAX_SPS);
-            bool forward = (g_bl_target_state == BUF_COMPRESSION);
-            motor_set_dir(&A->m, forward);
-
-            /* Don't instant-slam to slam_sps: from 0 to ~60 mm/s in a
-             * single command exceeds motor accel and skips steps even
-             * under light load (observed: stall during catch, OVERRUN
-             * fires with motor not actually retracting). Seed the
-             * commanded rate at RAMP_STEP_SPS (the lane cold-start
-             * velocity, tuned to be within motor pull-in) and let the
-             * tick body below ramp it up at lane-equivalent accel. */
-            g_bl_catch_target_sps = slam_sps;
-            g_bl_catch_current_sps = motion_clamp_rate_sps(RAMP_STEP_SPS);
-            if (g_bl_catch_current_sps > slam_sps) g_bl_catch_current_sps = slam_sps;
-            motor_set_rate_sps(&A->m, g_bl_catch_current_sps);
-
-            /* Catch distance cap = full buffer travel as a safety net.
-             * Primary terminator is "buffer returns to armed target" (MMU
-             * caught up, extruder move ended); the cap exists only to
-             * abort runaway catches. Sizing it small (e.g. 7.5 mm) caused
-             * the catch to stop mid-extruder-move, after which the still-
-             * retracting extruder filled the buffer all the way to the
-             * opposite extreme — observed as a compression slam ~165 ms
-             * into a 240 ms park move. */
-            float post_sw_mm = (BUF_MAX_TRAVEL_MM > 0)
-                ? (float)BUF_MAX_TRAVEL_MM
-                : 25.0f;
-            g_bl_catch_start_ms = now_ms;
-            g_bl_catch_mm_per_s = (float)slam_sps * MM_PER_STEP[idx];
-            g_bl_catch_cap_mm   = post_sw_mm;
-            g_bl_catch_observed_non_target = true;  /* lock-break = raw left target */
-
-            g_bl_sub_state = BL_CATCH;
-            g_bl_watchdog_ms = now_ms + BL_WATCHDOG_DEFAULT_MS;
-            cmd_event("BL", "BREAK");
-
-        } else if (g_bl_watchdog_ms != 0 &&
-                   (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
-            /* Watchdog expired — auto-release */
+        /* Passive lock: motor energized at zero rate (holding torque),
+         * buffer free to migrate via external force (extruder retract
+         * fills buffer toward opposite extreme — that's fine, mass
+         * balance absorbs it). No reactive catch — the macro is
+         * responsible for calling BS to release after the move. Only
+         * the watchdog can break the lock from inside the firmware. */
+        if (g_bl_watchdog_ms != 0 &&
+            (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
             cmd_event("EV:BL", "TIMEOUT");
-            sync_retract_assist_release(now_ms);
-        }
-
-    } else if (g_bl_sub_state == BL_CATCH) {
-        /* Catch is mirroring the external force that broke the lock.
-         * Termination priority:
-         *   1. Buffer returned to armed target (MMU caught up + extruder
-         *      move ended → buffer naturally drains back to TENSION for
-         *      BL:T or fills back to COMPRESSION for BL:C). SUCCESS path.
-         *   2. Buffer reached opposite extreme. OVERWHELM path (MMU
-         *      couldn't keep up).
-         *   3. Distance cap (full buffer travel) — safety net only.
-         *   4. Watchdog — time safety net.
-         */
-        buf_state_t raw = buf_state_raw();
-        buf_state_t opposite = (g_bl_target_state == BUF_TENSION)
-            ? BUF_COMPRESSION : BUF_TENSION;
-
-        if (raw != g_bl_target_state) {
-            g_bl_catch_observed_non_target = true;
-        }
-
-        /* Ramp commanded rate up to target across catch ticks. Step =
-         * RAMP_STEP_SPS scaled to the sync tick period (sync_tick is
-         * typically 4× ramp_tick, so multiply step by the ratio).
-         * Same effective accel as the lane ramp, just sampled at sync
-         * cadence. Reaches target in ~1–2 sync ticks at typical config. */
-        if (g_bl_catch_current_sps < g_bl_catch_target_sps) {
-            int ramp_ratio = (RAMP_TICK_MS > 0) ? (SYNC_TICK_MS / RAMP_TICK_MS) : 1;
-            if (ramp_ratio < 1) ramp_ratio = 1;
-            int step = RAMP_STEP_SPS * ramp_ratio;
-            if (step < 1) step = 1;
-            g_bl_catch_current_sps += step;
-            if (g_bl_catch_current_sps > g_bl_catch_target_sps) {
-                g_bl_catch_current_sps = g_bl_catch_target_sps;
-            }
-            motor_set_rate_sps(&A->m, g_bl_catch_current_sps);
-        }
-
-        float catch_traveled = (g_bl_catch_mm_per_s > 0.0f)
-            ? ((float)(now_ms - g_bl_catch_start_ms) / 1000.0f * g_bl_catch_mm_per_s)
-            : g_bl_catch_cap_mm;
-        bool catch_overrun = (catch_traveled >= g_bl_catch_cap_mm);
-
-        if (g_bl_catch_observed_non_target && raw == g_bl_target_state) {
-            /* Buffer returned to armed extreme — catch succeeded, MMU
-             * mirrored the external force and the move has ended. */
-            cmd_event("BL", "CATCH_DONE");
-            sync_retract_assist_release(now_ms);
-        } else if (raw == opposite) {
-            /* Buffer reached opposite extreme despite MMU effort — catch
-             * overwhelmed. Release; subsequent stabilize handles cleanup. */
-            cmd_event("BL", "CATCH_OVERWHELM");
-            sync_retract_assist_release(now_ms);
-        } else if (catch_overrun) {
-            /* Distance cap (full travel) hit — defensive safety net. */
-            cmd_event("EV:BL", "CATCH_OVERRUN");
-            sync_retract_assist_release(now_ms);
-        } else if (g_bl_watchdog_ms != 0 &&
-                   (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
-            cmd_event("EV:BL", "CATCH_TIMEOUT");
             sync_retract_assist_release(now_ms);
         }
     }

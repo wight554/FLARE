@@ -85,3 +85,44 @@ misleading mm/min slew-per-tick).
 - [ ] 9.11 If task 9.10 surfaces zone-bias overshoot in `NEUTRAL` recovery, apply `zone_bias_max ← zone_bias_max / √k` and re-soak.
 - [ ] 9.12 Bench the two-extreme envelope from explore: 300 mm/min slow extrusion (5 mm/s) and 1500 mm/min fast (25 mm/s). Confirm 150 mm/s² sync slew keeps drift under ~1 mm at both ends; if drift unacceptable at the fast end, raise `sync_ramp_accel` toward 200–300 mm/s² and re-apply kp scaling.
 - [ ] 9.13 Record the final per-rig tuned values (`global_max_accel`, `sync_ramp_accel`, `sync_kp_rate`, any `zone_bias_*` overrides) in a rig notes file or `BEHAVIOR.md` appendix.
+
+## 10. Catch Removal (post-bench reversal)
+
+Bench testing revealed the reactive catch was solving a non-problem. The
+operator confirmed the legacy `MV:-{mmu_tip_retract}:{park_speed*60*0.2}:I`
+flow always reached the COMPRESSION endstop during long unloads — and
+that was **accepted behavior**, not a failure mode. Buffer mechanically
+absorbs extruder retract; filament bunches in buffer; no motor stall
+because the MMU is idle (not fighting taut filament). The catch added
+stall risk (motor commanded to retract against still-taut filament at
+lock-break) without preventing any real failure.
+
+**Decision: drop the catch entirely. Keep prime + passive locked + watchdog.**
+
+### What was removed
+- `BL_CATCH` sub-state in `firmware/src/sync.c`.
+- All `g_bl_catch_*` statics (start_ms, mm_per_s, cap_mm, observed_non_target, target_sps, current_sps).
+- Lock-break handler in `BL_LOCKED` (raw transition no longer triggers catch).
+- Catch tick body (ramped slam, terminator priority chain, OVERRUN cap).
+- Events: `BL:BREAK`, `BL:CATCH_DONE`, `BL:CATCH_OVERWHELM`, `EV:BL:CATCH_OVERRUN`, `EV:BL:CATCH_TIMEOUT`, `BL:MV_DURING_CATCH`.
+- `sync_buffer_lock_catch_active()` function + `sync.h` declaration.
+- `MV_DURING_CATCH` defensive guard in `protocol.c` MV handler.
+
+### What remains
+- `BL_PRIME` → drains buffer to switch click, stops at click.
+- `BL_LOCKED` → motor energized at zero rate (holding torque); buffer free to migrate via external force. Only watchdog can break the lock from firmware.
+- `BS` → releases lock; subsequent stabilize handles cleanup.
+
+### Tasks superseded
+- 2.2 (slam helper) — slam direct-write helper deleted with catch path.
+- 2.3 (lock-break detection) — no longer wired; lock is passive.
+- 3.8 (catch distance cap) — removed with catch.
+- HW:3.8 (CATCH_OVERRUN bench check) — N/A.
+- 5.1, 5.2 (MV guards during catch / sanity event) — N/A, no catch state to suppress.
+- 7.5 (full catch lifecycle smoke) — rewrite as prime-only smoke.
+
+### New tasks
+- [ ] 10.1 Bench: `BL:T` → extruder retract (tip-forming length, ≤20 mm) → buffer ends in TENSION zone, no slam.
+- [ ] 10.2 Bench: `BL:T` → extruder long retract (50-150 mm park unload) → buffer reaches COMPRESSION endstop, no motor stall, no `EV:BL:*` faults. Confirm `BS` recovers cleanly.
+- [ ] 10.3 Update design.md §D5 (asymmetric safety) and §D6 (envelope) to reflect that catch is gone; buffer endstop on retract is accepted.
+- [ ] 10.4 Mark `_FLARE_TIP_FORMING` / `_FLARE_UNLOAD_TOOLHEAD` macros: remove any "expect BL:BREAK / CATCH_DONE" log assertions if present.

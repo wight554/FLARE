@@ -623,15 +623,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             return;
         }
 
-        /* Task 5.2: sanity event if MV starts while BL catch active.
-         * Should be unreachable by a correct macro sequence. The BL catch
-         * is sync-owned (task=TASK_IDLE) so MV buffer fault guards never
-         * fire during it by construction (task 5.1). */
-        bool bl_catch_was_active = sync_buffer_lock_catch_active();
         sync_retract_assist_set(false);
         sync_set_state(SYNC_OFF);
         sync_disable(false);
-        if (bl_catch_was_active) cmd_event("BL", "MV_DURING_CATCH");
         lane_start(A, TASK_MOVE, sps, forward, now_ms, limit);
         A->move_ignore_buffer = ignore_buffer;
         cmd_reply("OK", NULL);
