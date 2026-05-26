@@ -617,6 +617,43 @@ def analyze_stability(samples: List[Sample], events,
 
 
 # ---------------------------------------------------------------------------
+# DRIFT analysis (companion to STABILITY for autotune saddle search)
+# ---------------------------------------------------------------------------
+def analyze_drift(samples: List[Sample],
+                  endstop_threshold_pct: float = 30.0
+                  ) -> Tuple[str, List[str]]:
+    """Time-in-endstop check: if the buffer spends more than threshold% at
+    TENSION or COMPRESSION combined, sync is lagging the extruder demand —
+    typically because sync_kp_rate is too low. Companion to analyze_stability
+    for autotune: ringing means kp too high, drift means kp too low; healthy
+    print has buffer mostly at NEUTRAL with brief endstop excursions."""
+    report: List[str] = []
+    counts = {"TENSION": 0, "COMPRESSION": 0, "NEUTRAL": 0}
+    total = 0
+    for s in samples:
+        cur = s.s("BUF")
+        if cur in counts:
+            counts[cur] += 1
+            total += 1
+    if total < 10:
+        return "INCONCLUSIVE", report + [
+            "  too few samples for drift analysis"]
+
+    pct = {k: 100.0 * v / total for k, v in counts.items()}
+    endstop_pct = pct["TENSION"] + pct["COMPRESSION"]
+    report.append(f"  BUF time: NEUTRAL {pct['NEUTRAL']:.0f}% "
+                  f"TENSION {pct['TENSION']:.0f}% "
+                  f"COMPRESSION {pct['COMPRESSION']:.0f}%")
+    report.append(f"  endstop total: {endstop_pct:.0f}% "
+                  f"(threshold {endstop_threshold_pct:.0f}%)")
+    if endstop_pct > endstop_threshold_pct:
+        return "FAIL", report + [
+            f"  drift: sync lagging extruder demand. "
+            f"Raise SYNC_KP_RATE."]
+    return "PASS", report
+
+
+# ---------------------------------------------------------------------------
 # ESTIMATOR analysis (D2 — maneuver M4)
 # ---------------------------------------------------------------------------
 def analyze_estimator(samples: List[Sample], events, factor: float,
@@ -719,6 +756,37 @@ def capture_live(port: Optional[str], poll_ms: int, duration: Optional[float]
     return lines
 
 
+def daemon_send_cmd(url: str, cmd_str: str,
+                    timeout: float = 5.0) -> Optional[str]:
+    """POST a single FLARE command (e.g. 'SET:SYNC_KP_RATE:200') to the
+    daemon /cmd endpoint and return the device response string, or None on
+    failure."""
+    try:
+        data = json.dumps({"cmd": cmd_str}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{url}/cmd", data=data,
+            headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=timeout + 1.0) as response:
+            if response.status == 200:
+                res = json.loads(response.read().decode("utf-8"))
+                return res.get("response")
+    except Exception:
+        return None
+    return None
+
+
+def daemon_get_float(url: str, name: str) -> Optional[float]:
+    """GET:<name> via daemon, parse trailing float from OK:NAME:value."""
+    resp = daemon_send_cmd(url, f"GET:{name}")
+    if not resp:
+        return None
+    parts = resp.strip().split(":")
+    try:
+        return float(parts[-1])
+    except (ValueError, IndexError):
+        return None
+
+
 def capture_daemon(url: str, poll_ms: int, duration: Optional[float]) -> List[str]:
     interval = poll_ms / 1000.0
     endpoint = url.rstrip("/") + "/status"
@@ -768,6 +836,117 @@ def capture_daemon(url: str, poll_ms: int, duration: Optional[float]) -> List[st
     return lines
 
 
+def run_tune(args) -> int:
+    """Autotune SYNC_KP_RATE during a live print. Saddle search:
+    ringing -> kp too high -> divide by step; drift -> kp too low ->
+    multiply by step. Converges when both stability and drift PASS.
+
+    Requires --daemon (the device is shared; live serial would conflict).
+    The operator must be actively printing so the loop has disturbances to
+    measure. Bails on min/max kp or unstable-at-this-accel signature.
+    """
+    if not args.daemon:
+        print("ERROR: --mode tune requires --daemon (shared device access).")
+        return 1
+    url = args.daemon_url
+
+    kp_initial = daemon_get_float(url, "SYNC_KP_RATE")
+    accel_now = daemon_get_float(url, "SYNC_RAMP_ACCEL")
+    if kp_initial is None or accel_now is None:
+        print("ERROR: failed to read SYNC_KP_RATE / SYNC_RAMP_ACCEL via daemon.")
+        return 1
+
+    if args.tune_set_accel is not None:
+        resp = daemon_send_cmd(url, f"SET:SYNC_RAMP_ACCEL:{args.tune_set_accel}")
+        if resp is None:
+            print("ERROR: failed to SET SYNC_RAMP_ACCEL.")
+            return 1
+        accel_now = float(args.tune_set_accel)
+        print(f"# set SYNC_RAMP_ACCEL={accel_now:.0f} mm/s²")
+
+    kp_min = args.tune_kp_min
+    kp_max = args.tune_kp_max if args.tune_kp_max > 0 else kp_initial * 4.0
+    kp_cur = kp_initial
+    history: List[Tuple[float, str, str]] = []
+
+    print(f"# autotune start: kp={kp_cur:.0f}, sync_ramp_accel={accel_now:.0f}")
+    print(f"# bounds: kp ∈ [{kp_min:.0f}, {kp_max:.0f}], "
+          f"step ×/{args.tune_kp_step}, max {args.tune_iter_max} iterations")
+    print(f"# window {args.tune_window_sec}s, poll {args.poll}ms")
+    print(f"# NOTE: print must be active throughout. Ctrl+C aborts cleanly.")
+
+    try:
+        for i in range(args.tune_iter_max):
+            print(f"\n=== iter {i+1}/{args.tune_iter_max}: "
+                  f"kp={kp_cur:.0f}, accel={accel_now:.0f} ===")
+            lines = capture_daemon(url, args.poll,
+                                   float(args.tune_window_sec))
+            samples, events = parse_stream(lines)
+            print(f"# parsed {len(samples)} samples")
+
+            s_v, s_rep = analyze_stability(
+                samples, events, args.poll,
+                args.stability_cycle_hz, args.stability_window_sec)
+            d_v, d_rep = analyze_drift(samples, args.tune_drift_pct)
+
+            print(f"STABILITY: {s_v}")
+            for line in s_rep:
+                print(line)
+            print(f"DRIFT: {d_v}")
+            for line in d_rep:
+                print(line)
+            history.append((kp_cur, s_v, d_v))
+
+            if s_v == "PASS" and d_v == "PASS":
+                print(f"\nCONVERGED: SYNC_KP_RATE={kp_cur:.0f} mm/min "
+                      f"@ SYNC_RAMP_ACCEL={accel_now:.0f} mm/s².")
+                print(f"  apply permanently with: "
+                      f"SET:SYNC_KP_RATE:{int(round(kp_cur))}")
+                return 0
+
+            if s_v == "FAIL" and d_v == "FAIL":
+                print(f"\nUNSTABLE: ringing AND drift at kp={kp_cur:.0f}. "
+                      f"System cannot follow at SYNC_RAMP_ACCEL={accel_now:.0f}. "
+                      f"Try lowering accel and re-run.")
+                return 1
+            if s_v == "INCONCLUSIVE" and d_v == "INCONCLUSIVE":
+                print(f"\nINCONCLUSIVE: capture too quiet — extruder idle? "
+                      f"Print harder or raise --tune-window-sec.")
+                return 2
+
+            if s_v == "FAIL":
+                kp_cur = kp_cur / args.tune_kp_step
+                why = "ringing -> lower kp"
+            elif d_v == "FAIL":
+                kp_cur = kp_cur * args.tune_kp_step
+                why = "drift -> raise kp"
+            else:
+                kp_cur = kp_cur / args.tune_kp_step
+                why = "partial PASS -> nudge kp down"
+
+            if kp_cur < kp_min:
+                print(f"\nFLOOR: kp would go below {kp_min:.0f}; bail.")
+                return 1
+            if kp_cur > kp_max:
+                print(f"\nCEILING: kp would exceed {kp_max:.0f}; bail.")
+                return 1
+
+            kp_int = int(round(kp_cur))
+            resp = daemon_send_cmd(url, f"SET:SYNC_KP_RATE:{kp_int}")
+            if resp is None:
+                print(f"\nERROR: failed to SET:SYNC_KP_RATE:{kp_int}")
+                return 1
+            print(f"# {why}: SET SYNC_KP_RATE={kp_int} (was {history[-1][0]:.0f})")
+
+        print(f"\nMAX_ITER: did not converge in {args.tune_iter_max} steps.")
+        print(f"  history: {history}")
+        return 1
+    except KeyboardInterrupt:
+        print(f"\n# autotune aborted. restoring SYNC_KP_RATE={int(kp_initial)}.")
+        daemon_send_cmd(url, f"SET:SYNC_KP_RATE:{int(round(kp_initial))}")
+        return 130
+
+
 def write_csv(path: str, samples: List[Sample]) -> None:
     import csv
     with open(path, "w", newline="") as fh:
@@ -806,20 +985,39 @@ def main() -> int:
     ap.add_argument("--mode",
                     choices=("purge", "regression", "rearm", "estimator",
                              "stabilize", "stability", "buffer-lock",
-                             "both", "all"),
+                             "tune", "both", "all"),
                     default="both",
                     help="Which check(s) to run ('both'=purge+regression, "
                          "'all'=every analyzer). 'stabilize'=M1 Recipe A "
                          "(BUF_STAB -> NEUTRAL, no spurious AUTO_START). "
                          "'stability'=sync-loop ringing during print soak "
                          "(task 9.10). 'buffer-lock'=BL lifecycle "
-                         "(prime/locked/catch/settle and no MV faults).")
+                         "(prime/locked/catch/settle and no MV faults). "
+                         "'tune'=autotune SYNC_KP_RATE during a live print "
+                         "(requires --daemon).")
     ap.add_argument("--stability-cycle-hz", type=float, default=1.0,
                     help="stability mode: max allowed BUF cycles/sec over the "
                          "sliding window before FAIL (default 1.0).")
     ap.add_argument("--stability-window-sec", type=int, default=3,
                     help="stability mode: sliding window length in seconds "
                          "(default 3).")
+    ap.add_argument("--tune-set-accel", type=float, default=None,
+                    help="tune mode: SET SYNC_RAMP_ACCEL to this (mm/s²) "
+                         "before starting; default leaves it as-is.")
+    ap.add_argument("--tune-iter-max", type=int, default=6,
+                    help="tune mode: max search iterations (default 6).")
+    ap.add_argument("--tune-window-sec", type=int, default=30,
+                    help="tune mode: capture seconds per iteration (default 30).")
+    ap.add_argument("--tune-kp-step", type=float, default=1.5,
+                    help="tune mode: kp multiplier/divisor per step (default 1.5).")
+    ap.add_argument("--tune-kp-min", type=float, default=100.0,
+                    help="tune mode: bail if kp would go below this (mm/min).")
+    ap.add_argument("--tune-kp-max", type=float, default=0.0,
+                    help="tune mode: bail if kp would exceed this (mm/min); "
+                         "0 = 4× the starting kp.")
+    ap.add_argument("--tune-drift-pct", type=float, default=30.0,
+                    help="tune mode: max combined TENSION+COMPRESSION time %% "
+                         "before drift FAIL (default 30).")
     ap.add_argument("--idle", action="store_true",
                     help="rearm mode: this capture is idle — any re-arm is a FAIL")
     ap.add_argument("--allow-terminal-idle-relief", action="store_true",
@@ -843,6 +1041,9 @@ def main() -> int:
 
     threshold = args.switch_span_mm / 2.0
     hardwall = args.max_travel_mm / 2.0
+
+    if args.mode == "tune":
+        return run_tune(args)
 
     if args.live:
         lines = capture_live(args.port, args.poll, args.duration)
