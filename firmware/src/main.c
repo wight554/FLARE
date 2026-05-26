@@ -307,6 +307,16 @@ static void autopreload_tick(uint32_t now_ms) {
         return;
     }
 
+    /* Suppress auto-load while buffer-lock is active (SYNC_RETRACT_ASSIST).
+     * BL prime/catch drive the motor directly at TASK_IDLE; the IN-sensor
+     * rising edge during catch would otherwise spuriously launch TASK_LOAD_FULL.
+     * Update prev_* so the edge is consumed and does not fire on release. */
+    if (g_sync_state == SYNC_RETRACT_ASSIST) {
+        prev_lane1_in_present = lane_in_present(&g_lane_l1);
+        prev_lane2_in_present = lane_in_present(&g_lane_l2);
+        return;
+    }
+
     bool in1 = lane_in_present(&g_lane_l1);
     bool in2 = lane_in_present(&g_lane_l2);
 
