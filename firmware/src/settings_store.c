@@ -145,7 +145,7 @@ void settings_defaults(void) {
     REV_SPS = CONF_REV_SPS;
     AUTO_SPS = CONF_AUTO_SPS;
 
-    GLOBAL_MAX_SPS = clamp_i(CONF_GLOBAL_MAX_SPS, mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(5000.0f));
+    GLOBAL_MAX_SPS = clamp_i(CONF_GLOBAL_MAX_SPS, mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
     SYNC_MAX_SPS = sync_clamp_max_sps(CONF_SYNC_MAX_SPS);
     SYNC_MIN_SPS = CONF_SYNC_MIN_SPS;
     SYNC_RAMP_UP_SPS = CONF_SYNC_RAMP_UP_SPS;
@@ -482,7 +482,7 @@ void settings_load(void) {
     REV_SPS = s->rev_sps;
     AUTO_SPS = s->auto_sps;
 
-    GLOBAL_MAX_SPS = clamp_i(s->global_max_sps, mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(5000.0f));
+    GLOBAL_MAX_SPS = clamp_i(s->global_max_sps, mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
     SYNC_MAX_SPS = sync_clamp_max_sps(s->sync_max_sps);
     SYNC_MIN_SPS = s->sync_min_sps;
     SYNC_RAMP_UP_SPS = s->sync_ramp_up;
