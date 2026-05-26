@@ -606,6 +606,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         int idx = lane_to_idx(active_lane);
         int sps = (int)(feed_mm_min / 60.0f / MM_PER_STEP[idx] + 0.5f);
         sps = clamp_i(sps, 200, 50000);
+        sps = motion_clamp_rate_sps(sps);
 
         bool forward = (mm >= 0.0f);
         bool ignore_buffer = false;
