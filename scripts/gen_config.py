@@ -43,7 +43,7 @@ DEFAULTS = {
 
     # Motion / Ramp
     "motion_startup_ms": "1000",
-    "ramp_step_rate": "17.1",
+    "ramp_step_rate": "1050",
     "ramp_tick_ms": "5",
 
     # Buffer Sync

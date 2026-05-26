@@ -42,7 +42,8 @@ run_current:
 
 # ─── Motion / Ramp ───────────────────────────────────────────────────────────
 # motion_startup_ms: 1000
-# ramp_step_rate: 17.1
+# ramp_step_rate: 1050   # 1050 mm/min -> ~7160 sps/tick @ 5ms -> ~3500 mm/s² lane accel.
+#                        # Also doubles as lane cold-start velocity (~17.5 mm/s).
 # ramp_tick_ms: 5
 
 # ─── Buffer Sync ─────────────────────────────────────────────────────────────
