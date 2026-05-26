@@ -805,7 +805,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "SYNC_UP_RATE")) SYNC_RAMP_UP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 1, 50000));
         else if (!strcmp(base_param, "SYNC_DN_RATE")) SYNC_RAMP_DN_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 1, 50000));
         else if (!strcmp(base_param, "SYNC_TICK_MS")) SYNC_TICK_MS = clamp_i(iv, 1, 1000);
-        else if (!strcmp(base_param, "RAMP_STEP_RATE")) RAMP_STEP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 1, 10000));
+        else if (!strcmp(base_param, "RAMP_STEP_RATE")) RAMP_STEP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 1, 30000));
         else if (!strcmp(base_param, "RAMP_TICK_MS")) RAMP_TICK_MS = clamp_i(iv, 1, 1000);
         else if (!strcmp(base_param, "PRE_RAMP_RATE")) PRE_RAMP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, 50000));
         else if (!strcmp(base_param, "BUF_SWITCH_SPAN")) {

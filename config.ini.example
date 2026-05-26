@@ -42,8 +42,12 @@ run_current:
 
 # ─── Motion / Ramp ───────────────────────────────────────────────────────────
 # motion_startup_ms: 1000
-# ramp_step_rate: 1050   # 1050 mm/min -> ~7160 sps/tick @ 5ms -> ~3500 mm/s² lane accel.
-#                        # Also doubles as lane cold-start velocity (~17.5 mm/s).
+# ramp_step_rate: 1500   # global_max_accel: applies to raw/open-loop lane motion
+#                        # (MV, AUTOLOAD, FEED, UNLOAD, RELOAD, BL prime, BL settle).
+#                        # 1500 mm/min -> ~10231 sps/tick @ 5ms -> ~5000 mm/s² lane accel.
+#                        # Also doubles as lane cold-start velocity (~25 mm/s).
+#                        # SYNC closed-loop follow uses sync_ramp_up_rate (print_max_accel)
+#                        # separately; BL catch slam bypasses both.
 # ramp_tick_ms: 5
 
 # ─── Buffer Sync ─────────────────────────────────────────────────────────────
