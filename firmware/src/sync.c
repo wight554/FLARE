@@ -1107,6 +1107,15 @@ bool sync_buffer_lock_catch_active(void) {
     return g_sync_state == SYNC_RETRACT_ASSIST && g_bl_sub_state == BL_CATCH;
 }
 
+/* True while BL is driving the lane motor (PRIME or CATCH). False during
+ * LOCKED (motor at zero) and outside of SYNC_RETRACT_ASSIST. Used by
+ * autopreload to know when IN-sensor edges come from BL motion (consume)
+ * vs real operator insertion (process). */
+bool sync_buffer_lock_motor_moving(void) {
+    return g_sync_state == SYNC_RETRACT_ASSIST &&
+           (g_bl_sub_state == BL_PRIME || g_bl_sub_state == BL_CATCH);
+}
+
 /* Per-tick handler for the buffer-lock lifecycle.
  * Called every sync_tick iteration while g_sync_state == SYNC_RETRACT_ASSIST
  * and g_bl_sub_state != BL_IDLE.
