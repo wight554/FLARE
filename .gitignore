@@ -20,9 +20,6 @@ config.ini
 # generated from config.ini — run scripts/gen_motor_config.py to create
 firmware/include/tune.h
 
-# runtime data (SQLite state store, not version-controlled)
-data/
-
 # ninja/cmake junk
 .ninja_deps
 .ninja_log

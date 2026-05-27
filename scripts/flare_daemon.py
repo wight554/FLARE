@@ -107,9 +107,11 @@ mmu_stats = {
 
 # ---------------------------------------------------------------------------
 # SQLite state store — sole persistent store for gate config and MMU stats.
-# Location: {repo_root}/data/flare.db (gitignored; repo-relative via __file__)
+# Default location: ~/.local/share/flare/flare.db
+# Override with FLARE_DATA_DIR environment variable.
 # ---------------------------------------------------------------------------
-_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "flare.db")
+_DATA_DIR = os.environ.get("FLARE_DATA_DIR", os.path.expanduser("~/.local/share/flare"))
+_DB_PATH = os.path.join(_DATA_DIR, "flare.db")
 _db_lock = threading.Lock()
 
 def db_init():
