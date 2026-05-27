@@ -1021,7 +1021,17 @@ class MMUMock:
             'extruder_sensor_active': self.extruder_sensor_active,
             'pre_gate_sensor_active': self.pre_gate_sensor_active,
             'hub_sensor_active': self.hub_sensor_active,
-            'sensors': sensors_dict
+            'sensors': sensors_dict,
+            'clogs_enabled': False,
+            'clogs_suspended': True,
+            'clogs_detected': False,
+            'clogs_total': 0,
+            'clogs_success': 0,
+            'clogs_failed': 0,
+            'encoder_enabled': False,
+            'encoder_suspended': True,
+            'encoder_tangle_detected': False,
+            'encoder_clog_detected': False
         }
 
 def load_config(config):
