@@ -72,6 +72,11 @@ function connectSSE() {
                 const details = data.event_data ? `: ${data.event_data}` : '';
                 addLogEntry('Event', `${data.event_type}${details}`, 'event');
             }
+
+            // Refresh gate map when Klipper pushes a config update
+            if (data.type === 'gatemap_update') {
+                fetchGateMap();
+            }
             
         } catch (e) {
             console.error('Error parsing SSE payload:', e);

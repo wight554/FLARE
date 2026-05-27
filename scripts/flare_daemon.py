@@ -808,6 +808,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                 return
             for key, value in body.items():
                 db_set("gate_config", key, value)
+            broadcast_telemetry({"type": "gatemap_update", "gates": build_gatemap_response()["gates"]})
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
