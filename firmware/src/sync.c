@@ -142,6 +142,9 @@ static buf_state_t    g_bl_target_state = BUF_TENSION;
 static uint32_t       g_bl_prime_start_ms = 0;   /* when prime search began */
 static float          g_bl_prime_mm_per_s = 0.0f; /* stab speed in mm/s */
 static float          g_bl_prime_cap_mm   = 0.0f; /* abs 1: outer safety cap = BUF_MAX_TRAVEL_MM */
+/* Override for testing PRIME_BOUND without hardware: set to a small value
+ * (e.g. 0.5f) to force the cap to fire immediately. 0 = inherit BUF_MAX_TRAVEL_MM. */
+static float          g_bl_prime_search_mm = 0.0f;
 static bool           g_bl_prime_switch_hit    = false; /* switch fired during search phase */
 static uint32_t       g_bl_prime_post_start_ms = 0;    /* when post-click settle began */
 static float          g_bl_prime_post_cap_mm   = 0.0f; /* abs 2: post-click extra travel = (max-span)/2 */
@@ -1190,7 +1193,8 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm,
     int idx = A->lane_id - 1;
     int prime_sps  = sync_clamp_max_sps(SYNC_MAX_SPS);
     float mm_per_s = (float)prime_sps * MM_PER_STEP[idx];
-    float max_cap_mm  = (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : 25.0f;
+    float max_cap_mm  = (g_bl_prime_search_mm > 0.0f) ? g_bl_prime_search_mm
+                      : (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : 25.0f;
     g_bl_prime_start_ms      = now_ms;
     g_bl_prime_mm_per_s      = mm_per_s;
     g_bl_prime_cap_mm        = max_cap_mm;
