@@ -643,12 +643,16 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             cmd_reply("ER", "BUSY");
             return;
         }
-        /* If buffer-lock is active, release it first (task 4.4: BS releases
-         * lock and catch immediately and returns to SYNC_OFF). */
+        /* Always force a full stabilize. If buffer-lock is active, release
+         * it first AND clear the BL auto-start suppression so the stabilize
+         * can drive the buffer back to NEUTRAL even when raw is still
+         * pinned at the armed extreme (e.g. filament parked at TENSION
+         * after a tip-form unload move with no external force to push it
+         * off the switch). Without clearing suppression the buffer can
+         * stay stuck and sync never re-engages. */
         if (g_sync_state == SYNC_RETRACT_ASSIST) {
-            sync_retract_assist_release(now_ms);
-            cmd_reply("OK", NULL);
-            return;
+            sync_retract_assist_set(false);
+            sync_bl_clear_autostart_suppress();
         }
         if (!buffer_stabilize_request(now_ms)) {
             cmd_reply("ER", "BUF_STAB_UNAVAILABLE");

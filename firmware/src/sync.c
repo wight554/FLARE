@@ -1117,6 +1117,15 @@ void sync_retract_assist_release(uint32_t now_ms) {
     }
 }
 
+/* Clear the BL auto-start suppression flag. The flag is set when BL releases
+ * with the buffer still at the armed extreme (no extruder demand to depart
+ * the band) to prevent sync from immediately re-engaging in AUTO_MODE. An
+ * explicit operator stabilize via BS must clear it so the buffer can be
+ * driven back to NEUTRAL even when raw is still pinned at TENSION. */
+void sync_bl_clear_autostart_suppress(void) {
+    g_bl_autostart_suppressed = false;
+}
+
 bool sync_retract_assist_enabled(void) {
     return g_sync_state == SYNC_RETRACT_ASSIST;
 }

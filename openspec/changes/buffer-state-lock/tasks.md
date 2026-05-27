@@ -122,7 +122,83 @@ lock-break) without preventing any real failure.
 - 7.5 (full catch lifecycle smoke) — rewrite as prime-only smoke.
 
 ### New tasks
-- [ ] 10.1 Bench: `BL:T` → extruder retract (tip-forming length, ≤20 mm) → buffer ends in TENSION zone, no slam.
-- [ ] 10.2 Bench: `BL:T` → extruder long retract (50-150 mm park unload) → buffer reaches COMPRESSION endstop, no motor stall, no `EV:BL:*` faults. Confirm `BS` recovers cleanly.
-- [ ] 10.3 Update design.md §D5 (asymmetric safety) and §D6 (envelope) to reflect that catch is gone; buffer endstop on retract is accepted.
+- [x] 10.1 Bench: `BL:T` → extruder retract (tip-forming length, ≤20 mm) → buffer ends in TENSION zone, no slam. **Result:** passive lock works; tip-form completes cleanly with passive BL.
+- [x] 10.2 Bench: `BL:T` → extruder long retract (50-150 mm park unload) → buffer reaches COMPRESSION endstop. **Result:** without MMU follow-on, extruder TMC skipped against full buffer → filament tip kept oozing → tip bulge. Drove the design of section 11 (BL:T follow-on retract).
+- [ ] 10.3 Update design.md §D5 (asymmetric safety) and §D6 (envelope) to reflect that catch is gone; buffer endstop on retract is accepted only with BL:T follow-on mass-balancing the long retract.
 - [ ] 10.4 Mark `_FLARE_TIP_FORMING` / `_FLARE_UNLOAD_TOOLHEAD` macros: remove any "expect BL:BREAK / CATCH_DONE" log assertions if present.
+
+## 11. BL:T Follow-On Concurrent Retract
+
+Bench (task 10.2) showed passive BL:T is not enough for long extruder
+retracts: buffer fills to mechanical endstop, extruder TMC skips, tip
+melt continues to ooze → filament tip bulges. Adds an event-triggered
+concurrent MMU retract armed at BL arm time:
+
+  `BL:T:<follow_mm>:<follow_rate_mmpm>` / `BL:C:<follow_mm>:<follow_rate_mmpm>`
+
+Lifecycle: PRIME → LOCKED → (on first raw transition off armed extreme)
+FOLLOW → LOCKED. Mass balance: buffer fill = (extruder_rate − mmu_rate)
+× T. Empty extra args = passive lock (back-compat).
+
+### Shipped
+- [x] 11.1 Firmware: BL_FOLLOW sub-state + statics (`g_bl_follow_mm`,
+      `g_bl_follow_rate_mmpm`, `g_bl_follow_start_ms`,
+      `g_bl_follow_mm_per_s`); FOLLOW arm in LOCKED tick on raw
+      transition; FOLLOW tick tracks traveled mm and returns to LOCKED
+      on completion. Commit `bf0215a`.
+- [x] 11.2 Firmware: extended `sync_buffer_lock_arm` signature with
+      `follow_mm` + `follow_rate_mmpm`; `sync_buffer_lock_motor_moving`
+      now returns true during FOLLOW for autopreload edge suppression.
+      Commit `bf0215a`.
+- [x] 11.3 Protocol: BL parser accepts `BL:[T|C]:<mm>:<rate>`;
+      `sscanf("%c:%f:%f")`; rejects lone follow_mm without rate via
+      `ER:ARG`. Commit `bf0215a`.
+- [x] 11.4 Klipper: `_FLARE_TIP_FORMING` + `FLARE_UNLOAD_TOOLHEAD` wire
+      `BL:T:<tip_retract_dist|gear_retract>:{v.mmu_follow_rate}`; new
+      `_FLARE_VARS.variable_mmu_follow_rate` knob (default 3000
+      mm/min). Commit `eb75200`.
+- [x] 11.5 Klipper: drop redundant 1-s `G4 P` waits around BL:T / BS —
+      catch-state safety margin no longer relevant; the dwell caused
+      hotend ooze + tip bulge. Commit `7bfcf9a`.
+
+### Per-rig bench result + tuning (operator)
+- [x] 11.6 Reference rig: `global_max_rate=5000`, `global_max_accel=2500`,
+      `variable_mmu_follow_rate=2000`. Tip relatively good; no skipping
+      under FOLLOW; buffer cycles through TENSION/COMPRESSION cleanly.
+
+### Open
+- [ ] 11.7 Persist per-rig tuned values (`global_max_rate`,
+      `global_max_accel`, `mmu_follow_rate`) in `config.ini` and/or
+      bump `gen_config.py` + `flare_mmu.cfg` defaults if the rig
+      values are general-purpose.
+- [ ] 11.8 Firmware speed cap for FOLLOW. Currently `motion_clamp_rate_sps`
+      clamps to GLOBAL_MAX_SPS, which is too loose: free MMU motion
+      tops out at GLOBAL_MAX but loaded BL FOLLOW stalls well below.
+      Add a dedicated BL ceiling (proposal: reuse `sync_clamp_max_sps`
+      which already represents the loaded ceiling, or add a separate
+      `BL_MAX_RATE` constant + SS setter). Reject or silently clamp
+      `BL:T:dist:rate` when rate exceeds the cap. Bench-verify the cap
+      eliminates the need for operators to hand-tune
+      `mmu_follow_rate` down.
+- [ ] 11.9 Auto-subtract overtravel margin from follow_mm: when
+      `follow_mm > 0`, internally clamp to `follow_mm -
+      (BUF_MAX_TRAVEL_MM - BUF_SWITCH_SPAN_MM) / 2` to keep MMU drain
+      below the mechanical overshoot risk at the TENSION side. If
+      `follow_mm < overtravel_margin`, disable the follow-on
+      (passive-only). Decision criterion: confirm the math holds —
+      the margin protects against MMU outrunning the extruder at
+      end-of-move, when residual MMU motion would otherwise pull the
+      buffer back past the TENSION switch click and into the
+      mechanical hard end. If bench shows the residual phase is
+      benign (extruder slower than MMU is rare in practice), drop the
+      task.
+- [x] 11.10 BS must always force a buffer stabilize. Symptom: after
+      `BL:T:<dist>:<rate>` + extruder retract + BS, the filament
+      sometimes parks at the TENSION switch and stays there
+      indefinitely — sync never re-engages because the BL auto-start
+      suppression flag is set on release and only clears when raw
+      physically departs TENSION. Fix: BS now calls
+      `sync_retract_assist_set(false)` +
+      `sync_bl_clear_autostart_suppress()` + the regular
+      `buffer_stabilize_request()` (commit pending after this task
+      write).
