@@ -21,6 +21,6 @@
 
 ## 4. Validation
 
-- [ ] 4.1 Python compile validation: run `python3 -m py_compile scripts/flare_daemon.py klipper/mmu.py`.
-- [ ] 4.2 Run Klipper config check or validation (if applicable).
-- [ ] 4.3 Verify no syntax errors are introduced.
+- [x] 4.1 Python compile validation: run `python3 -m py_compile scripts/flare_daemon.py klipper/mmu.py`.
+- [x] 4.2 Run Klipper config check or validation (if applicable).
+- [x] 4.3 Verify no syntax errors are introduced.
