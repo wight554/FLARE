@@ -1031,7 +1031,6 @@ class MMUMock:
             'spoolman_support': self.spoolman_support,
             'filament': self.filament,
             'filament_pos': self.filament_pos,
-            'filament_position': round(filament_position, 1),
             'gate_sensor_active': self.gate_sensor_active,
             'extruder_sensor_active': self.extruder_sensor_active,
             'pre_gate_sensor_active': self.pre_gate_sensor_active,
