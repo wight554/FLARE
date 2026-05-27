@@ -62,6 +62,10 @@ class MMUMock:
         self.print_state = "ready"
         self.filament = "Unloaded"
         self.filament_pos = 0
+        self.is_loading = False
+        self.loading_start_time = 0.0
+        self.loading_target = 1000.0
+        self.loading_speed = 50.0
         
         # FLARE specific extra state variables
         self.board_online = 0
@@ -806,10 +810,32 @@ class MMUMock:
 
         # Phase 2: wait for new filament to arrive
         start_time = reactor.monotonic()
-        while not self._is_toolhead_sensor_triggered():
-            if reactor.monotonic() - start_time > timeout:
-                raise gcmd.error("FLARE Error: Toolchange timed out.")
-            reactor.pause(reactor.monotonic() + 0.2)
+        
+        self.is_loading = True
+        self.loading_start_time = start_time
+        
+        macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
+        bowden_length = 1000.0
+        base_speed = 50.0
+        if macro is not None:
+            v = getattr(macro, 'variables', {})
+            bowden_length = float(v.get('bowden_length', 1000.0))
+            base_speed = float(v.get('speed_hub_to_extruder', 50.0))
+        
+        speed_override = 100.0
+        if 0 <= self.active_gate < len(self.gate_speed_override):
+            speed_override = float(self.gate_speed_override[self.active_gate])
+            
+        self.loading_target = bowden_length
+        self.loading_speed = base_speed * (speed_override / 100.0)
+
+        try:
+            while not self._is_toolhead_sensor_triggered():
+                if reactor.monotonic() - start_time > timeout:
+                    raise gcmd.error("FLARE Error: Toolchange timed out.")
+                reactor.pause(reactor.monotonic() + 0.2)
+        finally:
+            self.is_loading = False
 
         gcmd.respond_info(f"FLARE: Toolhead sensor triggered. Waiting load_delay of {load_delay}s for stabilization...")
 
@@ -929,15 +955,16 @@ class MMUMock:
         """Approximate gate->nozzle load-path length from _FLARE_VARS toolhead
         geometry. Used only to scale the synthetic filament_position readout."""
         macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
+        bowden_length = 1000.0
+        extruder_to_nozzle = 117.0
         if macro is not None:
             v = getattr(macro, 'variables', {})
             try:
-                return (float(v.get('dist_sensor_to_extruder', 27.0))
-                        + float(v.get('dist_extruder_to_meltzone', 44.0))
-                        + float(v.get('dist_meltzone_to_nozzle_tip', 46.0)))
+                bowden_length = float(v.get('bowden_length', 1000.0))
+                extruder_to_nozzle = float(v.get('extruder_to_nozzle', 117.0))
             except (TypeError, ValueError):
                 pass
-        return 117.0
+        return bowden_length + extruder_to_nozzle
 
     def get_status(self, eventtime):
         """Export state values back to Klipper & Moonraker."""
@@ -960,20 +987,34 @@ class MMUMock:
             path_gate = False
             path_toolhead = False
         # Synthesize a filament tip position (mm) for the Fluidd "Filament: X mm"
-        # readout. FLARE has no continuous encoder, so approximate from how far
-        # the strand has advanced through the path sensors, scaled by the
-        # configured load-path length. Keeps the readout from sitting at 0.
-        path_len = self._load_path_len_mm()
-        if path_toolhead:
-            filament_position = path_len
-        elif path_gate:
-            filament_position = path_len * 0.6
-        elif path_gear:
-            filament_position = path_len * 0.3
-        elif path_pre_gate:
-            filament_position = path_len * 0.1
+        # readout. FLARE has no continuous encoder, so we compute from config variables:
+        macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
+        bowden_length = 1000.0
+        extruder_to_nozzle = 117.0
+        if macro is not None:
+            v = getattr(macro, 'variables', {})
+            try:
+                bowden_length = float(v.get('bowden_length', 1000.0))
+                extruder_to_nozzle = float(v.get('extruder_to_nozzle', 117.0))
+            except (TypeError, ValueError):
+                pass
+        path_len = bowden_length + extruder_to_nozzle
+
+        if self.is_loading:
+            reactor = self.printer.get_reactor()
+            elapsed = reactor.monotonic() - self.loading_start_time
+            filament_position = min(bowden_length, elapsed * self.loading_speed)
         else:
-            filament_position = 0.0
+            if path_toolhead:
+                filament_position = path_len
+            elif path_gate:
+                filament_position = max(30.0, bowden_length * 0.05)
+            elif path_gear:
+                filament_position = 20.0
+            elif path_pre_gate:
+                filament_position = 10.0
+            else:
+                filament_position = 0.0
 
         sensors_dict = {
             'toolhead': path_toolhead,
@@ -1031,6 +1072,7 @@ class MMUMock:
             'spoolman_support': self.spoolman_support,
             'filament': self.filament,
             'filament_pos': self.filament_pos,
+            'filament_position': round(filament_position, 1),
             'gate_sensor_active': self.gate_sensor_active,
             'extruder_sensor_active': self.extruder_sensor_active,
             'pre_gate_sensor_active': self.pre_gate_sensor_active,
