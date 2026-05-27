@@ -107,9 +107,9 @@ mmu_stats = {
 
 # ---------------------------------------------------------------------------
 # SQLite state store — sole persistent store for gate config and MMU stats.
-# Location follows Moonraker convention: ~/printer_data/database/flare.db
+# Location: {repo_root}/data/flare.db (gitignored; repo-relative via __file__)
 # ---------------------------------------------------------------------------
-_DB_PATH = os.path.expanduser("~/printer_data/database/flare.db")
+_DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "flare.db")
 _db_lock = threading.Lock()
 
 def db_init():
