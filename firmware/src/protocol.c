@@ -437,6 +437,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         if (!A) return;
         if (!lane_out_present(A)) { cmd_reply("ER", "NOT_LOADED"); return; }
         sync_retract_assist_set(false);
+        sync_bl_clear_autostart_suppress();
         sync_set_state(SYNC_OFF);
         sync_disable(false);
         set_toolhead_filament(false);
@@ -465,6 +466,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         if (active_target) {
             if (!lane_in_present(A)) { cmd_reply("ER", "NOT_LOADED"); return; }
             sync_retract_assist_set(false);
+            sync_bl_clear_autostart_suppress();
             sync_set_state(SYNC_OFF);
             sync_disable(false);
             set_toolhead_filament(false);
