@@ -121,6 +121,16 @@ class MMUMock:
                                     desc="Select bypass (MMU disengaged, direct feed)")
         self.gcode.register_command('FLARE_WAIT_TC', self.cmd_FLARE_WAIT_TC,
                                     desc="Wait for toolchange physical completion")
+        self.gcode.register_command('MMU_STATUS', self.cmd_MMU_STATUS,
+                                    desc="Show complete current MMU status")
+        self.gcode.register_command('MMU_HOME', self.cmd_MMU_HOME,
+                                    desc="Home the MMU selector")
+        self.gcode.register_command('MMU_UNLOCK', self.cmd_MMU_UNLOCK,
+                                    desc="Unlock the MMU")
+        self.gcode.register_command('MMU_PAUSE', self.cmd_MMU_PAUSE,
+                                    desc="Pause the MMU")
+        self.gcode.register_command('MMU_RESET', self.cmd_MMU_RESET,
+                                    desc="Reset MMU state")
 
         # Graceful handlers for Fluidd maintenance-dialog buttons that cannot be
         # disabled from the mock (gated only by canSend). Map to a real FLARE
@@ -210,6 +220,20 @@ class MMUMock:
         if gate_color_str is not None:
             gate_color_str = gate_color_str.strip("'\"")
             self.gate_color = [x.strip("'\" ") for x in gate_color_str.split(',')]
+            for g_idx, color in enumerate(self.gate_color):
+                if g_idx >= len(self.gate_color_rgb):
+                    break
+                color = color.lstrip('#')
+                if len(color) == 8:
+                    color = color[:6]
+                if len(color) == 6:
+                    try:
+                        r = int(color[0:2], 16) / 255.0
+                        g = int(color[2:4], 16) / 255.0
+                        b = int(color[4:6], 16) / 255.0
+                        self.gate_color_rgb[g_idx] = [r, g, b]
+                    except ValueError:
+                        pass
 
         # Parse gate_material list with quote stripping
         gate_material_str = gcmd.get('GATE_MATERIAL', None)
@@ -400,6 +424,52 @@ class MMUMock:
         to recover from; this message exists because Fluidd's Recover button
         cannot be disabled from the mock."""
         gcmd.respond_raw("!! MMU_RECOVER is not implemented on FLARE (no error-lock state to recover from).")
+
+    def cmd_MMU_STATUS(self, gcmd):
+        """Dump the complete current status of FLARE MMU."""
+        status_names = {0: "Empty", 1: "Preloaded", 2: "Loaded/Buffer"}
+        msg = (
+            "================ MMU Status (FLARE) ================\n"
+            f"Board Online: {self.board_online}\n"
+            f"Active Gate:  {self.active_gate} (Tool: {self.tool})\n"
+            f"Bypass Mode:  {'Active' if self.bypass else 'Inactive'}\n"
+            f"Reload Mode:  {self.reload_mode}\n"
+            f"SPS:          {self.sps:.1f}\n"
+            f"Action:       {self.action}\n"
+            "--------------- Gates & Spools ---------------\n"
+        )
+        for i in range(self.num_gates):
+            status_val = self.gate_status[i] if i < len(self.gate_status) else 0
+            status_str = status_names.get(status_val, "Unknown")
+            sensor_val = self.gate_sensor[i] if i < len(self.gate_sensor) else 0
+            sensor_str = "Detected" if sensor_val else "Not Detected"
+            spool = self.gate_spool_id[i] if i < len(self.gate_spool_id) else -1
+            material = self.gate_material[i] if i < len(self.gate_material) else "Unknown"
+            color = self.gate_color[i] if i < len(self.gate_color) else "Unknown"
+            msg += f"Gate {i}: Status={status_str} Sensor={sensor_str} Spool={spool} Mat={material} Color={color}\n"
+        
+        msg += "--------------- Sensors ---------------\n"
+        msg += f"Pre-gate active: {self.gate_sensor_active}\n"
+        msg += f"Hub/Combiner:    {self.hub_sensor_active}\n"
+        msg += f"Toolhead:        {self.toolhead_sensor}\n"
+        msg += f"Sync Feedback:   {self.sync_feedback_state} ({self.sync_feedback:.3f})\n"
+        gcmd.respond_info(msg)
+
+    def cmd_MMU_HOME(self, gcmd):
+        """Home the MMU. Stub: FLARE is a multi-drive system and homing is a no-op."""
+        gcmd.respond_info("FLARE: Homing requested. Homing is managed automatically by the firmware; no physical selector homing is required.")
+
+    def cmd_MMU_UNLOCK(self, gcmd):
+        """Unlock the MMU after error. Stub: no hardware error-lock in FLARE."""
+        gcmd.respond_info("FLARE: MMU unlock requested. No error-lock state active.")
+
+    def cmd_MMU_PAUSE(self, gcmd):
+        """Pause the MMU. Stub: no-op."""
+        gcmd.respond_info("FLARE: MMU pause requested.")
+
+    def cmd_MMU_RESET(self, gcmd):
+        """Reset the MMU state. Stub: no-op."""
+        gcmd.respond_info("FLARE: MMU state reset requested.")
 
     def cmd_MMU_SYNC_GEAR_MOTOR(self, gcmd):
         """Map Happy Hare gear-sync toggle to FLARE SM: (extruder sync)."""
