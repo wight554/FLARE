@@ -738,67 +738,46 @@ class MMUMock:
 
         gcmd.respond_info("FLARE: FLARE_WAIT_TC wait complete.")
 
-    def _get_vars_path(self):
-        import os
-        # Try standard paths, fallback to /tmp if write-restricted
-        paths = [
-            os.path.expanduser("~/printer_data/config/flare_mmu_vars.json"),
-            os.path.expanduser("~/flare_mmu_vars.json"),
-            "/tmp/flare_mmu_vars.json"
-        ]
-        for p in paths:
-            try:
-                dir_path = os.path.dirname(p)
-                if not os.path.exists(dir_path):
-                    continue
-                # Test write capability directly by touching
-                test_file = os.path.join(dir_path, ".flare_write_test")
-                with open(test_file, "w") as f:
-                    f.write("test")
-                os.remove(test_file)
-                return p
-            except Exception:
-                pass
-        return "/tmp/flare_mmu_vars.json"
-
     def _save_vars(self):
-        import json
+        import json, urllib.request
+        data = {
+            "gate_color": self.gate_color,
+            "gate_material": self.gate_material,
+            "gate_spool_id": self.gate_spool_id,
+            "gate_color_rgb": self.gate_color_rgb,
+            "gate_name": self.gate_name,
+            "gate_filament_name": self.gate_filament_name,
+            "ttg_map": self.ttg_map,
+            "spoolman_support": self.spoolman_support,
+        }
         try:
-            data = {
-                "gate_color": self.gate_color,
-                "gate_material": self.gate_material,
-                "gate_spool_id": self.gate_spool_id,
-                "gate_color_rgb": self.gate_color_rgb,
-                "gate_name": self.gate_name,
-                "gate_filament_name": self.gate_filament_name,
-                "ttg_map": self.ttg_map,
-                "spoolman_support": self.spoolman_support
-            }
-            path = self._get_vars_path()
-            with open(path, "w") as f:
-                json.dump(data, f)
+            payload = json.dumps(data).encode("utf-8")
+            req = urllib.request.Request(
+                "http://127.0.0.1:8088/config",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST")
+            urllib.request.urlopen(req, timeout=2.0)
         except Exception as e:
             if hasattr(self, 'gcode'):
-                self.gcode.respond_info(f"FLARE Error: Failed to save MMU vars: {e}")
+                self.gcode.respond_info(f"FLARE Warning: Failed to save MMU vars to daemon: {e}")
 
     def _load_vars(self):
-        import json
-        import os
+        import json, urllib.request
         try:
-            path = self._get_vars_path()
-            if os.path.exists(path):
-                with open(path, "r") as f:
-                    data = json.load(f)
-                self.gate_color = data.get("gate_color", self.gate_color)
-                self.gate_material = data.get("gate_material", self.gate_material)
-                self.gate_spool_id = data.get("gate_spool_id", self.gate_spool_id)
-                self.gate_color_rgb = data.get("gate_color_rgb", self.gate_color_rgb)
-                self.gate_name = data.get("gate_name", self.gate_name)
-                self.gate_filament_name = data.get("gate_filament_name", self.gate_filament_name)
-                self.ttg_map = data.get("ttg_map", self.ttg_map)
-                self.spoolman_support = data.get("spoolman_support", self.spoolman_support)
+            with urllib.request.urlopen("http://127.0.0.1:8088/config", timeout=2.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            self.gate_color = data.get("gate_color", self.gate_color)
+            self.gate_material = data.get("gate_material", self.gate_material)
+            self.gate_spool_id = data.get("gate_spool_id", self.gate_spool_id)
+            self.gate_color_rgb = data.get("gate_color_rgb", self.gate_color_rgb)
+            self.gate_name = data.get("gate_name", self.gate_name)
+            self.gate_filament_name = data.get("gate_filament_name", self.gate_filament_name)
+            self.ttg_map = data.get("ttg_map", self.ttg_map)
+            self.spoolman_support = data.get("spoolman_support", self.spoolman_support)
         except Exception as e:
-            pass
+            if hasattr(self, 'gcode'):
+                self.gcode.respond_info(f"FLARE Warning: daemon unreachable, using defaults: {e}")
         self._ensure_array_lengths()
 
     def _ensure_array_lengths(self):

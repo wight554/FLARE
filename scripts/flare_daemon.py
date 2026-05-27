@@ -19,6 +19,7 @@ import threading
 import queue
 import json
 import glob
+import sqlite3
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
@@ -104,38 +105,78 @@ mmu_stats = {
     "last_error": "None",
 }
 
-def _stats_path():
-    for p in (
-        os.path.expanduser("~/printer_data/config/flare_mmu_stats.json"),
-        os.path.expanduser("~/flare_mmu_stats.json"),
-        "/tmp/flare_mmu_stats.json",
-    ):
-        d = os.path.dirname(p)
-        if os.path.isdir(d) and os.access(d, os.W_OK):
-            return p
-    return "/tmp/flare_mmu_stats.json"
+# ---------------------------------------------------------------------------
+# SQLite state store — sole persistent store for gate config and MMU stats.
+# Location follows Moonraker convention: ~/printer_data/database/flare.db
+# ---------------------------------------------------------------------------
+_DB_PATH = os.path.expanduser("~/printer_data/database/flare.db")
+_db_lock = threading.Lock()
+
+def db_init():
+    """Create the database directory and tables on first run."""
+    db_dir = os.path.dirname(_DB_PATH)
+    os.makedirs(db_dir, exist_ok=True)
+    with _db_lock:
+        con = sqlite3.connect(_DB_PATH)
+        try:
+            con.executescript("""
+                CREATE TABLE IF NOT EXISTS gate_config (
+                    key   TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS stats (
+                    key   TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+            """)
+            con.commit()
+        finally:
+            con.close()
+
+def db_get(table, key, default=None):
+    with _db_lock:
+        con = sqlite3.connect(_DB_PATH)
+        try:
+            row = con.execute(f"SELECT value FROM {table} WHERE key=?", (key,)).fetchone()
+        finally:
+            con.close()
+    if row is None:
+        return default
+    try:
+        return json.loads(row[0])
+    except Exception:
+        return row[0]
+
+def db_set(table, key, value):
+    with _db_lock:
+        con = sqlite3.connect(_DB_PATH)
+        try:
+            con.execute(
+                f"INSERT OR REPLACE INTO {table} (key, value) VALUES (?, ?)",
+                (key, json.dumps(value))
+            )
+            con.commit()
+        finally:
+            con.close()
 
 def load_mmu_stats():
     try:
-        path = _stats_path()
-        if os.path.exists(path):
-            with open(path) as f:
-                data = json.load(f)
-            with stats_lock:
-                for k in mmu_stats:
-                    if k in data:
-                        mmu_stats[k] = data[k]
+        with stats_lock:
+            for k in mmu_stats:
+                v = db_get("stats", k)
+                if v is not None:
+                    mmu_stats[k] = v
     except Exception as e:
-        print(f"flare_daemon: failed to load stats: {e}", file=sys.stderr)
+        print(f"flare_daemon: failed to load stats from db: {e}", file=sys.stderr)
 
 def save_mmu_stats():
     try:
         with stats_lock:
             snapshot = dict(mmu_stats)
-        with open(_stats_path(), "w") as f:
-            json.dump(snapshot, f)
+        for k, v in snapshot.items():
+            db_set("stats", k, v)
     except Exception as e:
-        print(f"flare_daemon: failed to save stats: {e}", file=sys.stderr)
+        print(f"flare_daemon: failed to save stats to db: {e}", file=sys.stderr)
 
 def record_event_stats(evt_type, evt_data):
     """Increment usage counters from board events. TC: drives swaps; lane tasks
@@ -169,30 +210,10 @@ _spool_cache = {}
 _spool_cache_lock = threading.Lock()
 SPOOL_CACHE_TTL = 30.0
 
-def _gate_vars_path():
-    """Resolve the shared gate-map file, matching klipper/mmu.py path logic so
-    the WebUI and the Klipper mock read/write the same store."""
-    for p in (
-        os.path.expanduser("~/printer_data/config/flare_mmu_vars.json"),
-        os.path.expanduser("~/flare_mmu_vars.json"),
-        "/tmp/flare_mmu_vars.json",
-    ):
-        d = os.path.dirname(p)
-        if os.path.isdir(d) and os.access(d, os.W_OK):
-            return p
-    return "/tmp/flare_mmu_vars.json"
-
 def _read_gate_map():
-    """Read the shared gate map (color/material/spool_id/name) from the vars file."""
-    try:
-        path = _gate_vars_path()
-        with open(path) as f:
-            data = json.load(f)
-    except Exception:
-        data = {}
-
+    """Read the gate map from SQLite."""
     def pad(key, default):
-        lst = data.get(key, [])
+        lst = db_get("gate_config", key, [])
         if not isinstance(lst, list):
             lst = []
         out = list(lst[:NUM_GATES])
@@ -208,45 +229,25 @@ def _read_gate_map():
         "gate_name": pad("gate_name", lambda i: f"Gate {i}"),
     }
 
-def _write_gate_map_file(gate, fields):
-    """Update the shared vars file directly (used when Klipper is not running)."""
-    path = _gate_vars_path()
-    try:
-        with open(path) as f:
-            data = json.load(f)
-    except Exception:
-        data = {}
-    for key, default in (("gate_material", ""), ("gate_color", ""),
-                         ("gate_spool_id", -1), ("gate_name", None)):
-        lst = data.get(key)
-        if not isinstance(lst, list):
-            lst = []
-        while len(lst) < NUM_GATES:
-            lst.append(f"Gate {len(lst)}" if key == "gate_name" else default)
-        data[key] = lst
+def _write_gate_map_db(gate, fields):
+    """Update gate map in SQLite."""
+    gm = _read_gate_map()
     g = int(gate)
     if 0 <= g < NUM_GATES:
         if fields.get("material") is not None:
-            data["gate_material"][g] = str(fields["material"])
+            gm["gate_material"][g] = str(fields["material"])
         if fields.get("color") is not None:
-            data["gate_color"][g] = str(fields["color"]).lstrip("#")[:6]
+            gm["gate_color"][g] = str(fields["color"]).lstrip("#")[:6]
         if fields.get("spool_id") is not None:
-            data["gate_spool_id"][g] = int(fields["spool_id"])
+            gm["gate_spool_id"][g] = int(fields["spool_id"])
         if fields.get("name") is not None:
-            data["gate_name"][g] = str(fields["name"])
-            fn = data.get("gate_filament_name")
-            if not isinstance(fn, list):
-                fn = list(data["gate_name"])
-            while len(fn) < NUM_GATES:
-                fn.append(data["gate_name"][len(fn)])
-            fn[g] = str(fields["name"])
-            data["gate_filament_name"] = fn
+            gm["gate_name"][g] = str(fields["name"])
     try:
-        with open(path, "w") as f:
-            json.dump(data, f)
+        for key in ("gate_material", "gate_color", "gate_spool_id", "gate_name"):
+            db_set("gate_config", key, gm[key])
         return True
     except Exception as e:
-        print(f"flare_daemon: failed to write gate map: {e}", file=sys.stderr)
+        print(f"flare_daemon: failed to write gate map to db: {e}", file=sys.stderr)
         return False
 
 def _push_gate_map_to_klipper(gate, fields):
@@ -464,11 +465,11 @@ def build_gatemap_response():
     return {"num_gates": gm["num_gates"], "gates": gates}
 
 def apply_gatemap_edit(gate, fields):
-    """Persist a gate edit: push to Klipper if running, else write the file.
+    """Persist a gate edit: push to Klipper if running, else write to SQLite.
     Invalidate the spool cache for the affected gate so the next read refreshes."""
     pushed = _push_gate_map_to_klipper(gate, fields)
     if not pushed:
-        _write_gate_map_file(gate, fields)
+        _write_gate_map_db(gate, fields)
     if fields.get("spool_id") is not None:
         with _spool_cache_lock:
             _spool_cache.pop(int(fields["spool_id"]), None)
@@ -713,6 +714,20 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                     active_sse_queues.discard(q)
                 print(f"flare_daemon: SSE telemetry stream client disconnected (remaining: {len(active_sse_queues)})")
                 
+        elif self.path == "/config":
+            data = {}
+            for key in ("gate_material", "gate_color", "gate_spool_id",
+                        "gate_color_rgb", "gate_name", "gate_filament_name",
+                        "ttg_map", "spoolman_support"):
+                v = db_get("gate_config", key)
+                if v is not None:
+                    data[key] = v
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode("utf-8"))
+
         elif self.path == "/gatemap":
             res = json.dumps(build_gatemap_response())
             self.send_response(200)
@@ -780,6 +795,23 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(json.dumps(resp).encode("utf-8"))
+
+        elif self.path == "/config":
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                body = json.loads(post_data.decode("utf-8"))
+            except Exception:
+                self.send_error(400, "Invalid JSON payload")
+                return
+            for key, value in body.items():
+                db_set("gate_config", key, value)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+
         else:
             self.send_error(404, "Not Found")
 
@@ -1105,7 +1137,8 @@ def main():
         
     print(f"flare_daemon: resolved active port candidate -> {port_name}")
 
-    # 1.5 Restore persisted MMU usage statistics
+    # 1.5 Initialise SQLite state store and restore persisted MMU usage statistics
+    db_init()
     load_mmu_stats()
 
     # 2. Launch persistent background serial worker thread
