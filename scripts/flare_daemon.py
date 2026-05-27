@@ -544,6 +544,10 @@ def parse_status_line(line):
                 new_data["unload_cut"] = int(val)
             elif key == "TF":
                 new_data["total_fed_mm"] = float(val)
+            elif key == "FL_RATE":
+                new_data["feed_rate_mms"] = float(val) / 60.0
+            elif key == "UL_RATE":
+                new_data["rev_rate_mms"] = float(val) / 60.0
         except ValueError:
             pass # ignore malformed metrics
             
@@ -1042,6 +1046,9 @@ def klipper_syncer(moonraker_url):
                                 state.get("lane1_task", "IDLE"),
                                 state.get("lane2_task", "IDLE"))
 
+        feed_rate = state.get("feed_rate_mms", 50.0)
+        rev_rate = state.get("rev_rate_mms", 50.0)
+
         mmu_cmd = (
             f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={klipper_gate} TOOL={klipper_tool} "
             f"ACTION='{action}' "
@@ -1055,7 +1062,8 @@ def klipper_syncer(moonraker_url):
             f"PRE_GATE_SENSOR_ACTIVE={pre_gate_sensor_active} HUB_SENSOR_ACTIVE={hub_sensor_active} "
             f"SWAPS_TOTAL={st['swaps_total']} SWAPS_SUCCESS={st['swaps_success']} "
             f"SWAPS_FAILED={st['swaps_failed']} LOADS_SUCCESS={st['loads_success']} "
-            f"UNLOADS_SUCCESS={st['unloads_success']} MMU_LAST_ERROR='{st['last_error']}'"
+            f"UNLOADS_SUCCESS={st['unloads_success']} MMU_LAST_ERROR='{st['last_error']}' "
+            f"FEED_RATE={feed_rate:.2f} REV_RATE={rev_rate:.2f}"
         )
 
         lines.append(mmu_cmd)

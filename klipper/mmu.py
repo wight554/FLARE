@@ -68,6 +68,8 @@ class MMUMock:
         self.loading_speed = 50.0
         self.is_swapping = False
         self.swap_unload_duration = 20.0
+        self.board_feed_rate = 50.0
+        self.board_rev_rate = 50.0
         
         # FLARE specific extra state variables
         self.board_online = 0
@@ -196,6 +198,8 @@ class MMUMock:
         self.pre_gate_sensor_active = gcmd.get_int('PRE_GATE_SENSOR_ACTIVE', self.pre_gate_sensor_active)
         self.hub_sensor_active = gcmd.get_int('HUB_SENSOR_ACTIVE', self.hub_sensor_active)
         self.spoolman_support = gcmd.get('SPOOLMAN_SUPPORT', self.spoolman_support).strip("'\"")
+        self.board_feed_rate = gcmd.get_float('FEED_RATE', self.board_feed_rate)
+        self.board_rev_rate = gcmd.get_float('REV_RATE', self.board_rev_rate)
 
         self.swaps_total = gcmd.get_int('SWAPS_TOTAL', self.swaps_total)
         self.swaps_success = gcmd.get_int('SWAPS_SUCCESS', self.swaps_success)
@@ -818,18 +822,16 @@ class MMUMock:
         
         macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
         bowden_length = 1000.0
-        base_speed = 50.0
         if macro is not None:
             v = getattr(macro, 'variables', {})
             bowden_length = float(v.get('bowden_length', 1000.0))
-            base_speed = float(v.get('speed_hub_to_extruder', 50.0))
         
         speed_override = 100.0
         if 0 <= self.active_gate < len(self.gate_speed_override):
             speed_override = float(self.gate_speed_override[self.active_gate])
             
         self.loading_target = bowden_length
-        self.loading_speed = base_speed * (speed_override / 100.0)
+        self.loading_speed = self.board_feed_rate * (speed_override / 100.0)
         
         # Swapping is active if the old active lane was loaded
         is_swapping = False
@@ -837,7 +839,9 @@ class MMUMock:
             if self.gate_status[self.active_gate] == 2 or self.filament == "Loaded":
                 is_swapping = True
         self.is_swapping = is_swapping
-        self.swap_unload_duration = bowden_length / self.loading_speed if self.loading_speed > 0 else 20.0
+        
+        unload_speed = self.board_rev_rate * (speed_override / 100.0)
+        self.swap_unload_duration = bowden_length / unload_speed if unload_speed > 0 else 20.0
 
         try:
             while not self._is_toolhead_sensor_triggered():
