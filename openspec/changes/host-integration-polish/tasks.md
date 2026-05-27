@@ -11,9 +11,9 @@
 
 ## 2. scripts/flare_daemon.py: Spam Cleanup
 
-- [ ] 2.1 In `klipper_syncer` thread: remove high-frequency float keys `"g_buf_pos"` and `"sps"` from the `changed` detection keys.
-- [ ] 2.2 In `klipper_syncer` thread: completely delete the loop that builds and appends `SET_GCODE_VARIABLE MACRO=_FLARE_STATE ...` commands.
-- [ ] 2.3 Verify `lines` in `klipper_syncer` only appends the `SET_MMU` command (and optional `_FLARE_SYNC_BOARD`).
+- [x] 2.1 In `klipper_syncer` thread: remove high-frequency float keys `"g_buf_pos"` and `"sps"` from the `changed` detection keys.
+- [x] 2.2 In `klipper_syncer` thread: completely delete the loop that builds and appends `SET_GCODE_VARIABLE MACRO=_FLARE_STATE ...` commands.
+- [x] 2.3 Verify `lines` in `klipper_syncer` only appends the `SET_MMU` command (and optional `_FLARE_SYNC_BOARD`).
 
 ## 3. klipper/flare_mmu.cfg: Macro Cleanup
 

@@ -939,10 +939,10 @@ def klipper_syncer(moonraker_url):
         with status_lock:
             state = dict(status_cache)
 
-        # Detect changes in values of interest
+        # Detect changes in values of interest (excluding high-frequency float noise)
         keys = [
-            "board_online", "active_lane", "tc_state", "g_buf_pos",
-            "buf_state", "sps", "in1", "out1", "in2", "out2",
+            "board_online", "active_lane", "tc_state",
+            "buf_state", "in1", "out1", "in2", "out2",
             "toolhead", "y_split", "reload_mode"
         ]
         
@@ -951,7 +951,7 @@ def klipper_syncer(moonraker_url):
             if state.get(k) != last_sync.get(k):
                 changed = True
                 break
-        # Lane-task changes drive the action label but are not _FLARE_STATE vars
+        # Lane-task changes drive the action label
         for k in ("lane1_task", "lane2_task"):
             if state.get(k) != last_sync.get(k):
                 changed = True
@@ -969,19 +969,7 @@ def klipper_syncer(moonraker_url):
         if not changed:
             continue
 
-        # Build SET_GCODE_VARIABLE commands
         lines = []
-        for k in keys:
-            val = state.get(k)
-            if isinstance(val, bool):
-                val_str = "1" if val else "0"
-            elif isinstance(val, str):
-                val_str = f"'\"{val}\"'"
-            elif isinstance(val, float):
-                val_str = f"{val:.3f}"
-            else:
-                val_str = str(val)
-            lines.append(f"SET_GCODE_VARIABLE MACRO=_FLARE_STATE VARIABLE={k} VALUE={val_str}")
 
         # Add SET_MMU command to update Klipper native mmu object variables (Mainsail/Fluidd)
         active_lane = state.get("active_lane", 0)
