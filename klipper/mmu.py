@@ -1005,7 +1005,7 @@ class MMUMock:
             'sync_feedback': self.sync_feedback,
             'sync_feedback_state': self.sync_feedback_state,
             'sync_feedback_bias_modelled': self.sync_feedback,
-            'sync_feedback_enabled': True,
+            'sync_feedback_enabled': False,
             'print_job_state': self.print_job_state,
             'print_state': self.print_state,
             'board_online': self.board_online,
