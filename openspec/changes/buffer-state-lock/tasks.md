@@ -25,7 +25,7 @@
 - [x] 3.8 Add BL_CATCH distance cap = `(max_travel - switch_span) / 2` = 7.5 mm from catch-start; emit `EV:BL:CATCH_OVERRUN` and force-release if opposite switch fails to register within that budget (commit `68fb61d`, corrected formula `7026762`).
 
 ### HW: Validate §3.5–3.8
-- [ ] HW:3.5a Verify `BL:T` prime reaches TENSION switch within 25 mm search budget: `BUF:TENSION` appears in poll trace before `BL:LOCKED`.
+- [x] HW:3.5a Verify `BL:T` prime reaches TENSION switch within 25 mm search budget: `BUF:TENSION` appears in poll trace before `BL:LOCKED`. **Result (2026-05-27):** `BL:PRIME` → `BL:LOCKED` → `BUF:TENSION` confirmed in telemetry; prime completed at switch click well within 25mm budget.
 - [ ] HW:3.5b ~~Verify `BL:T` post-click settle: after TENSION click, motor continues ~7.5 mm more (arm visibly pushed against extreme), then `BL:LOCKED`.~~ **SUPERSEDED (§3.5):** post-click settle was removed — motor locks at switch click, no additional travel.
 - [ ] HW:3.6 Verify `PRIME_BOUND` fires when TENSION sensor deliberately blocked (e.g. `BUF_INVERT=1` test): `EV:BL:PRIME_BOUND` in trace, then `BL:LOCKED` anyway.
 - [ ] HW:3.8 ~~Verify `CATCH_OVERRUN` fires when compression sensor blocked: issue `BL:T`, trigger lock-break manually, confirm `EV:BL:CATCH_OVERRUN` appears before 7.5 mm budget expires.~~ **SUPERSEDED (§10):** catch state removed; lock is now passive.
@@ -55,7 +55,7 @@
 - [x] 7.2 Verify on bench: tip-forming sequence end-to-end, no buffer slam, peak excursion under the design envelope (D6). **Result (2026-05-27):** validated across 17-color-swap print; tip-forming completed cleanly, no buffer slam observed.
 - [x] 7.2a Bench the rig-validated operator envelope (D6: 40 mm @ 150 mm/s extruder retract with `ramp_step_rate=1000`, MMU cap 6000 mm/min). Confirm peak buffer excursion ≤ ~17 mm (≤ 20 mm runway) and that lock-break uses the raw edge, not the hyst-debounced state. If observed excursion exceeds 18 mm, revisit `BUF_HYST_MS` handling on the break edge or tighten the retract speed/distance bound. **Result (2026-05-27):** 17-swap print at bench rig settings; no excursion faults, no grind, envelope holds.
 - [x] 7.3 Verify on bench: unload-toolhead sequence end-to-end with the gear retract guarded by `BL`, no buffer slam. **Result (2026-05-27):** gear-clear retract via `_FLARE_BL_MOVE` validated across 17 toolchanges; no buffer slam.
-- [ ] 7.4 Verify watchdog timeout fires when `BL:T` is armed and no break/`BS` arrives.
+- [x] 7.4 Verify watchdog timeout fires when `BL:T` is armed and no break/`BS` arrives. **Result (2026-05-27):** `EV:BL:TIMEOUT` fired 29.86s after `BL:LOCKED` (≈30s, nominal); `BL` field returned to `0` after timeout, `BUF:TENSION` remains (buffer physically at switch — expected).
 - [ ] 7.5 ~~Full BL:T lifecycle smoke on bench: `BL:T` → TENSION switch fires → 7.5 mm settle → `BL:LOCKED` event → extruder triggers lock-break → `BL:BREAK` → catch slams to COMPRESSION → `BL:CATCH_SETTLE` → sync resumes. No `PRIME_BOUND`, no `CATCH_OVERRUN`, no faults.~~ **SUPERSEDED (§10):** catch removed; BL:BREAK, CATCH_SETTLE events no longer exist.
 
 ## 8. Cleanup + Archive
