@@ -171,27 +171,26 @@ FOLLOW → LOCKED. Mass balance: buffer fill = (extruder_rate − mmu_rate)
       `global_max_accel`, `mmu_follow_rate`) in `config.ini` and/or
       bump `gen_config.py` + `flare_mmu.cfg` defaults if the rig
       values are general-purpose.
-- [ ] 11.8 Firmware speed cap for FOLLOW. Currently `motion_clamp_rate_sps`
-      clamps to GLOBAL_MAX_SPS, which is too loose: free MMU motion
-      tops out at GLOBAL_MAX but loaded BL FOLLOW stalls well below.
-      Add a dedicated BL ceiling (proposal: reuse `sync_clamp_max_sps`
-      which already represents the loaded ceiling, or add a separate
-      `BL_MAX_RATE` constant + SS setter). Reject or silently clamp
-      `BL:T:dist:rate` when rate exceeds the cap. Bench-verify the cap
-      eliminates the need for operators to hand-tune
-      `mmu_follow_rate` down.
-- [ ] 11.9 Auto-subtract overtravel margin from follow_mm: when
-      `follow_mm > 0`, internally clamp to `follow_mm -
-      (BUF_MAX_TRAVEL_MM - BUF_SWITCH_SPAN_MM) / 2` to keep MMU drain
-      below the mechanical overshoot risk at the TENSION side. If
-      `follow_mm < overtravel_margin`, disable the follow-on
-      (passive-only). Decision criterion: confirm the math holds —
-      the margin protects against MMU outrunning the extruder at
-      end-of-move, when residual MMU motion would otherwise pull the
-      buffer back past the TENSION switch click and into the
-      mechanical hard end. If bench shows the residual phase is
-      benign (extruder slower than MMU is rare in practice), drop the
-      task.
+- [ ] 11.8 Firmware speed cap for FOLLOW: clamp the parsed
+      `follow_rate_mmpm`-derived SPS through `sync_clamp_max_sps`
+      (loaded ceiling = `SYNC_MAX_SPS`) instead of the looser
+      `motion_clamp_rate_sps` (global ceiling). Free MMU motion tops
+      out at GLOBAL_MAX, but loaded BL FOLLOW stalls well below.
+      `sync_clamp_max_sps` already represents the validated loaded
+      ceiling and is used by PRIME; reuse here. Bench-verify the cap
+      eliminates the need to hand-tune `mmu_follow_rate` down.
+- [ ] 11.9 Auto-subtract a "land near NEUTRAL" margin from follow_mm
+      so the FOLLOW move finishes with the buffer comfortably away
+      from the armed extreme. After mass-balance during the move the
+      buffer drifts back toward the armed end as MMU keeps draining
+      past the extruder finish point; without a subtract the
+      buffer-end position is at the switch click, one step away from
+      the mechanical hard end. Subtract `BUF_MAX_TRAVEL_MM / 2`
+      (operator-stated value — leaves buffer near NEUTRAL center,
+      not at the TENSION switch click). Edge case: if `follow_mm <
+      BUF_MAX_TRAVEL_MM / 2` the result goes ≤ 0 → disable the
+      follow-on entirely (passive lock only; macro probably doesn't
+      need a FOLLOW for such small moves anyway).
 - [x] 11.10 BS must always force a buffer stabilize. Symptom: after
       `BL:T:<dist>:<rate>` + extruder retract + BS, the filament
       sometimes parks at the TENSION switch and stays there
