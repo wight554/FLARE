@@ -166,6 +166,7 @@ float g_buf_pos_raw_status = 0.0f;
 bool g_boot_stabilizing = false;
 uint32_t g_boot_stabilize_deadline_ms = 0;
 lane_t *g_boot_stabilize_lane = NULL;
+bool g_boot_stabilize_forward = false;
 static bool g_buffer_stabilize_emit_events = false;
 
 typedef enum {
@@ -755,6 +756,7 @@ static bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events, b
     motor_enable(&stab_lane->m, true);
     motor_set_dir(&stab_lane->m, forward);
     motor_set_rate_sps(&stab_lane->m, BUF_STAB_SPS);
+    g_boot_stabilize_forward = forward;
 
     if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "START");
     return true;
@@ -821,13 +823,31 @@ void buffer_stabilize_tick(uint32_t now_ms) {
             motor_enable(&g_boot_stabilize_lane->m, true);
             motor_set_dir(&g_boot_stabilize_lane->m, true);
             motor_set_rate_sps(&g_boot_stabilize_lane->m, BUF_STAB_SPS);
+            g_boot_stabilize_forward = true;
             return;
         }
-    } else if (raw_state == BUF_NEUTRAL) {
-        buf_force_stable_state(BUF_NEUTRAL, now_ms);
-        if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "DONE");
-        boot_stabilize_stop();
-        return;
+    } else {
+        if (raw_state == BUF_NEUTRAL) {
+            buf_force_stable_state(BUF_NEUTRAL, now_ms);
+            if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "DONE");
+            boot_stabilize_stop();
+            return;
+        }
+        /* Overshoot recovery: BUF_STAB_SPS can push the buffer past
+         * NEUTRAL into the opposite extreme in a single tick on a
+         * light/fast buffer. Without a reversal the motor keeps
+         * driving in the original direction and slams the opposite
+         * mechanical end. Detect the polarity flip via motor_get_dir
+         * vs the current raw state and reverse if they no longer
+         * agree (still-need-forward when raw == COMPRESSION, or
+         * still-need-retract when raw == TENSION). */
+        bool need_forward = (raw_state == BUF_TENSION);
+        if (g_boot_stabilize_forward != need_forward) {
+            motor_set_dir(&g_boot_stabilize_lane->m, need_forward);
+            g_boot_stabilize_forward = need_forward;
+            g_boot_stabilize_deadline_ms = now_ms + 10000u;
+            if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "REVERSE");
+        }
     }
 
     if ((int32_t)(now_ms - g_boot_stabilize_deadline_ms) >= 0) {
