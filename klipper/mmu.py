@@ -66,6 +66,8 @@ class MMUMock:
         self.loading_start_time = 0.0
         self.loading_target = 1000.0
         self.loading_speed = 50.0
+        self.is_swapping = False
+        self.swap_unload_duration = 20.0
         
         # FLARE specific extra state variables
         self.board_online = 0
@@ -828,6 +830,14 @@ class MMUMock:
             
         self.loading_target = bowden_length
         self.loading_speed = base_speed * (speed_override / 100.0)
+        
+        # Swapping is active if the old active lane was loaded
+        is_swapping = False
+        if self.active_gate >= 0 and self.active_gate < len(self.gate_status):
+            if self.gate_status[self.active_gate] == 2 or self.filament == "Loaded":
+                is_swapping = True
+        self.is_swapping = is_swapping
+        self.swap_unload_duration = bowden_length / self.loading_speed if self.loading_speed > 0 else 20.0
 
         try:
             while not self._is_toolhead_sensor_triggered():
@@ -1003,7 +1013,19 @@ class MMUMock:
         if self.is_loading:
             reactor = self.printer.get_reactor()
             elapsed = reactor.monotonic() - self.loading_start_time
-            filament_position = min(bowden_length, elapsed * self.loading_speed)
+            if self.is_swapping:
+                unload_time = self.swap_unload_duration
+                if elapsed < unload_time:
+                    # Counting down (unloading)
+                    progress = elapsed / unload_time
+                    filament_position = max(0.0, path_len - (progress * bowden_length))
+                else:
+                    # Counting up (loading)
+                    load_elapsed = elapsed - unload_time
+                    filament_position = min(bowden_length, load_elapsed * self.loading_speed)
+            else:
+                # Cold load: just count up (loading)
+                filament_position = min(bowden_length, elapsed * self.loading_speed)
         else:
             if path_toolhead:
                 filament_position = path_len
