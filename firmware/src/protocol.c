@@ -652,8 +652,16 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
          * stay stuck and sync never re-engages. */
         if (g_sync_state == SYNC_RETRACT_ASSIST) {
             sync_retract_assist_set(false);
-            sync_bl_clear_autostart_suppress();
         }
+        /* Always clear BL auto-start suppression on BS, not just when BL is
+         * active at call time. Suppression can leak in from other paths
+         * (e.g. TS:1 entering sync_retract_assist_set(false) while sync is
+         * already in SYNC_RETRACT_ASSIST from a TC reload) and otherwise
+         * sticks until the buffer physically departs TENSION — which never
+         * happens if filament is parked at TENSION with no extruder demand.
+         * BS is the explicit "operator wants the buffer normalized" call,
+         * so always clear here. */
+        sync_bl_clear_autostart_suppress();
         if (!buffer_stabilize_request(now_ms)) {
             cmd_reply("ER", "BUF_STAB_UNAVAILABLE");
             return;
