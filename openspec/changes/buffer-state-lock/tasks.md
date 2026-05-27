@@ -9,7 +9,7 @@
 - [x] 2.1 Repurpose `SYNC_RETRACT_ASSIST` state in `firmware/src/sync.c` to host the buffer-lock lifecycle (prime / locked / catch / settle sub-states), preserving the "learning paused, estimator preserved" contract.
 - [x] 2.2 Restore an aggressive slam drive helper (analogue of the deleted `retract_assist_drive` from commit `f19f41a`) that writes `current_sps = target` directly, bypassing `SYNC_RAMP_UP_SPS`.
 - [x] 2.3 Wire the sync tick to detect raw `BUF_*` departure from the armed extreme while in the locked sub-state and transition to the catch sub-state on the same tick (no hyst debounce on the break edge).
-- [x] 2.4 Implement the locked-state watchdog (default 30s) that auto-releases and emits `EV:BL:TIMEOUT`.
+- [x] 2.4 Implement the locked-state watchdog (default 30s) that auto-releases and emits `EV:BL:TIMEOUT`. On timeout, firmware also clears the BL auto-start suppression flag and triggers a full buffer stabilize automatically (`handle_bl_watchdog_timeout` in `sync.c`) so sync can re-engage without a manual `BS` from the host (commit `TBD`).
 
 ## 3. Firmware: Prime Move
 

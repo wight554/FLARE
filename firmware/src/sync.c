@@ -1133,6 +1133,16 @@ void sync_retract_assist_release(uint32_t now_ms) {
     }
 }
 
+/* Called when the BL watchdog fires. Releases the lock then immediately
+ * clears the auto-start suppression flag and triggers a full buffer stabilize
+ * so sync can re-engage without requiring a manual BS from the host. */
+static void handle_bl_watchdog_timeout(uint32_t now_ms) {
+    cmd_event("EV:BL", "TIMEOUT");
+    sync_retract_assist_release(now_ms);
+    sync_bl_clear_autostart_suppress();
+    (void)buffer_stabilize_request(now_ms);
+}
+
 /* Clear the BL auto-start suppression flag. The flag is set when BL releases
  * with the buffer still at the armed extreme (no extruder demand to depart
  * the band) to prevent sync from immediately re-engaging in AUTO_MODE. An
@@ -1304,8 +1314,7 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         }
         if (g_bl_watchdog_ms != 0 &&
             (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
-            cmd_event("EV:BL", "TIMEOUT");
-            sync_retract_assist_release(now_ms);
+            handle_bl_watchdog_timeout(now_ms);
         }
     } else if (g_bl_sub_state == BL_FOLLOW) {
         /* Concurrent follow-on retract. Mass-balances the extruder fill
@@ -1324,8 +1333,7 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
             cmd_event("BL", "FOLLOW_DONE");
         } else if (g_bl_watchdog_ms != 0 &&
                    (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
-            cmd_event("EV:BL", "TIMEOUT");
-            sync_retract_assist_release(now_ms);
+            handle_bl_watchdog_timeout(now_ms);
         }
     }
 }
