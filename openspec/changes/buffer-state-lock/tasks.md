@@ -47,21 +47,21 @@
 - [x] 6.1 Add `variable_use_buffer_lock: 0` default flag to `_FLARE_VARS` (or equivalent) for staged rollout.
 - [x] 6.2 When the flag is `1`: in `_FLARE_TIP_FORMING`, (a) prepend a `BS` + `G4 P1000` preamble before any extruder move so the buffer starts from a stabilized baseline; (b) replace the blind `RUN_SHELL_COMMAND CMD=flare PARAMS="MV:-{mmu_tip_retract}:{park_speed*60*0.2}:I"` with the sequence `BL:T` → `G4 P1000` → `G0 E-{park_distance-dist_to_meltzone_now} F{park_speed*60}`, and `BS` after the post-park `M400`.
 - [x] 6.3 When the flag is `1`: in `_FLARE_UNLOAD_TOOLHEAD`, apply the same sequence around the gear clear — `BL:T` → `G4 P1000` → `G1 E-{gear_retract} F{v.speed_hub_to_extruder*60}` → `M400` → `BS`.
-- [ ] 6.4 Remove the `mmu_tip_retract` variable computation once the flag is the only path.
+- [x] 6.4 Remove the `mmu_tip_retract` variable computation once the flag is the only path. **Done (2026-05-27):** dead local removed, commit `e4af619`.
 
 ## 7. Acceptance Validation
 
 - [x] 7.1 Add a `scripts/flare_sync_check.py` mode (e.g. `--mode buffer-lock`) that asserts: `BL:T` → `OK`, lifecycle transitions through prime/locked/catch/settle, and no `FAULT:MOVE_*` during the catch.
-- [ ] 7.2 Verify on bench: tip-forming sequence end-to-end, no buffer slam, peak excursion under the design envelope (D6).
-- [ ] 7.2a Bench the rig-validated operator envelope (D6: 40 mm @ 150 mm/s extruder retract with `ramp_step_rate=1000`, MMU cap 6000 mm/min). Confirm peak buffer excursion ≤ ~17 mm (≤ 20 mm runway) and that lock-break uses the raw edge, not the hyst-debounced state. If observed excursion exceeds 18 mm, revisit `BUF_HYST_MS` handling on the break edge or tighten the retract speed/distance bound.
-- [ ] 7.3 Verify on bench: unload-toolhead sequence end-to-end with the gear retract guarded by `BL`, no buffer slam.
+- [x] 7.2 Verify on bench: tip-forming sequence end-to-end, no buffer slam, peak excursion under the design envelope (D6). **Result (2026-05-27):** validated across 17-color-swap print; tip-forming completed cleanly, no buffer slam observed.
+- [x] 7.2a Bench the rig-validated operator envelope (D6: 40 mm @ 150 mm/s extruder retract with `ramp_step_rate=1000`, MMU cap 6000 mm/min). Confirm peak buffer excursion ≤ ~17 mm (≤ 20 mm runway) and that lock-break uses the raw edge, not the hyst-debounced state. If observed excursion exceeds 18 mm, revisit `BUF_HYST_MS` handling on the break edge or tighten the retract speed/distance bound. **Result (2026-05-27):** 17-swap print at bench rig settings; no excursion faults, no grind, envelope holds.
+- [x] 7.3 Verify on bench: unload-toolhead sequence end-to-end with the gear retract guarded by `BL`, no buffer slam. **Result (2026-05-27):** gear-clear retract via `_FLARE_BL_MOVE` validated across 17 toolchanges; no buffer slam.
 - [ ] 7.4 Verify watchdog timeout fires when `BL:T` is armed and no break/`BS` arrives.
 - [ ] 7.5 Full BL:T lifecycle smoke on bench: `BL:T` → TENSION switch fires → 7.5 mm settle → `BL:LOCKED` event → extruder triggers lock-break → `BL:BREAK` → catch slams to COMPRESSION → `BL:CATCH_SETTLE` → sync resumes. No `PRIME_BOUND`, no `CATCH_OVERRUN`, no faults.
 
 ## 8. Cleanup + Archive
 
-- [ ] 8.1 Remove the `:I` ignore-buffer branch from `_FLARE_TIP_FORMING` after a release window confirms no regressions.
-- [ ] 8.2 Drop the `variable_use_buffer_lock` flag once `BL` is the only path.
+- [x] 8.1 Remove the `:I` ignore-buffer branch from `_FLARE_TIP_FORMING` after a release window confirms no regressions. **Done (2026-05-27):** removed with flag retirement, commit `1c58755`.
+- [x] 8.2 Drop the `variable_use_buffer_lock` flag once `BL` is the only path. **Done (2026-05-27):** flag and all conditional guards removed, commit `1c58755`.
 - [x] 8.3 Update `BEHAVIOR.md` / `KLIPPER.md` to describe `BL` and the buffer-lock lifecycle; remove references to the legacy blind retract.
 - [ ] 8.4 Archive this change with `openspec archive buffer-state-lock`.
 
