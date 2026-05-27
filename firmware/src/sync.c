@@ -630,12 +630,8 @@ buf_state_t buf_state_raw(void) {
         return BUF_NEUTRAL;
     }
 
-    bool tension_raw = on_al(&g_buf_tension_din);
-    bool compression_raw = on_al(&g_buf_compression_din);
-
-    bool reversed = (BUF_PSF_MAX_COMP < BUF_PSF_MAX_TENS);
-    bool tension = reversed ? compression_raw : tension_raw;
-    bool compression = reversed ? tension_raw : compression_raw;
+    bool tension = on_al(&g_buf_tension_din);
+    bool compression = on_al(&g_buf_compression_din);
 
     if (tension && compression) return BUF_FAULT;
     if (tension) return BUF_TENSION;
