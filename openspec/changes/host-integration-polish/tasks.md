@@ -17,7 +17,7 @@
 
 ## 3. klipper/flare_mmu.cfg: Macro Cleanup
 
-- [ ] 3.1 Delete the entire `[gcode_macro _FLARE_STATE]` block.
+- [x] 3.1 Delete the entire `[gcode_macro _FLARE_STATE]` block.
 
 ## 4. Validation
 
