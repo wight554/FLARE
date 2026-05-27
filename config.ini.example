@@ -83,7 +83,7 @@ run_current:
 # sync_cannot_refill_mm: 50.0
 # sync_cannot_relieve_mm: 50.0
 # buf_predict_thr_ms: 250
-# global_max_rate: 4000         # absolute ceiling for every commanded motor rate (mm/min)
+# global_max_rate: 5000         # absolute ceiling for every commanded motor rate (mm/min)
 # sync_kp_rate: 900
 # sync_overshoot_pct: 150        # Trailing-side trim as % of sync correction (0..200)
 # sync_reserve_pct: 35           # Reserve target as % of half the BUF_SWITCH_SPAN toward compression

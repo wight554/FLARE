@@ -1171,8 +1171,19 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm,
     g_bl_prime_switch_hit    = false;
     g_bl_prime_post_start_ms = 0;
     g_bl_prime_post_cap_mm   = 0.0f;
-    g_bl_follow_mm           = (follow_mm > 0.0f && follow_rate_mmpm > 0.0f) ? follow_mm : 0.0f;
-    g_bl_follow_rate_mmpm    = (g_bl_follow_mm > 0.0f) ? follow_rate_mmpm : 0.0f;
+    /* Subtract BUF_MAX_TRAVEL_MM/2 so FOLLOW finishes near NEUTRAL rather
+     * than at the switch click. After the extruder stops the MMU keeps
+     * draining; parking at the switch click leaves one step before the
+     * mechanical hard end. If the adjusted distance is ≤ 0, the macro
+     * doesn't need a follow-on for such a short move — use passive lock. */
+    {
+        float half_travel = (BUF_MAX_TRAVEL_MM > 0)
+                            ? ((float)BUF_MAX_TRAVEL_MM * 0.5f) : 12.5f;
+        float effective_follow_mm = (follow_mm > 0.0f && follow_rate_mmpm > 0.0f)
+                                    ? (follow_mm - half_travel) : 0.0f;
+        g_bl_follow_mm        = (effective_follow_mm > 0.0f) ? effective_follow_mm : 0.0f;
+        g_bl_follow_rate_mmpm = (g_bl_follow_mm > 0.0f) ? follow_rate_mmpm : 0.0f;
+    }
     g_bl_follow_start_ms     = 0;
     g_bl_follow_mm_per_s     = 0.0f;
     g_bl_watchdog_ms = 0;
@@ -1263,7 +1274,7 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
                 int idx = A->lane_id - 1;
                 int follow_sps = (int)(g_bl_follow_rate_mmpm / 60.0f / MM_PER_STEP[idx] + 0.5f);
                 if (follow_sps < 1) follow_sps = 1;
-                follow_sps = motion_clamp_rate_sps(follow_sps);
+                follow_sps = sync_clamp_max_sps(follow_sps);
                 bool forward = (g_bl_target_state == BUF_COMPRESSION);
                 motor_set_dir(&A->m, forward);
                 motor_set_rate_sps(&A->m, follow_sps);

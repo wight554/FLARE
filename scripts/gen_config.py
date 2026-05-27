@@ -37,7 +37,7 @@ DEFAULTS = {
     "auto_rate": "3000",
     "buf_stab_rate": "600",
     "sync_max_rate": "2200",
-    "global_max_rate": "4000",
+    "global_max_rate": "5000",
     "sync_min_rate": "100",
     "pre_ramp_rate": "90",
 

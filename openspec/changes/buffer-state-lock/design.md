@@ -118,38 +118,52 @@ force = lock-break.
 **Alternatives considered:** active feedback to maintain the endstop
 (rejected: introduces a control loop and risk of oscillation against the
 spring, and we *want* the buffer to leave on external force — that's the
-catch trigger).
+follow-on trigger).
 
-### D4 — Lock-break trigger = raw buffer departure from target
+### D4 — FOLLOW trigger = raw buffer departure from target
 
-The lock-break edge is the raw buffer state leaving the target side, not a
-debounced edge. Latency budget is tight (see D6); we cannot afford the full
-`BUF_HYST_MS` window. The catch engine itself respects hysteresis on its
-own internal transitions, but the lock-break is the unfiltered raw edge.
+The FOLLOW arm edge is the raw buffer state leaving the target side, not a
+debounced edge. The follow-on must start promptly so MMU motion begins
+concurrent with the extruder retract rather than lagging it.
 
-**Alternatives considered:** wait full `BUF_HYST_MS` (rejected: burns
-~30ms × V_e = 4.2mm of runway at 140mm/s); host-driven trigger from a
-sentinel command (rejected: round-trip latency worse than sensor).
+**Alternatives considered:** wait full `BUF_HYST_MS` (rejected: delays FOLLOW
+start by ~30ms, increasing the no-follow fill interval and tip ooze risk);
+host-driven trigger (rejected: round-trip latency worse than sensor).
 
-### D5 — Catch = instant slam SPS, asymmetric safety
+### D5 — Passive lock + follow-on concurrent retract (catch removed)
 
-On lock-break, the active lane is driven in the **mirror direction** at
-`GLOBAL_MAX_SPS` (lane motor ceiling, decoupled from `SYNC_MAX_SPS`)
-using an instant `current_sps = target`
-write (no `SYNC_RAMP_UP_SPS`). This is the exact mechanism the deleted
-`retract_assist_drive` used at `f19f41a:firmware/src/sync.c:962`. The
-soft PD ramp is bypassed for the catch; effective acceleration is
-motor-limited, not firmware-limited.
+**Catch was removed** after bench testing (tasks §10). The reactive catch
+solved a non-problem: long park unloads always drive the buffer to the
+COMPRESSION endstop regardless — that is accepted, not a failure, because
+the MMU is idle at that point and the buffer absorbs the extruder retract
+mechanically.
 
-This is safe by asymmetry: armed at deep tension, an *over-drain* drives
-the buffer back toward tension — the direction we were just at, mechanically
-recoverable, no grind. The *only* failure mode is the compression slam
-the catch is sized to prevent.
+The reactive catch added stall risk (motor commanded to retract against
+still-taut filament at lock-break, MMU idle) without preventing any real
+failure mode.
 
-**Alternatives considered:** PD ramp at higher gain (rejected: even
-8×`SYNC_RAMP_UP_SPS` cannot survive 140mm/s in 10mm runway — see budget);
-proportional catch (rejected: same problem — asymmetric safety means
-bang-bang is the right shape).
+**Current design — passive lock + optional follow-on:**
+
+- `BL_LOCKED`: motor energized at zero rate (holding torque). Buffer free to
+  migrate via external force (extruder retract). Only the watchdog releases
+  the lock from firmware; `BS` releases it from the host.
+- `BL_FOLLOW` (optional, armed via `BL:T:<mm>:<rate>`): on the first raw
+  departure from the armed extreme, the MMU runs concurrently in the prime
+  direction at `follow_rate_mmpm` (clamped to `sync_clamp_max_sps` loaded
+  ceiling). Mass-balance: buffer fill = (extruder_rate − mmu_rate) × T.
+  FOLLOW distance is auto-shortened by `BUF_MAX_TRAVEL_MM/2` so the FOLLOW
+  move parks near NEUTRAL rather than at the switch click.
+- Buffer hitting the COMPRESSION endstop during a long park retract is
+  **accepted** when BL:T follow-on is running; the follow-on drains enough
+  to prevent extruder TMC skip and tip ooze without reactive catching.
+
+**Asymmetric safety note (still applies):** armed at TENSION, FOLLOW drives
+toward COMPRESSION — the opposite extreme. Over-follow is mechanically
+bounded by the COMPRESSION hard-end stop and is recoverable. Under-follow
+(buffer doesn't drain enough) causes a tip bulge but no crash. No
+combination drives the motor against a taut filament at the lock-break
+instant, because BL_LOCKED holds zero motor rate until the first raw
+departure triggers FOLLOW.
 
 ### D6 — Survival envelope (HW limitations)
 
@@ -190,23 +204,20 @@ envelope must be sized against the *worst case* the macro might emit.
 3. Cut `BUF_HYST_MS` for the locked-state edge specifically (D4) —
    reclaims up to 4–5mm of runway at 140mm/s.
 
-Levers 2 and 3 stack with whatever ceiling we end up with.
+**⚠️ Catch removed (§10):** The excursion budget analysis above applied to
+the reactive catch design. With catch removed, long retracts DO drive the
+buffer to the COMPRESSION endstop — this is accepted. The BL:T follow-on
+concurrent retract (§11) mass-balances the buffer fill so the extruder TMC
+does not skip and the tip does not ooze. Buffer endstop contact is mechanically
+benign (spring-loaded arm); the constraint is no extruder skip / tip bulge,
+not no endstop contact.
 
-**Catch ceiling source.** The catch uses `GLOBAL_MAX_SPS` directly — the
-lane motor ceiling — **NOT** `SYNC_MAX_SPS` and **NOT** a separate
-`BL_CATCH_MAX_SPS` constant. This decouples the catch ceiling from the
-normal-sync PD ceiling (`SYNC_MAX_SPS`), so:
-
-- raising `GLOBAL_MAX_RATE` makes the catch slam faster without changing
-  the print-time sync feel (which stays capped by `SYNC_MAX_RATE`);
-- raising `SYNC_MAX_RATE` makes the print-time sync more responsive
-  without inadvertently raising the BL catch slam.
-
-Raising the catch ceiling past 5000 mm/min still requires lifting the
-`protocol.c:801` outer hard-cap and reflashing. Keeping the catch slaved
-to `GLOBAL_MAX_SPS` avoids two parallel rate-cap trees in the BL state
-machine itself, and matches the catch's open-loop slam character — bounded
-by motor capability, not by closed-loop stability.
+**Follow-on ceiling source.** FOLLOW rate is parsed from `follow_rate_mmpm`
+and clamped via `sync_clamp_max_sps` (loaded ceiling = `SYNC_MAX_SPS`), the
+same ceiling used by PRIME. This is tighter than `motion_clamp_rate_sps`
+(global ceiling) because loaded FOLLOW stalls well below the free-motion top.
+Operators do not need to hand-tune `mmu_follow_rate` below the loaded ceiling;
+the clamp enforces the safe bound automatically.
 
 **Bench-validated operator envelope (rig data, NEMA17 + 50:17 gear).**
 

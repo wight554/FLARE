@@ -124,8 +124,8 @@ lock-break) without preventing any real failure.
 ### New tasks
 - [x] 10.1 Bench: `BL:T` → extruder retract (tip-forming length, ≤20 mm) → buffer ends in TENSION zone, no slam. **Result:** passive lock works; tip-form completes cleanly with passive BL.
 - [x] 10.2 Bench: `BL:T` → extruder long retract (50-150 mm park unload) → buffer reaches COMPRESSION endstop. **Result:** without MMU follow-on, extruder TMC skipped against full buffer → filament tip kept oozing → tip bulge. Drove the design of section 11 (BL:T follow-on retract).
-- [ ] 10.3 Update design.md §D5 (asymmetric safety) and §D6 (envelope) to reflect that catch is gone; buffer endstop on retract is accepted only with BL:T follow-on mass-balancing the long retract.
-- [ ] 10.4 Mark `_FLARE_TIP_FORMING` / `_FLARE_UNLOAD_TOOLHEAD` macros: remove any "expect BL:BREAK / CATCH_DONE" log assertions if present.
+- [x] 10.3 Update design.md §D5 (asymmetric safety) and §D6 (envelope) to reflect that catch is gone; buffer endstop on retract is accepted only with BL:T follow-on mass-balancing the long retract.
+- [x] 10.4 Mark `_FLARE_TIP_FORMING` / `_FLARE_UNLOAD_TOOLHEAD` macros: remove any "expect BL:BREAK / CATCH_DONE" log assertions if present.
 
 ## 11. BL:T Follow-On Concurrent Retract
 
@@ -167,11 +167,11 @@ FOLLOW → LOCKED. Mass balance: buffer fill = (extruder_rate − mmu_rate)
       under FOLLOW; buffer cycles through TENSION/COMPRESSION cleanly.
 
 ### Open
-- [ ] 11.7 Persist per-rig tuned values (`global_max_rate`,
+- [x] 11.7 Persist per-rig tuned values (`global_max_rate`,
       `global_max_accel`, `mmu_follow_rate`) in `config.ini` and/or
       bump `gen_config.py` + `flare_mmu.cfg` defaults if the rig
       values are general-purpose.
-- [ ] 11.8 Firmware speed cap for FOLLOW: clamp the parsed
+- [x] 11.8 Firmware speed cap for FOLLOW: clamp the parsed
       `follow_rate_mmpm`-derived SPS through `sync_clamp_max_sps`
       (loaded ceiling = `SYNC_MAX_SPS`) instead of the looser
       `motion_clamp_rate_sps` (global ceiling). Free MMU motion tops
@@ -179,7 +179,7 @@ FOLLOW → LOCKED. Mass balance: buffer fill = (extruder_rate − mmu_rate)
       `sync_clamp_max_sps` already represents the validated loaded
       ceiling and is used by PRIME; reuse here. Bench-verify the cap
       eliminates the need to hand-tune `mmu_follow_rate` down.
-- [ ] 11.9 Auto-subtract a "land near NEUTRAL" margin from follow_mm
+- [x] 11.9 Auto-subtract a "land near NEUTRAL" margin from follow_mm
       so the FOLLOW move finishes with the buffer comfortably away
       from the armed extreme. After mass-balance during the move the
       buffer drifts back toward the armed end as MMU keeps draining
