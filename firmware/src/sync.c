@@ -1744,10 +1744,18 @@ void sync_tick(uint32_t now_ms) {
     /* Do not auto-start sync when both OUT sensors are active: the hub has two
        filaments loaded simultaneously and the system is in manual recovery.
        The guard clears automatically once one lane's OUT sensor drops (i.e.
-       after the operator unloads the unwanted lane). */
+       after the operator unloads the unwanted lane).
+       Also require at least one lane to have filament past its OUT sensor:
+       without that, sync engaging at TENSION just spins an empty lane
+       (post-unload state with buffer drained to tension and no filament
+       past gate to feed). */
+    bool l1_out = lane_out_present(&g_lane_l1);
+    bool l2_out = lane_out_present(&g_lane_l2);
+    bool any_lane_loaded = l1_out || l2_out;
+    bool both_loaded = l1_out && l2_out;
     if (AUTO_MODE && !sync_enabled && auto_start_allowed && s == BUF_TENSION &&
             !g_bl_autostart_suppressed &&
-            !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
+            any_lane_loaded && !both_loaded) {
         /* Auto-correct the active lane to the physically loaded one. The operator
            may have switched the UI selection to an unloaded lane (to inspect or
            eject) and left it there. Tension with filament at the hub (YS) means
