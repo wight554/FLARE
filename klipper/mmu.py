@@ -48,6 +48,7 @@ class MMUMock:
         self.gate_color = ["", ""] # color names or hex codes (e.g. "ff0000")
         self.gate_material = ["", ""] # material types (e.g. "PLA", "ABS")
         self.gate_spool_id = [-1, -1] # Spoolman database spool mappings
+        self.gate_speed_override = [100, 100] # per-gate speed overrides (%)
         self.spoolman_support = "get"
         self.gate_color_rgb = [[0.5, 0.5, 0.5], [0.5, 0.5, 0.5]]
         self.gate_name = ["Gate 0", "Gate 1"]
@@ -565,6 +566,12 @@ class MMUMock:
                             except (ValueError, TypeError):
                                 pass
                                 
+                        if 'speed' in data:
+                            try:
+                                self.gate_speed_override[g_idx] = int(data['speed'])
+                            except (ValueError, TypeError):
+                                pass
+                                
                     self._save_vars()
                     self._ensure_array_lengths()
                     gcmd.respond_info("FLARE: Updated MMU gate map from MAP dictionary")
@@ -576,8 +583,8 @@ class MMUMock:
         if gate < 0:
             gcmd.respond_info(
                 "================ MMU Gate Map (FLARE Mock) ================\n"
-                f"Gate 0: {self.gate_material[0]}({self.gate_color[0]}) Status: {self.gate_status[0]}\n"
-                f"Gate 1: {self.gate_material[1]}({self.gate_color[1]}) Status: {self.gate_status[1]}"
+                f"Gate 0: {self.gate_material[0]}({self.gate_color[0]}) Status: {self.gate_status[0]} Speed: {self.gate_speed_override[0]}%\n"
+                f"Gate 1: {self.gate_material[1]}({self.gate_color[1]}) Status: {self.gate_status[1]} Speed: {self.gate_speed_override[1]}%"
             )
             return
 
@@ -616,6 +623,10 @@ class MMUMock:
         available = gcmd.get_int('AVAILABLE', None)
         if available is not None:
             self.gate_status[gate] = available
+
+        speed = gcmd.get_int('SPEED', None)
+        if speed is not None:
+            self.gate_speed_override[gate] = speed
 
         self._save_vars()
         self._ensure_array_lengths()
@@ -819,6 +830,7 @@ class MMUMock:
             "gate_filament_name": self.gate_filament_name,
             "ttg_map": self.ttg_map,
             "spoolman_support": self.spoolman_support,
+            "gate_speed_override": self.gate_speed_override,
         }
         try:
             payload = json.dumps(data).encode("utf-8")
@@ -845,6 +857,7 @@ class MMUMock:
             self.gate_filament_name = data.get("gate_filament_name", self.gate_filament_name)
             self.ttg_map = data.get("ttg_map", self.ttg_map)
             self.spoolman_support = data.get("spoolman_support", self.spoolman_support)
+            self.gate_speed_override = data.get("gate_speed_override", self.gate_speed_override)
         except Exception as e:
             if hasattr(self, 'gcode'):
                 self.gcode.respond_info(f"FLARE Warning: daemon unreachable, using defaults: {e}")
@@ -874,6 +887,7 @@ class MMUMock:
         self.gate_name = pad_list(self.gate_name, lambda i: f"Gate {i}")
         self.gate_filament_name = pad_list(self.gate_filament_name, lambda i: f"Gate {i}")
         self.ttg_map = pad_list(self.ttg_map, lambda i: i)
+        self.gate_speed_override = pad_list(self.gate_speed_override, 100)
 
         # Force fresh list objects to trigger Klipper/Moonraker status updates
         self.gate_status = list(self.gate_status)
@@ -885,6 +899,7 @@ class MMUMock:
         self.gate_name = list(self.gate_name)
         self.gate_filament_name = list(self.gate_filament_name)
         self.ttg_map = list(self.ttg_map)
+        self.gate_speed_override = list(self.gate_speed_override)
 
     @property
     def tool_color(self):
@@ -1022,6 +1037,8 @@ class MMUMock:
             'pre_gate_sensor_active': self.pre_gate_sensor_active,
             'hub_sensor_active': self.hub_sensor_active,
             'sensors': sensors_dict,
+            'gate_speed_override': list(self.gate_speed_override),
+            'gate_speed': self.gate_speed_override[self.active_gate] if 0 <= self.active_gate < len(self.gate_speed_override) else 100,
             'clogs_enabled': False,
             'clogs_suspended': True,
             'clogs_detected': False,
