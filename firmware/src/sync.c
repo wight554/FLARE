@@ -714,7 +714,9 @@ static void boot_stabilize_disarm(void) {
 }
 
 static bool buffer_stabilize_controller_idle(void) {
-    if (g_tc_ctx.state != TC_IDLE || cutter_busy() || sync_enabled) return false;
+    /* TC_ERROR: TC concluded (failed), motors stopped — allow stabilize. */
+    if ((g_tc_ctx.state != TC_IDLE && g_tc_ctx.state != TC_ERROR) ||
+        cutter_busy() || sync_enabled) return false;
     if (g_lane_l1.task != TASK_IDLE || g_lane_l2.task != TASK_IDLE) return false;
     return true;
 }

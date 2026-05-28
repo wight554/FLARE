@@ -121,7 +121,10 @@ static float buf_switch_span_half_from_full(float span_mm, int max_travel_mm) {
 
 static bool controller_activity_in_progress(void) {
     if (manual_unload_active()) return true;
-    if (g_tc_ctx.state != TC_IDLE || cutter_busy() || g_boot_stabilizing) return true;
+    /* TC_ERROR means the TC concluded (failed) — not running. Treat as idle
+     * so BS/BL/SV/LD/RS are usable for error recovery without a board reset. */
+    if ((g_tc_ctx.state != TC_IDLE && g_tc_ctx.state != TC_ERROR) ||
+        cutter_busy() || g_boot_stabilizing) return true;
     if (g_lane_l1.task != TASK_IDLE || g_lane_l2.task != TASK_IDLE) return true;
     return false;
 }
