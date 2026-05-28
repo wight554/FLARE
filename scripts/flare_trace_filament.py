@@ -113,6 +113,8 @@ class Recorder:
             bits.append(f"pos={rec['filament_pos']}")
         if rec.get("filament_position") is not None:
             bits.append(f"mm={rec['filament_position']}")
+        if rec.get("bowden_progress") is not None:
+            bits.append(f"bp={rec['bowden_progress']}")
         if rec.get("feed_rate_mms") is not None:
             bits.append(f"feed={rec['feed_rate_mms']}")
         if rec.get("toolhead") is not None:
@@ -184,8 +186,8 @@ def moonraker_poller(base, objects, hz, rec, stop):
 def _mmu_fields(mmu):
     """Pull the fields the widget actually renders from an mmu status object."""
     out = {}
-    for k in ("filament", "filament_pos", "filament_position", "action", "gate",
-              "tool", "active_gate"):
+    for k in ("filament", "filament_pos", "filament_position", "bowden_progress",
+              "action", "gate", "tool", "active_gate"):
         if k in mmu:
             out[k] = mmu[k]
     sensors = mmu.get("sensors")
@@ -352,6 +354,17 @@ def _distinct(records, src, field):
     return vals, seen
 
 
+def _activity(records):
+    """True if a real load/unload was captured (not an idle/bypass snapshot).
+    Without this guard the #1 verdict mis-reads a static capture: an idle run
+    trivially has one filament_position value and a change-only websocket emits
+    a single push, which is not starvation."""
+    tc = {r.get("tc_state") for r in records if r.get("tc_state")}
+    act = {r.get("action") for r in records if r.get("action")}
+    pos = {r.get("filament_position") for r in records if r.get("filament_position") is not None}
+    return bool(tc - {"IDLE", "UNKNOWN", None}) or bool(act & {"Loading", "Unloading"}) or len(pos) > 2
+
+
 def analyze(records, duration):
     print("\n" + "=" * 70)
     print("ANALYSIS")
@@ -382,7 +395,13 @@ def analyze(records, duration):
     print("VERDICT — #1 standalone-load animation")
     poll = pos_distinct.get("mr_poll")
     ws = pos_distinct.get("mr_ws")
-    if poll is None and ws is None:
+    if not _activity(records):
+        print("    INCONCLUSIVE — no load/unload captured (tc_state stayed IDLE,")
+        print("    filament_position static). This is an idle/bypass snapshot. A")
+        print("    change-only websocket correctly emits ~1 push when nothing")
+        print("    moves, so the poll-vs-ws comparison is meaningless here.")
+        print("    Re-run the trace WHILE driving MMU_LOAD on a real lane.")
+    elif poll is None and ws is None:
         print("    No moonraker filament_position captured (standalone/no Klipper?).")
         print("    Re-run with Moonraker reachable to resolve #1.")
     elif ws is None:
