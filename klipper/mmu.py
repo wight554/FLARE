@@ -137,6 +137,8 @@ class MMUMock:
                                     desc="Select bypass (MMU disengaged, direct feed)")
         self.gcode.register_command('FLARE_WAIT_TC', self.cmd_FLARE_WAIT_TC,
                                     desc="Wait for toolchange physical completion")
+        self.gcode.register_command('FLARE_WAIT_UNLOAD', self.cmd_FLARE_WAIT_UNLOAD,
+                                    desc="Wait cooperatively for manual unload completion")
         self.gcode.register_command('MMU_STATUS', self.cmd_MMU_STATUS,
                                     desc="Show complete current MMU status")
         self.gcode.register_command('MMU_HOME', self.cmd_MMU_HOME,
@@ -822,6 +824,62 @@ class MMUMock:
             return bool(sensor_obj.get_status(eventtime).get('filament_detected'))
         except Exception:
             return False
+
+    def cmd_FLARE_WAIT_UNLOAD(self, gcmd):
+        """Wait cooperatively for manual unload to complete."""
+        timeout = gcmd.get_float('TIMEOUT', 60.0)
+        reactor = self.printer.get_reactor()
+        
+        # Flush existing moves first
+        toolhead = self.printer.lookup_object('toolhead')
+        toolhead.wait_moves()
+
+        gcmd.respond_info("FLARE: Waiting cooperatively for unload to complete...")
+        
+        # Pause slightly to allow daemon/board status cache to update with TASK_UNLOAD
+        reactor.pause(reactor.monotonic() + 0.5)
+        
+        start_time = reactor.monotonic()
+        self.current_phase = "unload"
+        self.unload_phase_start = start_time
+        self.th_clear_time = None
+        self.unload_completed = False
+        
+        while not self.unload_completed:
+            if reactor.monotonic() - start_time > timeout:
+                raise gcmd.error("FLARE Error: Unload timed out.")
+            
+            # Poll status dynamically to update Klipper's state
+            try:
+                import json, urllib.request
+                with urllib.request.urlopen("http://127.0.0.1:8088/status", timeout=0.1) as resp:
+                    state = json.loads(resp.read().decode("utf-8"))
+                    in1 = state.get("in1", 0)
+                    out1 = state.get("out1", 0)
+                    in2 = state.get("in2", 0)
+                    out2 = state.get("out2", 0)
+                    y_split = state.get("y_split", 0)
+                    toolhead = state.get("toolhead", 0)
+                    tc_state = state.get("tc_state", "UNKNOWN").strip().upper()
+                    
+                    self.gate_sensor_active = out1 if self.active_gate == 0 else out2
+                    self.pre_gate_sensor_active = in1 if self.active_gate == 0 else in2
+                    self.hub_sensor_active = y_split
+                    self.toolhead_sensor = toolhead
+                    
+                    lane1_task = state.get("lane1_task", "IDLE").strip().upper()
+                    lane2_task = state.get("lane2_task", "IDLE").strip().upper()
+                    active_task = lane1_task if self.active_gate == 0 else lane2_task
+                    
+                    # Update status completed flag if active lane task is IDLE and OUT is clear
+                    if active_task == "IDLE" and not self.gate_sensor_active:
+                        self.unload_completed = True
+            except Exception:
+                pass
+                
+            reactor.pause(reactor.monotonic() + 0.2)
+        
+        gcmd.respond_info("FLARE: Unload complete.")
 
     def cmd_FLARE_WAIT_TC(self, gcmd):
         """Wait synchronously for physical toolchange toolhead insertion."""

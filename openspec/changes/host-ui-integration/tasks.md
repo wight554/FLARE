@@ -400,6 +400,21 @@
 - Verified Python code compiles cleanly with no warnings or syntax errors. Confirmed local firmware builds are fully green.
 
 
+## Phase 32: Asynchronous Manual Load and Unload Cooperative Progress
+- [x] 32.1 Add `--no-wait` argument to `scripts/flare_cmd.py` to bypass long-running command completion waiting.
+- [x] 32.2 Update `FLARE_LOAD` and `FLARE_UNLOAD` macros in `klipper/flare_mmu.cfg` to use `--no-wait` and add cooperative Klipper wait calls (`FLARE_WAIT_TC` and `FLARE_WAIT_UNLOAD`).
+- [x] 32.3 Register and implement `FLARE_WAIT_UNLOAD` cooperative G-code command in `klipper/mmu.py` to poll active lane task and wait until it returns to `IDLE`.
+- [x] 32.4 Validate Python syntax and check local C builds.
+
+---
+
+### Validation Notes — 2026-05-28 (Asynchronous Manual Load and Unload)
+- Implemented `--no-wait` command line option in `scripts/flare_cmd.py` that immediately returns `OK` for `UL`, `FL`, and other long-running commands, avoiding synchronous shell blocking in Klipper.
+- Modified `FLARE_LOAD` and `FLARE_UNLOAD` macros to run their commands with `--no-wait` and chain cooperative, yielding wait commands (`FLARE_WAIT_TC` and `FLARE_WAIT_UNLOAD`).
+- Created and registered the `FLARE_WAIT_UNLOAD` G-code command in `klipper/mmu.py` to cooperatively poll daemon status and wait until the active lane's motor task is back in `IDLE`, rendering the entire manual unload fully cooperative and dynamically tracked in Fluidd/Mainsail.
+- Confirmed Python compilation successfully checks out and local C firmware builds compile cleanly.
+
+
 
 
 
