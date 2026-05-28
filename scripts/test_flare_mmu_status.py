@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""Offline logic checks for the FLARE Klipper MMU mock (klipper/mmu.py).
+
+Exercises get_status() synthesis and _update_phase() with a fake printer — no
+hardware, daemon, Moonraker, or filament feed. Validates the shipped behavior:
+  #2  RELOAD/preload re-stage must NOT start a phantom load count-up
+  #3  cut unload holds filament_position at 0
+  #4  in-bowden load emits filament_pos=IN_BOWDEN(3) + bowden_progress (tip glide)
+  bypass: omit filament_compression/tension sensors (hide piston), bowden_progress=-1
+
+Run: python3 scripts/test_flare_mmu_status.py   (exit 0 = all pass)
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "klipper"))
+import mmu  # noqa: E402
+
+
+class FakeReactor:
+    def __init__(self):
+        self.t = 1000.0
+
+    def monotonic(self):
+        return self.t
+
+
+class FakeMacro:
+    def __init__(self, variables):
+        self.variables = variables
+
+
+class FakeGcode:
+    """Permissive stub: every method (respond_info, register_command,
+    run_script_from_command, ...) is a silent no-op."""
+    def __getattr__(self, _name):
+        return lambda *a, **k: None
+
+
+class FakePrinter:
+    def __init__(self, varmacro):
+        self._objs = {}
+        self._reactor = FakeReactor()
+        self._var = varmacro
+        self._gcode = FakeGcode()
+
+    def add_object(self, name, obj):
+        self._objs[name] = obj
+
+    def register_event_handler(self, *a, **k):
+        pass
+
+    def get_reactor(self):
+        return self._reactor
+
+    def lookup_object(self, name, default=None):
+        if name == "gcode_macro _FLARE_VARS":
+            return self._var
+        if name == "gcode":
+            return self._gcode
+        return default          # toolhead sensor lookup -> None -> treated as clear
+
+
+class FakeConfig:
+    def __init__(self, printer):
+        self._p = printer
+
+    def get_printer(self):
+        return self._p
+
+    def get_name(self):
+        return "mmu"
+
+
+def new_mock():
+    """Fresh MMUMock with hardware-like bowden geometry (path_len = 1925)."""
+    var = FakeMacro({"bowden_length": 1808.0, "extruder_to_nozzle": 117.0})
+    printer = FakePrinter(var)
+    return mmu.MMUMock(FakeConfig(printer)), printer
+
+
+_PASS = 0
+_FAIL = 0
+
+
+def check(name, cond, detail=""):
+    global _PASS, _FAIL
+    if cond:
+        _PASS += 1
+        print(f"  PASS  {name}")
+    else:
+        _FAIL += 1
+        print(f"  FAIL  {name}   got={detail!r}")
+
+
+print("#4 — in-bowden load animates the tip (filament_pos=3 + bowden_progress)")
+m, p = new_mock()
+m.is_loading = True
+m.current_phase = "load"
+m.load_phase_start = 0.0
+m.loading_speed = 50.0
+m.gate_sensor_active = 1
+p._reactor.t = 10.0                      # elapsed 10s * 50 mm/s = 500 mm
+s = m.get_status(0)
+check("load mm ~= 500", abs(s["filament_position"] - 500.0) < 1.0, s["filament_position"])
+check("filament_pos == 3 (IN_BOWDEN)", s["filament_pos"] == 3, s["filament_pos"])
+check("bowden_progress ~= 27.7", 25.0 < s["bowden_progress"] < 30.0, s["bowden_progress"])
+check("piston sensors present (not bypass)", "filament_compression" in s["sensors"], s["sensors"])
+
+m, p = new_mock()
+m.is_loading = True
+m.current_phase = "load"
+m.load_phase_start = 0.0
+m.loading_speed = 50.0
+m.gate_sensor_active = 1
+p._reactor.t = 40.0                      # 2000 mm -> clamps to path_len 1925
+s = m.get_status(0)
+check("near-end clamps to 1925", abs(s["filament_position"] - 1925.0) < 1.0, s["filament_position"])
+check("filament_pos == 10 (LOADED) at end", s["filament_pos"] == 10, s["filament_pos"])
+
+print("#3 — cut unload holds 0 (no 1800 clamp)")
+m, p = new_mock()
+m.current_phase = "unload"
+m.enable_cutter = 1
+m.unload_cut = 1
+m.gate_sensor_active = 1                  # path_gear True (not the trivial 'gear clear' branch)
+m.toolhead_sensor = 1                     # toolhead still set -> would otherwise clamp to 1800
+m.unload_phase_start = 0.0
+p._reactor.t = 1.0
+s = m.get_status(0)
+check("cut unload holds 0", s["filament_position"] == 0.0, s["filament_position"])
+check("unload_completed latched True", m.unload_completed is True, m.unload_completed)
+
+m, p = new_mock()                         # contrast: non-cut unload counts down
+m.current_phase = "unload"
+m.enable_cutter = 0
+m.unload_cut = 0
+m.gate_sensor_active = 1
+m.toolhead_sensor = 0                     # toolhead cleared -> countdown from bowden
+m.unload_phase_start = 0.0
+m.th_clear_time = 0.0
+m.loading_speed = 50.0
+p._reactor.t = 5.0                        # 1808 - 250 = 1558
+s = m.get_status(0)
+check("non-cut unload counts down (0 < mm < 1808)", 0.0 < s["filament_position"] < 1808.0, s["filament_position"])
+
+print("#2 — RELOAD/preload re-stage must not start a phantom load")
+m, p = new_mock()
+m.current_phase = "unload"
+m.unload_completed = True
+m.is_loading = False
+m.is_unloading = False
+m.gate_sensor_active = 1                   # reload re-stages to gate (OUT high) -> still not a load
+m._update_phase("RELOAD_APPROACH", "Loading", 100.0)
+check("RELOAD does NOT enter load", m.current_phase != "load", m.current_phase)
+
+m, p = new_mock()                          # contrast: genuine toolhead load enters load
+m.current_phase = "idle"
+m.gate_sensor_active = 1
+m.toolhead_sensor = 0
+m._update_phase("LOAD_START", "Loading", 100.0)
+check("LOAD_START enters load", m.current_phase == "load", m.current_phase)
+
+print("bypass — hide buffer piston, no bowden interpolation")
+m, p = new_mock()
+m.bypass = True
+m.toolhead_sensor = 1
+s = m.get_status(0)
+check("no filament_compression sensor", "filament_compression" not in s["sensors"], s["sensors"])
+check("no filament_tension sensor", "filament_tension" not in s["sensors"], s["sensors"])
+check("toolhead sensor still present", "toolhead" in s["sensors"], s["sensors"])
+check("bowden_progress == -1", s["bowden_progress"] == -1.0, s["bowden_progress"])
+check("filament_pos == 10 (loaded)", s["filament_pos"] == 10, s["filament_pos"])
+
+print(f"\n{_PASS} passed, {_FAIL} failed")
+sys.exit(1 if _FAIL else 0)
