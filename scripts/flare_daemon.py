@@ -813,6 +813,11 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             for key, value in body.items():
                 db_set("gate_config", key, value)
             broadcast_telemetry({"type": "gatemap_update"})
+            if "bypass" in body:
+                bypass_val = bool(body["bypass"])
+                with status_lock:
+                    status_cache["bypass"] = bypass_val
+                broadcast_telemetry({"type": "bypass_update", "bypass": bypass_val})
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")

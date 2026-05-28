@@ -403,6 +403,7 @@ class MMUMock:
         directly. Both go through _FLARE_CHANGE_LANE: TC: drives to the toolhead,
         FLARE_WAIT_TC blocks on the toolhead sensor, then the hotend is loaded."""
         self.bypass = False  # loading a real lane exits bypass
+        self._notify_bypass_state(False)
         lane = gate + 1
         current = self.active_gate
 
@@ -733,6 +734,7 @@ class MMUMock:
         self.gate = -2
         self.tool = -2
         self._ensure_array_lengths()
+        self._notify_bypass_state(True)
         gcmd.respond_info("FLARE: Bypass selected - MMU disengaged; feed filament directly to the extruder.")
 
     def cmd_MMU_SELECT(self, gcmd):
@@ -759,6 +761,7 @@ class MMUMock:
 
         # A real gate/tool selection exits bypass.
         self.bypass = False
+        self._notify_bypass_state(False)
             
         if gate >= self.num_gates:
             gcmd.respond_info(f"Error: Gate index {gate} exceeds maximum gates ({self.num_gates})")
@@ -1057,6 +1060,19 @@ class MMUMock:
         except Exception as e:
             if hasattr(self, 'gcode'):
                 self.gcode.respond_info(f"FLARE Warning: Failed to save MMU vars to daemon: {e}")
+
+    def _notify_bypass_state(self, active):
+        import json, urllib.request
+        try:
+            payload = json.dumps({"bypass": active}).encode("utf-8")
+            req = urllib.request.Request(
+                "http://127.0.0.1:8088/config",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+                method="POST")
+            urllib.request.urlopen(req, timeout=1.0)
+        except Exception:
+            pass  # daemon not running; silently ignore
 
     def _update_phase(self, tc_state, action, now):
         tc_state = (tc_state or "UNKNOWN").strip().upper()

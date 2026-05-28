@@ -6,6 +6,7 @@ let activeLane = 0;
 let lastTelemetryData = null;
 let bufferHistory = []; // circular buffer of {time, pos}
 const MAX_HISTORY = 300;
+let bypassActive = false;
 
 // Canvas setup
 const canvas = document.getElementById('buffer-chart');
@@ -76,6 +77,11 @@ function connectSSE() {
             // Refresh gate map when Klipper pushes a config update
             if (data.type === 'gatemap_update') {
                 fetchGateMap();
+            }
+
+            // Show/hide buffer telemetry panel when bypass mode changes
+            if (data.type === 'bypass_update') {
+                setBypassMode(data.bypass);
             }
             
         } catch (e) {
@@ -165,6 +171,21 @@ function updateStats(stats) {
     document.getElementById('stat-loads').textContent = stats.loads_success || 0;
     document.getElementById('stat-unloads').textContent = stats.unloads_success || 0;
     document.getElementById('stat-last-error').textContent = stats.last_error || 'None';
+}
+
+// ---- Bypass mode: hide buffer telemetry panel when direct-feed spool is active ----
+
+function setBypassMode(active) {
+    bypassActive = active;
+    const panel = document.getElementById('panel-telemetry');
+    if (panel) panel.style.display = active ? 'none' : '';
+}
+
+function fetchBypassState() {
+    fetch('/config')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => { if (d && d.bypass !== undefined) setBypassMode(!!d.bypass); })
+        .catch(() => {});
 }
 
 // ---- Spool cards (gate map): display + lane select + inline edit ----
@@ -606,5 +627,6 @@ function drawChart() {
 connectSSE();
 drawChart();
 fetchGateMap();
+fetchBypassState();
 // Refresh spool data periodically for live Spoolman remaining-weight updates
 setInterval(fetchGateMap, 30000);
