@@ -1382,6 +1382,26 @@ class MMUMock:
             else:
                 filament_position = 0.0
 
+        # Refine filament_pos into Happy Hare landmark values and publish
+        # bowden_progress (0-100). Fluidd's MmuFilamentStatus only animates the
+        # drawn tip continuously when filament_pos is START_BOWDEN(2)/IN_BOWDEN(3)
+        # AND bowden_progress >= 0; for every other value the tip snaps to a
+        # discrete stop. Emitting only {0 (UNLOADED), 4 (END_BOWDEN), 10 (LOADED)}
+        # is why the tip parked at three fixed spots. Map the synthetic mm tip
+        # onto IN_BOWDEN + progress so the drawn tip glides with the strand. The
+        # `filament` string (load/unload button gating) is left untouched.
+        bowden_progress = -1.0
+        if not self.bypass and self.filament_pos != 0:
+            if filament_position >= path_len - 1.0:
+                self.filament_pos = 10                       # LOADED
+            elif filament_position >= bowden_length:
+                self.filament_pos = 7                        # EXTRUDER_ENTRY
+            elif filament_position > 5.0 and bowden_length > 0.0:
+                self.filament_pos = 3                        # IN_BOWDEN (interpolated)
+                bowden_progress = max(0.0, min(100.0, filament_position / bowden_length * 100.0))
+            else:
+                self.filament_pos = 1                        # HOMED_GATE
+
         sensors_dict = {
             'toolhead': path_toolhead,
             'filament_tension': self.sync_feedback_state == "tension",
@@ -1439,6 +1459,7 @@ class MMUMock:
             'filament': self.filament,
             'filament_pos': self.filament_pos,
             'filament_position': round(filament_position, 1),
+            'bowden_progress': round(bowden_progress, 1),
             'gate_sensor_active': self.gate_sensor_active,
             'extruder_sensor_active': self.extruder_sensor_active,
             'pre_gate_sensor_active': self.pre_gate_sensor_active,

@@ -476,10 +476,21 @@ synchronous wait loops, the only phase writer is the daemon's `SET_MMU` push.
   (and the binary `sensors['toolhead']`), **not** the continuous
   `filament_position` mm — so it can occupy only three positions. During the
   whole load animation `filament_pos==4`, then snaps to 10. The mm value
-  animates as text; the graphic cannot. **#4 is expected given this design**,
-  not a separate bug. Per §14, Fluidd's fill keys off `sensors['toolhead']`;
-  whether the tip dot can interpolate `filament_position`/`endOfBowdenPos` needs
-  a runtime check before committing to a fix.
+  animates as text; the graphic cannot.
+
+  **RESOLVED from the Fluidd source** (`src/components/widgets/mmu/
+  MmuFilamentStatus.vue` + `src/mixins/mmu.ts`, develop): the drawn tip
+  (`filamentRect` height) is discrete on `filament_pos` for every value
+  **except** `START_BOWDEN (2)` / `IN_BOWDEN (3)`, where it interpolates
+  `START_BOWDEN → endOfBowdenPos` by `mmu.bowden_progress` (a dedicated 0–100
+  field, `bowdenProgress = mmuState.bowden_progress ?? -1`; interpolation only
+  runs when `bowden_progress >= 0`). `filament_position` (mm) feeds **only** the
+  text readout (`filamentPosition`), never the tip. FLARE emitted neither
+  `filament_pos ∈ {2,3}` nor `bowden_progress`, so the interpolation branch
+  never fired → three fixed stops (`0→`bottom, `4→`mid, `10→`top). HH enum:
+  `-1 UNKNOWN, 0 UNLOADED, 1 HOMED_GATE, 2 START_BOWDEN, 3 IN_BOWDEN,
+  4 END_BOWDEN, 5 HOMED_ENTRY, 6 HOMED_EXTRUDER, 7 EXTRUDER_ENTRY, 8 HOMED_TS,
+  9 IN_EXTRUDER, 10 LOADED`.
 
 ### Fix directions (see Phase 37 tasks)
 
@@ -498,9 +509,14 @@ synchronous wait loops, the only phase writer is the daemon's `SET_MMU` push.
 5. **Sensor-anchored load**: start `load_phase_start` at first real feed (first
    non-idle load `tc_state` / first gate-sensor rise), and align `loading_speed`
    to the board-reported feed (or interpolate between sensor crossings).
-6. **Tip motion (investigation-gated)**: confirm which field Fluidd renders the
-   tip from, then emit finer `filament_pos` landmarks mapped from synthetic mm,
-   or export the interpolated field the widget reads.
+6. **Tip motion (RESOLVED + implemented)**: `get_status` now refines
+   `filament_pos` onto HH landmarks from the synthetic mm tip and publishes
+   `bowden_progress` (0–100) so Fluidd interpolates the tip across the bowden:
+   `IN_BOWDEN (3)` + `bowden_progress = filament_position / bowden_length * 100`
+   while in the tube, `HOMED_GATE (1)` just past the gate, `EXTRUDER_ENTRY (7)`
+   past end-of-bowden, `LOADED (10)` at the toolhead, `UNLOADED (0)` when clear.
+   Graphic-only — the `filament` string (button gating) is unchanged. Still
+   wants on-hardware confirmation that the tip glides and buttons stay correct.
 
 These supersede the "perfectly smooth / 100% jump-free / interactive" assertions
 in §§24–31 for the **standalone** flows; the toolchange path is unaffected and

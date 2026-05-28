@@ -488,8 +488,8 @@ Operator validation found the "smooth / jump-free / interactive" claims of Phase
 - [ ] 37.4.3 Verify standalone load counts up smoothly `0 → 1925` matching real strand travel, with no early clamp-and-sit.
 
 ### 37.5 Make the drawn tip move (#4) — investigation-gated
-- [ ] 37.5.1 Runtime: determine which field Fluidd's MMU component renders the tip dot from — discrete `filament_pos`, binary `sensors['toolhead']`, or interpolated `filament_position` / `endOfBowdenPos` (cross-check the Fluidd MMU component version against §14).
-- [ ] 37.5.2 Based on 37.5.1, either emit finer-grained Happy Hare `filament_pos` landmarks mapped from the synthetic mm progress, or export the field the widget interpolates. If the upstream widget cannot interpolate, document that the three-spot tip is a widget limitation (no FLARE fix).
+- [x] 37.5.1 Determine which field Fluidd's MMU component renders the tip from. **Done (from source, no runtime):** `MmuFilamentStatus.vue` drives the tip (`filamentRect` height) discretely on `filament_pos`, EXCEPT `START_BOWDEN(2)`/`IN_BOWDEN(3)` where it interpolates `START_BOWDEN → endOfBowdenPos` by `mmu.bowden_progress` (dedicated 0–100 field, interp only when `>= 0`). `filament_position` mm feeds only the text. FLARE emitted neither `{2,3}` nor `bowden_progress` → 3 fixed stops. See `design.md` §32 #4.
+- [x] 37.5.2 Emit finer-grained Happy Hare `filament_pos` landmarks + `bowden_progress`. **Done:** `get_status` now refines `filament_pos` from the synthetic mm tip (`IN_BOWDEN(3)` + `bowden_progress = filament_position/bowden_length*100` in the tube, `HOMED_GATE(1)` past gate, `EXTRUDER_ENTRY(7)` past end-of-bowden, `LOADED(10)`/`UNLOADED(0)` at the ends) and returns `bowden_progress`. Graphic-only; `filament` string (button gating) unchanged. On-hardware tip-glide confirmation tracked in 37.7.
 
 ### 37.6 Build, test, docs
 - [x] 37.6.1 `py_compile klipper/mmu.py` clean; local C firmware builds (no firmware change expected — confirm zero firmware diff). **Done:** `py_compile` clean; `git diff --stat` shows only `klipper/mmu.py` (+45/-7), zero firmware diff.
@@ -511,8 +511,21 @@ Implemented in `klipper/mmu.py` only (zero firmware diff; `py_compile` clean):
 
 **Paused — need a runtime trace / live widget, do not guess:**
 - **37.4 (standalone load #1):** the daemon already pushes the real feed (`FEED_RATE=feed_rate_mms`, `flare_daemon.py:1071`) so `loading_speed` is already real mm/s (37.4.2's "align" half is wired). What remains — whether the "two-step 0→1925" is caused by `load_phase_start` anchoring at `FLARE_WAIT_TC` entry vs. Moonraker not sampling `get_status` during the gcode-locked busy loop (cf. the `klipper-gcode-lock-starves-setmmu` gotcha) — cannot be disambiguated without a live trace. Anchoring (37.4.1) also touches the stable toolchange path, so it is deferred until the mechanism is confirmed.
-- **37.5 (drawn tip #4):** requires confirming which field Fluidd's MMU component renders the tip from (discrete `filament_pos`, binary `sensors['toolhead']`, or interpolated `filament_position`/`endOfBowdenPos`) on the live dashboard before committing to emitting finer landmarks vs. exporting an interpolated field.
 - **37.2.2 / 37.3.2 / 37.7.x:** on-hardware operator verification of the above.
+
+**Resolved after this note — #4 drawn tip (37.5):** answered from the Fluidd
+source (`MmuFilamentStatus.vue` + `mixins/mmu.ts`) instead of a live widget; fix
+implemented (`filament_pos` landmark refinement + `bowden_progress` in
+`get_status`). See `design.md` §32 #4 and tasks 37.5.1/37.5.2.
+
+**Tooling:** `scripts/flare_trace_filament.py` (new, std-lib only) captures the
+three telemetry layers — daemon `/status`, Moonraker HTTP query, and the
+Moonraker **websocket** subscription (raw RFC6455 client) — timestamped to JSONL
+with an end-of-run verdict. Comparing the HTTP-poll vs websocket
+`filament_position` distinct-value counts during a standalone load resolves #1
+(push starvation during the gcode lock vs. a phase/anchor problem); it also logs
+the `filament_pos`/`bowden_progress` stream to confirm the #4 tip fix on
+hardware. Run it, then drive `MMU_LOAD` / `MMU_UNLOAD` / a cut.
 
 
 
