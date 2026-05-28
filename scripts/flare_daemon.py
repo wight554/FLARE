@@ -1051,7 +1051,7 @@ def klipper_syncer(moonraker_url):
 
         mmu_cmd = (
             f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={klipper_gate} TOOL={klipper_tool} "
-            f"ACTION='{action}' "
+            f"ACTION='{action}' TC_STATE='{tc_state}' "
             f"GATE_STATUS='{gate_status_1},{gate_status_2}' GATE_SENSOR='{in1},{in2}' "
             f"TOOLHEAD_SENSOR={toolhead} SYNC_FEEDBACK={sync_feedback:.3f} "
             f"SYNC_FEEDBACK_STATE='{buf_state}' PRINT_JOB_STATE='{print_job_state}' "

@@ -364,4 +364,23 @@
 - Verified syntax successfully using `python3 -m py_compile klipper/mmu.py` and confirmed C compilation integrity.
 
 
+## Phase 30: Separate Command Tracking, High-Fidelity Unload Countdown & Toolchange Spool Timing
+- [x] 30.1 Update `scripts/flare_daemon.py` to pass `TC_STATE='{tc_state}'` in `SET_MMU` commands.
+- [x] 30.2 Update `klipper/mmu.py`'s `cmd_SET_MMU` to parse `TC_STATE` and dynamically transition `self.current_phase` for background tracking of separate manual load/unload G-code commands.
+- [x] 30.3 Refine `get_status` in `klipper/mmu.py` to calculate dynamic progress whenever `self.is_loading` is True OR `self.current_phase in ["unload", "cut", "load"]`.
+- [x] 30.4 Delay spool transitions in `cmd_FLARE_WAIT_TC` to keep `self.active_gate = old_gate` during the unload and cut phases, and only transition to `target_gate` when `"load"` phase actually begins, solving premature spool changes.
+- [x] 30.5 Program high-fidelity unload tracking: clamp position to `max(bowden_length, ...)` while toolhead sensor is active, and once toolhead sensor clears, smoothly countdown from `bowden_length` to `0.0` mm, completely resolving leaving-TH jumps.
+- [x] 30.6 Run Python compilation validation (`python3 -m py_compile scripts/*.py klipper/mmu.py`) and verify firmware builds.
+
+---
+
+### Validation Notes — 2026-05-28 (Separate Commands, High-Fidelity Unload & Delayed Spool Highlighting)
+- Integrated `TC_STATE` passing into the background syncer in `scripts/flare_daemon.py`. Parses the real-time firmware state and broadcasts it to Moonraker.
+- Rewrote `cmd_SET_MMU` in `klipper/mmu.py` to actively parse `TC_STATE` and dynamically update `self.current_phase` when G-code queue is not blocked (`not self.is_loading`). Enabled identical smooth telemetry calculations during manual commands (`MMU_LOAD`, `MMU_UNLOAD`, `FLARE_LOAD`, `FLARE_UNLOAD`).
+- Delayed active spool card highlight transitions inside `cmd_FLARE_WAIT_TC`: `self.active_gate`, `self.gate`, and `self.tool` now remain set to `old_gate` during `"unload"` and `"cut"` phases, and only transition to `target_gate` when the physical loading phase (`"load"`) begins. Resolved the premature spool card change bug.
+- Implemented high-fidelity unload tracking in `get_status()`: the tip position is clamped to `max(bowden_length, ...)` while `path_toolhead` sensor remains triggered. Upon clearing (`not path_toolhead`), `self.th_clear_time` is captured, and the position counts down smoothly and continuously from `bowden_length` to `0.0` mm. Completely resolved all leaving-TH telemetry jumps.
+- Confirmed Python compilation success (`scripts/*.py` and `klipper/mmu.py`) and verified C local build compilation is perfectly clean.
+
+
+
 

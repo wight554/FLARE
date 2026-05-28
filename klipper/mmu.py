@@ -74,6 +74,8 @@ class MMUMock:
         self.cut_phase_start = 0.0
         self.load_phase_start = 0.0
         self.current_phase = "idle"
+        self.tc_state = "UNKNOWN"
+        self.th_clear_time = None
         
         # FLARE specific extra state variables
         self.board_online = 0
@@ -190,7 +192,35 @@ class MMUMock:
         self.sync_feedback_state = gcmd.get('SYNC_FEEDBACK_STATE', self.sync_feedback_state).strip("'\"")
         self.print_job_state = gcmd.get('PRINT_JOB_STATE', self.print_job_state).strip("'\"")
         self.print_state = gcmd.get('PRINT_STATE', self.print_state).strip("'\"")
-        self.action = gcmd.get('ACTION', self.action).strip("'\"")
+        
+        action = gcmd.get('ACTION', self.action).strip("'\"")
+        tc_state = gcmd.get('TC_STATE', self.tc_state).strip("'\"").upper()
+        self.tc_state = tc_state
+
+        # Map physical tc_state and action to virtual progress phases for background/manual tracking
+        if not self.is_loading:
+            now = self.printer.get_reactor().monotonic()
+            if action == "Loading":
+                if self.current_phase != "load":
+                    self.current_phase = "load"
+                    self.load_phase_start = now
+                    self.loading_start_time = now
+            elif action == "Unloading":
+                if tc_state in ["UNLOAD_WAIT_CUT", "UNLOAD_CUT"]:
+                    if self.current_phase != "cut":
+                        self.current_phase = "cut"
+                        self.cut_phase_start = now
+                        self.loading_start_time = now
+                else:
+                    if self.current_phase != "unload":
+                        self.current_phase = "unload"
+                        self.unload_phase_start = now
+                        self.loading_start_time = now
+                        self.th_clear_time = None
+            else:
+                self.current_phase = "idle"
+
+        self.action = action
         
         self.board_online = gcmd.get_int('BOARD_ONLINE', self.board_online)
         self.sps = gcmd.get_float('SPS', self.sps)
@@ -807,6 +837,7 @@ class MMUMock:
 
         # Swapping is active if the old active lane was loaded
         is_swapping = False
+        old_gate = self.active_gate
         if self.active_gate >= 0 and self.active_gate < len(self.gate_status):
             if self.gate_status[self.active_gate] == 2 or self.filament == "Loaded":
                 is_swapping = True
@@ -828,11 +859,12 @@ class MMUMock:
         # Target gate (0-indexed) determined from target lane (1-indexed)
         target_gate = lane - 1
         
-        # Instantly update active gate, gate, and tool to the target gate so that
-        # Mainsail/Fluidd immediately registers the new spool, color, and material.
-        self.active_gate = target_gate
-        self.gate = target_gate
-        self.tool = target_gate
+        # Instantly update active gate, gate, and tool. If we are swapping, we keep
+        # showing the old gate during the unload/cut phase, transitioning only on load.
+        initial_gate = old_gate if is_swapping and old_gate >= 0 else target_gate
+        self.active_gate = initial_gate
+        self.gate = initial_gate
+        self.tool = initial_gate
 
         # Phase 2: wait for new filament to arrive
         start_time = reactor.monotonic()
@@ -859,6 +891,7 @@ class MMUMock:
         self.unload_phase_start = start_time
         self.cut_phase_start = 0.0
         self.load_phase_start = 0.0
+        self.th_clear_time = None
         self.current_phase = "unload" if is_swapping else "load"
         if not is_swapping:
             self.load_phase_start = start_time
@@ -881,22 +914,13 @@ class MMUMock:
                         toolhead = state.get("toolhead", 0)
                         tc_state = state.get("tc_state", "UNKNOWN").strip().upper()
 
-                        # Update mock sensors in real-time. Keep active_gate, gate, tool frozen at target_gate.
-                        self.active_gate = target_gate
-                        self.gate = target_gate
-                        self.tool = target_gate
-                        self.toolhead_sensor = toolhead
-                        self.gate_sensor_active = out1 if target_gate == 0 else (out2 if target_gate == 1 else 0)
-                        self.pre_gate_sensor_active = in1 if target_gate == 0 else (in2 if target_gate == 1 else 0)
-                        self.hub_sensor_active = y_split
-                        self.extruder_sensor_active = y_split
-
-                        # Map the physical board tc_state to our virtual progress phases
+                        # 1. Map physical board tc_state to virtual progress phases first
                         now = reactor.monotonic()
                         if tc_state in ["UNLOAD_REVERSE", "UNLOAD_WAIT_OUT", "UNLOAD_WAIT_Y", "UNLOAD_WAIT_TH"]:
                             if self.current_phase != "unload":
                                 self.current_phase = "unload"
                                 self.unload_phase_start = now
+                                self.th_clear_time = None
                         elif tc_state in ["UNLOAD_WAIT_CUT", "UNLOAD_CUT"]:
                             if self.current_phase != "cut":
                                 self.current_phase = "cut"
@@ -905,6 +929,22 @@ class MMUMock:
                             if self.current_phase != "load":
                                 self.current_phase = "load"
                                 self.load_phase_start = now
+
+                        # 2. Assign current_gate based on the active virtual phase
+                        if self.current_phase == "load" or not is_swapping:
+                            current_gate = target_gate
+                        else:
+                            current_gate = old_gate if old_gate >= 0 else target_gate
+
+                        # 3. Update mock sensors and active gate/tool in real-time
+                        self.active_gate = current_gate
+                        self.gate = current_gate
+                        self.tool = current_gate
+                        self.toolhead_sensor = toolhead
+                        self.gate_sensor_active = out1 if current_gate == 0 else (out2 if current_gate == 1 else 0)
+                        self.pre_gate_sensor_active = in1 if current_gate == 0 else (in2 if current_gate == 1 else 0)
+                        self.hub_sensor_active = y_split
+                        self.extruder_sensor_active = y_split
                 except Exception:
                     pass
 
@@ -1105,7 +1145,7 @@ class MMUMock:
                 pass
         path_len = bowden_length + extruder_to_nozzle
 
-        if self.is_loading:
+        if self.is_loading or self.current_phase in ["unload", "cut", "load"]:
             reactor = self.printer.get_reactor()
             now = reactor.monotonic()
             
@@ -1115,8 +1155,17 @@ class MMUMock:
                 else:
                     elapsed = now - self.unload_phase_start
                     unload_start = (path_len - 40.0) if self.unload_cut else path_len
-                    # Count down from unload_start to 0.0 mm. Clamp at 0.0 so it stays 0 even if actual bowden is longer.
-                    filament_position = max(0.0, unload_start - (elapsed * self.loading_speed))
+                    
+                    if not path_toolhead:
+                        # Tip has left the toolhead sensor!
+                        if self.th_clear_time is None:
+                            self.th_clear_time = now
+                        elapsed_since_clear = now - self.th_clear_time
+                        # Count down from bowden_length to 0.0 mm
+                        filament_position = max(0.0, bowden_length - (elapsed_since_clear * self.loading_speed))
+                    else:
+                        # Tip is still past toolhead sensor, count down from unload_start, clamped above bowden_length
+                        filament_position = max(bowden_length, unload_start - (elapsed * self.loading_speed))
             elif self.current_phase == "cut":
                 # Model the cutter feed-forward and retract cycle at the toolhead (path_len -> path_len + 10 -> path_len - 40 mm)
                 elapsed = now - self.cut_phase_start

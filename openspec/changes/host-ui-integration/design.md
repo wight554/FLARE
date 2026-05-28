@@ -349,5 +349,15 @@ To resolve UI jumps and delayed active spool highlighting:
   - **2.5 s+ (retract)**: Count down from `path_len + 10.0` towards a safe retracted position at `path_len - 40.0` mm (using a speed of 50 mm/s).
 - **Smooth Unload Start**: When transitioning to the `"unload"` phase, if `self.unload_cut` is active, the countdown starts smoothly at `path_len - 40.0` mm, aligning perfectly with the cut phase's ending position. If `self.unload_cut` is inactive, it starts at `path_len`. Both countdowns progress smoothly to `0.0` mm, completely eliminating any telemetry jumps in the Fluidd/Mainsail dashboard.
 
+## 25. Separate Command Tracking, High-Fidelity Unload Countdown & Delayed Spool Highlighting
+
+To address all telemetry and spool-change timing issues:
+- **Separate G-Code Command Tracking**: The daemon syncer thread (`flare_daemon.py`) is updated to push `TC_STATE='{tc_state}'` in `SET_MMU`. When Klipper receives `SET_MMU` outside of a blocking `FLARE_WAIT_TC` wait loop (e.g. during a separate manual G-code command like `MMU_LOAD`, `MMU_UNLOAD`, `FLARE_LOAD`, or `FLARE_UNLOAD`), Klipper parses `TC_STATE` and `ACTION` to dynamically update `self.current_phase`. This enables identical smooth telemetry calculations in `get_status` for all background/manual movements.
+- **Delayed Active Spool Highlighting**: Instead of changing the highlighted spool card immediately at the beginning of a toolchange (while the old filament is still unloading/cutting), we delay the swap. In `cmd_FLARE_WAIT_TC`, `self.active_gate`/`gate`/`tool` are initialized and held as `old_gate` during `"cut"` and `"unload"` phases. They only transition to `target_gate` when `"load"` phase physically begins, ensuring that the new spool transitions only after the previous one is fully unloaded.
+- **High-Fidelity Unload leaving-TH Countdown**: To model the exact physical moment filament clears the toolhead sensor (TH) at distance `bowden_length`:
+  - **Toolhead sensor active**: Clamp position to `max(bowden_length, ...)` during the initial unload to represent filament still past the sensor.
+  - **Toolhead sensor clears**: Detect the edge transition to `path_toolhead = False`, capture the time, and count down smoothly from `bowden_length` to `0.0` mm, eliminating any position jumps.
+
+
 
 
