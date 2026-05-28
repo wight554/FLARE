@@ -905,9 +905,36 @@ class MMUMock:
 
         gcmd.respond_info(f"FLARE: Toolhead sensor triggered. Waiting load_delay of {load_delay}s for stabilization...")
 
-        # Additional stabilization delay
+        # Instantly update Klipper loaded state so the UI snaps to full path length and stays clean
+        self.toolhead_sensor = 1
+        self.filament = "Loaded"
+        self.filament_pos = 10
+        if 0 <= self.active_gate < len(self.gate_status):
+            self.gate_status[self.active_gate] = 2
+
+        # Additional stabilization delay with active HTTP status polling
         if load_delay > 0:
-            reactor.pause(reactor.monotonic() + load_delay)
+            stab_start = reactor.monotonic()
+            while reactor.monotonic() - stab_start < load_delay:
+                try:
+                    import json, urllib.request
+                    with urllib.request.urlopen("http://127.0.0.1:8088/status", timeout=0.1) as resp:
+                        state = json.loads(resp.read().decode("utf-8"))
+                        active_gate = state.get("active_lane", 1) - 1
+                        in1 = state.get("in1", 0)
+                        out1 = state.get("out1", 0)
+                        in2 = state.get("in2", 0)
+                        out2 = state.get("out2", 0)
+                        y_split = state.get("y_split", 0)
+
+                        self.active_gate = active_gate
+                        self.gate_sensor_active = out1 if active_gate == 0 else (out2 if active_gate == 1 else 0)
+                        self.pre_gate_sensor_active = in1 if active_gate == 0 else (in2 if active_gate == 1 else 0)
+                        self.hub_sensor_active = y_split
+                        self.extruder_sensor_active = y_split
+                except Exception:
+                    pass
+                reactor.pause(reactor.monotonic() + 0.2)
 
         gcmd.respond_info("FLARE: FLARE_WAIT_TC wait complete.")
 
@@ -1071,9 +1098,12 @@ class MMUMock:
             now = reactor.monotonic()
             
             if self.current_phase == "unload":
-                elapsed = now - self.unload_phase_start
-                # Count down from path_len to 0.0 mm. Clamp at 0.0 so it stays 0 even if actual bowden is longer.
-                filament_position = max(0.0, path_len - (elapsed * self.loading_speed))
+                if not path_gear:
+                    filament_position = 0.0
+                else:
+                    elapsed = now - self.unload_phase_start
+                    # Count down from path_len to 0.0 mm. Clamp at 0.0 so it stays 0 even if actual bowden is longer.
+                    filament_position = max(0.0, path_len - (elapsed * self.loading_speed))
             elif self.current_phase == "cut":
                 # Model the cutter feed-forward and retract cycle (0 -> 10 -> 0 mm)
                 elapsed = now - self.cut_phase_start
