@@ -501,6 +501,20 @@ Operator validation found the "smooth / jump-free / interactive" claims of Phase
 - [ ] 37.7.2 Standalone `MMU_UNLOAD`: smooth countdown to `0`, holds, no phantom load.
 - [ ] 37.7.3 Cut path: `0` held during cut travel, then `0` on post-cut unload.
 
+### Tier 2 — #1 no-feed load-cadence diagnostic (run near hardware; decides 37.4.x)
+- [ ] 37.4.4 Run the no-feed trace and record the verdict. `FLARE_WAIT_TC` only waits/polls — it issues **no motor command** — yet it holds the gcode lock and drives the time-based `filament_position` count-up, so it reproduces the #1 condition with zero motion and zero filament feed.
+  1. On the Pi: `git pull` → `sudo systemctl restart flare_daemon && sudo systemctl restart klipper`.
+  2. **Clear the toolhead sensor** — pull out any strand at the toolhead (removal, not feeding). Required: otherwise `FLARE_WAIT_TC` blocks at its phase-1 "wait for toolhead to clear" and never reaches the count-up.
+  3. Shell A: `python3 scripts/flare_trace_filament.py --duration 50`
+  4. Fluidd/Mainsail console: `FLARE_WAIT_TC LANE=0 TIMEOUT=40`
+  5. Read the end-of-run verdict + the per-source distinct `filament_position` counts (`mr_poll` = klippy on-demand, `mr_ws` = what Fluidd actually receives).
+  6. Restore: `MMU_SELECT BYPASS=1` (or reselect the prior gate). The wait exits with a harmless timeout error.
+  - DECISION (drives whether 37.4.1 is the right fix):
+    - `mr_poll` many distinct mm, `mr_ws` few → **PUSH STARVATION** during the gcode lock. Fix the push side (yield the lock / background reactor timer); do **not** apply the 37.4.1 anchor.
+    - `mr_poll` few, `mr_ws` few → **PHASE/ANCHOR**. Apply 37.4.1 (anchor `load_phase_start` to first real feed) + 37.4.2 (sensor-crossing interpolation).
+    - both many → telemetry already streams; the #1 symptom is elsewhere — re-observe the widget.
+  - Bonus live #4 check during the count-up: expect `filament_pos=3` with `bowden_progress` climbing `0→100`, resetting when the wait times out.
+
 ---
 
 ### Validation Notes — 2026-05-28 (Phase 37 — partial: #2 + #3 + phase ownership)
