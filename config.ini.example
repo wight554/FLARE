@@ -52,13 +52,11 @@ run_current:
 
 # ─── Buffer Sync ─────────────────────────────────────────────────────────────
 # buf_hyst_ms: 30
-# sync_ramp_accel: 150   # mm/s² — sync closed-loop UP slew (loop bandwidth).
-#                        # Bounded by buffer-spring + filament-inertia resonance,
-#                        # NOT motor torque. Typical print E-accel range
-#                        # 50-500 mm/s²; 150 covers typical, 33 ultra-conservative,
-#                        # 300+ aggressive high-flow. Raising past the legacy 33
-#                        # may require lowering sync_kp_rate to keep loop damped.
-#                        # See openspec/changes/buffer-state-lock/design.md §D6a.
+# sync_ramp_accel: 300   # mm/s² — sync closed-loop UP slew (loop bandwidth).
+#                        # Rig-tuned default (2026-05-28): 150 insufficient at 1500
+#                        # mm/min (40% compression floor); 300 gives 65-68% neutral.
+#                        # kp is insensitive once accel is correct — raising past 300
+#                        # gives no further improvement on this hardware. See §D6a.
 # sync_ramp_decel: 300   # mm/s² — sync closed-loop DN slew. Typically 2× accel.
 # sync_tick_ms: 20
 # baseline_rate: 1600        # starting sync speed (mm/min); set to your print feed rate
@@ -84,7 +82,7 @@ run_current:
 # sync_cannot_relieve_mm: 50.0
 # buf_predict_thr_ms: 250
 # global_max_rate: 5000         # absolute ceiling for every commanded motor rate (mm/min)
-# sync_kp_rate: 900
+# sync_kp_rate: 2025            # rig-tuned (2026-05-28): kp insensitive once accel=300; 2025 is practical ceiling
 # sync_overshoot_pct: 150        # Trailing-side trim as % of sync correction (0..200)
 # sync_reserve_pct: 35           # Reserve target as % of half the BUF_SWITCH_SPAN toward compression
 # sync_auto_stop_ms: 5000          # Auto-mode only: tail-assist timeout in COMPRESSION,

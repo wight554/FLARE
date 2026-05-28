@@ -1015,9 +1015,11 @@ def main() -> int:
     ap.add_argument("--tune-kp-max", type=float, default=0.0,
                     help="tune mode: bail if kp would exceed this (mm/min); "
                          "0 = 4× the starting kp.")
-    ap.add_argument("--tune-drift-pct", type=float, default=30.0,
+    ap.add_argument("--tune-drift-pct", type=float, default=38.0,
                     help="tune mode: max combined TENSION+COMPRESSION time %% "
-                         "before drift FAIL (default 30).")
+                         "before drift FAIL (default 38). At 1500 mm/min the buffer "
+                         "physically equilibrates ~28-32%% in compression; 30%% is "
+                         "too strict for fast-print profiles on this hardware.")
     ap.add_argument("--idle", action="store_true",
                     help="rearm mode: this capture is idle — any re-arm is a FAIL")
     ap.add_argument("--allow-terminal-idle-relief", action="store_true",
