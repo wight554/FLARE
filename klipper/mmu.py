@@ -63,6 +63,7 @@ class MMUMock:
         self.filament = "Unloaded"
         self.filament_pos = 0
         self.is_loading = False
+        self.is_unloading = False
         self.loading_start_time = 0.0
         self.loading_target = 1000.0
         self.loading_speed = 50.0
@@ -202,8 +203,12 @@ class MMUMock:
         tc_state = gcmd.get('TC_STATE', self.tc_state).strip("'\"").upper()
         self.tc_state = tc_state
 
-        # Map physical tc_state and action to virtual progress phases for background/manual tracking
-        if not self.is_loading:
+        # Map physical tc_state and action to virtual progress phases for
+        # background/manual tracking. Skip while a synchronous wait loop owns the
+        # phase -- load via FLARE_WAIT_TC (is_loading) or unload via
+        # FLARE_WAIT_UNLOAD (is_unloading) -- so the daemon's periodic push does
+        # not race the loop's own _update_phase writes.
+        if not self.is_loading and not self.is_unloading:
             now = self.printer.get_reactor().monotonic()
             self._update_phase(tc_state, action, now)
 
@@ -838,9 +843,15 @@ class MMUMock:
             self.unload_phase_start = start_time
             self.th_clear_time = None
             self.unload_completed = False
-        
+
+        # This wait loop now owns the phase: gate the daemon's background
+        # _update_phase push (cmd_SET_MMU) so a post-unload RELOAD/auto-preload
+        # re-stage cannot race it into a phantom load count-up.
+        self.is_unloading = True
         while not self.unload_completed:
             if reactor.monotonic() - start_time > timeout:
+                self.is_unloading = False
+                self.current_phase = "idle"
                 raise gcmd.error("FLARE Error: Unload timed out.")
             
             # Poll status dynamically to update Klipper's state
@@ -874,7 +885,12 @@ class MMUMock:
                 pass
                 
             reactor.pause(reactor.monotonic() + 0.2)
-        
+
+        # Unload finished: release phase ownership and settle at idle (0 mm). The
+        # idle reset (mirroring FLARE_WAIT_TC's finally) plus the RELOAD guard in
+        # _update_phase prevent the post-unload re-stage from animating a load.
+        self.is_unloading = False
+        self.current_phase = "idle"
         gcmd.respond_info("FLARE: Unload complete.")
 
     def cmd_FLARE_WAIT_TC(self, gcmd):
@@ -1100,9 +1116,25 @@ class MMUMock:
                     self.load_phase_start = now
                     self.unload_completed = False
         else:
-            # Fallback to action-based state tracking for manual movements outside orchestrated toolchange
-            if action == "Loading":
+            # Fallback to action-based state tracking for manual movements
+            # outside an orchestrated toolchange.
+            #
+            # RELOAD_MODE re-stages filament to the gate after an unload, and the
+            # daemon's _derive_action labels every RELOAD_* state "Loading". That
+            # re-stage only advances to the gate (OUT), NOT to the toolhead, so it
+            # must not start a load count-up -- doing so is the phantom-load-on-
+            # unload bug. Treat reload/preload re-stage as idle (position stays
+            # low) and only enter the load phase for a genuine toolhead load.
+            is_restage = tc_state.startswith("RELOAD") or tc_state.startswith("PRELOAD")
+            if is_restage:
+                if self.current_phase != "load":
+                    self.current_phase = "idle"
+            elif action == "Loading":
                 if self._is_toolhead_sensor_triggered():
+                    self.current_phase = "idle"
+                elif self.current_phase == "unload" and not self.gate_sensor_active:
+                    # Tail of an unload with an empty gate: settle at idle rather
+                    # than counting up from a stray "Loading" label.
                     self.current_phase = "idle"
                 else:
                     if self.current_phase != "load":
@@ -1305,7 +1337,13 @@ class MMUMock:
             now = reactor.monotonic()
             
             if self.current_phase == "unload":
-                if not path_gear or self.unload_completed:
+                # A cutting unload (cutter enabled + cut-on-unload) severs the tip
+                # near the toolhead, so the long downstream strand no longer
+                # exists. Hold 0 instead of the 1925->1800 toolhead clamp, and
+                # latch it through the trailing reverse states, so cut travel
+                # shows 0 rather than bowden_length (1800).
+                cut_unload = bool(self.enable_cutter) and bool(self.unload_cut)
+                if not path_gear or self.unload_completed or cut_unload:
                     self.unload_completed = True
                     filament_position = 0.0
                 else:

@@ -471,15 +471,15 @@
 Operator validation found the "smooth / jump-free / interactive" claims of Phases 24–31 hold for **toolchange only**. Standalone load shows a two-step jump (`0` → `1925`), standalone unload starts a phantom *load* count-up on full unload, cut travel reads `1800` mm instead of `0`, and the drawn tip sits at one of three fixed spots. Root-cause map in `design.md` §32.
 
 ### 37.1 Unify phase ownership (the `is_loading` gate asymmetry)
-- [ ] 37.1.1 Generalize the `cmd_SET_MMU` gate (`klipper/mmu.py:206`, `if not self.is_loading`) so the daemon's periodic `SET_MMU` push also skips `_update_phase` during `FLARE_WAIT_UNLOAD`, not just `FLARE_WAIT_TC`. Add `is_unloading` (or a single `phase_locked` flag set/cleared by both wait loops) so exactly one writer owns `current_phase` per synchronous flow.
-- [ ] 37.1.2 Add a terminal phase reset to `cmd_FLARE_WAIT_UNLOAD` mirroring `cmd_FLARE_WAIT_TC`'s `finally: current_phase="idle"` (`:1003`), so a completed unload settles at `0.0` mm and cannot leak into `"load"`.
+- [x] 37.1.1 Generalize the `cmd_SET_MMU` gate (`klipper/mmu.py:206`, `if not self.is_loading`) so the daemon's periodic `SET_MMU` push also skips `_update_phase` during `FLARE_WAIT_UNLOAD`, not just `FLARE_WAIT_TC`. Add `is_unloading` (or a single `phase_locked` flag set/cleared by both wait loops) so exactly one writer owns `current_phase` per synchronous flow.
+- [x] 37.1.2 Add a terminal phase reset to `cmd_FLARE_WAIT_UNLOAD` mirroring `cmd_FLARE_WAIT_TC`'s `finally: current_phase="idle"` (`:1003`), so a completed unload settles at `0.0` mm and cannot leak into `"load"`.
 
 ### 37.2 Kill the phantom load on unload (#2)
-- [ ] 37.2.1 Harden the `"unload" → "load"` transition in `_update_phase` (`:1094/1104`): do not enter `"load"` on a bare `action="Loading"` / `LOAD_*` hint while a manual unload is finishing. Require real evidence (gate/out sensor rising after the path is empty, or a fresh load command).
+- [x] 37.2.1 Harden the `"unload" → "load"` transition in `_update_phase` (`:1094/1104`): do not enter `"load"` on a bare `action="Loading"` / `LOAD_*` hint while a manual unload is finishing. Require real evidence (gate/out sensor rising after the path is empty, or a fresh load command).
 - [ ] 37.2.2 Confirm the standalone unload now counts down smoothly to `0` and holds, with no count-up after completion (daemon push active, `is_loading` False).
 
 ### 37.3 Fix cut tracking (#3)
-- [ ] 37.3.1 Replace the narrow `tc_state ∈ {UNLOAD_WAIT_CUT, UNLOAD_CUT}` cut detection (`_update_phase:1089`) with a latch: once a cut is entered — or `unload_cut`/`enable_cutter` is active for the unload — hold `filament_position = 0.0` through the trailing reverse states regardless of the exact `tc_state`. Removes the `1800` mm artifact (`get_status:1325`).
+- [x] 37.3.1 Replace the narrow `tc_state ∈ {UNLOAD_WAIT_CUT, UNLOAD_CUT}` cut detection (`_update_phase:1089`) with a latch: once a cut is entered — or `unload_cut`/`enable_cutter` is active for the unload — hold `filament_position = 0.0` through the trailing reverse states regardless of the exact `tc_state`. Removes the `1800` mm artifact (`get_status:1325`).
 - [ ] 37.3.2 Verify cut → hold `0` during travel → count down (already `0`) on the post-cut unload.
 
 ### 37.4 Anchor load tracking to physical progress (#1)
@@ -492,14 +492,27 @@ Operator validation found the "smooth / jump-free / interactive" claims of Phase
 - [ ] 37.5.2 Based on 37.5.1, either emit finer-grained Happy Hare `filament_pos` landmarks mapped from the synthetic mm progress, or export the field the widget interpolates. If the upstream widget cannot interpolate, document that the three-spot tip is a widget limitation (no FLARE fix).
 
 ### 37.6 Build, test, docs
-- [ ] 37.6.1 `py_compile klipper/mmu.py` clean; local C firmware builds (no firmware change expected — confirm zero firmware diff).
-- [ ] 37.6.2 Regression check the unaffected flows: toolchange load/unload telemetry stays behavior-equivalent; preload, bypass, eject unaffected.
-- [ ] 37.6.3 Doc sync: update `KLIPPER.md` / `MANUAL.md` (and `design.md` §32) for any field/behavior the widget now relies on.
+- [x] 37.6.1 `py_compile klipper/mmu.py` clean; local C firmware builds (no firmware change expected — confirm zero firmware diff). **Done:** `py_compile` clean; `git diff --stat` shows only `klipper/mmu.py` (+45/-7), zero firmware diff.
+- [x] 37.6.2 Regression check the unaffected flows: toolchange load/unload telemetry stays behavior-equivalent; preload, bypass, eject unaffected. **Done (code review):** `is_unloading` is set/cleared only inside `FLARE_WAIT_UNLOAD` (never reached by `_FLARE_CHANGE_LANE`/`FLARE_WAIT_TC`), so the `cmd_SET_MMU` gate is unchanged for toolchange; the RELOAD/preload guard lives only in the `_update_phase` fallback `else` (toolchange reports `LOAD_*`/`SWAP`/`UNLOAD_*`, caught earlier); the cut latch is a no-op when `unload_cut == 0`.
+- [x] 37.6.3 Doc sync: update `KLIPPER.md` / `MANUAL.md` (and `design.md` §32) for any field/behavior the widget now relies on. **Done:** `design.md` §32 captures the behavior; `KLIPPER.md`/`MANUAL.md` carry no `filament_position`/cut-UI references (grep clean), so no operator-doc change is required.
 
 ### 37.7 On-hardware validation (operator)
 - [ ] 37.7.1 Standalone `MMU_LOAD`: smooth `0 → 1925` count-up, tip tracks (per 37.5 outcome).
 - [ ] 37.7.2 Standalone `MMU_UNLOAD`: smooth countdown to `0`, holds, no phantom load.
 - [ ] 37.7.3 Cut path: `0` held during cut travel, then `0` on post-cut unload.
+
+---
+
+### Validation Notes — 2026-05-28 (Phase 37 — partial: #2 + #3 + phase ownership)
+Implemented in `klipper/mmu.py` only (zero firmware diff; `py_compile` clean):
+- **37.1.1 / 37.1.2 (phase ownership):** added `self.is_unloading`; `cmd_SET_MMU`'s background `_update_phase` push is now gated by `not is_loading and not is_unloading`. `cmd_FLARE_WAIT_UNLOAD` sets `is_unloading=True` for the duration of the wait and, on both the timeout and the normal-completion exits, releases it and resets `current_phase="idle"` (mirroring `FLARE_WAIT_TC`'s `finally`). One phase writer per synchronous flow.
+- **37.2.1 (phantom load — #2):** root cause confirmed = `enable_reload=1` (default) → after a manual unload the board enters `RELOAD_*`, which the daemon's `_derive_action` labels `"Loading"` → the `_update_phase` fallback flipped to `"load"`. Fix: the fallback now treats `tc_state` `RELOAD*`/`PRELOAD*` as a gate re-stage (→ `idle`, position stays low), and only enters `"load"` for a genuine toolhead load; also settles to idle when leaving an unload with an empty gate.
+- **37.3.1 (cut shows 1800 — #3):** root cause confirmed = cut-unload is gated by `ENABLE_CUTTER && UNLOAD_CUT` (both pushed via `SET_MMU`); during pre-cut travel `current_phase=="unload"` with `path_toolhead` still true hit the `max(bowden_length, …)` clamp = 1800. Fix: `get_status` unload branch now holds `0` (and latches `unload_completed`) whenever `enable_cutter and unload_cut`, so cut travel and the post-cut reverse both read `0`. No-op for non-cut setups.
+
+**Paused — need a runtime trace / live widget, do not guess:**
+- **37.4 (standalone load #1):** the daemon already pushes the real feed (`FEED_RATE=feed_rate_mms`, `flare_daemon.py:1071`) so `loading_speed` is already real mm/s (37.4.2's "align" half is wired). What remains — whether the "two-step 0→1925" is caused by `load_phase_start` anchoring at `FLARE_WAIT_TC` entry vs. Moonraker not sampling `get_status` during the gcode-locked busy loop (cf. the `klipper-gcode-lock-starves-setmmu` gotcha) — cannot be disambiguated without a live trace. Anchoring (37.4.1) also touches the stable toolchange path, so it is deferred until the mechanism is confirmed.
+- **37.5 (drawn tip #4):** requires confirming which field Fluidd's MMU component renders the tip from (discrete `filament_pos`, binary `sensors['toolhead']`, or interpolated `filament_position`/`endOfBowdenPos`) on the live dashboard before committing to emitting finer landmarks vs. exporting an interpolated field.
+- **37.2.2 / 37.3.2 / 37.7.x:** on-hardware operator verification of the above.
 
 
 
