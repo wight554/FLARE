@@ -76,6 +76,7 @@ class MMUMock:
         self.current_phase = "idle"
         self.tc_state = "UNKNOWN"
         self.th_clear_time = None
+        self.unload_completed = False
         
         # FLARE specific extra state variables
         self.board_online = 0
@@ -205,12 +206,14 @@ class MMUMock:
                     self.current_phase = "load"
                     self.load_phase_start = now
                     self.loading_start_time = now
+                    self.unload_completed = False
             elif action == "Unloading":
                 if tc_state in ["UNLOAD_WAIT_CUT", "UNLOAD_CUT"]:
                     if self.current_phase != "cut":
                         self.current_phase = "cut"
                         self.cut_phase_start = now
                         self.loading_start_time = now
+                        self.unload_completed = False
                 else:
                     if self.current_phase != "unload":
                         self.current_phase = "unload"
@@ -925,10 +928,12 @@ class MMUMock:
                             if self.current_phase != "cut":
                                 self.current_phase = "cut"
                                 self.cut_phase_start = now
+                                self.unload_completed = False
                         elif tc_state in ["LOAD_START", "LOAD_WAIT_OUT", "LOAD_WAIT_TH"]:
                             if self.current_phase != "load":
                                 self.current_phase = "load"
                                 self.load_phase_start = now
+                                self.unload_completed = False
 
                         # 2. Assign current_gate based on the active virtual phase
                         if self.current_phase == "load" or not is_swapping:
@@ -1150,32 +1155,36 @@ class MMUMock:
             now = reactor.monotonic()
             
             if self.current_phase == "unload":
-                if not path_gear:
+                if not path_gear or self.unload_completed:
+                    self.unload_completed = True
                     filament_position = 0.0
                 else:
                     elapsed = now - self.unload_phase_start
-                    unload_start = (path_len - 40.0) if self.unload_cut else path_len
                     
                     if not path_toolhead:
                         # Tip has left the toolhead sensor!
                         if self.th_clear_time is None:
                             self.th_clear_time = now
                         elapsed_since_clear = now - self.th_clear_time
-                        # Count down from bowden_length to 0.0 mm
-                        filament_position = max(0.0, bowden_length - (elapsed_since_clear * self.loading_speed))
+                        unload_start = (bowden_length - 40.0) if self.unload_cut else bowden_length
+                        # Count down from unload_start to 0.0 mm
+                        filament_position = max(0.0, unload_start - (elapsed_since_clear * self.loading_speed))
+                        if filament_position <= 0.0:
+                            self.unload_completed = True
                     else:
                         # Tip is still past toolhead sensor, count down from unload_start, clamped above bowden_length
+                        unload_start = (path_len - 40.0) if self.unload_cut else path_len
                         filament_position = max(bowden_length, unload_start - (elapsed * self.loading_speed))
             elif self.current_phase == "cut":
-                # Model the cutter feed-forward and retract cycle at the toolhead (path_len -> path_len + 10 -> path_len - 40 mm)
+                # Model the cutter feed-forward and retract cycle at the extruder/cutter (bowden_length -> bowden_length + 10 -> bowden_length - 40 mm)
                 elapsed = now - self.cut_phase_start
                 if elapsed < 1.5:
-                    filament_position = path_len + (elapsed / 1.5) * 10.0 # Forward: path_len -> path_len + 10 mm
+                    filament_position = bowden_length + (elapsed / 1.5) * 10.0 # Forward: bowden_length -> bowden_length + 10 mm
                 elif elapsed < 2.5:
-                    filament_position = path_len + 10.0 # Settle and cut
+                    filament_position = bowden_length + 10.0 # Settle and cut
                 else:
                     retract_elapsed = elapsed - 2.5
-                    filament_position = max(path_len - 40.0, (path_len + 10.0) - (retract_elapsed * 50.0)) # Retract back past extruder gears to path_len - 40 mm
+                    filament_position = max(bowden_length - 40.0, (bowden_length + 10.0) - (retract_elapsed * 50.0)) # Retract back past extruder gears to bowden_length - 40 mm
             elif self.current_phase == "load":
                 elapsed = now - self.load_phase_start
                 # Count up from 0.0 to bowden_length

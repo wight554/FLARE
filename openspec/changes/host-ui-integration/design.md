@@ -358,6 +358,17 @@ To address all telemetry and spool-change timing issues:
   - **Toolhead sensor active**: Clamp position to `max(bowden_length, ...)` during the initial unload to represent filament still past the sensor.
   - **Toolhead sensor clears**: Detect the edge transition to `path_toolhead = False`, capture the time, and count down smoothly from `bowden_length` to `0.0` mm, eliminating any position jumps.
 
+## 26. Zero-Jump Cutting Sequence & Unload Completion State Gating
+
+To completely resolve cutter jumps and gear-rebound zeroing issues:
+- **Unload Completion Gating**: We introduce an explicit `self.unload_completed` state boolean. During the `"unload"` phase, once the old filament tip reaches `0.0` mm or clears the gear sensor (`not path_gear` is True), we set `self.unload_completed = True`. While `self.unload_completed` is active, Klipper permanently forces the tip position to `0.0` mm. We only reset `self.unload_completed = False` upon entering `"cut"` or `"load"` phases. This successfully prevents telemetry from jumping to `100-200` mm when the new spool's gear sensor triggers while Klipper is transitioning phases.
+- **Zero-Jump Extruder-Park Cutter Modeling**: The cutter is physically located near the extruder entry/gears (approx `bowden_length`). During the `"cut"` phase, we remodel progress relative to `bowden_length` (1800 mm) instead of the nozzle (`path_len`):
+  - **0.0 to 1.5 s (feed forward)**: Count up from `bowden_length` to `bowden_length + 10.0` mm.
+  - **1.5 to 2.5 s (cut/settle)**: Hold static at `bowden_length + 10.0` mm.
+  - **2.5 s+ (retract)**: Count down from `bowden_length + 10.0` towards the extruder park position at `bowden_length - 40.0` mm.
+- **Continuous Unload Phase Resumption**: At the start of `"unload"`, if `self.unload_cut` is active, `unload_start` for the countdown when `path_toolhead` is False is set to `bowden_length - 40.0` mm. This guarantees that the unload phase resumes *exactly* at the ending position of the cutter retract move, realizing a 100% continuous, jump-free telemetry flow.
+
+
 
 
 
