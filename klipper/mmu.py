@@ -1174,15 +1174,8 @@ class MMUMock:
                         # Tip is still past toolhead sensor, count down from path_len, clamped above bowden_length
                         filament_position = max(bowden_length, path_len - (elapsed * self.loading_speed))
             elif self.current_phase == "cut":
-                # Model the cutter feed-forward and retract cycle at the MMU gate cutter (150 -> 160 -> 0 mm)
-                elapsed = now - self.cut_phase_start
-                if elapsed < 1.5:
-                    filament_position = 150.0 + (elapsed / 1.5) * 10.0 # Forward: 150 -> 160 mm
-                elif elapsed < 2.5:
-                    filament_position = 160.0 # Settle and cut
-                else:
-                    retract_elapsed = elapsed - 2.5
-                    filament_position = max(0.0, 160.0 - (retract_elapsed * 50.0)) # Retract back past cutter to 0 mm
+                # Filament is fully unloaded back to the gate/drive gears, hold at 0.0 mm
+                filament_position = 0.0
             elif self.current_phase == "load":
                 elapsed = now - self.load_phase_start
                 # Count up from 0.0 to bowden_length

@@ -386,16 +386,16 @@
 - [x] 31.1 Initialize `self.unload_completed = False` in `klipper/mmu.py`'s `__init__`.
 - [x] 31.2 Reset `self.unload_completed = False` on transitions to `"cut"` or `"load"` phases inside both `cmd_FLARE_WAIT_TC` and `cmd_SET_MMU`.
 - [x] 31.3 In `get_status` unload phase: once the filament reaches `0.0` mm or `not path_gear` is triggered, set `self.unload_completed = True` to permanently force `0.0` mm and prevent bounces when the new lane's gear triggers.
-- [x] 31.4 In `get_status` cut phase: remodel cutter position relative to gate-side cutter (`150.0 mm` from gear) to match the physically correct MMU gate cut position: feed-forward (`150.0 -> 160.0`), cut/settle, and retract (`160.0 -> 0.0 mm`).
-- [x] 31.5 In `get_status` unload phase: set the start point to `bowden_length` (1800 mm) when `path_toolhead` is False, and let the unload phase continue counting down smoothly past `150.0` mm to `0.0` mm.
+- [x] 31.4 In `get_status` cut phase: simplify cutter modeling to hold the filament position static at `0.0` mm during the entire `"cut"` phase since it is fully unloaded back to the gate, avoiding hardcoded constants.
+- [x] 31.5 In `get_status` unload phase: set the start point to `bowden_length` (1800 mm) when `path_toolhead` is False, and let the unload phase continue counting down smoothly to `0.0` mm.
 - [x] 31.6 Validate Python syntax compile and check C builds.
 
 ---
 
 ### Validation Notes — 2026-05-28 (Zero-Jump Cut Progress & Unload Gating)
 - Implemented `self.unload_completed` state tracking inside Klipper MMU mock (`klipper/mmu.py`) to permanently lock `filament_position` to `0.0` mm once the unload countdown completes or drive gear sensor clears. Cleared the flag on load/cut transitions. This cleanly prevents the position from jumping to `100-200` mm when the new spool's gears trigger the sensor during phase swaps.
-- Remodeled `"cut"` phase virtual progress to be centered at the gate-side MMU cutter (`150.0 mm` from gear): counts up past cutter (`150.0 -> 160.0` mm), cuts, and retracts back past cutter gears to `0.0` mm.
-- Set `"unload"` phase countdown start point to `bowden_length` (1800 mm) when `path_toolhead` sensor is clear, counting down smoothly past `150.0` mm (where `"cut"` phase seamlessly intercepts it) down to `0.0` mm.
+- Simplified `"cut"` phase virtual progress to hold static at `0.0` mm since the filament is physically back at the gate/drive gears when cutting, completely eliminating hardcoded distance parameters.
+- Set `"unload"` phase countdown start point to `bowden_length` (1800 mm) when `path_toolhead` sensor is clear, counting down smoothly all the way to `0.0` mm.
 - Verified Python code compiles cleanly with no warnings or syntax errors. Confirmed local firmware builds are fully green.
 
 

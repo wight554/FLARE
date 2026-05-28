@@ -362,11 +362,8 @@ To address all telemetry and spool-change timing issues:
 
 To completely resolve cutter jumps and gear-rebound zeroing issues:
 - **Unload Completion Gating**: We introduce an explicit `self.unload_completed` state boolean. During the `"unload"` phase, once the old filament tip reaches `0.0` mm or clears the gear sensor (`not path_gear` is True), we set `self.unload_completed = True`. While `self.unload_completed` is active, Klipper permanently forces the tip position to `0.0` mm. We only reset `self.unload_completed = False` upon entering `"cut"` or `"load"` phases. This successfully prevents telemetry from jumping to `100-200` mm when the new spool's gear sensor triggers while Klipper is transitioning phases.
-- **Zero-Jump Gate-Side Cutter Modeling**: The cutter is physically located at the MMU gate, exactly `150.0` mm from the drive gear. During the `"cut"` phase, we model the sequence relative to `150.0` mm:
-  - **0.0 to 1.5 s (feed forward)**: Count up from `150.0` to `160.0` mm.
-  - **1.5 to 2.5 s (cut/settle)**: Hold static at `160.0` mm.
-  - **2.5 s+ (retract)**: Count down from `160.0` towards the MMU gears at `0.0` mm.
-- **Continuous Unload Phase Countdown**: At the start of `"unload"`, if the toolhead sensor is cleared (`not path_toolhead`), the position counts down smoothly from `bowden_length` (1800 mm). When it passes `150.0` mm, the board enters the cutting phase, which seamlessly intercepts it at `150.0` mm, feeds forward, and retracts back to `0.0` mm, realizing a 100% continuous, jump-free telemetry flow.
+- **Zero-Jump Gate-Side Cutter Modeling**: Since the cutter is physically located gate-side at the MMU, the filament is already fully unloaded back to the drive gears/gate. We hold the virtual position static at `0.0` mm during the entire `"cut"` phase, avoiding any hardcoded distance constants.
+- **Continuous Unload Phase Countdown**: At the start of `"unload"`, if the toolhead sensor is cleared (`not path_toolhead`), the position counts down smoothly from `bowden_length` (1800 mm) down to `0.0` mm. Once the board enters the cutting phase, the position holds at `0.0` mm.
 
 
 
