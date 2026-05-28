@@ -377,9 +377,22 @@ To make manual loads and unloads (`FLARE_LOAD`, `FLARE_UNLOAD`) cooperative and 
 To guarantee perfect telemetry progress updates without any jumps or cuts being missed:
 - **Immediate Toolhead Unload Tracking (`FLARE_START_UNLOAD`)**: We introduce a new `FLARE_START_UNLOAD` Klipper command and call it at the very beginning of the `FLARE_UNLOAD_TOOLHEAD` macro. This ensures Klipper immediately transitions `current_phase = "unload"`, meaning the virtual position counts down smoothly from `1925` to `1800` mm *during* Klipper's extruder gear retract, seamlessly crossing into the bowden tube without any jumps when the toolhead sensor clears.
 - **Unified `_update_phase` Helper**: We extract all virtual phase transition mapping logic into a single robust helper method `self._update_phase(tc_state, action, now)`. We call this unified method inside Klipper's background status receiver (`cmd_SET_MMU`) and both cooperative wait loops (`FLARE_WAIT_TC` and `FLARE_WAIT_UNLOAD`). This guarantees 100% synchronous and identical virtual phase resolution under all circumstances, fully correcting the manual unload cut-phase telemetry jumps.
+## 29. Telemetry Race Protection & Interactive Load Telemetry
+
+To ensure a perfectly smooth and continuous progress tracking during physical filament loading:
+- **Full Path Loading Telemetry**: The virtual progress calculation during the `"load"` phase is scaled up to the full path length `path_len` (1925 mm) instead of capping at `bowden_length` (1800 mm). The Mainsail/Fluidd UI progress bar now counts up smoothly all the way to 100% (1925 mm) instead of stopping at 93% (1800 mm) and jumping abruptly upon toolhead insertion.
+- **Post-Load Race Shielding**: Added toolhead-sensor triggered guard gates inside Klipper's `_update_phase` helper. When the toolhead sensor is active, Klipper immediately forces the current phase to `"idle"`. This shields Klipper from stale background `SET_MMU` commands sent by the 4Hz daemon during toolhead insertion, preventing Klipper from reverting to `"load"` and snapping the position back to `0.0` mm.
 
 
+## 30. Real-Time Dynamic Filament State Resolution
+
+To prevent status display freeze during G-code queue pauses:
+- **Dynamic State Derivation inside `get_status`**: `self.filament` and `self.filament_pos` are calculated dynamically in real-time inside Klipper's `get_status` method based on active sensor triggers (`path_gear`, `path_toolhead`) and the current virtual phase (`current_phase == "load"` or `current_phase == "unload"`).
+- **Cooperative Wait Loop Protection**: Because Klipper's G-code parser blocks G-code queue execution during cooperative wait loops (like `FLARE_WAIT_TC`), background `SET_MMU` updates are queued. Resolving the filament loaded state dynamically inside `get_status` (which is queried continuously by Fluidd/Mainsail) guarantees that the UI immediately and accurately reflects `"Partially Loaded"` as soon as the drive gears grip the filament or loading begins, bypassing the queued G-code bottleneck.
 
 
+## 31. Seamless Unload Telemetry Wait Loop Carry
 
-
+To guarantee perfect countdown continuity throughout the entire toolhead-to-lane retraction flow:
+- **Unload Timer Protection**: The active unload virtual tracking timers (`self.unload_phase_start` and `self.th_clear_time`) inside `cmd_FLARE_WAIT_UNLOAD` and `cmd_FLARE_WAIT_TC` are guarded to prevent them from being reset if Klipper is already in the `"unload"` phase.
+- **Continuous Countdown Flow**: The smooth countdown from `1925` to `1800` mm initiated by `FLARE_START_UNLOAD` at the very beginning of the `FLARE_UNLOAD_TOOLHEAD` macro is fully preserved when entering Klipper's synchronous wait loops. This prevents the virtual position from jumping back to `1925` or `1800` mm, realizing a 100% continuous, jump-free telemetry transition.
