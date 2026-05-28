@@ -213,7 +213,7 @@ class MMUMock:
                         self.current_phase = "cut"
                         self.cut_phase_start = now
                         self.loading_start_time = now
-                        self.unload_completed = False
+                        self.unload_completed = True
                 else:
                     if self.current_phase != "unload":
                         self.current_phase = "unload"
@@ -928,7 +928,7 @@ class MMUMock:
                             if self.current_phase != "cut":
                                 self.current_phase = "cut"
                                 self.cut_phase_start = now
-                                self.unload_completed = False
+                                self.unload_completed = True
                         elif tc_state in ["LOAD_START", "LOAD_WAIT_OUT", "LOAD_WAIT_TH"]:
                             if self.current_phase != "load":
                                 self.current_phase = "load"
