@@ -537,14 +537,19 @@ def analyze_stabilize(samples: List[Sample], events) -> Tuple[str, List[str]]:
 # ---------------------------------------------------------------------------
 def analyze_stability(samples: List[Sample], events,
                       poll_ms: int = 100,
-                      cycle_threshold_hz: float = 2.0,
+                      cycle_threshold_hz: float = 1.0,
                       window_sec: int = 3) -> Tuple[str, List[str]]:
-    """Detect closed-loop sync ringing. Sustained BUF state oscillation greater
-    than 2 cycles/sec over any window_sec window indicates loop instability.
-    Threshold raised from 1.0 to 2.0: at 1500 mm/min infill the natural
-    demand frequency is ~1.4 Hz from short line segments, which is not
-    loop oscillation. Tune via sync_kp_rate <- sync_kp_rate / k, where
-    k = sync_ramp_accel / 33.
+    """Detect a sustained sync limit cycle. BUF state oscillation greater than
+    cycle_threshold_hz over any window_sec window indicates the buffer is
+    bang-banging rather than holding a quiet dwell.
+
+    Type D (BUF_SENSOR_TYPE == 0) is a hysteretic relay, not a PI loop, so the
+    cycle is reduced by lowering the NEUTRAL overfeed (relay_neutral_frac toward
+    1.0), NOT by sync_kp_rate (which the relay ignores entirely). A high cycle
+    rate here means relay_neutral_frac is overfeeding the buffer into the
+    COMPRESSION wall. For analog type P (BUF_SENSOR_TYPE == 1) the loop is a
+    real PI controller: ringing there means sync_kp_rate too high for the
+    active sync_ramp_accel (tune via sync_kp_rate <- sync_kp_rate / k).
 
     Run during a typical print soak with mixed flow; capture at the default
     100ms poll for at least 30 seconds. PASS = peak window rate within
@@ -609,8 +614,10 @@ def analyze_stability(samples: List[Sample], events,
         return "FAIL", report + [
             f"  ringing: peak {peak_cycles_hz:.2f} cycles/s > "
             f"{cycle_threshold_hz:.2f} threshold over {window_sec}s window.",
-            "  mitigation: SET:SYNC_KP_RATE:<current/k> where "
-            "k = sync_ramp_accel / 33. See design.md §D6a."]
+            "  mitigation (type D relay): lower relay_neutral_frac toward 1.0 "
+            "(SET:RELAY_NEUTRAL_FRAC) to cut the NEUTRAL overfeed driving the "
+            "cycle — sync_kp_rate has no effect on type D. "
+            "(type P analog: SET:SYNC_KP_RATE:<current/k>, k = sync_ramp_accel / 33.)"]
 
     return "PASS", report + [
         f"  no sustained ringing: peak {peak_cycles_hz:.2f} cycles/s under "
@@ -624,10 +631,14 @@ def analyze_drift(samples: List[Sample],
                   endstop_threshold_pct: float = 30.0
                   ) -> Tuple[str, List[str]]:
     """Time-in-endstop check: if the buffer spends more than threshold% at
-    TENSION or COMPRESSION combined, sync is lagging the extruder demand —
-    typically because sync_kp_rate is too low. Companion to analyze_stability
-    for autotune: ringing means kp too high, drift means kp too low; healthy
-    print has buffer mostly at NEUTRAL with brief endstop excursions."""
+    TENSION or COMPRESSION combined, it is not holding a quiet NEUTRAL dwell.
+    The lever depends on which wall dominates and on the controller:
+      - type D relay (BUF_SENSOR_TYPE == 0): COMPRESSION-heavy = relay_neutral_frac
+        overfeeding (lower it toward 1.0); TENSION-heavy = catch-up too weak or
+        neutral_frac too low (raise relay_catchup_frac / relay_neutral_frac).
+        sync_kp_rate is inert for type D.
+      - type P analog (BUF_SENSOR_TYPE == 1): drift = sync_kp_rate too low.
+    Healthy print sits mostly at NEUTRAL with brief endstop excursions."""
     report: List[str] = []
     counts = {"TENSION": 0, "COMPRESSION": 0, "NEUTRAL": 0}
     total = 0
@@ -648,9 +659,14 @@ def analyze_drift(samples: List[Sample],
     report.append(f"  endstop total: {endstop_pct:.0f}% "
                   f"(threshold {endstop_threshold_pct:.0f}%)")
     if endstop_pct > endstop_threshold_pct:
+        if pct["COMPRESSION"] >= pct["TENSION"]:
+            hint = ("COMPRESSION-heavy: type D lower relay_neutral_frac toward "
+                    "1.0 (less overfeed); type P lower the compression lean.")
+        else:
+            hint = ("TENSION-heavy: type D raise relay_catchup_frac / "
+                    "relay_neutral_frac; type P raise sync_kp_rate.")
         return "FAIL", report + [
-            f"  drift: sync lagging extruder demand. "
-            f"Raise SYNC_KP_RATE."]
+            f"  drift: buffer not holding NEUTRAL. {hint}"]
     return "PASS", report
 
 
@@ -996,11 +1012,11 @@ def main() -> int:
                          "(prime/locked/catch/settle and no MV faults). "
                          "'tune'=autotune SYNC_KP_RATE during a live print "
                          "(requires --daemon).")
-    ap.add_argument("--stability-cycle-hz", type=float, default=2.0,
+    ap.add_argument("--stability-cycle-hz", type=float, default=1.0,
                     help="stability mode: max allowed BUF cycles/sec over the "
-                         "sliding window before FAIL (default 2.0). At 1500 mm/min "
-                         "infill the natural demand frequency is ~1.4 Hz from short "
-                         "line segments; 1.0 is a false-positive for fast prints.")
+                         "sliding window before FAIL (default 1.0). A sustained "
+                         "cycle above this is the relay bang-banging; for type D "
+                         "lower relay_neutral_frac, not sync_kp_rate.")
     ap.add_argument("--stability-window-sec", type=int, default=3,
                     help="stability mode: sliding window length in seconds "
                          "(default 3).")
@@ -1018,11 +1034,11 @@ def main() -> int:
     ap.add_argument("--tune-kp-max", type=float, default=0.0,
                     help="tune mode: bail if kp would exceed this (mm/min); "
                          "0 = 4× the starting kp.")
-    ap.add_argument("--tune-drift-pct", type=float, default=38.0,
+    ap.add_argument("--tune-drift-pct", type=float, default=30.0,
                     help="tune mode: max combined TENSION+COMPRESSION time %% "
-                         "before drift FAIL (default 38). At 1500 mm/min the buffer "
-                         "physically equilibrates ~28-32%% in compression; 30%% is "
-                         "too strict for fast-print profiles on this hardware.")
+                         "before drift FAIL (default 30). High COMPRESSION%% on "
+                         "type D means relay_neutral_frac is overfeeding — lower "
+                         "it rather than raising this threshold.")
     ap.add_argument("--idle", action="store_true",
                     help="rearm mode: this capture is idle — any re-arm is a FAIL")
     ap.add_argument("--allow-terminal-idle-relief", action="store_true",

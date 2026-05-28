@@ -83,7 +83,12 @@ DEFAULTS = {
     "est_fallback_cf_threshold": "0.2",
     # Type-D Relay Fallback Law
     "relay_catchup_frac": "1.30",
-    "relay_neutral_frac": "1.25",
+    # NEUTRAL feed = extruder_est_sps * this. >1.0 = gentle compression lean.
+    # 1.10 = ~10% overfeed (documented gentle lean). Was 1.25 (25% overfeed):
+    # a stale relay-confidence-gate-harden palliative that, post relay-fallback-
+    # only, drove a loud NEUTRAL->COMPRESSION->stop limit cycle. Lower = less time
+    # on the COMPRESSION wall; raise toward 1.15 if the buffer drifts to TENSION.
+    "relay_neutral_frac": "1.10",
     "relay_min_flip_mm": "0.0",
     "relay_collapse_delay_ms": "250",
     "relay_collapse_ramp_mult": "3",

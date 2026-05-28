@@ -111,7 +111,9 @@ run_current:
 
 # ─── Type-D Relay Fallback Law ──────────────────────────────────────────────
 # relay_catchup_frac: 1.30            # TENSION refill multiplier in type-D relay mode.
-# relay_neutral_frac: 1.25            # NEUTRAL fallback/lean multiplier in type-D relay mode.
+# relay_neutral_frac: 1.10            # NEUTRAL fallback/lean multiplier in type-D relay mode.
+                                      # >1.0 = gentle compression lean; lower if it dwells on the
+                                      # COMPRESSION wall, raise toward 1.15 if it drifts to TENSION.
 # relay_min_flip_mm: 0.0              # Distance hysteresis for relay flips; 0.0 keeps time-only.
                                      # NON-ZERO BLOCKED: gating a flip on the actuator's own motor
                                      # travel deadlocks any flip whose acceptance is what starts the

@@ -164,7 +164,7 @@ The knobs live in `config.ini`, not in `sync.c` defines:
 
 ```ini
 relay_catchup_frac: 1.30
-relay_neutral_frac: 1.25
+relay_neutral_frac: 1.10
 relay_min_flip_mm: 0.0
 relay_collapse_delay_ms: 250
 relay_collapse_ramp_mult: 3
@@ -188,13 +188,24 @@ a graceful taper with the fallback relay law keeping the buffer off the
 wall — softening them on-hw only added pre-stop chatter, so leave them
 unless a specific machine shows an abrupt stop.
 
+`relay_neutral_frac` is the type-D quiet-cycle lever. NEUTRAL feed is
+`extruder_est_sps * relay_neutral_frac`, and `extruder_est_sps` already tracks
+real demand, so the fraction above `1.0` is pure overfeed: it drives the buffer
+into COMPRESSION, where the relay true-stops, drains, and re-feeds — the
+ramp-up / stop / ramp-up limit cycle you hear. `1.10` (~10 % overfeed) is a
+gentle compression lean with a long, quiet NEUTRAL dwell; `1.25` overfeeds 25 %
+and bang-bangs the COMPRESSION wall. **`sync_kp_rate` and the `sync_ramp_accel`
+autotune do not affect the type-D relay** — it keys only on switch state, not a
+PI error. Those apply to analog type P (`BUF_SENSOR_TYPE == 1`) only.
+
 Tune only from real print behavior:
 
 - Increase `relay_catchup_frac` if TENSION dwell repeats or the printer starves.
 - Lower `relay_neutral_frac` if the buffer spends too much time on the
-  COMPRESSION wall.
+  COMPRESSION wall (the audible bang-bang).
 - Raise `relay_neutral_frac` if the buffer drifts toward TENSION during steady
   demand.
+- Do **not** touch `sync_kp_rate` for type D — it is inert (analog type-P only).
 - Leave `relay_min_flip_mm` at `0.0` unless deliberately testing the deadlock
   caveat above.
 
