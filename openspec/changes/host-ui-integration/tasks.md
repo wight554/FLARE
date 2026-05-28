@@ -430,6 +430,20 @@
 - Confirmed Python files syntax is completely correct and local C firmware compiles perfectly.
 
 
+## Phase 34: Interactive Load Telemetry & Telemetry Race Protection
+- [x] 34.1 Update `get_status` in `klipper/mmu.py` to count up to `path_len` instead of `bowden_length` during the load phase, enabling interactive telemetry to progress smoothly to 100% (`1925` mm) rather than capping at `bowden_length` (`1800` mm) and jumping.
+- [x] 34.2 Shield Klipper from stale daemon state updates by updating `_update_phase` in `klipper/mmu.py` to set the virtual phase to `"idle"` if the toolhead sensor is triggered, bypassing any background daemon races.
+- [x] 34.3 Validate Python syntax and check local C builds.
+
+---
+
+### Validation Notes — 2026-05-28 (Interactive Load Telemetry & Telemetry Race Protection)
+- Updated virtual progress scaling in `get_status` load phase from `bowden_length` (1800 mm) to `path_len` (1925 mm). This enables the UI progress countdown to run all the way to 100% (1925 mm) instead of capping at 93% (1800 mm) and jumping abruptly on toolhead insertion.
+- Shielded Klipper from asynchronous telemetry race conditions by verifying if the toolhead sensor is triggered in `_update_phase` during both physical `tc_state` matches and fallback `action == "Loading"` checks. When the toolhead sensor is triggered, any stale incoming loading messages are safely mapped to the `"idle"` phase. This prevents Klipper from resetting the load phase start time, completely eliminating post-load jumps/snaps back to 0.
+- Confirmed Python compilation successfully checks out and local C firmware compiles perfectly.
+
+
+
 
 
 

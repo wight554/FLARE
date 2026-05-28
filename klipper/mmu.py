@@ -1070,18 +1070,24 @@ class MMUMock:
                 self.cut_phase_start = now
                 self.unload_completed = True
         elif tc_state in ["LOAD_START", "LOAD_WAIT_OUT", "LOAD_WAIT_TH"]:
-            if self.current_phase != "load":
-                self.current_phase = "load"
-                self.load_phase_start = now
-                self.unload_completed = False
-        else:
-            # Fallback to action-based state tracking for manual movements outside orchestrated toolchange
-            if action == "Loading":
+            if self._is_toolhead_sensor_triggered():
+                self.current_phase = "idle"
+            else:
                 if self.current_phase != "load":
                     self.current_phase = "load"
                     self.load_phase_start = now
-                    self.loading_start_time = now
                     self.unload_completed = False
+        else:
+            # Fallback to action-based state tracking for manual movements outside orchestrated toolchange
+            if action == "Loading":
+                if self._is_toolhead_sensor_triggered():
+                    self.current_phase = "idle"
+                else:
+                    if self.current_phase != "load":
+                        self.current_phase = "load"
+                        self.load_phase_start = now
+                        self.loading_start_time = now
+                        self.unload_completed = False
             elif action == "Unloading":
                 if self.current_phase != "unload":
                     self.current_phase = "unload"
@@ -1247,8 +1253,8 @@ class MMUMock:
                 filament_position = 0.0
             elif self.current_phase == "load":
                 elapsed = now - self.load_phase_start
-                # Count up from 0.0 to bowden_length
-                filament_position = min(bowden_length, elapsed * self.loading_speed)
+                # Count up from 0.0 to path_len (1925 mm) instead of bowden_length (1800 mm)
+                filament_position = min(path_len, elapsed * self.loading_speed)
             else:
                 filament_position = 0.0
         else:
