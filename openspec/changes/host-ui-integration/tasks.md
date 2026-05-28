@@ -455,6 +455,18 @@
 - Validated python compilation and verified local C firmware builds cleanly.
 
 
+## Phase 36: Seamless Unload Telemetry Wait Loop Carry
+- [x] 36.1 Prevent resetting `unload_phase_start` and `th_clear_time` during wait loops if `self.current_phase` is already `"unload"` inside `cmd_FLARE_WAIT_UNLOAD` and `cmd_FLARE_WAIT_TC` in `klipper/mmu.py`. This ensures toolhead unload progress (`FLARE_START_UNLOAD`) seamlessly carries into the main unload sequence without telemetry jumps.
+- [x] 36.2 Validate Python syntax and check local C builds.
+
+---
+
+### Validation Notes — 2026-05-28 (Seamless Unload Telemetry Wait Loop Carry)
+- Shielded active unload virtual tracking timers (`self.unload_phase_start`, `self.th_clear_time`) inside both `cmd_FLARE_WAIT_UNLOAD` and `cmd_FLARE_WAIT_TC` in `klipper/mmu.py`. They are now left untouched if Klipper is already in `"unload"` phase (transitioned via `FLARE_START_UNLOAD`).
+- This guarantees that the smooth countdown from `1925` to `1800` mm during `FLARE_UNLOAD_TOOLHEAD` is completely preserved when Klipper enters the synchronous/cooperative wait loops, preventing any jump back to `1925` or `1800` mm.
+- Verified python syntax compiles successfully, and firmware C target builds perfectly.
+
+
 
 
 

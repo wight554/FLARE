@@ -945,13 +945,17 @@ class MMUMock:
         unload_speed = self.board_rev_rate * (speed_override / 100.0)
         self.swap_unload_duration = bowden_length / unload_speed if unload_speed > 0 else 20.0
 
-        self.unload_phase_start = start_time
-        self.cut_phase_start = 0.0
-        self.load_phase_start = 0.0
-        self.th_clear_time = None
-        self.current_phase = "unload" if is_swapping else "load"
-        if not is_swapping:
+        if is_swapping:
+            if self.current_phase != "unload":
+                self.current_phase = "unload"
+                self.unload_phase_start = start_time
+                self.th_clear_time = None
+        else:
+            self.current_phase = "load"
             self.load_phase_start = start_time
+
+        self.cut_phase_start = 0.0
+        self.load_phase_start = 0.0 if is_swapping else start_time
 
         try:
             while not self._is_toolhead_sensor_triggered():
