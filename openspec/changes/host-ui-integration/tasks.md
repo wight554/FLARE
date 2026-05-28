@@ -467,6 +467,41 @@
 - Verified python syntax compiles successfully, and firmware C target builds perfectly.
 
 
+## Phase 37: Standalone Load/Unload/Cut Tracking + Drawn Tip (Regression Fix)
+Operator validation found the "smooth / jump-free / interactive" claims of Phases 24–31 hold for **toolchange only**. Standalone load shows a two-step jump (`0` → `1925`), standalone unload starts a phantom *load* count-up on full unload, cut travel reads `1800` mm instead of `0`, and the drawn tip sits at one of three fixed spots. Root-cause map in `design.md` §32.
+
+### 37.1 Unify phase ownership (the `is_loading` gate asymmetry)
+- [ ] 37.1.1 Generalize the `cmd_SET_MMU` gate (`klipper/mmu.py:206`, `if not self.is_loading`) so the daemon's periodic `SET_MMU` push also skips `_update_phase` during `FLARE_WAIT_UNLOAD`, not just `FLARE_WAIT_TC`. Add `is_unloading` (or a single `phase_locked` flag set/cleared by both wait loops) so exactly one writer owns `current_phase` per synchronous flow.
+- [ ] 37.1.2 Add a terminal phase reset to `cmd_FLARE_WAIT_UNLOAD` mirroring `cmd_FLARE_WAIT_TC`'s `finally: current_phase="idle"` (`:1003`), so a completed unload settles at `0.0` mm and cannot leak into `"load"`.
+
+### 37.2 Kill the phantom load on unload (#2)
+- [ ] 37.2.1 Harden the `"unload" → "load"` transition in `_update_phase` (`:1094/1104`): do not enter `"load"` on a bare `action="Loading"` / `LOAD_*` hint while a manual unload is finishing. Require real evidence (gate/out sensor rising after the path is empty, or a fresh load command).
+- [ ] 37.2.2 Confirm the standalone unload now counts down smoothly to `0` and holds, with no count-up after completion (daemon push active, `is_loading` False).
+
+### 37.3 Fix cut tracking (#3)
+- [ ] 37.3.1 Replace the narrow `tc_state ∈ {UNLOAD_WAIT_CUT, UNLOAD_CUT}` cut detection (`_update_phase:1089`) with a latch: once a cut is entered — or `unload_cut`/`enable_cutter` is active for the unload — hold `filament_position = 0.0` through the trailing reverse states regardless of the exact `tc_state`. Removes the `1800` mm artifact (`get_status:1325`).
+- [ ] 37.3.2 Verify cut → hold `0` during travel → count down (already `0`) on the post-cut unload.
+
+### 37.4 Anchor load tracking to physical progress (#1)
+- [ ] 37.4.1 Start `load_phase_start` at first real feed (first non-idle load `tc_state` / first gate-sensor rise), not at `FLARE_WAIT_TC` entry (`:927/955/958`), so the heat/`TEMPERATURE_WAIT` dead-time in `FLARE_UNLOAD_TOOLHEAD` is not counted as elapsed.
+- [ ] 37.4.2 Align `loading_speed` (`:943`, default 50 mm/s) with the board-reported feed, or interpolate `filament_position` between physical sensor crossings (pre_gate → gate → hub → toolhead) instead of pure open-loop time.
+- [ ] 37.4.3 Verify standalone load counts up smoothly `0 → 1925` matching real strand travel, with no early clamp-and-sit.
+
+### 37.5 Make the drawn tip move (#4) — investigation-gated
+- [ ] 37.5.1 Runtime: determine which field Fluidd's MMU component renders the tip dot from — discrete `filament_pos`, binary `sensors['toolhead']`, or interpolated `filament_position` / `endOfBowdenPos` (cross-check the Fluidd MMU component version against §14).
+- [ ] 37.5.2 Based on 37.5.1, either emit finer-grained Happy Hare `filament_pos` landmarks mapped from the synthetic mm progress, or export the field the widget interpolates. If the upstream widget cannot interpolate, document that the three-spot tip is a widget limitation (no FLARE fix).
+
+### 37.6 Build, test, docs
+- [ ] 37.6.1 `py_compile klipper/mmu.py` clean; local C firmware builds (no firmware change expected — confirm zero firmware diff).
+- [ ] 37.6.2 Regression check the unaffected flows: toolchange load/unload telemetry stays behavior-equivalent; preload, bypass, eject unaffected.
+- [ ] 37.6.3 Doc sync: update `KLIPPER.md` / `MANUAL.md` (and `design.md` §32) for any field/behavior the widget now relies on.
+
+### 37.7 On-hardware validation (operator)
+- [ ] 37.7.1 Standalone `MMU_LOAD`: smooth `0 → 1925` count-up, tip tracks (per 37.5 outcome).
+- [ ] 37.7.2 Standalone `MMU_UNLOAD`: smooth countdown to `0`, holds, no phantom load.
+- [ ] 37.7.3 Cut path: `0` held during cut travel, then `0` on post-cut unload.
+
+
 
 
 

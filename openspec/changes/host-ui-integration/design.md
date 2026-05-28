@@ -396,3 +396,112 @@ To prevent status display freeze during G-code queue pauses:
 To guarantee perfect countdown continuity throughout the entire toolhead-to-lane retraction flow:
 - **Unload Timer Protection**: The active unload virtual tracking timers (`self.unload_phase_start` and `self.th_clear_time`) inside `cmd_FLARE_WAIT_UNLOAD` and `cmd_FLARE_WAIT_TC` are guarded to prevent them from being reset if Klipper is already in the `"unload"` phase.
 - **Continuous Countdown Flow**: The smooth countdown from `1925` to `1800` mm initiated by `FLARE_START_UNLOAD` at the very beginning of the `FLARE_UNLOAD_TOOLHEAD` macro is fully preserved when entering Klipper's synchronous wait loops. This prevents the virtual position from jumping back to `1925` or `1800` mm, realizing a 100% continuous, jump-free telemetry transition.
+
+
+## 32. Regression Re-Analysis — Standalone Load/Unload/Cut Tracking + Drawn Tip (2026-05-28)
+
+Operator observation contradicts the "smooth / jump-free / interactive" claims of
+§§20, 23, 24, 25, 26, 29, 30, 31. **Toolchange animates correctly; the three
+standalone flows and the drawn tip do not.** Reported behavior:
+
+1. Standalone **load** (`MMU_LOAD` / `FLARE_LOAD`): no count-up — only `0`
+   (string "Unloaded" flickers in) then a jump to the full path `1925` mm.
+2. Standalone **unload** (`MMU_UNLOAD` / `FLARE_UNLOAD`): on full unload it starts
+   a phantom *loading* count-up instead of holding `0`; the real unload is not
+   tracked down.
+3. **Cut** travel shows `1800` mm (≈ `bowden_length`) instead of holding `0`,
+   then dropping to `0` on the post-cut unload.
+4. The **drawn filament tip** never moves with the strand — it sits at one of
+   three fixed spots (low / middle / high).
+
+### Architecture as built (the two-track synthesizer)
+
+```
+flare_daemon ──push──► cmd_SET_MMU (periodic ~4-20Hz)
+                         line 206:  if not self.is_loading: _update_phase(...)   ◄── GATE
+gcode wait  ──poll──► FLARE_WAIT_TC      sets is_loading=True   (loop owns phase)
+loops                FLARE_WAIT_UNLOAD   does NOT set is_loading (loop + daemon both write)
+                         │ both call _update_phase() each 0.2s
+                         ▼
+Moonraker  ──query──► get_status() ~4Hz
+                         filament_position = elapsed * loading_speed   (open-loop dead-reckon)
+                         filament_pos      ∈ {0, 4, 10}                (discrete → drawn tip)
+```
+
+`get_status` fabricates `filament_position` purely from `now - *_phase_start`
+times `loading_speed` (default 50 mm/s), gated by `current_phase ∈ {load,
+unload, cut, else}`. There is **no background reactor timer**: outside the
+synchronous wait loops, the only phase writer is the daemon's `SET_MMU` push.
+
+### Root causes (all in `klipper/mmu.py` unless noted)
+
+- **`is_loading` gate asymmetry** (`cmd_SET_MMU:206`, `if not self.is_loading`).
+  `is_loading` is set True **only** by `FLARE_WAIT_TC` (`:929`) and cleared only
+  in its `finally` (`:1002`). So during a toolchange the daemon push is gated
+  off and the wait loop is the sole phase writer → clean. `FLARE_WAIT_UNLOAD`
+  never sets `is_loading`, so during a manual unload the daemon push **and** the
+  wait loop both call `_update_phase` → two writers race.
+
+  | Flow | is_loading | phase writers | result |
+  |------|-----------|---------------|--------|
+  | Toolchange (→WAIT_TC) | True | loop only (push gated off) | clean ✓ |
+  | Standalone unload (→WAIT_UNLOAD) | **False** | loop **+** daemon push | race ✗ (#2) |
+  | Standalone load (→WAIT_TC) | True | loop only | timing defect, see below (#1) |
+
+- **No terminal phase reset in `FLARE_WAIT_UNLOAD`** (contrast `FLARE_WAIT_TC`
+  `finally: current_phase="idle"`, `:1003`). After unload, a daemon push of
+  `action="Loading"` / a `LOAD_*` `tc_state` flips `current_phase="load"`,
+  `load_phase_start=now` (`_update_phase:1094/1104`) → `get_status` counts UP
+  from 0 → **phantom load (#2)**, and nothing resets it to idle.
+
+- **Cut detection window too narrow** (`_update_phase:1089`): `"cut"` is set only
+  for `tc_state ∈ {UNLOAD_WAIT_CUT, UNLOAD_CUT}`. During cut *travel* the board
+  reports another state, so the phase stays `"unload"` with `path_toolhead`
+  still true → `get_status:1325` `max(bowden_length, …)` clamps at **1800 (#3)**
+  instead of the cut branch's `0.0` (`:1328`). §26's `unload_completed`-on-cut
+  latch never fires because the cut phase is never entered.
+
+- **Open-loop load timing** (`get_status:1330`, `filament_position = min(path_len,
+  elapsed*loading_speed)`): `load_phase_start` is anchored at `FLARE_WAIT_TC`
+  *entry* (`:927/955/958`), but `_FLARE_CHANGE_LANE` runs `FLARE_UNLOAD_TOOLHEAD`
+  first — `_FLARE_CG28` + `_FLARE_HEAT_HOTEND` + `TEMPERATURE_WAIT` to load_temp
+  — before `TC:`. That heat dead-time is counted as elapsed, and `loading_speed`
+  (50 mm/s display) is decoupled from the real firmware feed, so the value
+  either races to `1925` and sits, or never visibly progresses → **two-step
+  jump (#1)**. §29's "full path" scaling is correct; the *anchor and rate* are
+  the defect.
+
+- **Discrete `filament_pos`** (`get_status:1295/1298/1301`, and `cmd_SET_MMU:300/
+  307/310`): only `{0, 4, 10}` are emitted. The drawn tip is keyed to this enum
+  (and the binary `sensors['toolhead']`), **not** the continuous
+  `filament_position` mm — so it can occupy only three positions. During the
+  whole load animation `filament_pos==4`, then snaps to 10. The mm value
+  animates as text; the graphic cannot. **#4 is expected given this design**,
+  not a separate bug. Per §14, Fluidd's fill keys off `sensors['toolhead']`;
+  whether the tip dot can interpolate `filament_position`/`endOfBowdenPos` needs
+  a runtime check before committing to a fix.
+
+### Fix directions (see Phase 37 tasks)
+
+1. **Unify phase ownership**: generalize the `is_loading` gate (or add
+   `is_unloading`) so the daemon `SET_MMU` push skips `_update_phase` during
+   `FLARE_WAIT_UNLOAD` too — one writer per synchronous flow.
+2. **Terminal reset**: give `FLARE_WAIT_UNLOAD` a `finally`-style
+   `current_phase="idle"` so a finished unload settles at `0` and cannot leak to
+   `"load"`.
+3. **Harden `"unload"→"load"`**: require real load evidence (gate/out rise after
+   empty path, or a fresh load command) before entering `"load"`, not a bare
+   `action="Loading"` hint.
+4. **Cut latch**: once a cut is entered (or `unload_cut`/`enable_cutter` is set
+   for the unload) hold `0` through the trailing reverse states regardless of the
+   exact `tc_state` string.
+5. **Sensor-anchored load**: start `load_phase_start` at first real feed (first
+   non-idle load `tc_state` / first gate-sensor rise), and align `loading_speed`
+   to the board-reported feed (or interpolate between sensor crossings).
+6. **Tip motion (investigation-gated)**: confirm which field Fluidd renders the
+   tip from, then emit finer `filament_pos` landmarks mapped from synthetic mm,
+   or export the interpolated field the widget reads.
+
+These supersede the "perfectly smooth / 100% jump-free / interactive" assertions
+in §§24–31 for the **standalone** flows; the toolchange path is unaffected and
+must stay behavior-equivalent.
