@@ -72,6 +72,33 @@ class FakeConfig:
         return "mmu"
 
 
+class FakeGcmd:
+    """Minimal gcmd for driving cmd_SET_MMU: absent params return the default."""
+    def __init__(self, params):
+        self.p = params
+
+    def get_int(self, key, default=None):
+        v = self.p.get(key)
+        return int(v) if v is not None else default
+
+    def get_float(self, key, default=None):
+        v = self.p.get(key)
+        return float(v) if v is not None else default
+
+    def get(self, key, default=None):
+        v = self.p.get(key)
+        return v if v is not None else default
+
+    def respond_info(self, *a, **k):
+        pass
+
+    def respond_raw(self, *a, **k):
+        pass
+
+    def error(self, *a, **k):
+        return Exception(*(a or ("error",)))
+
+
 def new_mock():
     """Fresh MMUMock with hardware-like bowden geometry (path_len = 1925)."""
     var = FakeMacro({"bowden_length": 1808.0, "extruder_to_nozzle": 117.0})
@@ -171,6 +198,17 @@ check("no filament_tension sensor", "filament_tension" not in s["sensors"], s["s
 check("toolhead sensor still present", "toolhead" in s["sensors"], s["sensors"])
 check("bowden_progress == -1", s["bowden_progress"] == -1.0, s["bowden_progress"])
 check("filament_pos == 10 (loaded)", s["filament_pos"] == 10, s["filament_pos"])
+
+print("bypass persistence — daemon BYPASS push survives a Klipper restart")
+m, p = new_mock()                              # fresh mock == post-restart state
+check("fresh mock defaults bypass False", m.bypass is False, m.bypass)
+m.cmd_SET_MMU(FakeGcmd({"BYPASS": 1, "TOOLHEAD_SENSOR": 1}))
+check("daemon BYPASS=1 restores bypass", m.bypass is True, m.bypass)
+m.cmd_SET_MMU(FakeGcmd({"BYPASS": 0}))
+check("daemon BYPASS=0 clears bypass", m.bypass is False, m.bypass)
+m.bypass = True
+m.cmd_SET_MMU(FakeGcmd({}))                     # no BYPASS field -> leave as-is
+check("absent BYPASS leaves bypass unchanged", m.bypass is True, m.bypass)
 
 print(f"\n{_PASS} passed, {_FAIL} failed")
 sys.exit(1 if _FAIL else 0)

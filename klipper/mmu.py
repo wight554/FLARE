@@ -183,6 +183,14 @@ class MMUMock:
         self.gate = gcmd.get_int('GATE', self.gate)
         self.tool = gcmd.get_int('TOOL', self.tool)
 
+        # Bypass is daemon-persisted and re-asserted on every push, so adopt it
+        # here. This restores an active bypass after a Klipper restart re-inits
+        # the mock to bypass=False (MMU_SELECT_BYPASS / lane-select still set it
+        # locally and notify the daemon, which then echoes the same value back).
+        bypass = gcmd.get_int('BYPASS', None)
+        if bypass is not None:
+            self.bypass = bool(bypass)
+
         # While bypass is selected the MMU is disengaged; keep the gate/tool at
         # the bypass sentinel (-2) so the daemon's periodic SET_MMU push does not
         # clobber it back to a lane.

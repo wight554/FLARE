@@ -552,3 +552,23 @@ buffer/sync piston, and limit actions to load/unload.
   added a bypass guard to `cmd_MMU_PRELOAD` (it would otherwise spin a lane
   gear). Net: every non-load/unload button is a safe no-op in bypass even though
   Fluidd still draws it enabled.
+
+
+## 34. Bypass Persistence Across a Klipper Restart (2026-05-29)
+
+`MMU_SELECT_BYPASS` set `mmu.bypass` locally and notified the daemon (which
+persists it in `status_cache["bypass"]`), but the daemon never pushed it back.
+So a `systemctl restart klipper` re-initialised the mock to `bypass=False` and
+the flag was silently dropped: with no lane OUT sensor active, the
+filament-path cascade (`elif not path_gear: path_toolhead=False`) blanked the
+toolhead, and the panel showed `Unloaded` / `0 mm` even with filament physically
+at the toolhead (observed live: daemon `th=1` but `mmu.filament_pos=0`,
+`filament_position=0`).
+
+Fix: the daemon survives a klippy restart, so it now re-asserts the persisted
+state — `BYPASS=<0|1>` is appended to the periodic `SET_MMU` push, and
+`cmd_SET_MMU` adopts it (parsed before the `-2` sentinel block). The daemon is
+the source of truth; `MMU_SELECT_BYPASS` / lane-select still set `bypass`
+locally and notify the daemon, which echoes the same value, so bypass is
+restored within one push (~250 ms) after a restart. Covered offline by
+`scripts/test_flare_mmu_status.py`.

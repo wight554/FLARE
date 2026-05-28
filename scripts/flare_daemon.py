@@ -1034,8 +1034,9 @@ def klipper_syncer(moonraker_url):
             loaded_gate = 1
 
         # Align klipper_tool and klipper_gate to active_gate so that UI highlights the selected card
-        # and displays its spool details correctly. Bypass is owned by Klipper's
-        # mmu object (MMU_SELECT_BYPASS), which forces the -2 sentinels itself.
+        # and displays its spool details correctly. Bypass is persisted by the
+        # daemon and re-asserted via the BYPASS field below so it survives a
+        # Klipper restart; the mmu mock forces the -2 sentinels from that flag.
         klipper_tool = active_gate
         klipper_gate = active_gate
         # Physical sensor states for active gate and combiner
@@ -1053,6 +1054,7 @@ def klipper_syncer(moonraker_url):
 
         feed_rate = state.get("feed_rate_mms", 50.0)
         rev_rate = state.get("rev_rate_mms", 50.0)
+        bypass = bool(state.get("bypass", False))
 
         mmu_cmd = (
             f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={klipper_gate} TOOL={klipper_tool} "
@@ -1068,7 +1070,8 @@ def klipper_syncer(moonraker_url):
             f"SWAPS_TOTAL={st['swaps_total']} SWAPS_SUCCESS={st['swaps_success']} "
             f"SWAPS_FAILED={st['swaps_failed']} LOADS_SUCCESS={st['loads_success']} "
             f"UNLOADS_SUCCESS={st['unloads_success']} MMU_LAST_ERROR='{st['last_error']}' "
-            f"FEED_RATE={feed_rate:.2f} REV_RATE={rev_rate:.2f}"
+            f"FEED_RATE={feed_rate:.2f} REV_RATE={rev_rate:.2f} "
+            f"BYPASS={1 if bypass else 0}"
         )
 
         lines.append(mmu_cmd)
