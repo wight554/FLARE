@@ -44,9 +44,6 @@ except ImportError:
 # Commands that must wait for a completion event rather than just OK:
 # ---------------------------------------------------------------------------
 COMPLETION_EVENTS = {
-    'FL': (['EV:LOADED'], ['EV:LOAD_TIMEOUT', 'EV:RUNOUT', 'EV:TC:ERROR']),
-    'UL': (['EV:UNLOADED'], ['EV:UNLOAD_TIMEOUT', 'EV:UNLOAD_BLOCKED', 'EV:TC:ERROR']),
-    'UM': (['EV:UNLOADED'], ['EV:UNLOAD_TIMEOUT', 'EV:UNLOAD_BLOCKED', 'EV:TC:ERROR']),
     'RL': (['EV:RELOAD:LOADED'], ['EV:TC:ERROR']),
     'CU': (['EV:CUT:DONE'], ['EV:CUT:ERROR']),
     'CX': (['EV:CUT:DONE'], ['EV:CUT:ERROR']),
@@ -276,12 +273,11 @@ def sse_listener_thread(event_q, stop_event):
 
 def run_send_daemon(args):
     has_complex = False
-    if not args.no_wait:
-        for raw_cmd in args.cmd:
-            verb = raw_cmd.split(':', 1)[0].upper()
-            if verb in COMPLETION_EVENTS:
-                has_complex = True
-                break
+    for raw_cmd in args.cmd:
+        verb = raw_cmd.split(':', 1)[0].upper()
+        if verb in COMPLETION_EVENTS:
+            has_complex = True
+            break
 
     event_q = queue.Queue()
     stop_event = threading.Event()
@@ -295,7 +291,7 @@ def run_send_daemon(args):
     try:
         for raw_cmd in args.cmd:
             verb = raw_cmd.split(':', 1)[0].upper()
-            events = None if args.no_wait else COMPLETION_EVENTS.get(verb)
+            events = COMPLETION_EVENTS.get(verb)
 
             while not event_q.empty():
                 try:
@@ -471,7 +467,7 @@ def run_send(args):
 
     for raw_cmd in args.cmd:
         verb = raw_cmd.split(':', 1)[0].upper()
-        events = None if args.no_wait else COMPLETION_EVENTS.get(verb)
+        events = COMPLETION_EVENTS.get(verb)
 
         ser.write(f"{raw_cmd}\n".encode())
         deadline = time.time() + args.timeout
@@ -618,8 +614,6 @@ def main():
     parser.add_argument('--port',    help='Serial port (auto-detected if omitted)')
     parser.add_argument('--timeout', type=float, default=300.0,
                         help='Timeout for long-running commands (default: 300 s)')
-    parser.add_argument('--no-wait', action='store_true',
-                        help='Do not wait for completion events for long-running commands')
     parser.add_argument('--dump',    action='store_true',
                         help='Read all parameters from device and print as config.ini')
     parser.add_argument('--raw',     action='store_true',

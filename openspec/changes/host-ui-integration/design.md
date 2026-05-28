@@ -368,9 +368,9 @@ To completely resolve cutter jumps and gear-rebound zeroing issues:
 
 ## 27. Asynchronous Manual Movements & Cooperative Wait Loops
 To make manual loads and unloads (`FLARE_LOAD`, `FLARE_UNLOAD`) cooperative and fully interactive in Mainsail/Fluidd:
-- **Asynchronous `--no-wait` Dispatching**: We add a `--no-wait` argument to `flare_cmd.py` to bypass long-running command completion waiting. Manual load (`FL:`) and manual unload (`UL:`) are triggered with `--no-wait` via the shell command, returning immediately after board acknowledgement.
+- **Asynchronous Dispatching by Default**: We remove the long-running manual commands (`FL`, `UL`, `UM`) from `COMPLETION_EVENTS` in `scripts/flare_cmd.py`. These commands now always return `OK` immediately upon receipt, allowing Klipper's main thread to continue execution without freezing.
 - **Cooperative Unload Wait**: We register the `FLARE_WAIT_UNLOAD` G-code command in Klipper (`mmu.py`) which cooperatively polls the board's daemon status. It pauses slightly to let the board task initialize, then waits until the active lane's motor task returns to `IDLE` before exiting, allowing `get_status` progress countdowns to run smoothly and natively.
-- **Cooperative Load Wait**: We chain `FLARE_WAIT_TC` to `FLARE_LOAD` after the asynchronous `--no-wait FL:` command is issued, driving the load progress bar smoothly up to `bowden_length` without freezing the main thread.
+- **Cooperative Load Wait**: We chain `FLARE_WAIT_TC` to `FLARE_LOAD` after the asynchronous `FL:` command is issued, driving the load progress bar smoothly up to `bowden_length` without freezing the main thread.
 
 
 
