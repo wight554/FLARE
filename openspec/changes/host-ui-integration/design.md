@@ -339,4 +339,15 @@ Fluidd's filament-path status line reads `${action}: ${filamentPosition} mm` whe
 - Combined with the synthetic `filament_position` (§20), the widget animates "Loading: X mm" / "Unloading: X mm" as the strand crosses the path sensors, then returns to "Filament: X mm" when idle.
 - `L1T`/`L2T` are added only to the syncer's change-detection (not to the `_FLARE_STATE` variable list, which has no such fields).
 
+## 24. Toolhead-Relative Cutting Sequence Tracking & Spool Update Timing
+
+To resolve UI jumps and delayed active spool highlighting:
+- **Instant Spool Update**: In `cmd_FLARE_WAIT_TC`, we instantly assign `self.active_gate`, `self.gate`, and `self.tool` to the target gate `lane - 1` right when the wait loop begins. We freeze these values during the HTTP status polling loops so the daemon does not revert them back to the old lane during the unload/cut phase.
+- **Toolhead-Relative Cut Progress**: The physical cutter is located at the toolhead. During the `"cut"` phase, instead of gate-relative modeling (`0 -> 10 -> 0 mm`), we model position relative to the nozzle/cutter at `path_len` (e.g. ~1917 mm):
+  - **0.0 to 1.5 s (feed forward)**: Count up from `path_len` to `path_len + 10.0` mm.
+  - **1.5 to 2.5 s (cut/settle)**: Hold static at `path_len + 10.0` mm.
+  - **2.5 s+ (retract)**: Count down from `path_len + 10.0` towards a safe retracted position at `path_len - 40.0` mm (using a speed of 50 mm/s).
+- **Smooth Unload Start**: When transitioning to the `"unload"` phase, if `self.unload_cut` is active, the countdown starts smoothly at `path_len - 40.0` mm, aligning perfectly with the cut phase's ending position. If `self.unload_cut` is inactive, it starts at `path_len`. Both countdowns progress smoothly to `0.0` mm, completely eliminating any telemetry jumps in the Fluidd/Mainsail dashboard.
+
+
 

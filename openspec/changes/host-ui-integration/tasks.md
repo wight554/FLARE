@@ -348,3 +348,20 @@
 - Overrode global/shared filament switch mock sensors to report `filament_detected = False` when another lane is physically loaded, ensuring that unselected/unloaded lanes correctly show hollow track dots for shared sensors instead of inheriting global triggers.
 
 
+## Phase 29: Cutting Sequence Position Tracking & Active Spool UI Timing
+- [x] 29.1 Update `klipper/mmu.py`'s `cmd_FLARE_WAIT_TC` to instantly set `self.active_gate = target_gate`, `self.gate = target_gate`, and `self.tool = target_gate` at start.
+- [x] 29.2 Prevent the HTTP polling loops (both main and stabilization) from overwriting `active_gate`/`gate`/`tool` back to the old lane during unload/cut.
+- [x] 29.3 Modify the virtual progress calculation for `"cut"` phase in `klipper/mmu.py`'s `get_status` to be toolhead-relative (starting at `path_len`, feeding forward to `path_len + 10.0`, settling, and retracting to `path_len - 40.0`).
+- [x] 29.4 Modify the virtual progress calculation for `"unload"` phase in `get_status` to start at `path_len - 40.0` when `self.unload_cut` is active, and at `path_len` when inactive, ensuring smooth, jump-free tracking.
+- [x] 29.5 Validate Python syntax (`python3 -m py_compile klipper/mmu.py`) and verify firmware builds.
+
+---
+
+### Validation Notes — 2026-05-28 (Toolhead-Relative Cut Progress & Spool UI Timing)
+- Updated `cmd_FLARE_WAIT_TC` in `klipper/mmu.py` to instantly update and freeze `self.active_gate`, `self.gate`, and `self.tool` to `target_gate = lane - 1` when the wait loop begins. The daemon HTTP polling loops (both main wait and stabilization delay) are blocked from overwriting these values back to the old lane, ensuring Fluidd's dashboard active spool, color, and material card transitions instantly at the start of loading instead of waiting for full completion.
+- Re-modeled virtual progress during the `"cut"` phase to be toolhead-relative (where the physical cutter resides) starting at `path_len` (~1917 mm): feed-forward (`path_len` -> `path_len + 10.0` over 1.5s), settle/cut (holds at `path_len + 10.0` for 1.0s), and retract (`path_len + 10.0` down to `path_len - 40.0` at 50 mm/s).
+- Programmed the `"unload"` phase to seamlessly resume from the cut phase's ending position (`path_len - 40.0`) if `unload_cut` is active, or from `path_len` if inactive, cleanly transitioning down to `0.0` mm and resolving all telemetry jumps.
+- Verified syntax successfully using `python3 -m py_compile klipper/mmu.py` and confirmed C compilation integrity.
+
+
+

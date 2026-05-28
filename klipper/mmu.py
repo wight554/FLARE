@@ -805,6 +805,13 @@ class MMUMock:
 
         reactor = self.printer.get_reactor()
 
+        # Swapping is active if the old active lane was loaded
+        is_swapping = False
+        if self.active_gate >= 0 and self.active_gate < len(self.gate_status):
+            if self.gate_status[self.active_gate] == 2 or self.filament == "Loaded":
+                is_swapping = True
+        self.is_swapping = is_swapping
+
         # Phase 1: edge-detect — if previous filament is still at the sensor,
         # wait for it to clear before watching for new filament.  Without this,
         # FLARE_WAIT_TC exits immediately on residual TH presence and
@@ -817,6 +824,15 @@ class MMUMock:
                     raise gcmd.error("FLARE Error: Toolhead sensor did not clear after unload.")
                 reactor.pause(reactor.monotonic() + 0.2)
             gcmd.respond_info("FLARE: Toolhead sensor cleared.")
+
+        # Target gate (0-indexed) determined from target lane (1-indexed)
+        target_gate = lane - 1
+        
+        # Instantly update active gate, gate, and tool to the target gate so that
+        # Mainsail/Fluidd immediately registers the new spool, color, and material.
+        self.active_gate = target_gate
+        self.gate = target_gate
+        self.tool = target_gate
 
         # Phase 2: wait for new filament to arrive
         start_time = reactor.monotonic()
@@ -831,18 +847,11 @@ class MMUMock:
             bowden_length = float(v.get('bowden_length', 1000.0))
         
         speed_override = 100.0
-        if 0 <= self.active_gate < len(self.gate_speed_override):
-            speed_override = float(self.gate_speed_override[self.active_gate])
+        if 0 <= target_gate < len(self.gate_speed_override):
+            speed_override = float(self.gate_speed_override[target_gate])
             
         self.loading_target = bowden_length
         self.loading_speed = self.board_feed_rate * (speed_override / 100.0)
-        
-        # Swapping is active if the old active lane was loaded
-        is_swapping = False
-        if self.active_gate >= 0 and self.active_gate < len(self.gate_status):
-            if self.gate_status[self.active_gate] == 2 or self.filament == "Loaded":
-                is_swapping = True
-        self.is_swapping = is_swapping
         
         unload_speed = self.board_rev_rate * (speed_override / 100.0)
         self.swap_unload_duration = bowden_length / unload_speed if unload_speed > 0 else 20.0
@@ -864,7 +873,6 @@ class MMUMock:
                     import json, urllib.request
                     with urllib.request.urlopen("http://127.0.0.1:8088/status", timeout=0.1) as resp:
                         state = json.loads(resp.read().decode("utf-8"))
-                        active_gate = state.get("active_lane", 1) - 1
                         in1 = state.get("in1", 0)
                         out1 = state.get("out1", 0)
                         in2 = state.get("in2", 0)
@@ -873,11 +881,13 @@ class MMUMock:
                         toolhead = state.get("toolhead", 0)
                         tc_state = state.get("tc_state", "UNKNOWN").strip().upper()
 
-                        # Update mock sensors in real-time
-                        self.active_gate = active_gate
+                        # Update mock sensors in real-time. Keep active_gate, gate, tool frozen at target_gate.
+                        self.active_gate = target_gate
+                        self.gate = target_gate
+                        self.tool = target_gate
                         self.toolhead_sensor = toolhead
-                        self.gate_sensor_active = out1 if active_gate == 0 else (out2 if active_gate == 1 else 0)
-                        self.pre_gate_sensor_active = in1 if active_gate == 0 else (in2 if active_gate == 1 else 0)
+                        self.gate_sensor_active = out1 if target_gate == 0 else (out2 if target_gate == 1 else 0)
+                        self.pre_gate_sensor_active = in1 if target_gate == 0 else (in2 if target_gate == 1 else 0)
                         self.hub_sensor_active = y_split
                         self.extruder_sensor_active = y_split
 
@@ -920,16 +930,18 @@ class MMUMock:
                     import json, urllib.request
                     with urllib.request.urlopen("http://127.0.0.1:8088/status", timeout=0.1) as resp:
                         state = json.loads(resp.read().decode("utf-8"))
-                        active_gate = state.get("active_lane", 1) - 1
                         in1 = state.get("in1", 0)
                         out1 = state.get("out1", 0)
                         in2 = state.get("in2", 0)
                         out2 = state.get("out2", 0)
                         y_split = state.get("y_split", 0)
 
-                        self.active_gate = active_gate
-                        self.gate_sensor_active = out1 if active_gate == 0 else (out2 if active_gate == 1 else 0)
-                        self.pre_gate_sensor_active = in1 if active_gate == 0 else (in2 if active_gate == 1 else 0)
+                        # Keep active_gate, gate, tool frozen at target_gate during stabilization
+                        self.active_gate = target_gate
+                        self.gate = target_gate
+                        self.tool = target_gate
+                        self.gate_sensor_active = out1 if target_gate == 0 else (out2 if target_gate == 1 else 0)
+                        self.pre_gate_sensor_active = in1 if target_gate == 0 else (in2 if target_gate == 1 else 0)
                         self.hub_sensor_active = y_split
                         self.extruder_sensor_active = y_split
                 except Exception:
@@ -1102,18 +1114,19 @@ class MMUMock:
                     filament_position = 0.0
                 else:
                     elapsed = now - self.unload_phase_start
-                    # Count down from path_len to 0.0 mm. Clamp at 0.0 so it stays 0 even if actual bowden is longer.
-                    filament_position = max(0.0, path_len - (elapsed * self.loading_speed))
+                    unload_start = (path_len - 40.0) if self.unload_cut else path_len
+                    # Count down from unload_start to 0.0 mm. Clamp at 0.0 so it stays 0 even if actual bowden is longer.
+                    filament_position = max(0.0, unload_start - (elapsed * self.loading_speed))
             elif self.current_phase == "cut":
-                # Model the cutter feed-forward and retract cycle (0 -> 10 -> 0 mm)
+                # Model the cutter feed-forward and retract cycle at the toolhead (path_len -> path_len + 10 -> path_len - 40 mm)
                 elapsed = now - self.cut_phase_start
                 if elapsed < 1.5:
-                    filament_position = (elapsed / 1.5) * 10.0 # Forward: 0 -> 10 mm
+                    filament_position = path_len + (elapsed / 1.5) * 10.0 # Forward: path_len -> path_len + 10 mm
                 elif elapsed < 2.5:
-                    filament_position = 10.0 # Settle and cut
+                    filament_position = path_len + 10.0 # Settle and cut
                 else:
                     retract_elapsed = elapsed - 2.5
-                    filament_position = max(0.0, 10.0 - (retract_elapsed * 10.0)) # Retract back to 0 mm
+                    filament_position = max(path_len - 40.0, (path_len + 10.0) - (retract_elapsed * 50.0)) # Retract back past extruder gears to path_len - 40 mm
             elif self.current_phase == "load":
                 elapsed = now - self.load_phase_start
                 # Count up from 0.0 to bowden_length
