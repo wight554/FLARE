@@ -344,6 +344,9 @@ class MMUMock:
         LO: spins the gear and grabs filament as it is inserted, so it is meant
         for an empty gate (the manual preload flow when AUTO_PRELOAD is off).
         Fluidd only enables Preload when the gate is empty."""
+        if self.bypass:
+            gcmd.respond_info("FLARE: Bypass active; preload not applicable. Insert filament directly at the toolhead.")
+            return
         gate = gcmd.get_int('GATE', self.active_gate)
         if gate < 0:
             gate = 0
@@ -1404,10 +1407,15 @@ class MMUMock:
 
         sensors_dict = {
             'toolhead': path_toolhead,
-            'filament_tension': self.sync_feedback_state == "tension",
-            'filament_compression': self.sync_feedback_state == "compressed",
         }
         if not self.bypass:
+            # The sync-feedback / buffer piston in Fluidd renders only when
+            # hasSyncFeedback is true, which keys off the presence of the
+            # filament_compression / filament_tension sensor keys. Bypass feeds
+            # the extruder directly with no buffer, so omit them to hide the
+            # piston (matches the standalone WebUI hiding the buffer panel).
+            sensors_dict['filament_tension'] = self.sync_feedback_state == "tension"
+            sensors_dict['filament_compression'] = self.sync_feedback_state == "compressed"
             sensors_dict['mmu_pre_gate'] = path_pre_gate
             sensors_dict['mmu_gear'] = path_gear
             sensors_dict['mmu_gate'] = path_gate

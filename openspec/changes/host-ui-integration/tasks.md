@@ -528,6 +528,15 @@ the `filament_pos`/`bowden_progress` stream to confirm the #4 tip fix on
 hardware. Run it, then drive `MMU_LOAD` / `MMU_UNLOAD` / a cut.
 
 
+## Phase 38: Bypass UI — hide buffer piston + safe lane buttons
+- [x] 38.1 Hide the Fluidd sync/buffer piston in bypass: omit `filament_compression`/`filament_tension` from `get_status` `sensors` when `self.bypass` (Fluidd `hasSyncFeedback` keys off the presence of those sensor keys). `toolhead` retained.
+- [x] 38.2 Guard `cmd_MMU_PRELOAD` in bypass (it would spin a lane gear): message + return. Eject already bypass-guarded, Recover is a no-op, Check Gate is read-only (`?:`), Load/Unload already gated by `filament_pos`.
+- [ ] 38.3 On-hardware (bypass): confirm the "Neutral"/buffer piston is gone and Preload/Eject/Check Gate/Recover are harmless no-ops.
+
+### Note — lane buttons are NOT field-disable-able in this Fluidd
+`MmuControls` has no bypass gating for Check Gate/Recover, and Preload/Eject key off `gate_status[gate]` which resolves to -1 in bypass (`gate = -2`). A *visual* disable would require an upstream Fluidd change/upgrade; FLARE's contract is safe handlers instead (see `design.md` §33 and the `cmd_MMU_RECOVER` comment).
+
+
 
 
 

@@ -521,3 +521,34 @@ synchronous wait loops, the only phase writer is the daemon's `SET_MMU` push.
 These supersede the "perfectly smooth / 100% jump-free / interactive" assertions
 in §§24–31 for the **standalone** flows; the toolchange path is unaffected and
 must stay behavior-equivalent.
+
+
+## 33. Bypass UI — Hide Buffer Piston; Lane Buttons Not Field-Disable-able (2026-05-29)
+
+Bypass feeds the extruder directly: no lane, no buffer. Two asks — hide the
+buffer/sync piston, and limit actions to load/unload.
+
+- **Piston (achievable via fields):** Fluidd's `MmuFilamentStatus` renders the
+  sync-feedback piston under `v-if="hasSyncFeedback"`, where `hasSyncFeedback =
+  hasSensor('filament_compression') || hasSensor('filament_tension') || …` —
+  keyed purely on those keys existing in `mmu.sensors`. `get_status` previously
+  emitted both keys unconditionally; it now omits them in bypass (alongside the
+  already-omitted `mmu_pre_gate/gear/gate`), so the piston disappears. `toolhead`
+  is kept (the filament really is at the toolhead). Matches the standalone WebUI
+  already hiding its buffer panel in bypass.
+
+- **Buttons (NOT field-controllable in this Fluidd):** `MmuControls` gates
+  Preload on `currentGateStatus ∈ {AVAILABLE, AVAILABLE_FROM_BUFFER}`, Eject on
+  `== EMPTY`, and Load/Unload on `filamentPos` (Load disabled unless
+  `UNLOADED`). In bypass `gate = -2` → `gate_status?.[-2] ?? -1`, so Preload and
+  Eject never trip their conditions; Check Gate and Recover have no gate gating
+  at all (just `!klippyReady || !canSend`). So the four lane buttons cannot be
+  visually disabled by manipulating `printer.mmu` — only a Fluidd change/upgrade
+  could. FLARE already uses the documented fallback (see the `cmd_MMU_RECOVER`
+  comment: "Fluidd's Recover button cannot be disabled from the mock"): make the
+  handlers safe in bypass instead. Load/Unload are already correct
+  (`filament_pos = 10` loaded → Load off, Unload on). Eject already bypass-guards
+  (`cmd_MMU_EJECT`), Recover is a no-op, Check Gate is read-only (`?:` + print);
+  added a bypass guard to `cmd_MMU_PRELOAD` (it would otherwise spin a lane
+  gear). Net: every non-load/unload button is a safe no-op in bypass even though
+  Fluidd still draws it enabled.
