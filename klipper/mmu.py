@@ -1225,6 +1225,28 @@ class MMUMock:
                 pass
         path_len = bowden_length + extruder_to_nozzle
 
+        # Derive filament loaded state in real-time to prevent status freeze during synchronous wait loops
+        loaded_gate = -1
+        for g, status in enumerate(self.gate_status):
+            if status == 2:
+                loaded_gate = g
+                break
+
+        at_toolhead = (
+            (path_toolhead and (self.gate == loaded_gate or loaded_gate == -1))
+            or (0 <= self.gate < len(self.gate_status) and self.gate_status[self.gate] == 2)
+        )
+
+        if at_toolhead:
+            self.filament = "Loaded"
+            self.filament_pos = 10
+        elif path_gear or self.current_phase == "load" or (self.current_phase == "unload" and not self.unload_completed):
+            self.filament = "Partially Loaded"
+            self.filament_pos = 4
+        else:
+            self.filament = "Unloaded"
+            self.filament_pos = 0
+
         if self.is_loading or self.current_phase in ["unload", "cut", "load"]:
             reactor = self.printer.get_reactor()
             now = reactor.monotonic()

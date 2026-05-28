@@ -443,6 +443,18 @@
 - Confirmed Python compilation successfully checks out and local C firmware compiles perfectly.
 
 
+## Phase 35: Real-Time Dynamic Filament State Resolution
+- [x] 35.1 Derive `self.filament` and `self.filament_pos` in real-time inside `get_status` in `klipper/mmu.py`. This ensures Klipper reports `"Partially Loaded"` immediately during synchronous loading wait loops (like `FLARE_WAIT_TC`), preventing status display freeze.
+- [x] 35.2 Validate Python syntax and check local C builds.
+
+---
+
+### Validation Notes — 2026-05-28 (Real-Time Dynamic Filament State Resolution)
+- Implemented real-time dynamic derivation of `self.filament` and `self.filament_pos` inside `get_status` using real-time physical gear and toolhead sensor states (`path_gear`, `path_toolhead`) as well as the active phase (`current_phase == "load"` or `current_phase == "unload"`).
+- This guarantees that Klipper instantly reports `"Partially Loaded"` to Fluidd/Mainsail as soon as a load starts or filament passes the drive gears, resolving the bug where it gets stuck reporting `"Unloaded"` during synchronous yielding wait loops (where `cmd_SET_MMU` background updates are queued).
+- Validated python compilation and verified local C firmware builds cleanly.
+
+
 
 
 
