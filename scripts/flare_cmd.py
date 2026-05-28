@@ -84,14 +84,14 @@ DUMP_PARAMS = [
     ("COMPRESSION_RATE",     "compression_rate",           False),
     # --- Motion / Ramp ---
     ("STARTUP_MS",        "motion_startup_ms",       False),
-    ("RAMP_STEP_RATE",    "ramp_step_rate",          False),
+    ("GLOBAL_MAX_ACCEL",  "global_max_accel",        False),
     ("RAMP_TICK_MS",      "ramp_tick_ms",            False),
     ("PRE_RAMP_RATE",     "pre_ramp_rate",           False),
     # --- Buffer sync ---
     ("BUF_SWITCH_SPAN",    "buf_switch_span_mm",       False),
     ("BUF_HYST",          "buf_hyst_ms",             False),
-    ("SYNC_UP_RATE",      "sync_ramp_up_rate",       False),
-    ("SYNC_DN_RATE",      "sync_ramp_dn_rate",       False),
+    ("SYNC_RAMP_ACCEL",   "sync_ramp_accel",         False),
+    ("SYNC_RAMP_DECEL",   "sync_ramp_decel",         False),
     ("SYNC_TICK_MS",      "sync_tick_ms",            False),
     ("BASELINE_RATE",     "baseline_rate",           False),
     ("BASELINE_ALPHA",    "baseline_alpha",          False),
