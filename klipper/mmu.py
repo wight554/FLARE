@@ -830,10 +830,11 @@ class MMUMock:
         reactor.pause(reactor.monotonic() + 0.5)
         
         start_time = reactor.monotonic()
-        self.current_phase = "unload"
-        self.unload_phase_start = start_time
-        self.th_clear_time = None
-        self.unload_completed = False
+        if self.current_phase != "unload":
+            self.current_phase = "unload"
+            self.unload_phase_start = start_time
+            self.th_clear_time = None
+            self.unload_completed = False
         
         while not self.unload_completed:
             if reactor.monotonic() - start_time > timeout:
@@ -1043,6 +1044,7 @@ class MMUMock:
             "ttg_map": self.ttg_map,
             "spoolman_support": self.spoolman_support,
             "gate_speed_override": self.gate_speed_override,
+            "gate_status": self.gate_status,
         }
         try:
             payload = json.dumps(data).encode("utf-8")
@@ -1109,10 +1111,41 @@ class MMUMock:
             self.ttg_map = data.get("ttg_map", self.ttg_map)
             self.spoolman_support = data.get("spoolman_support", self.spoolman_support)
             self.gate_speed_override = data.get("gate_speed_override", self.gate_speed_override)
+            self.gate_status = data.get("gate_status", self.gate_status)
         except Exception as e:
             if hasattr(self, 'gcode'):
                 self.gcode.respond_info(f"FLARE Warning: daemon unreachable, using defaults: {e}")
         self._ensure_array_lengths()
+        # Override gate_status with physical sensor ground-truth from the firmware.
+        # A saved status=2 that conflicts with the toolhead sensor (filament removed
+        # manually between sessions) would cause the next toolchange to skip unload.
+        # Querying /status here makes boot state self-correcting.
+        self._sync_gate_status_from_sensors()
+
+    def _sync_gate_status_from_sensors(self):
+        import json, urllib.request
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:8088/status", timeout=2.0) as resp:
+                state = json.loads(resp.read().decode("utf-8"))
+            in1 = int(state.get("in1", 0))
+            in2 = int(state.get("in2", 0))
+            toolhead = int(state.get("toolhead", 0))
+            lanenum = int(state.get("lanenum", 0))
+            in_sensors = [in1, in2]
+            active_gate = lanenum - 1  # firmware lane is 1-indexed
+            for g in range(self.num_gates):
+                if g == active_gate and toolhead:
+                    self.gate_status[g] = 2
+                elif in_sensors[g] if g < len(in_sensors) else 0:
+                    self.gate_status[g] = 1
+                else:
+                    # Only clear if we have a definitive "not present" reading.
+                    # If sensor reading is ambiguous (gate out of range) keep
+                    # the persisted value so we don't silently forget loaded gates.
+                    if g < len(in_sensors):
+                        self.gate_status[g] = 0
+        except Exception:
+            pass  # daemon not yet up or unreachable — keep persisted value
 
     def _ensure_array_lengths(self):
         n = self.num_gates
