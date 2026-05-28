@@ -345,7 +345,7 @@ class MMUMock:
         for an empty gate (the manual preload flow when AUTO_PRELOAD is off).
         Fluidd only enables Preload when the gate is empty."""
         if self.bypass:
-            gcmd.respond_info("FLARE: Bypass active; preload not applicable. Insert filament directly at the toolhead.")
+            gcmd.respond_info("FLARE: Bypass active; Preload is a no-op (no lane to stage; insert filament directly at the toolhead).")
             return
         gate = gcmd.get_int('GATE', self.active_gate)
         if gate < 0:
@@ -464,6 +464,9 @@ class MMUMock:
         """Report that recovery is not implemented. FLARE has no error-lock state
         to recover from; this message exists because Fluidd's Recover button
         cannot be disabled from the mock."""
+        if self.bypass:
+            gcmd.respond_info("FLARE: Bypass active; Recover is a no-op (no MMU lane or error-lock state on the bypass spool).")
+            return
         gcmd.respond_raw("!! MMU_RECOVER is not implemented on FLARE (no error-lock state to recover from).")
 
     def cmd_MMU_STATUS(self, gcmd):
@@ -528,6 +531,9 @@ class MMUMock:
 
     def cmd_MMU_CHECK_GATE(self, gcmd):
         """Acknowledge MMU gate check command and report status."""
+        if self.bypass:
+            gcmd.respond_info("FLARE: Bypass active; Check Gate is a no-op (no MMU lane gates to check on the bypass spool).")
+            return
         try:
             self.gcode.run_script_from_command('RUN_SHELL_COMMAND CMD=flare PARAMS="?:"')
         except Exception:
