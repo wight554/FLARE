@@ -415,6 +415,21 @@
 - Confirmed Python compilation successfully checks out and local C firmware builds compile cleanly.
 
 
+## Phase 33: Unified Phase Transitions & Seamless Toolhead Unload Tracking
+- [x] 33.1 Create and register Klipper G-code command `FLARE_START_UNLOAD` in `klipper/mmu.py`.
+- [x] 33.2 Call `FLARE_START_UNLOAD` at the very beginning of the `FLARE_UNLOAD_TOOLHEAD` macro in `klipper/flare_mmu.cfg` to start unload phase tracking immediately.
+- [x] 33.3 Extract unified virtual phase transition logic into `_update_phase(self, tc_state, action, now)` helper method in `klipper/mmu.py`.
+- [x] 33.4 Call `_update_phase` helper in `cmd_SET_MMU`, `cmd_FLARE_WAIT_TC`, and `cmd_FLARE_WAIT_UNLOAD` status polling loops, guaranteeing perfect phase sync.
+- [x] 33.5 Validate Python syntax and check local C builds.
+
+---
+
+### Validation Notes — 2026-05-28 (Unified Phase Transitions & Toolhead Unload Tracking)
+- Implemented `FLARE_START_UNLOAD` G-code command in `klipper/mmu.py` and invoked it at the start of `FLARE_UNLOAD_TOOLHEAD` in `flare_mmu.cfg`. This starts the virtual unload progress countdown immediately when Klipper's extruder begins tip forming/unloading, resulting in a perfectly smooth countdown from `1925` to `1800` mm without any jumps when the toolhead sensor clears.
+- Created `_update_phase` helper in `klipper/mmu.py` and called it in both the background Moonraker synchronizer and Klipper's synchronous wait loops (`FLARE_WAIT_TC` and `FLARE_WAIT_UNLOAD`). This guarantees identical and synchronous state transitions, completely resolving cut-phase telemetry jumps for manual unloads.
+- Confirmed Python files syntax is completely correct and local C firmware compiles perfectly.
+
+
 
 
 

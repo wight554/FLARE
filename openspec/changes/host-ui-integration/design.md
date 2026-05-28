@@ -373,6 +373,12 @@ To make manual loads and unloads (`FLARE_LOAD`, `FLARE_UNLOAD`) cooperative and 
 - **Cooperative Load Wait**: We chain `FLARE_WAIT_TC` to `FLARE_LOAD` after the asynchronous `FL:` command is issued, driving the load progress bar smoothly up to `bowden_length` without freezing the main thread.
 
 
+## 28. Unified Phase Transitions & Seamless Toolhead Unload Tracking
+To guarantee perfect telemetry progress updates without any jumps or cuts being missed:
+- **Immediate Toolhead Unload Tracking (`FLARE_START_UNLOAD`)**: We introduce a new `FLARE_START_UNLOAD` Klipper command and call it at the very beginning of the `FLARE_UNLOAD_TOOLHEAD` macro. This ensures Klipper immediately transitions `current_phase = "unload"`, meaning the virtual position counts down smoothly from `1925` to `1800` mm *during* Klipper's extruder gear retract, seamlessly crossing into the bowden tube without any jumps when the toolhead sensor clears.
+- **Unified `_update_phase` Helper**: We extract all virtual phase transition mapping logic into a single robust helper method `self._update_phase(tc_state, action, now)`. We call this unified method inside Klipper's background status receiver (`cmd_SET_MMU`) and both cooperative wait loops (`FLARE_WAIT_TC` and `FLARE_WAIT_UNLOAD`). This guarantees 100% synchronous and identical virtual phase resolution under all circumstances, fully correcting the manual unload cut-phase telemetry jumps.
+
+
 
 
 

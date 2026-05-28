@@ -139,6 +139,8 @@ class MMUMock:
                                     desc="Wait for toolchange physical completion")
         self.gcode.register_command('FLARE_WAIT_UNLOAD', self.cmd_FLARE_WAIT_UNLOAD,
                                     desc="Wait cooperatively for manual unload completion")
+        self.gcode.register_command('FLARE_START_UNLOAD', self.cmd_FLARE_START_UNLOAD,
+                                    desc="Start unload virtual progress tracking")
         self.gcode.register_command('MMU_STATUS', self.cmd_MMU_STATUS,
                                     desc="Show complete current MMU status")
         self.gcode.register_command('MMU_HOME', self.cmd_MMU_HOME,
@@ -203,27 +205,7 @@ class MMUMock:
         # Map physical tc_state and action to virtual progress phases for background/manual tracking
         if not self.is_loading:
             now = self.printer.get_reactor().monotonic()
-            if action == "Loading":
-                if self.current_phase != "load":
-                    self.current_phase = "load"
-                    self.load_phase_start = now
-                    self.loading_start_time = now
-                    self.unload_completed = False
-            elif action == "Unloading":
-                if tc_state in ["UNLOAD_WAIT_CUT", "UNLOAD_CUT"]:
-                    if self.current_phase != "cut":
-                        self.current_phase = "cut"
-                        self.cut_phase_start = now
-                        self.loading_start_time = now
-                        self.unload_completed = True
-                else:
-                    if self.current_phase != "unload":
-                        self.current_phase = "unload"
-                        self.unload_phase_start = now
-                        self.loading_start_time = now
-                        self.th_clear_time = None
-            else:
-                self.current_phase = "idle"
+            self._update_phase(tc_state, action, now)
 
         self.action = action
         
@@ -825,6 +807,14 @@ class MMUMock:
         except Exception:
             return False
 
+    def cmd_FLARE_START_UNLOAD(self, gcmd):
+        """Initialize the unload phase virtual progress tracking."""
+        now = self.printer.get_reactor().monotonic()
+        self.current_phase = "unload"
+        self.unload_phase_start = now
+        self.th_clear_time = None
+        self.unload_completed = False
+
     def cmd_FLARE_WAIT_UNLOAD(self, gcmd):
         """Wait cooperatively for manual unload to complete."""
         timeout = gcmd.get_float('TIMEOUT', 60.0)
@@ -866,6 +856,8 @@ class MMUMock:
                     self.pre_gate_sensor_active = in1 if self.active_gate == 0 else in2
                     self.hub_sensor_active = y_split
                     self.toolhead_sensor = toolhead
+
+                    self._update_phase(tc_state, state.get("action", "Idle"), reactor.monotonic())
                     
                     lane1_task = state.get("lane1_task", "IDLE").strip().upper()
                     lane2_task = state.get("lane2_task", "IDLE").strip().upper()
@@ -977,21 +969,7 @@ class MMUMock:
 
                         # 1. Map physical board tc_state to virtual progress phases first
                         now = reactor.monotonic()
-                        if tc_state in ["UNLOAD_REVERSE", "UNLOAD_WAIT_OUT", "UNLOAD_WAIT_Y", "UNLOAD_WAIT_TH"]:
-                            if self.current_phase != "unload":
-                                self.current_phase = "unload"
-                                self.unload_phase_start = now
-                                self.th_clear_time = None
-                        elif tc_state in ["UNLOAD_WAIT_CUT", "UNLOAD_CUT"]:
-                            if self.current_phase != "cut":
-                                self.current_phase = "cut"
-                                self.cut_phase_start = now
-                                self.unload_completed = True
-                        elif tc_state in ["LOAD_START", "LOAD_WAIT_OUT", "LOAD_WAIT_TH"]:
-                            if self.current_phase != "load":
-                                self.current_phase = "load"
-                                self.load_phase_start = now
-                                self.unload_completed = False
+                        self._update_phase(tc_state, state.get("action", "Idle"), now)
 
                         # 2. Assign current_gate based on the active virtual phase
                         if self.current_phase == "load" or not is_swapping:
@@ -1077,6 +1055,39 @@ class MMUMock:
         except Exception as e:
             if hasattr(self, 'gcode'):
                 self.gcode.respond_info(f"FLARE Warning: Failed to save MMU vars to daemon: {e}")
+
+    def _update_phase(self, tc_state, action, now):
+        tc_state = (tc_state or "UNKNOWN").strip().upper()
+        action = (action or "Idle").strip()
+        if tc_state in ["UNLOAD_REVERSE", "UNLOAD_WAIT_OUT", "UNLOAD_WAIT_Y", "UNLOAD_WAIT_TH"]:
+            if self.current_phase != "unload":
+                self.current_phase = "unload"
+                self.unload_phase_start = now
+                self.th_clear_time = None
+        elif tc_state in ["UNLOAD_WAIT_CUT", "UNLOAD_CUT"]:
+            if self.current_phase != "cut":
+                self.current_phase = "cut"
+                self.cut_phase_start = now
+                self.unload_completed = True
+        elif tc_state in ["LOAD_START", "LOAD_WAIT_OUT", "LOAD_WAIT_TH"]:
+            if self.current_phase != "load":
+                self.current_phase = "load"
+                self.load_phase_start = now
+                self.unload_completed = False
+        else:
+            # Fallback to action-based state tracking for manual movements outside orchestrated toolchange
+            if action == "Loading":
+                if self.current_phase != "load":
+                    self.current_phase = "load"
+                    self.load_phase_start = now
+                    self.loading_start_time = now
+                    self.unload_completed = False
+            elif action == "Unloading":
+                if self.current_phase != "unload":
+                    self.current_phase = "unload"
+                    self.unload_phase_start = now
+                    self.loading_start_time = now
+                    self.th_clear_time = None
 
     def _load_vars(self):
         import json, urllib.request
