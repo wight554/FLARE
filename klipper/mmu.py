@@ -70,6 +70,10 @@ class MMUMock:
         self.swap_unload_duration = 20.0
         self.board_feed_rate = 50.0
         self.board_rev_rate = 50.0
+        self.unload_phase_start = 0.0
+        self.cut_phase_start = 0.0
+        self.load_phase_start = 0.0
+        self.current_phase = "idle"
         
         # FLARE specific extra state variables
         self.board_online = 0
@@ -843,13 +847,61 @@ class MMUMock:
         unload_speed = self.board_rev_rate * (speed_override / 100.0)
         self.swap_unload_duration = bowden_length / unload_speed if unload_speed > 0 else 20.0
 
+        self.unload_phase_start = start_time
+        self.cut_phase_start = 0.0
+        self.load_phase_start = 0.0
+        self.current_phase = "unload" if is_swapping else "load"
+        if not is_swapping:
+            self.load_phase_start = start_time
+
         try:
             while not self._is_toolhead_sensor_triggered():
                 if reactor.monotonic() - start_time > timeout:
                     raise gcmd.error("FLARE Error: Toolchange timed out.")
+                
+                # Poll daemon HTTP server dynamically to update Klipper sensors and virtual phases
+                try:
+                    import json, urllib.request
+                    with urllib.request.urlopen("http://127.0.0.1:8088/status", timeout=0.1) as resp:
+                        state = json.loads(resp.read().decode("utf-8"))
+                        active_gate = state.get("active_lane", 1) - 1
+                        in1 = state.get("in1", 0)
+                        out1 = state.get("out1", 0)
+                        in2 = state.get("in2", 0)
+                        out2 = state.get("out2", 0)
+                        y_split = state.get("y_split", 0)
+                        toolhead = state.get("toolhead", 0)
+                        tc_state = state.get("tc_state", "UNKNOWN").strip().upper()
+
+                        # Update mock sensors in real-time
+                        self.active_gate = active_gate
+                        self.toolhead_sensor = toolhead
+                        self.gate_sensor_active = out1 if active_gate == 0 else (out2 if active_gate == 1 else 0)
+                        self.pre_gate_sensor_active = in1 if active_gate == 0 else (in2 if active_gate == 1 else 0)
+                        self.hub_sensor_active = y_split
+                        self.extruder_sensor_active = y_split
+
+                        # Map the physical board tc_state to our virtual progress phases
+                        now = reactor.monotonic()
+                        if tc_state in ["UNLOAD_REVERSE", "UNLOAD_WAIT_OUT", "UNLOAD_WAIT_Y", "UNLOAD_WAIT_TH"]:
+                            if self.current_phase != "unload":
+                                self.current_phase = "unload"
+                                self.unload_phase_start = now
+                        elif tc_state in ["UNLOAD_WAIT_CUT", "UNLOAD_CUT"]:
+                            if self.current_phase != "cut":
+                                self.current_phase = "cut"
+                                self.cut_phase_start = now
+                        elif tc_state in ["LOAD_START", "LOAD_WAIT_OUT", "LOAD_WAIT_TH"]:
+                            if self.current_phase != "load":
+                                self.current_phase = "load"
+                                self.load_phase_start = now
+                except Exception:
+                    pass
+
                 reactor.pause(reactor.monotonic() + 0.2)
         finally:
             self.is_loading = False
+            self.current_phase = "idle"
 
         gcmd.respond_info(f"FLARE: Toolhead sensor triggered. Waiting load_delay of {load_delay}s for stabilization...")
 
@@ -1016,20 +1068,28 @@ class MMUMock:
 
         if self.is_loading:
             reactor = self.printer.get_reactor()
-            elapsed = reactor.monotonic() - self.loading_start_time
-            if self.is_swapping:
-                unload_time = self.swap_unload_duration
-                if elapsed < unload_time:
-                    # Counting down (unloading)
-                    progress = elapsed / unload_time
-                    filament_position = max(0.0, path_len - (progress * bowden_length))
+            now = reactor.monotonic()
+            
+            if self.current_phase == "unload":
+                elapsed = now - self.unload_phase_start
+                # Count down from path_len to 0.0 mm. Clamp at 0.0 so it stays 0 even if actual bowden is longer.
+                filament_position = max(0.0, path_len - (elapsed * self.loading_speed))
+            elif self.current_phase == "cut":
+                # Model the cutter feed-forward and retract cycle (0 -> 10 -> 0 mm)
+                elapsed = now - self.cut_phase_start
+                if elapsed < 1.5:
+                    filament_position = (elapsed / 1.5) * 10.0 # Forward: 0 -> 10 mm
+                elif elapsed < 2.5:
+                    filament_position = 10.0 # Settle and cut
                 else:
-                    # Counting up (loading)
-                    load_elapsed = elapsed - unload_time
-                    filament_position = min(bowden_length, load_elapsed * self.loading_speed)
-            else:
-                # Cold load: just count up (loading)
+                    retract_elapsed = elapsed - 2.5
+                    filament_position = max(0.0, 10.0 - (retract_elapsed * 10.0)) # Retract back to 0 mm
+            elif self.current_phase == "load":
+                elapsed = now - self.load_phase_start
+                # Count up from 0.0 to bowden_length
                 filament_position = min(bowden_length, elapsed * self.loading_speed)
+            else:
+                filament_position = 0.0
         else:
             if path_toolhead:
                 filament_position = path_len
