@@ -537,12 +537,13 @@ def analyze_stabilize(samples: List[Sample], events) -> Tuple[str, List[str]]:
 # ---------------------------------------------------------------------------
 def analyze_stability(samples: List[Sample], events,
                       poll_ms: int = 100,
-                      cycle_threshold_hz: float = 1.0,
+                      cycle_threshold_hz: float = 2.0,
                       window_sec: int = 3) -> Tuple[str, List[str]]:
     """Detect closed-loop sync ringing. Sustained BUF state oscillation greater
-    than 1 cycle/sec (2 transitions/sec) over any window_sec window indicates
-    loop instability — typically sync_kp_rate too high for the active
-    sync_ramp_accel. Tune via sync_kp_rate <- sync_kp_rate / k, where
+    than 2 cycles/sec over any window_sec window indicates loop instability.
+    Threshold raised from 1.0 to 2.0: at 1500 mm/min infill the natural
+    demand frequency is ~1.4 Hz from short line segments, which is not
+    loop oscillation. Tune via sync_kp_rate <- sync_kp_rate / k, where
     k = sync_ramp_accel / 33.
 
     Run during a typical print soak with mixed flow; capture at the default
@@ -995,9 +996,11 @@ def main() -> int:
                          "(prime/locked/catch/settle and no MV faults). "
                          "'tune'=autotune SYNC_KP_RATE during a live print "
                          "(requires --daemon).")
-    ap.add_argument("--stability-cycle-hz", type=float, default=1.0,
+    ap.add_argument("--stability-cycle-hz", type=float, default=2.0,
                     help="stability mode: max allowed BUF cycles/sec over the "
-                         "sliding window before FAIL (default 1.0).")
+                         "sliding window before FAIL (default 2.0). At 1500 mm/min "
+                         "infill the natural demand frequency is ~1.4 Hz from short "
+                         "line segments; 1.0 is a false-positive for fast prints.")
     ap.add_argument("--stability-window-sec", type=int, default=3,
                     help="stability mode: sliding window length in seconds "
                          "(default 3).")
