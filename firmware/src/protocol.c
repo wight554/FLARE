@@ -943,6 +943,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             BUF_SENSOR_TYPE = clamp_i(iv, 0, 1);
             sync_disable(false);
         }
+        else if (!strcmp(base_param, "BUF_HOME_STATE")) BUF_HOME_STATE = clamp_i(iv, 0, 2);
         else if (!strcmp(base_param, "BUF_PSF_MAX_COMP")) BUF_PSF_MAX_COMP = clamp_f(fv, 0.0f, 1.0f);
         else if (!strcmp(base_param, "BUF_PSF_MAX_TENS")) BUF_PSF_MAX_TENS = clamp_f(fv, 0.0f, 1.0f);
         else if (!strcmp(base_param, "BUF_PSF_NEUTRAL")) BUF_PSF_NEUTRAL = clamp_f(fv, 0.0f, 1.0f);
@@ -1082,6 +1083,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "BASELINE_SPS")) snprintf(out, sizeof(out), "BASELINE_SPS:%d", g_baseline_target_sps);
         else if (!strcmp(param, "BASELINE_ALPHA")) snprintf(out, sizeof(out), "BASELINE_ALPHA:%.3f", (double)g_baseline_alpha);
         else if (!strcmp(param, "BUF_SENSOR")) snprintf(out, sizeof(out), "BUF_SENSOR:%d", BUF_SENSOR_TYPE);
+        else if (!strcmp(param, "BUF_HOME_STATE")) snprintf(out, sizeof(out), "BUF_HOME_STATE:%d", BUF_HOME_STATE);
         else if (!strcmp(param, "BUF_PSF_MAX_COMP")) snprintf(out, sizeof(out), "BUF_PSF_MAX_COMP:%.3f", (double)BUF_PSF_MAX_COMP);
         else if (!strcmp(param, "BUF_PSF_MAX_TENS")) snprintf(out, sizeof(out), "BUF_PSF_MAX_TENS:%.3f", (double)BUF_PSF_MAX_TENS);
         else if (!strcmp(param, "BUF_PSF_NEUTRAL")) snprintf(out, sizeof(out), "BUF_PSF_NEUTRAL:%.3f", (double)BUF_PSF_NEUTRAL);

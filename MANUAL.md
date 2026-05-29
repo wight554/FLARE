@@ -123,6 +123,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | Parameter | `config.ini` Key | Description | Default |
 |-----------|------------------|-------------|---------|
 | `BUF_SENSOR` | `buf_sensor_type` | Sync-feedback sensor type (`0` = dual-switch, `1` = PSF analog) | 0 |
+| `BUF_HOME_STATE` | `buf_home_state` | Buffer resting state when unloaded/homed (`0`=NEUTRAL, `1`=TENSION, `2`=COMPRESSION) | 0 |
 | `BUF_PSF_MAX_COMP` | `buf_psf_max_comp` | Raw ADC fraction at compression extreme | 0.0 |
 | `BUF_PSF_MAX_TENS` | `buf_psf_max_tens` | Raw ADC fraction at tension extreme | 1.0 |
 | `BUF_PSF_NEUTRAL` | `buf_psf_neutral` | Raw ADC fraction at neutral calibration point | 0.5 |

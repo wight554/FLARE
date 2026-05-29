@@ -148,6 +148,7 @@ DEFAULTS = {
 
     # Sync-Feedback Sensor
     "buf_sensor_type": "0",
+    "buf_home_state": "0",
     "buf_psf_max_comp": "0.0",
     "buf_psf_max_tens": "1.0",
     "buf_psf_neutral": "0.5",
@@ -568,6 +569,7 @@ def main():
         "",
         "// --- Sync-Feedback Sensor ---",
         f"#define CONF_BUF_SENSOR_TYPE    {get('buf_sensor_type')}",
+        f"#define CONF_BUF_HOME_STATE     {get('buf_home_state')}",
         f"#define CONF_BUF_PSF_MAX_COMP   {get_float('buf_psf_max_comp'):.3f}f",
         f"#define CONF_BUF_PSF_MAX_TENS   {get_float('buf_psf_max_tens'):.3f}f",
         f"#define CONF_BUF_PSF_NEUTRAL    {get_float('buf_psf_neutral'):.3f}f",

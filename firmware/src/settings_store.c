@@ -14,7 +14,7 @@
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 57u
+#define SETTINGS_VERSION 58u
 
 typedef struct {
     uint32_t magic;
@@ -57,6 +57,7 @@ typedef struct {
     int ramp_step_sps, ramp_tick_ms;
 
     int buf_sensor_type;
+    int buf_home_state;
     float buf_psf_max_comp, buf_psf_max_tens, buf_psf_neutral, buf_psf_goal, buf_analog_alpha;
     int sync_kp_sps;
     int sync_overshoot_pct;
@@ -214,6 +215,7 @@ void settings_defaults(void) {
     RAMP_TICK_MS = CONF_RAMP_TICK_MS;
 
     BUF_SENSOR_TYPE = CONF_BUF_SENSOR_TYPE;
+    BUF_HOME_STATE = CONF_BUF_HOME_STATE;
     BUF_PSF_MAX_COMP = CONF_BUF_PSF_MAX_COMP;
     BUF_PSF_MAX_TENS = CONF_BUF_PSF_MAX_TENS;
     BUF_PSF_NEUTRAL = CONF_BUF_PSF_NEUTRAL;
@@ -356,6 +358,7 @@ void settings_save(void) {
     s.ramp_tick_ms = RAMP_TICK_MS;
 
     s.buf_sensor_type = BUF_SENSOR_TYPE;
+    s.buf_home_state = BUF_HOME_STATE;
     s.buf_psf_max_comp = BUF_PSF_MAX_COMP;
     s.buf_psf_max_tens = BUF_PSF_MAX_TENS;
     s.buf_psf_neutral = BUF_PSF_NEUTRAL;
@@ -561,6 +564,7 @@ void settings_load(void) {
     RAMP_TICK_MS = s->ramp_tick_ms;
 
     BUF_SENSOR_TYPE = s->buf_sensor_type;
+    BUF_HOME_STATE = clamp_i(s->buf_home_state, 0, 2);
     BUF_PSF_MAX_COMP = s->buf_psf_max_comp;
     BUF_PSF_MAX_TENS = s->buf_psf_max_tens;
     BUF_PSF_NEUTRAL = s->buf_psf_neutral;

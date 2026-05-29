@@ -198,6 +198,7 @@ run_current:
 # Happy Hare types: D=0 (Dual two-switch), P=1 (Proportional analog).
 # TO/CO are recognized type names but are not implemented in FLARE.
 # buf_sensor_type: 0
+# buf_home_state: 0           # Buffer resting/homing state when unloaded: 0=NEUTRAL, 1=TENSION, 2=COMPRESSION
 # buf_psf_max_comp: 0.0
 # buf_psf_max_tens: 1.0
 # buf_psf_neutral: 0.5

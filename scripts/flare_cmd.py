@@ -139,6 +139,7 @@ DUMP_PARAMS = [
     ("BUF_MAX_TRAVEL",    "buf_max_travel_mm",       False),
     # --- Sync-Feedback Sensor ---
     ("BUF_SENSOR",        "buf_sensor_type",         False),
+    ("BUF_HOME_STATE",    "buf_home_state",          False),
     ("BUF_PSF_MAX_COMP",  "buf_psf_max_comp",       False),
     ("BUF_PSF_MAX_TENS",  "buf_psf_max_tens",       False),
     ("BUF_PSF_NEUTRAL",   "buf_psf_neutral",        False),
