@@ -156,6 +156,7 @@ static uint32_t       g_bl_watchdog_ms = 0;
  * extruder is pulling. Cleared when the buffer physically departs tension
  * or BL is re-armed. */
 static bool g_bl_autostart_suppressed = false;
+static bool g_sync_tension_transitioned = false;
 
 float g_buf_pos = 0.0f;
 static float g_buf_pos_prev = 0.0f;
@@ -1085,6 +1086,7 @@ int sync_clamp_max_sps(int requested_sps) {
 void sync_set_state(sync_state_t new_state) {
     if (g_sync_state == new_state) return;
     g_sync_state = new_state;
+    g_sync_tension_transitioned = false;
     g_sync_refill_effort_mm = 0.0f;
     g_sync_relieve_effort_mm = 0.0f;
     g_sync_cannot_refill_warned = false;
@@ -1474,6 +1476,7 @@ static void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t
 
     if (now_state == BUF_TENSION) {
         sync_tension_pin_since_ms = now_ms;
+        g_sync_tension_transitioned = true;
         g_tension_pin_ts[g_tension_pin_ts_idx] = now_ms;
         g_tension_pin_ts_idx = (g_tension_pin_ts_idx + 1) % TENSION_PIN_WINDOW_LEN;
     } else if (prev == BUF_TENSION) {
@@ -1763,7 +1766,9 @@ void sync_tick(uint32_t now_ms) {
     bool l2_out = lane_out_present(&g_lane_l2);
     bool any_lane_loaded = l1_out || l2_out;
     bool both_loaded = l1_out && l2_out;
-    if (AUTO_MODE && !sync_enabled && auto_start_allowed && s == BUF_TENSION &&
+    bool is_tension_active = (BUF_SENSOR_TYPE == 1) ? (g_buf_pos > 0.6f) : (s == BUF_TENSION);
+    if (AUTO_MODE && !sync_enabled && auto_start_allowed && is_tension_active &&
+            g_sync_tension_transitioned &&
             !g_bl_autostart_suppressed &&
             any_lane_loaded && !both_loaded) {
         /* Auto-correct the active lane to the physically loaded one. The operator
