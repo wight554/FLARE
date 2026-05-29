@@ -8,6 +8,10 @@
 #include "config.h"
 #include "tmc2209.h"
 
+/* Type-P Analog home / physical extreme thresholds */
+#define PSF_HOME_THRESHOLD_NORM             0.90f   /* reached/locked extreme boundary */
+#define PSF_HOME_DEVIATION_THRESHOLD_NORM   0.85f   /* non-home / contact detection boundary */
+
 typedef struct {
     uint pin;
     bool stable;

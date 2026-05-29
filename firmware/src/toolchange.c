@@ -327,7 +327,7 @@ void tc_tick(uint32_t now_ms) {
 
             bool contacted = false;
             if (BUF_SENSOR_TYPE == 1) {
-                contacted = (g_buf_pos < 0.85f);
+                contacted = (g_buf_pos < PSF_HOME_DEVIATION_THRESHOLD_NORM);
             } else {
                 contacted = (g_buf.state == BUF_COMPRESSION);
             }
