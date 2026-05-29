@@ -22,10 +22,7 @@ typedef struct {
 
     int feed_sps, rev_sps, auto_sps;
     int sync_max_sps, global_max_sps, sync_min_sps;
-    int sync_ramp_up, sync_ramp_dn;
-    int sync_tick_ms, pre_ramp_sps;
     int sync_auto_stop_ms;
-    int post_print_stab_delay_ms;
     int load_max_mm;
     int unload_max_mm;
     int unload_tension_block_ms;
@@ -35,12 +32,8 @@ typedef struct {
     int auto_mode;
     int dist_in_out, dist_out_y, dist_y_buf, buf_body_len, buf_max_travel_mm;
     float buf_switch_span_mm;
-    int buf_hyst_ms, buf_predict_thr_ms;
     int baseline_sps;
-    float baseline_alpha;
     int autoload_retract_mm;
-
-    int motion_startup_ms;
 
     int servo_open_us, servo_close_us, servo_block_us;
     int servo_settle_ms;
@@ -54,25 +47,16 @@ typedef struct {
 
     int runout_cooldown_ms;
 
-    int ramp_step_sps, ramp_tick_ms;
-
     int buf_sensor_type;
     int buf_home_state;
-    float buf_psf_max_comp, buf_psf_max_tens, buf_psf_neutral, buf_psf_goal, buf_analog_alpha;
+    float buf_psf_max_comp, buf_psf_max_tens, buf_psf_neutral, buf_psf_goal;
     int sync_kp_sps;
-    int sync_overshoot_pct;
     int sync_reserve_pct;
-    int ts_buf_fallback_ms;
 
     int join_sps;
     int press_sps;
     int compression_sps;
-    int buf_stab_sps;
     int follow_timeout_ms[NUM_LANES];
-
-    float est_alpha_min, est_alpha_max;
-    int zone_bias_base_sps, zone_bias_ramp_sps_s, zone_bias_max_sps;
-    float reload_lean_factor;
 
     bool auto_preload;
     bool enable_cutter;
@@ -88,34 +72,10 @@ typedef struct {
     int tmc_stealthchop_sps[NUM_LANES];
     int tmc_run_current_ma[NUM_LANES], tmc_hold_current_ma[NUM_LANES];
 
-    int sync_tension_dwell_stop_ms;
-    int sync_tension_ramp_delay_ms;
-    int sync_overshoot_neutral_extend;
-
-    float sync_reserve_integral_gain;
-    float sync_reserve_integral_clamp_mm;
-    int   sync_reserve_integral_decay_ms;
-    float est_sigma_hard_cap_mm;
     float relay_catchup_frac;
     float relay_neutral_frac;
-    float relay_min_flip_mm;
-    float kd_psf;
-    int   relay_collapse_delay_ms;
-    int   relay_collapse_ramp_mult;
-    int   relay_collapse_cap_ms;
-
-    int   buf_drift_ewma_tau_ms;
-    int   buf_drift_min_samples;
-    float buf_drift_apply_thr_mm;
-    float buf_drift_clamp_mm;
-    float buf_drift_apply_min_cf;
 
     float sync_compression_bias_frac;
-    int neutral_creep_timeout_ms;
-    int neutral_creep_rate_sps_per_s;
-    int neutral_creep_cap_frac;
-    float buf_variance_blend_frac;
-    float buf_variance_blend_ref_mm;
 
     uint32_t crc32;
 } settings_t;
@@ -151,16 +111,15 @@ void settings_defaults(void) {
     SYNC_MIN_SPS = CONF_SYNC_MIN_SPS;
     SYNC_RAMP_UP_SPS = CONF_SYNC_RAMP_UP_SPS;
     SYNC_RAMP_DN_SPS = CONF_SYNC_RAMP_DN_SPS;
-    SYNC_TICK_MS = CONF_SYNC_TICK_MS;
     PRE_RAMP_SPS = CONF_PRE_RAMP_SPS;
     SYNC_AUTO_STOP_MS = CONF_SYNC_AUTO_STOP_MS;
-    POST_PRINT_STAB_DELAY_MS = CONF_POST_PRINT_STAB_DELAY_MS;
     AUTOLOAD_MAX_MM = CONF_AUTOLOAD_MAX_MM;
     LOAD_MAX_MM = CONF_LOAD_MAX_MM;
     UNLOAD_MAX_MM = CONF_UNLOAD_MAX_MM;
     UNLOAD_TENSION_BLOCK_MS = CONF_UNLOAD_TENSION_BLOCK_MS;
     RELOAD_Y_TIMEOUT_MS = CONF_RELOAD_Y_TIMEOUT_MS;
     RELOAD_JOIN_DELAY_MS = CONF_RELOAD_JOIN_DELAY_MS;
+    RELOAD_MODE = CONF_RELOAD_MODE;
     AUTO_MODE = 1;
     AUTO_PRELOAD = true;
     DIST_IN_OUT = CONF_DIST_IN_OUT;
@@ -169,23 +128,16 @@ void settings_defaults(void) {
     BUF_BODY_LEN = CONF_BUF_BODY_LEN;
     BUF_MAX_TRAVEL_MM = clamp_i(CONF_BUF_MAX_TRAVEL_MM, 10, 1000);
     BUF_SWITCH_SPAN_HALF_MM = buf_switch_span_half_from_full(CONF_BUF_SWITCH_SPAN_MM, BUF_MAX_TRAVEL_MM);
-    BUF_HYST_MS = CONF_BUF_HYST_MS;
-    EST_ALPHA_MIN = CONF_EST_ALPHA_MIN;
-    EST_ALPHA_MAX = CONF_EST_ALPHA_MAX;
     ZONE_BIAS_BASE_SPS = CONF_ZONE_BIAS_BASE_SPS;
     ZONE_BIAS_RAMP_SPS_S = CONF_ZONE_BIAS_RAMP_SPS_S;
     ZONE_BIAS_MAX_SPS = CONF_ZONE_BIAS_MAX_SPS;
-    RELOAD_LEAN_FACTOR = CONF_RELOAD_LEAN_FACTOR;
-    BUF_PREDICT_THR_MS = CONF_BUF_PREDICT_THR_MS;
     g_baseline_target_sps = CONF_BASELINE_SPS;
     g_baseline_sps = CONF_BASELINE_SPS;
-    g_baseline_alpha = CONF_BASELINE_ALPHA;
     AUTO_PRELOAD = true;
     AUTOLOAD_RETRACT_MM = CONF_AUTOLOAD_RETRACT_MM;
     ENABLE_CUTTER = CONF_ENABLE_CUTTER;
     UNLOAD_CUT = CONF_UNLOAD_CUT;
 
-    MOTION_STARTUP_MS = CONF_MOTION_STARTUP_MS;
     for (int i = 0; i < NUM_LANES; i++) {
         FOLLOW_TIMEOUT_MS[i] = (i == 0) ? CONF_L1_FOLLOW_TIMEOUT_MS : CONF_L2_FOLLOW_TIMEOUT_MS;
         TMC_RUN_CURRENT_MA[i] = (i == 0) ? CONF_L1_RUN_CURRENT_MA : CONF_L2_RUN_CURRENT_MA;
@@ -212,7 +164,6 @@ void settings_defaults(void) {
     RUNOUT_COOLDOWN_MS = CONF_RUNOUT_COOLDOWN_MS;
 
     RAMP_STEP_SPS = CONF_RAMP_STEP_SPS;
-    RAMP_TICK_MS = CONF_RAMP_TICK_MS;
 
     BUF_SENSOR_TYPE = CONF_BUF_SENSOR_TYPE;
     BUF_HOME_STATE = CONF_BUF_HOME_STATE;
@@ -220,36 +171,13 @@ void settings_defaults(void) {
     BUF_PSF_MAX_TENS = CONF_BUF_PSF_MAX_TENS;
     BUF_PSF_NEUTRAL = CONF_BUF_PSF_NEUTRAL;
     BUF_GOAL = CONF_BUF_GOAL;
-    BUF_ANALOG_ALPHA = CONF_BUF_ANALOG_ALPHA;
     SYNC_KP_SPS = CONF_SYNC_KP_SPS;
-    KD_PSF = CONF_KD_PSF;
-    SYNC_OVERSHOOT_PCT = clamp_i(CONF_SYNC_OVERSHOOT_PCT, 0, 200);
     SYNC_RESERVE_PCT = clamp_i(CONF_SYNC_RESERVE_PCT, 0, 150);
-    TS_BUF_FALLBACK_MS = CONF_TS_BUF_FALLBACK_MS;
-    SYNC_TENSION_DWELL_STOP_MS = CONF_SYNC_TENSION_DWELL_STOP_MS;
-    SYNC_TENSION_RAMP_DELAY_MS = CONF_SYNC_TENSION_RAMP_DELAY_MS;
-    SYNC_OVERSHOOT_NEUTRAL_EXTEND = CONF_SYNC_OVERSHOOT_NEUTRAL_EXTEND;
-    SYNC_RESERVE_INTEGRAL_GAIN = CONF_SYNC_RESERVE_INTEGRAL_GAIN;
-    SYNC_RESERVE_INTEGRAL_CLAMP_MM = CONF_SYNC_RESERVE_INTEGRAL_CLAMP_MM;
-    SYNC_RESERVE_INTEGRAL_DECAY_MS = CONF_SYNC_RESERVE_INTEGRAL_DECAY_MS;
-    EST_SIGMA_HARD_CAP_MM = CONF_EST_SIGMA_HARD_CAP_MM;
     RELAY_CATCHUP_FRAC = clamp_f(CONF_RELAY_CATCHUP_FRAC, 0.5f, 3.0f);
     RELAY_NEUTRAL_FRAC = clamp_f(CONF_RELAY_NEUTRAL_FRAC, 0.5f, 3.0f);
-    RELAY_MIN_FLIP_MM = clamp_f(CONF_RELAY_MIN_FLIP_MM, 0.0f, 100.0f);
-    RELAY_COLLAPSE_DELAY_MS = clamp_i(CONF_RELAY_COLLAPSE_DELAY_MS, 0, 5000);
-    RELAY_COLLAPSE_RAMP_MULT = clamp_i(CONF_RELAY_COLLAPSE_RAMP_MULT, 1, 16);
-    RELAY_COLLAPSE_CAP_MS = clamp_i(CONF_RELAY_COLLAPSE_CAP_MS, 0, 5000);
-    BUF_DRIFT_EWMA_TAU_MS = CONF_BUF_DRIFT_EWMA_TAU_MS;
-    BUF_DRIFT_MIN_SAMPLES = CONF_BUF_DRIFT_MIN_SAMPLES;
-    BUF_DRIFT_APPLY_THR_MM = CONF_BUF_DRIFT_APPLY_THR_MM;
-    BUF_DRIFT_CLAMP_MM = CONF_BUF_DRIFT_CLAMP_MM;
-    BUF_DRIFT_APPLY_MIN_CF = CONF_BUF_DRIFT_APPLY_MIN_CF;
     
     SYNC_COMPRESSION_BIAS_FRAC = clamp_f(CONF_SYNC_COMPRESSION_BIAS_FRAC, 0.0f, 0.7f);
     flow_schedule_reset_runtime();
-    NEUTRAL_CREEP_TIMEOUT_MS = CONF_NEUTRAL_CREEP_TIMEOUT_MS;
-    NEUTRAL_CREEP_RATE_SPS_PER_S = CONF_NEUTRAL_CREEP_RATE_SPS_PER_S;
-    NEUTRAL_CREEP_CAP_FRAC = CONF_NEUTRAL_CREEP_CAP_FRAC;
 
     BUF_STAB_SPS = clamp_i(CONF_BUF_STAB_SPS, 10, 10000);
     JOIN_SPS = CONF_JOIN_SPS;
@@ -284,9 +212,6 @@ void settings_defaults(void) {
     TMC_HOLD_CURRENT_MA[0] = CONF_L1_HOLD_CURRENT_MA;
     TMC_HOLD_CURRENT_MA[1] = CONF_L2_HOLD_CURRENT_MA;
 
-    MM_PER_STEP[0] = CONF_L1_MM_PER_STEP;
-    MM_PER_STEP[1] = CONF_L2_MM_PER_STEP;
-
     motion_limit_runtime_rates(false);
 }
 
@@ -302,12 +227,7 @@ void settings_save(void) {
     s.sync_max_sps = SYNC_MAX_SPS;
     s.global_max_sps = GLOBAL_MAX_SPS;
     s.sync_min_sps = SYNC_MIN_SPS;
-    s.sync_ramp_up = SYNC_RAMP_UP_SPS;
-    s.sync_ramp_dn = SYNC_RAMP_DN_SPS;
-    s.sync_tick_ms = SYNC_TICK_MS;
-    s.pre_ramp_sps = PRE_RAMP_SPS;
     s.sync_auto_stop_ms = SYNC_AUTO_STOP_MS;
-    s.post_print_stab_delay_ms = POST_PRINT_STAB_DELAY_MS;
     s.autoload_max_mm = AUTOLOAD_MAX_MM;
     s.load_max_mm = LOAD_MAX_MM;
     s.unload_max_mm = UNLOAD_MAX_MM;
@@ -322,20 +242,11 @@ void settings_save(void) {
     s.dist_y_buf = DIST_Y_BUF;
     s.buf_body_len = BUF_BODY_LEN;
     s.buf_max_travel_mm = BUF_MAX_TRAVEL_MM;
-    s.buf_hyst_ms = BUF_HYST_MS;
-    s.buf_predict_thr_ms = BUF_PREDICT_THR_MS;
     s.baseline_sps = g_baseline_target_sps;
-    s.baseline_alpha = g_baseline_alpha;
     s.auto_preload = AUTO_PRELOAD;
     s.autoload_retract_mm = AUTOLOAD_RETRACT_MM;
     s.enable_cutter = ENABLE_CUTTER;
     s.unload_cut = UNLOAD_CUT;
-    s.est_alpha_min = EST_ALPHA_MIN;
-    s.est_alpha_max = EST_ALPHA_MAX;
-    s.zone_bias_base_sps = ZONE_BIAS_BASE_SPS;
-    s.zone_bias_ramp_sps_s = ZONE_BIAS_RAMP_SPS_S;
-    s.zone_bias_max_sps = ZONE_BIAS_MAX_SPS;
-    s.reload_lean_factor = RELOAD_LEAN_FACTOR;
 
     s.servo_open_us = SERVO_OPEN_US;
     s.servo_close_us = SERVO_CLOSE_US;
@@ -354,20 +265,14 @@ void settings_save(void) {
 
     s.runout_cooldown_ms = RUNOUT_COOLDOWN_MS;
 
-    s.ramp_step_sps = RAMP_STEP_SPS;
-    s.ramp_tick_ms = RAMP_TICK_MS;
-
     s.buf_sensor_type = BUF_SENSOR_TYPE;
     s.buf_home_state = BUF_HOME_STATE;
     s.buf_psf_max_comp = BUF_PSF_MAX_COMP;
     s.buf_psf_max_tens = BUF_PSF_MAX_TENS;
     s.buf_psf_neutral = BUF_PSF_NEUTRAL;
     s.buf_psf_goal = BUF_GOAL;
-    s.buf_analog_alpha = BUF_ANALOG_ALPHA;
     s.sync_kp_sps = SYNC_KP_SPS;
-    s.sync_overshoot_pct = SYNC_OVERSHOOT_PCT;
     s.sync_reserve_pct = SYNC_RESERVE_PCT;
-    s.ts_buf_fallback_ms = TS_BUF_FALLBACK_MS;
     s.join_sps = JOIN_SPS;
     s.press_sps = PRESS_SPS;
     s.compression_sps = COMPRESSION_SPS;
@@ -377,33 +282,10 @@ void settings_save(void) {
         s.follow_timeout_ms[i] = FOLLOW_TIMEOUT_MS[i];
     }
 
-    s.buf_stab_sps = BUF_STAB_SPS;
-    s.sync_tension_dwell_stop_ms = SYNC_TENSION_DWELL_STOP_MS;
-    s.sync_tension_ramp_delay_ms = SYNC_TENSION_RAMP_DELAY_MS;
-    s.sync_overshoot_neutral_extend = SYNC_OVERSHOOT_NEUTRAL_EXTEND;
-    s.sync_reserve_integral_gain = SYNC_RESERVE_INTEGRAL_GAIN;
-    s.kd_psf = KD_PSF;
-    s.sync_reserve_integral_clamp_mm = SYNC_RESERVE_INTEGRAL_CLAMP_MM;
-    s.sync_reserve_integral_decay_ms = SYNC_RESERVE_INTEGRAL_DECAY_MS;
-    s.est_sigma_hard_cap_mm = EST_SIGMA_HARD_CAP_MM;
     s.relay_catchup_frac = RELAY_CATCHUP_FRAC;
     s.relay_neutral_frac = RELAY_NEUTRAL_FRAC;
-    s.relay_min_flip_mm = RELAY_MIN_FLIP_MM;
-    s.relay_collapse_delay_ms = RELAY_COLLAPSE_DELAY_MS;
-    s.relay_collapse_ramp_mult = RELAY_COLLAPSE_RAMP_MULT;
-    s.relay_collapse_cap_ms = RELAY_COLLAPSE_CAP_MS;
-    s.buf_drift_ewma_tau_ms = BUF_DRIFT_EWMA_TAU_MS;
-    s.buf_drift_min_samples = BUF_DRIFT_MIN_SAMPLES;
-    s.buf_drift_apply_thr_mm = BUF_DRIFT_APPLY_THR_MM;
-    s.buf_drift_clamp_mm = BUF_DRIFT_CLAMP_MM;
-    s.buf_drift_apply_min_cf = BUF_DRIFT_APPLY_MIN_CF;
 
     s.sync_compression_bias_frac = SYNC_COMPRESSION_BIAS_FRAC;
-    s.neutral_creep_timeout_ms = NEUTRAL_CREEP_TIMEOUT_MS;
-    s.neutral_creep_rate_sps_per_s = NEUTRAL_CREEP_RATE_SPS_PER_S;
-    s.neutral_creep_cap_frac = NEUTRAL_CREEP_CAP_FRAC;
-    s.buf_variance_blend_frac = BUF_VARIANCE_BLEND_FRAC;
-    s.buf_variance_blend_ref_mm = BUF_VARIANCE_BLEND_REF_MM;
 
     for (int i = 0; i < NUM_LANES; i++) {
         s.tmc_rotation_distance[i] = TMC_ROTATION_DISTANCE[i];
@@ -490,12 +372,7 @@ void settings_load(void) {
     GLOBAL_MAX_SPS = clamp_i(s->global_max_sps, mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
     SYNC_MAX_SPS = sync_clamp_max_sps(s->sync_max_sps);
     SYNC_MIN_SPS = s->sync_min_sps;
-    SYNC_RAMP_UP_SPS = s->sync_ramp_up;
-    SYNC_RAMP_DN_SPS = s->sync_ramp_dn;
-    SYNC_TICK_MS = s->sync_tick_ms;
-    PRE_RAMP_SPS = s->pre_ramp_sps;
     SYNC_AUTO_STOP_MS = s->sync_auto_stop_ms;
-    POST_PRINT_STAB_DELAY_MS = s->post_print_stab_delay_ms;
     AUTOLOAD_MAX_MM = s->autoload_max_mm;
     LOAD_MAX_MM = s->load_max_mm;
     UNLOAD_MAX_MM = s->unload_max_mm;
@@ -510,21 +387,12 @@ void settings_load(void) {
     DIST_OUT_Y = s->dist_out_y;
     DIST_Y_BUF = s->dist_y_buf;
     BUF_BODY_LEN = s->buf_body_len;
-    BUF_HYST_MS = s->buf_hyst_ms;
-    BUF_PREDICT_THR_MS = s->buf_predict_thr_ms;
     g_baseline_target_sps = motion_clamp_rate_sps(s->baseline_sps);
     g_baseline_sps = g_baseline_target_sps;
-    g_baseline_alpha = s->baseline_alpha;
     AUTO_PRELOAD = s->auto_preload;
     AUTOLOAD_RETRACT_MM = s->autoload_retract_mm;
     ENABLE_CUTTER = s->enable_cutter;
     UNLOAD_CUT = s->unload_cut;
-    EST_ALPHA_MIN = s->est_alpha_min;
-    EST_ALPHA_MAX = s->est_alpha_max;
-    ZONE_BIAS_BASE_SPS = s->zone_bias_base_sps;
-    ZONE_BIAS_RAMP_SPS_S = s->zone_bias_ramp_sps_s;
-    ZONE_BIAS_MAX_SPS = s->zone_bias_max_sps;
-    RELOAD_LEAN_FACTOR = s->reload_lean_factor;
 
     for (int i = 0; i < NUM_LANES; i++) {
         FOLLOW_TIMEOUT_MS[i] = s->follow_timeout_ms[i];
@@ -560,66 +428,24 @@ void settings_load(void) {
 
     RUNOUT_COOLDOWN_MS = s->runout_cooldown_ms;
 
-    RAMP_STEP_SPS = s->ramp_step_sps;
-    RAMP_TICK_MS = s->ramp_tick_ms;
-
     BUF_SENSOR_TYPE = s->buf_sensor_type;
     BUF_HOME_STATE = clamp_i(s->buf_home_state, 0, 2);
     BUF_PSF_MAX_COMP = s->buf_psf_max_comp;
     BUF_PSF_MAX_TENS = s->buf_psf_max_tens;
     BUF_PSF_NEUTRAL = s->buf_psf_neutral;
     BUF_GOAL = s->buf_psf_goal;
-    BUF_ANALOG_ALPHA = s->buf_analog_alpha;
     SYNC_KP_SPS = s->sync_kp_sps;
-    KD_PSF = clamp_f(s->kd_psf, 0.0f, 100.0f);
-    SYNC_OVERSHOOT_PCT = clamp_i(s->sync_overshoot_pct, 0, 200);
     SYNC_RESERVE_PCT = clamp_i(s->sync_reserve_pct, 0, 150);
-    TS_BUF_FALLBACK_MS = s->ts_buf_fallback_ms;
-    SYNC_TENSION_DWELL_STOP_MS = clamp_i(s->sync_tension_dwell_stop_ms, 0, 30000);
-    SYNC_TENSION_RAMP_DELAY_MS = clamp_i(s->sync_tension_ramp_delay_ms, 0, 5000);
-    SYNC_OVERSHOOT_NEUTRAL_EXTEND = clamp_i(s->sync_overshoot_neutral_extend, 0, 1);
-    SYNC_RESERVE_INTEGRAL_GAIN = clamp_f(s->sync_reserve_integral_gain, 0.0f, 0.05f);
-    SYNC_RESERVE_INTEGRAL_CLAMP_MM = clamp_f(s->sync_reserve_integral_clamp_mm, 0.0f, 2.0f);
-    SYNC_RESERVE_INTEGRAL_DECAY_MS = clamp_i(s->sync_reserve_integral_decay_ms, 0, 60000);
-    EST_SIGMA_HARD_CAP_MM = clamp_f(s->est_sigma_hard_cap_mm, 0.5f, 5.0f);
     RELAY_CATCHUP_FRAC = clamp_f(s->relay_catchup_frac, 0.5f, 3.0f);
     RELAY_NEUTRAL_FRAC = clamp_f(s->relay_neutral_frac, 0.5f, 3.0f);
-    RELAY_MIN_FLIP_MM = clamp_f(s->relay_min_flip_mm, 0.0f, 100.0f);
-    RELAY_COLLAPSE_DELAY_MS = clamp_i(s->relay_collapse_delay_ms, 0, 5000);
-    RELAY_COLLAPSE_RAMP_MULT = clamp_i(s->relay_collapse_ramp_mult, 1, 16);
-    RELAY_COLLAPSE_CAP_MS = clamp_i(s->relay_collapse_cap_ms, 0, 5000);
-    BUF_DRIFT_EWMA_TAU_MS = clamp_i(s->buf_drift_ewma_tau_ms, 5000, 600000);
-    BUF_DRIFT_MIN_SAMPLES = clamp_i(s->buf_drift_min_samples, 1, 32);
-    BUF_DRIFT_APPLY_THR_MM = clamp_f(s->buf_drift_apply_thr_mm, 0.0f, 5.0f);
-    BUF_DRIFT_CLAMP_MM = clamp_f(s->buf_drift_clamp_mm, 0.0f, BUF_DRIFT_CLAMP_LIMIT_MM);
-    BUF_DRIFT_APPLY_MIN_CF = clamp_f(s->buf_drift_apply_min_cf, 0.0f, 1.0f);
 
     SYNC_COMPRESSION_BIAS_FRAC = clamp_f(s->sync_compression_bias_frac, 0.0f, 0.7f);
     flow_schedule_reset_runtime();
-    NEUTRAL_CREEP_TIMEOUT_MS = clamp_i(s->neutral_creep_timeout_ms, 0, 60000);
-    NEUTRAL_CREEP_RATE_SPS_PER_S = clamp_i(s->neutral_creep_rate_sps_per_s, 0, 1000);
-    NEUTRAL_CREEP_CAP_FRAC = clamp_i(s->neutral_creep_cap_frac, 0, 100);
 
     RELOAD_MODE = s->reload_mode ? 1 : 0;
     JOIN_SPS = s->join_sps;
     PRESS_SPS = s->press_sps;
     COMPRESSION_SPS = s->compression_sps;
-    BUF_STAB_SPS = s->buf_stab_sps;
-    for (int i = 0; i < NUM_LANES; i++) {
-        FOLLOW_TIMEOUT_MS[i] = s->follow_timeout_ms[i];
-        TMC_ROTATION_DISTANCE[i] = s->tmc_rotation_distance[i];
-        TMC_GEAR_RATIO[i] = s->tmc_gear_ratio[i];
-        TMC_FULL_STEPS[i] = s->tmc_full_steps[i];
-        TMC_MICROSTEPS[i] = s->tmc_microsteps[i];
-        TMC_TBL[i] = s->tmc_tbl[i];
-        TMC_TOFF[i] = s->tmc_toff[i];
-        TMC_HSTRT[i] = s->tmc_hstrt[i];
-        TMC_HEND[i] = s->tmc_hend[i];
-        TMC_INTERPOLATE[i] = s->tmc_interpolate[i];
-        TMC_STEALTHCHOP_SPS[i] = s->tmc_stealthchop_sps[i];
-        TMC_RUN_CURRENT_MA[i] = s->tmc_run_current_ma[i];
-        TMC_HOLD_CURRENT_MA[i] = s->tmc_hold_current_ma[i];
-    }
 
     motion_limit_runtime_rates(false);
 

@@ -56,15 +56,12 @@ def test_scalar_config_emits_one_point():
     assert macro_int(text, "CONF_FLOW_SCHED_CAP") == 8
     assert macro_int(text, "CONF_FLOW_SCHED_LEN") == 1
     assert f"{{{baseline}, {baseline}, 250}}" in text
-    assert macro_int(text, "CONF_RELAY_COLLAPSE_DELAY_MS") == 250
-    assert macro_int(text, "CONF_RELAY_COLLAPSE_RAMP_MULT") == 3
-    assert macro_int(text, "CONF_RELAY_COLLAPSE_CAP_MS") == 600
     assert macro_int(text, "CONF_CUT_FEED_MS") == 30000
     assert macro_int(text, "CONF_CUT_SETTLE_MS") == 3000
-    # 0.0 (time-only). Non-zero deadlocks the relay: (b) exempted
-    # COMPRESSION-egress but the NEUTRAL->TENSION corrective entry from a
-    # cold/idle start has the same topology. Blocked pending G2 redesign.
-    assert macro_float(text, "CONF_RELAY_MIN_FLIP_MM") == 0.0
+    # Tier-3 internal constants (relay collapse, relay_min_flip, est sigma, ...)
+    # are no longer emitted as CONF_* — they live in tune_internal.h.
+    assert "CONF_RELAY_COLLAPSE_DELAY_MS" not in text
+    assert "CONF_RELAY_MIN_FLIP_MM" not in text
 
 
 def test_schedule_section_sorts_points():
@@ -81,16 +78,19 @@ point0: 6000, 7000, 0.30
     assert "{{6000, 7000, 300}, {12000, 13000, 400}}" in text
 
 
-def test_relay_collapse_config_overrides_defaults():
+def test_demoted_key_is_ignored_not_emitted():
+    # A demoted Tier-3 key in config.ini must warn-and-ignore (gen_config still
+    # exits 0) and must NOT produce a CONF_* macro — its value lives in
+    # tune_internal.h. Guards the tier-config-surface migration contract.
     text = generate(BASE_CONFIG + """
 relay_collapse_delay_ms: 375
-relay_collapse_ramp_mult: 2
-relay_collapse_cap_ms: 800
+buf_variance_blend_frac: 0.3
+est_sigma_hard_cap_mm: 2.0
 """)
 
-    assert macro_int(text, "CONF_RELAY_COLLAPSE_DELAY_MS") == 375
-    assert macro_int(text, "CONF_RELAY_COLLAPSE_RAMP_MULT") == 2
-    assert macro_int(text, "CONF_RELAY_COLLAPSE_CAP_MS") == 800
+    assert "CONF_RELAY_COLLAPSE_DELAY_MS" not in text
+    assert "CONF_BUF_VARIANCE_BLEND_FRAC" not in text
+    assert "CONF_EST_SIGMA_HARD_CAP_MM" not in text
 
 
 def test_cutter_timeout_config_overrides_defaults():
@@ -106,7 +106,7 @@ cut_settle_timeout_ms: 2500
 def main():
     test_scalar_config_emits_one_point()
     test_schedule_section_sorts_points()
-    test_relay_collapse_config_overrides_defaults()
+    test_demoted_key_is_ignored_not_emitted()
     test_cutter_timeout_config_overrides_defaults()
     print("gen_config schedule tests PASS")
 

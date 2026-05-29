@@ -17,6 +17,49 @@ DEFAULT_OUTPUT = os.path.join(REPO_ROOT, "firmware", "include", "tune.h")
 
 MANDATORY = ("microsteps", "rotation_distance", "run_current")
 
+# Tier-3 internal constants demoted out of config.ini (see tier-config-surface).
+# A stale config.ini key listed here warns and is ignored rather than aborting
+# the build, so an old config or a pre-demotion device dump still generates.
+DEPRECATED_KEYS = {
+    "est_low_cf_warn_threshold",
+    "est_fallback_cf_threshold",
+    "tension_risk_window_ms",
+    "tension_risk_threshold",
+    "buf_drift_ewma_tau_ms",
+    "buf_drift_min_samples",
+    "buf_drift_apply_thr_mm",
+    "buf_drift_clamp_mm",
+    "buf_drift_apply_min_cf",
+    "sync_tension_dwell_stop_ms",
+    "sync_tension_ramp_delay_ms",
+    "sync_overshoot_neutral_extend",
+    "sync_reserve_integral_gain",
+    "sync_reserve_integral_clamp_mm",
+    "sync_reserve_integral_decay_ms",
+    "est_sigma_hard_cap_mm",
+    "relay_min_flip_mm",
+    "relay_collapse_delay_ms",
+    "relay_collapse_ramp_mult",
+    "relay_collapse_cap_ms",
+    "neutral_creep_timeout_ms",
+    "neutral_creep_rate_sps_per_s",
+    "neutral_creep_cap_frac",
+    "buf_variance_blend_frac",
+    "buf_variance_blend_ref_mm",
+    "kd_psf",
+    "motion_startup_ms",
+    "buf_hyst_ms",
+    "buf_predict_thr_ms",
+    "baseline_alpha",
+    "sync_overshoot_pct",
+    "post_print_stab_delay_ms",
+    "est_alpha_min",
+    "est_alpha_max",
+    "reload_lean_factor",
+    "buf_analog_alpha",
+    "ts_buf_fallback_ms",
+}
+
 # --- Defaults (merged from config.h and Klipper standards) ---
 DEFAULTS = {
     # Motor / TMC
@@ -42,22 +85,19 @@ DEFAULTS = {
     "pre_ramp_rate": "90",
 
     # Motion / Ramp
-    "motion_startup_ms": "1000",
     "global_max_accel": "3500",   # mm/s² — raw lane accel for MV/AUTOLOAD/FEED/UNLOAD/BL.
     "ramp_tick_ms": "5",
 
     # Buffer Sync
     "buf_switch_span_mm": "10",
-    "buf_psf_max_comp": "0.0",
-    "buf_psf_max_tens": "1.0",
+    "buf_psf_max_comp": "1.0",
+    "buf_psf_max_tens": "0.0",
     "buf_psf_neutral": "0.5",
-    "buf_psf_goal": "0.3",
-    "buf_hyst_ms": "30",
+    "buf_psf_goal": "0.7",
     "sync_ramp_accel": "150",     # mm/s² — sync loop UP slew (closed-loop bandwidth).
     "sync_ramp_decel": "300",     # mm/s² — sync loop DN slew (typically 2× accel for safety).
     "sync_tick_ms": "20",
     "baseline_rate": "1600",
-    "baseline_alpha": "0.02",
     "baseline_settle_count": "3",
     "baseline_variance_reject_frac": "0.15",
     "baseline_cooldown_ms": "2000",
@@ -66,21 +106,9 @@ DEFAULTS = {
     "sync_fault_hold_recovery_ms": "5000",
     "sync_cannot_refill_mm": "50.0",
     "sync_cannot_relieve_mm": "50.0",
-    "buf_predict_thr_ms": "250",
     "sync_kp_rate": "900",
-    "sync_overshoot_pct": "150",
     "sync_reserve_pct": "35",
     "sync_auto_stop_ms": "5000",
-    "post_print_stab_delay_ms": "0",
-    "sync_tension_dwell_stop_ms": "6000",
-    "sync_tension_ramp_delay_ms": "0",
-    "sync_overshoot_neutral_extend": "1",
-    "sync_reserve_integral_gain": "0.0",
-    "sync_reserve_integral_clamp_mm": "0.6",
-    "sync_reserve_integral_decay_ms": "0",
-    "est_sigma_hard_cap_mm": "1.5",
-    "est_low_cf_warn_threshold": "0.5",
-    "est_fallback_cf_threshold": "0.2",
     # Type-D Relay Fallback Law
     "relay_catchup_frac": "1.30",
     # NEUTRAL feed = extruder_est_sps * this. >1.0 = gentle compression lean.
@@ -89,32 +117,13 @@ DEFAULTS = {
     # only, drove a loud NEUTRAL->COMPRESSION->stop limit cycle. Lower = less time
     # on the COMPRESSION wall; raise toward 1.15 if the buffer drifts to TENSION.
     "relay_neutral_frac": "1.10",
-    "relay_min_flip_mm": "0.0",
-    "relay_collapse_delay_ms": "250",
-    "relay_collapse_ramp_mult": "3",
-    "relay_collapse_cap_ms": "600",
     # Drift Observer
-    "buf_drift_ewma_tau_ms": "60000",
-    "buf_drift_min_samples": "3",
-    "buf_drift_apply_thr_mm": "2.0",
-    "buf_drift_clamp_mm": "3.0",
-    "buf_drift_apply_min_cf": "0.5",
-    "tension_risk_window_ms": "60000",
-    "tension_risk_threshold": "4",
 
     # Adaptive Sync
     "sync_compression_bias_frac": "0.45",
-    "neutral_creep_timeout_ms": "4000",
-    "neutral_creep_rate_sps_per_s": "5",
-    "neutral_creep_cap_frac": "10",
-    "buf_variance_blend_frac": "0.5",
-    "buf_variance_blend_ref_mm": "1.0",
-    "est_alpha_min": "0.12",
-    "est_alpha_max": "0.65",
     "zone_bias_base_rate": "120",
     "zone_bias_ramp_rate": "45",
     "zone_bias_max_rate": "600",
-    "reload_lean_factor": "1.15",
 
     # Cutter / Servo
     "enable_cutter": "False",
@@ -146,24 +155,15 @@ DEFAULTS = {
     "auto_mode": "1",
     "auto_preload": "True",
 
-    # Sync-Feedback Sensor
+    # Sync-Feedback Sensor (buf_psf_* live under "Buffer Sync" above)
     "buf_sensor_type": "0",
     "buf_home_state": "0",
-    "buf_psf_max_comp": "1.0",
-    "buf_psf_max_tens": "0.0",
-    "buf_psf_neutral": "0.5",
-    "buf_psf_goal": "0.7",
-    "buf_analog_alpha": "0.20",
     "psf_ctrl_deadband": "0.1",
-    "kd_psf": "0.0",
     "psf_vel_alpha": "0.3",
     "psf_soft_wall_start": "0.8",
     "psf_jump_norm_per_s": "5.0",
     "psf_stop_confirm_ms": "200",
     "psf_wall_sat_ms": "1000",
-
-    # TS Fallback
-    "ts_buf_fallback_ms": "2000",
 
     # Reload Mode
     "reload_mode": "1",
@@ -216,9 +216,16 @@ def valid_config_key(key):
 
 def validate_known_keys(cfg, config_path):
     unknown = []
+    deprecated = []
+
+    def classify(key, label):
+        if key in DEPRECATED_KEYS:
+            deprecated.append(label)
+        elif not valid_config_key(key):
+            unknown.append(label)
+
     for key in cfg.defaults():
-        if not valid_config_key(key):
-            unknown.append(key)
+        classify(key, key)
 
     for section in cfg.sections():
         raw_section = getattr(cfg, "_sections", {}).get(section, {})
@@ -227,8 +234,11 @@ def validate_known_keys(cfg, config_path):
                 continue
             if section == "flow_schedule.v1" and key.startswith("point"):
                 continue
-            if not valid_config_key(key):
-                unknown.append(f"{section}.{key}")
+            classify(key, f"{section}.{key}")
+
+    if deprecated:
+        print(f"Warning: ignoring demoted internal (Tier-3) config key(s) in "
+              f"{config_path}: {', '.join(deprecated)}", file=sys.stderr)
 
     if unknown:
         print(f"Error: unknown config key(s) in {config_path}: {', '.join(unknown)}")
@@ -471,18 +481,15 @@ def main():
         f"#define CONF_PRE_RAMP_SPS       {mm_min_to_sps(get('pre_ramp_rate'), l1)}",
         "",
         "// --- Motion / Ramp ---",
-        f"#define CONF_MOTION_STARTUP_MS  {get('motion_startup_ms')}",
         f"#define CONF_RAMP_STEP_SPS      {accel_to_step_sps(get('global_max_accel'), get('ramp_tick_ms'), l1)}",
         f"#define CONF_RAMP_TICK_MS       {get('ramp_tick_ms')}",
         "",
         "// --- Buffer Sync ---",
         f"#define CONF_BUF_SWITCH_SPAN_MM {get_float('buf_switch_span_mm')}f",
-        f"#define CONF_BUF_HYST_MS        {get('buf_hyst_ms')}",
         f"#define CONF_SYNC_RAMP_UP_SPS   {accel_to_step_sps(get('sync_ramp_accel'), get('sync_tick_ms'), l1)}",
         f"#define CONF_SYNC_RAMP_DN_SPS   {accel_to_step_sps(get('sync_ramp_decel'), get('sync_tick_ms'), l1)}",
         f"#define CONF_SYNC_TICK_MS       {get('sync_tick_ms')}",
         f"#define CONF_BASELINE_SPS       {mm_min_to_sps(get('baseline_rate'), l1)}",
-        f"#define CONF_BASELINE_ALPHA     {get_float('baseline_alpha')}f",
         f"#define CONF_BASELINE_SETTLE_COUNT {get('baseline_settle_count')}",
         f"#define CONF_BASELINE_VARIANCE_REJECT_FRAC {get_float('baseline_variance_reject_frac')}f",
         f"#define CONF_BASELINE_COOLDOWN_MS {get('baseline_cooldown_ms')}",
@@ -494,47 +501,16 @@ def main():
         "typedef struct { int flow_sps; int baseline_sps; int bias_milli; } flow_schedule_point_t;",
         f"#define CONF_FLOW_SCHED_LEN     {len(flow_sched)}",
         f"#define CONF_FLOW_SCHED         {{{flow_sched_entries}}}",
-        f"#define CONF_BUF_PREDICT_THR_MS {get('buf_predict_thr_ms')}",
         f"#define CONF_GLOBAL_MAX_SPS      {mm_min_to_sps(get('global_max_rate'), l1)}",
         f"#define CONF_SYNC_KP_SPS        {mm_min_to_sps(get('sync_kp_rate'), l1)}",
-        f"#define CONF_SYNC_OVERSHOOT_PCT {get('sync_overshoot_pct')}",
         f"#define CONF_SYNC_RESERVE_PCT   {get('sync_reserve_pct')}",
         f"#define CONF_SYNC_AUTO_STOP_MS {get('sync_auto_stop_ms')}",
-        f"#define CONF_POST_PRINT_STAB_DELAY_MS {get('post_print_stab_delay_ms')}",
-        f"#define CONF_SYNC_TENSION_DWELL_STOP_MS {get('sync_tension_dwell_stop_ms')}",
-        f"#define CONF_SYNC_TENSION_RAMP_DELAY_MS {get('sync_tension_ramp_delay_ms')}",
-        f"#define CONF_SYNC_OVERSHOOT_NEUTRAL_EXTEND {get('sync_overshoot_neutral_extend')}",
-        f"#define CONF_SYNC_RESERVE_INTEGRAL_GAIN {get_float('sync_reserve_integral_gain')}f",
         f"#define CONF_SYNC_COMPRESSION_BIAS_FRAC {get_float('sync_compression_bias_frac')}f",
-        f"#define CONF_NEUTRAL_CREEP_TIMEOUT_MS {get('neutral_creep_timeout_ms')}",
-        f"#define CONF_NEUTRAL_CREEP_RATE_SPS_PER_S {get('neutral_creep_rate_sps_per_s')}",
-        f"#define CONF_NEUTRAL_CREEP_CAP_FRAC {get('neutral_creep_cap_frac')}",
-        f"#define CONF_BUF_VARIANCE_BLEND_FRAC {get_float('buf_variance_blend_frac')}f",
-        f"#define CONF_BUF_VARIANCE_BLEND_REF_MM {get_float('buf_variance_blend_ref_mm')}f",
-        f"#define CONF_SYNC_RESERVE_INTEGRAL_CLAMP_MM {get_float('sync_reserve_integral_clamp_mm')}f",
-        f"#define CONF_SYNC_RESERVE_INTEGRAL_DECAY_MS {get('sync_reserve_integral_decay_ms')}",
-        f"#define CONF_EST_SIGMA_HARD_CAP_MM {get_float('est_sigma_hard_cap_mm')}f",
-        f"#define CONF_EST_LOW_CF_WARN_THRESHOLD {get_float('est_low_cf_warn_threshold')}f",
-        f"#define CONF_EST_FALLBACK_CF_THRESHOLD {get_float('est_fallback_cf_threshold')}f",
         f"#define CONF_RELAY_CATCHUP_FRAC {get_float('relay_catchup_frac')}f",
         f"#define CONF_RELAY_NEUTRAL_FRAC {get_float('relay_neutral_frac')}f",
-        f"#define CONF_RELAY_MIN_FLIP_MM {get('relay_min_flip_mm')}f",
-        f"#define CONF_RELAY_COLLAPSE_DELAY_MS {get('relay_collapse_delay_ms')}",
-        f"#define CONF_RELAY_COLLAPSE_RAMP_MULT {get('relay_collapse_ramp_mult')}",
-        f"#define CONF_RELAY_COLLAPSE_CAP_MS {get('relay_collapse_cap_ms')}",
-        f"#define CONF_BUF_DRIFT_EWMA_TAU_MS {get('buf_drift_ewma_tau_ms')}",
-        f"#define CONF_BUF_DRIFT_MIN_SAMPLES {get('buf_drift_min_samples')}",
-        f"#define CONF_BUF_DRIFT_APPLY_THR_MM {get_float('buf_drift_apply_thr_mm')}f",
-        f"#define CONF_BUF_DRIFT_CLAMP_MM {get_float('buf_drift_clamp_mm')}f",
-        f"#define CONF_BUF_DRIFT_APPLY_MIN_CF {get_float('buf_drift_apply_min_cf')}f",
-        f"#define CONF_TENSION_RISK_WINDOW_MS {get('tension_risk_window_ms')}",
-        f"#define CONF_TENSION_RISK_THRESHOLD {get('tension_risk_threshold')}",
-        f"#define CONF_EST_ALPHA_MIN        {get_float('est_alpha_min')}f",
-        f"#define CONF_EST_ALPHA_MAX        {get_float('est_alpha_max')}f",
         f"#define CONF_ZONE_BIAS_BASE_SPS   {mm_min_to_sps(get('zone_bias_base_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_RAMP_SPS_S {mm_min_to_sps(get('zone_bias_ramp_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_MAX_SPS    {mm_min_to_sps(get('zone_bias_max_rate'), l1)}",
-        f"#define CONF_RELOAD_LEAN_FACTOR   {get_float('reload_lean_factor')}f",
         "",
         "// --- Cutter / Servo ---",
         f"#define CONF_ENABLE_CUTTER      {1 if get_bool('enable_cutter') else 0}",
@@ -574,9 +550,7 @@ def main():
         f"#define CONF_BUF_PSF_MAX_TENS   {get_float('buf_psf_max_tens'):.3f}f",
         f"#define CONF_BUF_PSF_NEUTRAL    {get_float('buf_psf_neutral'):.3f}f",
         f"#define CONF_BUF_GOAL           {get_float('buf_psf_goal'):.3f}f",
-        f"#define CONF_BUF_ANALOG_ALPHA   {get_float('buf_analog_alpha'):.3f}f",
         f"#define CONF_PSF_CTRL_DEADBAND  {get_float('psf_ctrl_deadband'):.3f}f",
-        f"#define CONF_KD_PSF             {get_float('kd_psf'):.3f}f",
         f"#define CONF_PSF_VEL_ALPHA      {get_float('psf_vel_alpha'):.3f}f",
         f"#define CONF_PSF_SOFT_WALL_START {get_float('psf_soft_wall_start'):.3f}f",
         f"#define CONF_PSF_JUMP_NORM_PER_S {get_float('psf_jump_norm_per_s'):.3f}f",
@@ -584,7 +558,6 @@ def main():
         f"#define CONF_PSF_WALL_SAT_MS     {get('psf_wall_sat_ms')}",
         "",
         "// --- TS Fallback ---",
-        f"#define CONF_TS_BUF_FALLBACK_MS {get('ts_buf_fallback_ms')}",
         "",
         "// --- Reload Mode ---",
         f"#define CONF_RELOAD_MODE           {get('reload_mode')}",

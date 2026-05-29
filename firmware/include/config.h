@@ -8,6 +8,8 @@
 
 // User/Motor parameters generated from config.ini
 #include "tune.h"
+// Tier-3 internal control-loop constants (not user-tunable; see tune_internal.h)
+#include "tune_internal.h"
 
 // ----- Sense resistor -----
 // ERB V2.0 onboard Rsense (R46/R47, R48/R49) — hardware constant

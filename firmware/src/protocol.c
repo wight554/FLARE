@@ -856,6 +856,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             GLOBAL_MAX_SPS = clamp_i(mm_per_min_to_sps(fv), mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
         }
         else if (!strcmp(base_param, "SYNC_MIN_RATE")) SYNC_MIN_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, 50000));
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "SYNC_RAMP_ACCEL")) {
             float tick_s = (float)SYNC_TICK_MS / 1000.0f;
             int sps = (int)(fv * tick_s / MM_PER_STEP[0] + 0.5f);
@@ -874,18 +875,23 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         }
         else if (!strcmp(base_param, "RAMP_TICK_MS")) RAMP_TICK_MS = clamp_i(iv, 1, 1000);
         else if (!strcmp(base_param, "PRE_RAMP_RATE")) PRE_RAMP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, 50000));
+#endif
         else if (!strcmp(base_param, "BUF_SWITCH_SPAN")) {
             BUF_SWITCH_SPAN_HALF_MM = buf_switch_span_half_from_full(fv, BUF_MAX_TRAVEL_MM);
         }
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "BUF_HYST")) BUF_HYST_MS = clamp_i(iv, 5, 500);
         else if (!strcmp(base_param, "BUF_PREDICT_THR_MS")) BUF_PREDICT_THR_MS = clamp_i(iv, 0, 10000);
+#endif
         else if (!strcmp(base_param, "AUTO_PRELOAD")) AUTO_PRELOAD = (iv != 0);
         else if (!strcmp(base_param, "RETRACT_MM")) AUTOLOAD_RETRACT_MM = clamp_i(iv, 0, 50);
         else if (!strcmp(base_param, "CUTTER")) ENABLE_CUTTER = (iv != 0);
         else if (!strcmp(base_param, "AUTO_MODE")) AUTO_MODE = clamp_i(iv, 0, 1);
         else if (!strcmp(base_param, "RELOAD_MODE")) RELOAD_MODE = (iv != 0) ? 1 : 0;
         else if (!strcmp(base_param, "RUNOUT_COOLDOWN_MS")) RUNOUT_COOLDOWN_MS = clamp_i(iv, 0, 60000);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "POST_PRINT_STAB_MS")) POST_PRINT_STAB_DELAY_MS = clamp_i(iv, 0, 300000);
+#endif
         else if (!strcmp(base_param, "RELOAD_Y_MS")) RELOAD_Y_TIMEOUT_MS = clamp_i(iv, 100, 30000);
         else if (!strcmp(base_param, "RELOAD_JOIN_MS")) RELOAD_JOIN_DELAY_MS = clamp_i(iv, 0, 10000);
         else if (!strcmp(base_param, "DIST_IN_OUT")) DIST_IN_OUT = clamp_i(iv, 10, 5000);
@@ -902,6 +908,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "PRESS_RATE")) PRESS_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
         else if (!strcmp(base_param, "COMPRESSION_RATE")) COMPRESSION_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 10, 10000));
         else if (!strcmp(base_param, "BUF_STAB_RATE")) BUF_STAB_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 10, 10000));
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "BASELINE_ALPHA")) g_baseline_alpha = clamp_f(fv, 0.0f, 1.0f);
         else if (!strcmp(base_param, "EST_ALPHA_MIN")) EST_ALPHA_MIN = clamp_f(fv, 0.01f, 1.0f);
         else if (!strcmp(base_param, "EST_ALPHA_MAX")) EST_ALPHA_MAX = clamp_f(fv, 0.01f, 1.0f);
@@ -909,6 +916,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "ZONE_BIAS_RAMP")) ZONE_BIAS_RAMP_SPS_S = clamp_i(mm_per_min_to_sps(fv), 0, 5000);
         else if (!strcmp(base_param, "ZONE_BIAS_MAX")) ZONE_BIAS_MAX_SPS = clamp_i(mm_per_min_to_sps(fv), 0, 5000);
         else if (!strcmp(base_param, "RELOAD_LEAN")) RELOAD_LEAN_FACTOR = clamp_f(fv, 0.0f, 5.0f);
+#endif
         else if (!strcmp(base_param, "RUN_CURRENT_MA")) { SET_LANE({ TMC_RUN_CURRENT_MA[idx] = clamp_i(iv, 0, 2000); }); }
         else if (!strcmp(base_param, "HOLD_CURRENT_MA")) { SET_LANE({ TMC_HOLD_CURRENT_MA[idx] = clamp_i(iv, 0, 2000); }); }
         else if (!strcmp(base_param, "MICROSTEPS")) { SET_LANE({ TMC_MICROSTEPS[idx] = clamp_i(iv, 1, 256); }); }
@@ -948,20 +956,27 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "BUF_PSF_MAX_TENS")) BUF_PSF_MAX_TENS = clamp_f(fv, 0.0f, 1.0f);
         else if (!strcmp(base_param, "BUF_PSF_NEUTRAL")) BUF_PSF_NEUTRAL = clamp_f(fv, 0.0f, 1.0f);
         else if (!strcmp(base_param, "BUF_GOAL")) BUF_GOAL = clamp_f(fv, 0.0f, 1.0f);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "BUF_ALPHA")) BUF_ANALOG_ALPHA = clamp_f(fv, 0.01f, 1.0f);
+#endif
         else if (!strcmp(base_param, "AUTOLOAD_MAX")) AUTOLOAD_MAX_MM = clamp_i(iv, 10, 10000);
         else if (!strcmp(base_param, "LOAD_MAX")) LOAD_MAX_MM = clamp_i(iv, 100, 10000);
         else if (!strcmp(base_param, "UNLOAD_MAX")) UNLOAD_MAX_MM = clamp_i(iv, 100, 10000);
         else if (!strcmp(base_param, "UNLOAD_TENSION_BLOCK_MS")) UNLOAD_TENSION_BLOCK_MS = clamp_i(iv, 0, 60000);
         else if (!strcmp(base_param, "SYNC_KP_RATE")) SYNC_KP_SPS = clamp_i(mm_per_min_to_sps(fv), 0, 50000);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "KD_PSF")) KD_PSF = clamp_f(fv, 0.0f, 100.0f);
+#endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "SYNC_OVERSHOOT_PCT")) SYNC_OVERSHOOT_PCT = clamp_i(iv, 0, 200);
+#endif
         else if (!strcmp(base_param, "SYNC_RESERVE_PCT")) SYNC_RESERVE_PCT = clamp_i(iv, 0, 150);
         else if (!strcmp(base_param, "COMPRESSION_BIAS_FRAC")) {
             SYNC_COMPRESSION_BIAS_FRAC = clamp_f(fv, 0.0f, 0.7f);
             flow_schedule_refresh_scalar();
         }
         else if (!strcmp(base_param, "SYNC_AUTO_STOP")) SYNC_AUTO_STOP_MS = clamp_i(iv, 0, 30000);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "NEUTRAL_CREEP_TIMEOUT_MS")) NEUTRAL_CREEP_TIMEOUT_MS = clamp_i(iv, 0, 60000);
         else if (!strcmp(base_param, "NEUTRAL_CREEP_RATE") || !strcmp(base_param, "NEUTRAL_CREEP_RATE_SPS_PER_S")) NEUTRAL_CREEP_RATE_SPS_PER_S = clamp_i(iv, 0, 1000);
         else if (!strcmp(base_param, "NEUTRAL_CREEP_CAP") || !strcmp(base_param, "NEUTRAL_CREEP_CAP_FRAC")) NEUTRAL_CREEP_CAP_FRAC = clamp_i(iv, 0, 100);
@@ -974,23 +989,34 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "SYNC_INT_CLAMP")) SYNC_RESERVE_INTEGRAL_CLAMP_MM = clamp_f(fv, 0.0f, 2.0f);
         else if (!strcmp(base_param, "SYNC_INT_DECAY_MS")) SYNC_RESERVE_INTEGRAL_DECAY_MS = clamp_i(iv, 0, 60000);
         else if (!strcmp(base_param, "EST_SIGMA_CAP")) EST_SIGMA_HARD_CAP_MM = clamp_f(fv, 0.5f, 5.0f);
+#endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "EST_LOW_CF_THR")) EST_LOW_CF_WARN_THRESHOLD = clamp_f(fv, 0.0f, 1.0f);
         else if (!strcmp(base_param, "EST_FALLBACK_THR")) EST_FALLBACK_CF_THRESHOLD = clamp_f(fv, 0.0f, 0.5f);
+#endif
         else if (!strcmp(base_param, "RELAY_CATCHUP_FRAC")) RELAY_CATCHUP_FRAC = clamp_f(fv, 0.5f, 3.0f);
         else if (!strcmp(base_param, "RELAY_NEUTRAL_FRAC")) RELAY_NEUTRAL_FRAC = clamp_f(fv, 0.5f, 3.0f);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "RELAY_MIN_FLIP_MM")) RELAY_MIN_FLIP_MM = clamp_f(fv, 0.0f, 100.0f);
         else if (!strcmp(base_param, "RELAY_COLLAPSE_DELAY_MS")) RELAY_COLLAPSE_DELAY_MS = clamp_i(iv, 0, 5000);
         else if (!strcmp(base_param, "RELAY_COLLAPSE_RAMP_MULT")) RELAY_COLLAPSE_RAMP_MULT = clamp_i(iv, 1, 16);
         else if (!strcmp(base_param, "RELAY_COLLAPSE_CAP_MS")) RELAY_COLLAPSE_CAP_MS = clamp_i(iv, 0, 5000);
+#endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "BUF_DRIFT_TAU_MS")) BUF_DRIFT_EWMA_TAU_MS = clamp_i(iv, 5000, 600000);
         else if (!strcmp(base_param, "BUF_DRIFT_MIN_SMP")) BUF_DRIFT_MIN_SAMPLES = clamp_i(iv, 1, 32);
         else if (!strcmp(base_param, "BUF_DRIFT_THR_MM")) BUF_DRIFT_APPLY_THR_MM = clamp_f(fv, 0.0f, 5.0f);
         else if (!strcmp(base_param, "BUF_DRIFT_CLAMP")) BUF_DRIFT_CLAMP_MM = clamp_f(fv, 0.0f, BUF_DRIFT_CLAMP_LIMIT_MM);
         else if (!strcmp(base_param, "BUF_DRIFT_MIN_CF")) BUF_DRIFT_APPLY_MIN_CF = clamp_f(fv, 0.0f, 1.0f);
+#endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "TENSION_RISK_WINDOW")) TENSION_RISK_WINDOW_MS = clamp_i(iv, 5000, 300000);
         else if (!strcmp(base_param, "TENSION_RISK_THR")) TENSION_RISK_THRESHOLD = clamp_i(iv, 0, 1000);
+#endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "TS_BUF_MS")) TS_BUF_FALLBACK_MS = clamp_i(iv, 0, 30000);
         else if (!strcmp(base_param, "STARTUP_MS")) MOTION_STARTUP_MS = clamp_i(iv, 0, 30000);
+#endif
         else if (!strcmp(base_param, "SERVO_OPEN")) SERVO_OPEN_US = clamp_i(iv, 400, 2700);
         else if (!strcmp(base_param, "SERVO_CLOSE")) SERVO_CLOSE_US = clamp_i(iv, 400, 2700);
         else if (!strcmp(base_param, "SERVO_BLOCK")) SERVO_BLOCK_US = clamp_i(iv, 400, 2700);
@@ -1047,17 +1073,23 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
             float accel = (float)SYNC_RAMP_DN_SPS * MM_PER_STEP[0] / tick_s;
             snprintf(out, sizeof(out), "SYNC_RAMP_DECEL:%.0f", (double)accel);
         }
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "SYNC_TICK_MS")) snprintf(out, sizeof(out), "SYNC_TICK_MS:%d", SYNC_TICK_MS);
+#endif
         else if (!strcmp(param, "GLOBAL_MAX_ACCEL")) {
             float tick_s = (float)RAMP_TICK_MS / 1000.0f;
             float accel = (float)RAMP_STEP_SPS * MM_PER_STEP[0] / tick_s;
             snprintf(out, sizeof(out), "GLOBAL_MAX_ACCEL:%.0f", (double)accel);
         }
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "RAMP_TICK_MS")) snprintf(out, sizeof(out), "RAMP_TICK_MS:%d", RAMP_TICK_MS);
         else if (!strcmp(param, "PRE_RAMP_RATE")) snprintf(out, sizeof(out), "PRE_RAMP_RATE:%.1f", (double)sps_to_mm_per_min_idx(PRE_RAMP_SPS, idx));
+#endif
         else if (!strcmp(param, "BUF_SWITCH_SPAN")) snprintf(out, sizeof(out), "BUF_SWITCH_SPAN:%.3f", (double)(BUF_SWITCH_SPAN_HALF_MM * 2.0f));
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "BUF_HYST")) snprintf(out, sizeof(out), "BUF_HYST:%d", BUF_HYST_MS);
         else if (!strcmp(param, "BUF_PREDICT_THR_MS")) snprintf(out, sizeof(out), "BUF_PREDICT_THR_MS:%d", BUF_PREDICT_THR_MS);
+#endif
         else if (!strcmp(param, "AUTO_PRELOAD")) snprintf(out, sizeof(out), "AUTO_PRELOAD:%d", AUTO_PRELOAD ? 1 : 0);
         else if (!strcmp(param, "BL")) snprintf(out, sizeof(out), "BL:%s", sync_buffer_lock_arm_str());
         else if (!strcmp(param, "SYNC_STATE")) snprintf(out, sizeof(out), "SYNC_STATE:%d", (int)g_sync_state);
@@ -1066,7 +1098,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "AUTO_MODE")) snprintf(out, sizeof(out), "AUTO_MODE:%d", AUTO_MODE);
         else if (!strcmp(param, "RELOAD_MODE")) snprintf(out, sizeof(out), "RELOAD_MODE:%d", RELOAD_MODE);
         else if (!strcmp(param, "RUNOUT_COOLDOWN_MS")) snprintf(out, sizeof(out), "RUNOUT_COOLDOWN_MS:%d", RUNOUT_COOLDOWN_MS);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "POST_PRINT_STAB_MS")) snprintf(out, sizeof(out), "POST_PRINT_STAB_MS:%d", POST_PRINT_STAB_DELAY_MS);
+#endif
         else if (!strcmp(param, "RELOAD_Y_MS")) snprintf(out, sizeof(out), "RELOAD_Y_MS:%d", RELOAD_Y_TIMEOUT_MS);
         else if (!strcmp(param, "RELOAD_JOIN_MS")) snprintf(out, sizeof(out), "RELOAD_JOIN_MS:%d", RELOAD_JOIN_DELAY_MS);
         else if (!strcmp(param, "DIST_IN_OUT")) snprintf(out, sizeof(out), "DIST_IN_OUT:%d", DIST_IN_OUT);
@@ -1077,18 +1111,24 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "JOIN_RATE")) snprintf(out, sizeof(out), "JOIN_RATE:%.1f", (double)sps_to_mm_per_min_idx(JOIN_SPS, idx));
         else if (!strcmp(param, "PRESS_RATE")) snprintf(out, sizeof(out), "PRESS_RATE:%.1f", (double)sps_to_mm_per_min_idx(PRESS_SPS, idx));
         else if (!strcmp(param, "COMPRESSION_RATE")) snprintf(out, sizeof(out), "COMPRESSION_RATE:%.1f", (double)sps_to_mm_per_min_idx(COMPRESSION_SPS, idx));
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "BUF_STAB_RATE")) snprintf(out, sizeof(out), "BUF_STAB_RATE:%.1f", (double)sps_to_mm_per_min_idx(BUF_STAB_SPS, idx));
+#endif
         else if (!strcmp(param, "FOLLOW_MS")) snprintf(out, sizeof(out), "FOLLOW_MS:%d", FOLLOW_TIMEOUT_MS[idx]);
         else if (!strcmp(param, "BASELINE_RATE")) snprintf(out, sizeof(out), "BASELINE_RATE:%.1f", (double)sps_to_mm_per_min_idx(g_baseline_target_sps, idx));
         else if (!strcmp(param, "BASELINE_SPS")) snprintf(out, sizeof(out), "BASELINE_SPS:%d", g_baseline_target_sps);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "BASELINE_ALPHA")) snprintf(out, sizeof(out), "BASELINE_ALPHA:%.3f", (double)g_baseline_alpha);
+#endif
         else if (!strcmp(param, "BUF_SENSOR")) snprintf(out, sizeof(out), "BUF_SENSOR:%d", BUF_SENSOR_TYPE);
         else if (!strcmp(param, "BUF_HOME_STATE")) snprintf(out, sizeof(out), "BUF_HOME_STATE:%d", BUF_HOME_STATE);
         else if (!strcmp(param, "BUF_PSF_MAX_COMP")) snprintf(out, sizeof(out), "BUF_PSF_MAX_COMP:%.3f", (double)BUF_PSF_MAX_COMP);
         else if (!strcmp(param, "BUF_PSF_MAX_TENS")) snprintf(out, sizeof(out), "BUF_PSF_MAX_TENS:%.3f", (double)BUF_PSF_MAX_TENS);
         else if (!strcmp(param, "BUF_PSF_NEUTRAL")) snprintf(out, sizeof(out), "BUF_PSF_NEUTRAL:%.3f", (double)BUF_PSF_NEUTRAL);
         else if (!strcmp(param, "BUF_GOAL")) snprintf(out, sizeof(out), "BUF_GOAL:%.3f", (double)BUF_GOAL);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "BUF_ALPHA")) snprintf(out, sizeof(out), "BUF_ALPHA:%.3f", (double)BUF_ANALOG_ALPHA);
+#endif
         else if (!strcmp(param, "AUTOLOAD_MAX")) snprintf(out, sizeof(out), "AUTOLOAD_MAX:%d", AUTOLOAD_MAX_MM);
         else if (!strcmp(param, "LOAD_MAX")) snprintf(out, sizeof(out), "LOAD_MAX:%d", LOAD_MAX_MM);
         else if (!strcmp(param, "UNLOAD_MAX")) snprintf(out, sizeof(out), "UNLOAD_MAX:%d", UNLOAD_MAX_MM);
@@ -1101,16 +1141,23 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "SYNC_REFILL_MM")) snprintf(out, sizeof(out), "SYNC_REFILL_MM:%d", (int)g_sync_refill_effort_mm);
         else if (!strcmp(param, "SYNC_RELIEVE_MM")) snprintf(out, sizeof(out), "SYNC_RELIEVE_MM:%d", (int)g_sync_relieve_effort_mm);
         else if (!strcmp(param, "SYNC_KP_RATE")) snprintf(out, sizeof(out), "SYNC_KP_RATE:%.1f", (double)sps_to_mm_per_min(SYNC_KP_SPS));
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "KD_PSF")) snprintf(out, sizeof(out), "KD_PSF:%.3f", (double)KD_PSF);
+#endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "SYNC_OVERSHOOT_PCT")) snprintf(out, sizeof(out), "SYNC_OVERSHOOT_PCT:%d", SYNC_OVERSHOOT_PCT);
+#endif
         else if (!strcmp(param, "SYNC_RESERVE_PCT")) snprintf(out, sizeof(out), "SYNC_RESERVE_PCT:%d", SYNC_RESERVE_PCT);
         else if (!strcmp(param, "COMPRESSION_BIAS_FRAC")) snprintf(out, sizeof(out), "COMPRESSION_BIAS_FRAC:%.3f", (double)SYNC_COMPRESSION_BIAS_FRAC);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "NEUTRAL_CREEP_TIMEOUT_MS")) snprintf(out, sizeof(out), "NEUTRAL_CREEP_TIMEOUT_MS:%d", NEUTRAL_CREEP_TIMEOUT_MS);
         else if (!strcmp(param, "NEUTRAL_CREEP_RATE") || !strcmp(param, "NEUTRAL_CREEP_RATE_SPS_PER_S")) snprintf(out, sizeof(out), "%s:%d", param, NEUTRAL_CREEP_RATE_SPS_PER_S);
         else if (!strcmp(param, "NEUTRAL_CREEP_CAP") || !strcmp(param, "NEUTRAL_CREEP_CAP_FRAC")) snprintf(out, sizeof(out), "%s:%d", param, NEUTRAL_CREEP_CAP_FRAC);
         else if (!strcmp(param, "VAR_BLEND_FRAC") || !strcmp(param, "BUF_VARIANCE_BLEND_FRAC")) snprintf(out, sizeof(out), "%s:%.3f", param, (double)BUF_VARIANCE_BLEND_FRAC);
         else if (!strcmp(param, "VAR_BLEND_REF_MM") || !strcmp(param, "BUF_VARIANCE_BLEND_REF_MM")) snprintf(out, sizeof(out), "%s:%.3f", param, (double)BUF_VARIANCE_BLEND_REF_MM);
+#endif
         else if (!strcmp(param, "SYNC_AUTO_STOP")) snprintf(out, sizeof(out), "SYNC_AUTO_STOP:%d", SYNC_AUTO_STOP_MS);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "SYNC_TENSION_STOP_MS")) snprintf(out, sizeof(out), "SYNC_TENSION_STOP_MS:%d", SYNC_TENSION_DWELL_STOP_MS);
         else if (!strcmp(param, "SYNC_TENSION_RAMP_MS")) snprintf(out, sizeof(out), "SYNC_TENSION_RAMP_MS:%d", SYNC_TENSION_RAMP_DELAY_MS);
         else if (!strcmp(param, "SYNC_OVERSHOOT_NEUTRAL_EXT")) snprintf(out, sizeof(out), "SYNC_OVERSHOOT_NEUTRAL_EXT:%d", SYNC_OVERSHOOT_NEUTRAL_EXTEND);
@@ -1118,21 +1165,31 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "SYNC_INT_CLAMP")) snprintf(out, sizeof(out), "SYNC_INT_CLAMP:%.3f", (double)SYNC_RESERVE_INTEGRAL_CLAMP_MM);
         else if (!strcmp(param, "SYNC_INT_DECAY_MS")) snprintf(out, sizeof(out), "SYNC_INT_DECAY_MS:%d", SYNC_RESERVE_INTEGRAL_DECAY_MS);
         else if (!strcmp(param, "EST_SIGMA_CAP")) snprintf(out, sizeof(out), "EST_SIGMA_CAP:%.3f", (double)EST_SIGMA_HARD_CAP_MM);
+#endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "EST_LOW_CF_THR")) snprintf(out, sizeof(out), "EST_LOW_CF_THR:%.3f", (double)EST_LOW_CF_WARN_THRESHOLD);
         else if (!strcmp(param, "EST_FALLBACK_THR")) snprintf(out, sizeof(out), "EST_FALLBACK_THR:%.3f", (double)EST_FALLBACK_CF_THRESHOLD);
+#endif
         else if (!strcmp(param, "RELAY_CATCHUP_FRAC")) snprintf(out, sizeof(out), "RELAY_CATCHUP_FRAC:%.3f", (double)RELAY_CATCHUP_FRAC);
         else if (!strcmp(param, "RELAY_NEUTRAL_FRAC")) snprintf(out, sizeof(out), "RELAY_NEUTRAL_FRAC:%.3f", (double)RELAY_NEUTRAL_FRAC);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "RELAY_MIN_FLIP_MM")) snprintf(out, sizeof(out), "RELAY_MIN_FLIP_MM:%.3f", (double)RELAY_MIN_FLIP_MM);
         else if (!strcmp(param, "RELAY_COLLAPSE_DELAY_MS")) snprintf(out, sizeof(out), "RELAY_COLLAPSE_DELAY_MS:%d", RELAY_COLLAPSE_DELAY_MS);
         else if (!strcmp(param, "RELAY_COLLAPSE_RAMP_MULT")) snprintf(out, sizeof(out), "RELAY_COLLAPSE_RAMP_MULT:%d", RELAY_COLLAPSE_RAMP_MULT);
         else if (!strcmp(param, "RELAY_COLLAPSE_CAP_MS")) snprintf(out, sizeof(out), "RELAY_COLLAPSE_CAP_MS:%d", RELAY_COLLAPSE_CAP_MS);
+#endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "BUF_DRIFT_TAU_MS")) snprintf(out, sizeof(out), "BUF_DRIFT_TAU_MS:%d", BUF_DRIFT_EWMA_TAU_MS);
         else if (!strcmp(param, "BUF_DRIFT_MIN_SMP")) snprintf(out, sizeof(out), "BUF_DRIFT_MIN_SMP:%d", BUF_DRIFT_MIN_SAMPLES);
         else if (!strcmp(param, "BUF_DRIFT_THR_MM")) snprintf(out, sizeof(out), "BUF_DRIFT_THR_MM:%.3f", (double)BUF_DRIFT_APPLY_THR_MM);
         else if (!strcmp(param, "BUF_DRIFT_CLAMP")) snprintf(out, sizeof(out), "BUF_DRIFT_CLAMP:%.3f", (double)BUF_DRIFT_CLAMP_MM);
         else if (!strcmp(param, "BUF_DRIFT_MIN_CF")) snprintf(out, sizeof(out), "BUF_DRIFT_MIN_CF:%.3f", (double)BUF_DRIFT_APPLY_MIN_CF);
+#endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "TENSION_RISK_WINDOW")) snprintf(out, sizeof(out), "TENSION_RISK_WINDOW:%d", TENSION_RISK_WINDOW_MS);
         else if (!strcmp(param, "TENSION_RISK_THR")) snprintf(out, sizeof(out), "TENSION_RISK_THR:%d", TENSION_RISK_THRESHOLD);
+#endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "TS_BUF_MS")) snprintf(out, sizeof(out), "TS_BUF_MS:%d", TS_BUF_FALLBACK_MS);
         else if (!strcmp(param, "STARTUP_MS")) snprintf(out, sizeof(out), "STARTUP_MS:%d", MOTION_STARTUP_MS);
         else if (!strcmp(param, "EST_ALPHA_MIN")) snprintf(out, sizeof(out), "EST_ALPHA_MIN:%.3f", (double)EST_ALPHA_MIN);
@@ -1141,6 +1198,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "ZONE_BIAS_RAMP")) snprintf(out, sizeof(out), "ZONE_BIAS_RAMP:%.1f", (double)sps_to_mm_per_min(ZONE_BIAS_RAMP_SPS_S));
         else if (!strcmp(param, "ZONE_BIAS_MAX")) snprintf(out, sizeof(out), "ZONE_BIAS_MAX:%.1f", (double)sps_to_mm_per_min(ZONE_BIAS_MAX_SPS));
         else if (!strcmp(param, "RELOAD_LEAN")) snprintf(out, sizeof(out), "RELOAD_LEAN:%.2f", (double)RELOAD_LEAN_FACTOR);
+#endif
         else if (!strcmp(param, "MICROSTEPS")) snprintf(out, sizeof(out), "MICROSTEPS:%d", TMC_MICROSTEPS[idx]);
         else if (!strcmp(param, "INTERPOLATE")) snprintf(out, sizeof(out), "INTERPOLATE:%d", TMC_INTERPOLATE[idx] ? 1 : 0);
         else if (!strcmp(param, "STEALTHCHOP")) snprintf(out, sizeof(out), "STEALTHCHOP:%.1f", (double)sps_to_mm_per_min_idx(TMC_STEALTHCHOP_SPS[idx], idx));

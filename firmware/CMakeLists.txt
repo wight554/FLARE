@@ -22,6 +22,8 @@ add_custom_command(
 )
 add_custom_target(motor_config DEPENDS ${TUNE_H})
 
+option(FLARE_DEV_TUNING "Expose internal (Tier-3) tuning constants as ephemeral SET: overrides (no persistence)" OFF)
+
 add_executable(flare_controller
   src/main.c
   src/motion.c
@@ -41,6 +43,10 @@ target_include_directories(flare_controller PRIVATE
 target_compile_definitions(flare_controller PRIVATE
   PICO_STDIO_USB_STDOUT_TIMEOUT_US=1000
 )
+
+if(FLARE_DEV_TUNING)
+  target_compile_definitions(flare_controller PRIVATE FLARE_DEV_TUNING=1)
+endif()
 
 pico_generate_pio_header(flare_controller
   ${CMAKE_CURRENT_LIST_DIR}/third_party/ws2812.pio

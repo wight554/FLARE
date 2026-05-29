@@ -116,8 +116,8 @@ DUMP_PARAMS = [
     ("SYNC_INT_CLAMP",    "sync_reserve_integral_clamp_mm", False),
     ("SYNC_INT_DECAY_MS", "sync_reserve_integral_decay_ms", False),
     ("EST_SIGMA_CAP",     "est_sigma_hard_cap_mm",     False),
-    ("EST_LOW_CF_THR",    "est_low_cf_warn_threshold", False),
-    ("EST_FALLBACK_THR",  "est_fallback_cf_threshold", False),
+    # est_low_cf_warn_threshold / est_fallback_cf_threshold: Tier-3 internal
+    # (tune_internal.h); not dumped — release GET: is dev-build-only.
     ("RELAY_CATCHUP_FRAC", "relay_catchup_frac",       False),
     ("RELAY_NEUTRAL_FRAC", "relay_neutral_frac",       False),
     ("RELAY_MIN_FLIP_MM", "relay_min_flip_mm",         False),
@@ -367,6 +367,8 @@ def run_dump_daemon(args):
                 parts = resp.split(":", 2)
                 raw_val = parts[2] if len(parts) >= 3 else "?"
                 results[key] = format_dump_value(key, raw_val)
+            elif resp and "UNKNOWN_PARAM" in resp:
+                continue  # demoted Tier-3 / dev-gated in this build — omit from dump
             else:
                 results[key] = "?"
                 errors.append(f"GET:{cmd} → {resp}")
@@ -540,6 +542,8 @@ def run_dump(args):
                 parts = resp.split(":", 2)
                 raw_val = parts[2] if len(parts) >= 3 else "?"
                 results[key] = format_dump_value(key, raw_val)
+            elif resp and "UNKNOWN_PARAM" in resp:
+                continue  # demoted Tier-3 / dev-gated in this build — omit from dump
             else:
                 results[key] = "?"
                 errors.append(f"GET:{cmd} → {resp}")

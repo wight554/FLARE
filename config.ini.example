@@ -35,31 +35,13 @@ run_current:
 # feed_rate: 3000
 # rev_rate: 3000
 # auto_rate: 3000
-# buf_stab_rate: 600         # stabilization speed (boot + UL tension recovery)
 # sync_max_rate: 2200
 # sync_min_rate: 100
-# pre_ramp_rate: 90
-
-# ─── Motion / Ramp ───────────────────────────────────────────────────────────
-# motion_startup_ms: 1000
-# global_max_accel: 3500  # mm/s² — raw/open-loop lane motion (MV, AUTOLOAD, FEED,
-#                         # UNLOAD, RELOAD, BL prime/settle). Maps to RAMP_STEP_SPS
-#                         # per RAMP_TICK_MS tick. Also doubles as lane cold-start
-#                         # velocity (~step_sps · mm_per_step ≈ V_start mm/s).
-#                         # SYNC closed-loop follow uses sync_ramp_accel separately;
-#                         # BL catch slam bypasses both.
-# ramp_tick_ms: 5
+# (buf_stab_rate, pre_ramp_rate, global_max_accel, ramp_tick_ms, sync_ramp_accel,
+#  sync_ramp_decel, sync_tick_ms are internal/compile-only — see tune_internal.h)
 
 # ─── Buffer Sync ─────────────────────────────────────────────────────────────
-# buf_hyst_ms: 30
-# sync_ramp_accel: 150   # mm/s² — sync closed-loop UP slew (loop bandwidth).
-#                        # Rig-validated default (2026-05-28): accel=300 causes
-#                        # UNSTABLE (ringing+drift) on this hardware. 150 mm/s²
-#                        # passes autotune at kp=900. See §D6a.
-# sync_ramp_decel: 300   # mm/s² — sync closed-loop DN slew. Typically 2× accel.
-# sync_tick_ms: 20
 # baseline_rate: 1600        # starting sync speed (mm/min); set to your print feed rate
-# baseline_alpha: 0.02
 # baseline_settle_count: 3
 # baseline_variance_reject_frac: 0.15
 # baseline_cooldown_ms: 2000
@@ -79,80 +61,32 @@ run_current:
 # sync_fault_hold_recovery_ms: 5000     # VERIFY: retune from FAULT_HOLD/FAULT_HOLD_RECOVERY event logs
 # sync_cannot_refill_mm: 50.0
 # sync_cannot_relieve_mm: 50.0
-# buf_predict_thr_ms: 250
 # global_max_rate: 5000         # absolute ceiling for every commanded motor rate (mm/min)
 # sync_kp_rate: 900             # rig-validated (2026-05-28): passes autotune at accel=150
-# sync_overshoot_pct: 150        # Trailing-side trim as % of sync correction (0..200)
 # sync_reserve_pct: 35           # Reserve target as % of half the BUF_SWITCH_SPAN toward compression
 # sync_auto_stop_ms: 5000          # Auto-mode only: tail-assist timeout in COMPRESSION,
                                    # or normal sync timeout only after COMPRESSION
                                    # recovery has already hit the minimum floor.
-# post_print_stab_delay_ms: 0      # Legacy name: idle compression negative-sync delay.
-                                   # 0 = start immediately when idle+COMPRESSION.
-# sync_tension_dwell_stop_ms: 6000 # Hard stop if continuously pinned at tension endstop
-                                   # for this many ms. 0 = disable.
-# sync_tension_ramp_delay_ms: 0    # Disable estimator-bypass refill ramp; TENSION_STOP
-                                   # remains the hard guard for real tension pins.
-# sync_overshoot_neutral_extend: 1     # Extend compression overshoot trim into BUF_NEUTRAL when
-                                   # reserve is below deadband.
-
-# ─── Integral Centering + Estimator Confidence ───────────────────────────
-# sync_reserve_integral_gain: 0.0  # I-gain (mm of target bias per mm·s of reserve error).
-                                   # 0.0 = feature disabled (default). Enable with
-                                   # a small value (e.g. 0.005) after
-                                   # reviewing soak-run data.
-# sync_reserve_integral_clamp_mm: 0.6  # Hard clamp on the integral correction in mm.
-                                       # Cannot exceed buf_virtual_deadband_mm() in practice.
-# sync_reserve_integral_decay_ms: 0    # Reserved for future use; 0 = hold integral while frozen.
-# est_sigma_hard_cap_mm: 1.5           # Confidence drops to 0 when estimator sigma reaches this.
-                                       # Approximates physical buffer half-travel.
-# est_low_cf_warn_threshold: 0.5       # EV:BUF,EST_LOW_CF fires when confidence < this.
-# est_fallback_cf_threshold: 0.2       # Integral freezes when confidence < this.
 
 # ─── Type-D Relay Fallback Law ──────────────────────────────────────────────
 # relay_catchup_frac: 1.30            # TENSION refill multiplier in type-D relay mode.
 # relay_neutral_frac: 1.10            # NEUTRAL fallback/lean multiplier in type-D relay mode.
                                       # >1.0 = gentle compression lean; lower if it dwells on the
                                       # COMPRESSION wall, raise toward 1.15 if it drifts to TENSION.
-# relay_min_flip_mm: 0.0              # Distance hysteresis for relay flips; 0.0 keeps time-only.
-                                     # NON-ZERO BLOCKED: gating a flip on the actuator's own motor
-                                     # travel deadlocks any flip whose acceptance is what starts the
-                                     # motion (COMPRESSION egress AND the cold NEUTRAL->TENSION
-                                     # catch-up entry). Needs the G2 redesign (guard only the
-                                     # calming/exit flips, never corrective entry / zero-feed
-                                     # egress) or drop motion-hysteresis. See design G2.
-# relay_collapse_delay_ms: 250        # Delay before deep-COMPRESSION collapse ramp engages.
-# relay_collapse_ramp_mult: 3         # Down-ramp multiplier after collapse delay.
-# relay_collapse_cap_ms: 600          # Max collapse ramp window.
 
-# ─── Drift Observer & TENSION-Risk Telemetry ─────────────────────────────────
-# buf_drift_ewma_tau_ms: 60000        # EWMA time constant for per-transition residual drift (ms).
-#                                     # Longer = more stable estimate; shorter = faster adaptation.
-# buf_drift_min_samples: 3            # Samples before full correction; enabled correction ramps in earlier.
-# buf_drift_apply_thr_mm: 2.0         # Provisional correction threshold in mm; 0.0 disables correction.
-#                                     # Raise/lower after observing stable BPD convergence in real prints.
-# buf_drift_clamp_mm: 3.0             # Provisional hard clamp on applied correction magnitude in mm (runtime max 8.0).
-# buf_drift_apply_min_cf: 0.5         # Min estimator confidence (EC:/100) required to apply correction.
-# tension_risk_window_ms: 60000           # Rolling window for TENSION-pin density warning (runtime-only).
-# tension_risk_threshold: 4               # EV:SYNC,TENSION_RISK_HIGH fires when pin count >= this (runtime-only).
-
-# ─── Trailing-Bias Setpoint Shift & Adaptive Sync ───────────────────────────
+# ─── Trailing-Bias Setpoint Shift ────────────────────────────────────────────
 # sync_compression_bias_frac: 0.45  # additional setpoint shift toward compression.
                                  # 0.0 = legacy behavior (SYNC_RESERVE_PCT only).
                                  # 0.4 typical for slow-extrusion soak; 0.7 max.
-# neutral_creep_timeout_ms: 4000     # Neutral-dwell wait before creep activates (ms). 0 disables.
-# neutral_creep_rate_sps_per_s: 5    # Creep ramp slope. 0 disables.
-# neutral_creep_cap_frac: 10         # Hard cap on creep as percentage of extruder_est_sps.
-# buf_variance_blend_frac: 0.5   # Max variance-aware blend fraction (0.0=OFF, 0.5 typical).
-# buf_variance_blend_ref_mm: 1.0 # Sigma value at which blend distrust saturates.
 
-# ─── Smarter Sync (Estimator) ────────────────────────────────────────────────
-# est_alpha_min: 0.12          # Estimator responsiveness (slow drifts)
-# est_alpha_max: 0.65          # Estimator responsiveness (sharp jumps)
-# zone_bias_base_rate: 120     # Base reserve-recovery correction (mm/min)
-# zone_bias_ramp_rate: 45      # Reserve-recovery ramp (mm/min per second stuck in zone)
-# zone_bias_max_rate: 600      # Max reserve-recovery correction (mm/min)
-# reload_lean_factor: 1.15     # RELOAD follow over-feed factor (0.0 to 5.0)
+# ─── Internal control-loop constants (NOT user-tunable) ──────────────────────
+# Integral centering, estimator confidence/sigma, drift observer + TENSION-risk
+# telemetry, relay-collapse law, relay_min_flip (BLOCKED at 0.0), neutral-creep,
+# variance blend, est/zone-bias, EWMA alphas, debounce/predict windows, and
+# similar control-loop internals are no longer config keys. They live as
+# constants in firmware/include/tune_internal.h — edit there + rebuild. A
+# -DFLARE_DEV_TUNING build re-exposes them as ephemeral (non-persisted) SET:
+# overrides for bench experimentation. See the tier-config-surface change.
 
 # ─── Cutter / Servo ──────────────────────────────────────────────────────────
 # enable_cutter: False

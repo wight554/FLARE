@@ -70,7 +70,7 @@ uint32_t sync_idle_since_ms = 0;
 int sync_current_sps = 0;
 int g_baseline_target_sps = CONF_BASELINE_SPS;
 int g_baseline_sps = CONF_BASELINE_SPS;
-float g_baseline_alpha = CONF_BASELINE_ALPHA;
+float g_baseline_alpha = FLARE_INT_BASELINE_ALPHA;
 static const flow_schedule_point_t g_flow_sched_config[CONF_FLOW_SCHED_CAP] = CONF_FLOW_SCHED;
 static flow_schedule_point_t g_flow_sched_runtime[CONF_FLOW_SCHED_CAP] = CONF_FLOW_SCHED;
 static int g_flow_sched_live_delta[CONF_FLOW_SCHED_CAP] = {0};
@@ -1042,7 +1042,7 @@ static void baseline_update_on_settle(uint32_t neutral_dwell_ms, uint32_t now_ms
                 int flow_sps = (int)extruder_est_sps;
                 int segment = flow_active_segment(flow_sps);
                 flow_param_t fp = flow_param(flow_sps);
-                int new_baseline = (int)(CONF_BASELINE_ALPHA * (float)sync_current_sps + (1.0f - CONF_BASELINE_ALPHA) * (float)fp.baseline_sps);
+                int new_baseline = (int)(FLARE_INT_BASELINE_ALPHA * (float)sync_current_sps + (1.0f - FLARE_INT_BASELINE_ALPHA) * (float)fp.baseline_sps);
                 if (new_baseline > fp.baseline_sps) {
                     g_flow_sched_live_delta[segment] += new_baseline - fp.baseline_sps;
                     g_baseline_sps = new_baseline;
