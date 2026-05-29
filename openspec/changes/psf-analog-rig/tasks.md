@@ -78,7 +78,7 @@
 - [ ] 11.6 **BLOCKER: requires PSF rig** — `compression_recovery` (carried item #7): confirm trigger correct OR confirm superseded/removed for type-P by Layer 3.
 - [ ] 11.7 **BLOCKER: requires PSF rig** — estimator drag-down L1498-1504 (carried item H2): confirm removed for type-P under D9, or correct if still present.
 - [ ] 11.8 **BLOCKER: requires PSF rig** — Regression: type-D relay path unchanged (re-run relay steady-state check).
-- [ ] 11.9 **Rig**: Auto-sync transition gating. Prevent spurious auto-sync when homed or booted at tension. Only trigger when transitioning to tension, and require `g_buf_pos > 0.6f` for Type-P analog sensor.
+- [ ] 11.9 **Rig**: Auto-sync transition gating (Type-P only). Prevent spurious auto-sync when homed or booted at tension. Only trigger when transitioning to tension, and require `g_buf_pos > 0.6f` for Type-P analog sensor. Keep Type-D untouched.
 
 ## 12. Loop-Rate Bump (stretch, D16)
 

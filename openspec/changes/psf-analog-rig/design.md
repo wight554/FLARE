@@ -328,14 +328,14 @@ Existing saved settings with `buf_range`/`buf_invert` will be invalidated
 by CRC mismatch on first boot → factory reset to defaults. Acceptable;
 type-P was not deployed.
 
-### D18 — Auto-sync transition gating and higher tension threshold
+### D18 — Auto-sync transition gating and higher tension threshold (Type-P only)
 
-To prevent spurious auto-sync/feeding behavior when booted or homed at tension, we:
-1. Introduce a transition-gated auto-start check via `g_sync_tension_transitioned`.
+To prevent spurious auto-sync/feeding behavior when booted or homed at tension on Type-P analog sensors, we:
+1. Introduce a transition-gated auto-start check via `g_sync_tension_transitioned` for Type-P only.
 2. Set `g_sync_tension_transitioned = true` on the transition to `BUF_TENSION` state inside `sync_on_transition()`.
 3. Clear `g_sync_tension_transitioned = false` when any synchronization state machine transition occurs (inside `sync_set_state()`).
-4. Only allow auto-start in `sync_tick()` when `g_sync_tension_transitioned` is true.
-5. Raise the auto-start physical threshold for Type-P analog sensors to `g_buf_pos > 0.6f` (instead of just `s == BUF_TENSION`) to avoid minor drift near the deadband zone from triggering auto-start.
+4. For Type-P, only allow auto-start in `sync_tick()` when `g_sync_tension_transitioned` is true and `g_buf_pos > 0.6f` to avoid minor drift near the deadband zone from triggering auto-start.
+5. For Type-D, keep original behavior untouched: auto-start triggers directly on `s == BUF_TENSION` without requiring a transition gate.
 
 ## Risks / Trade-offs
 
