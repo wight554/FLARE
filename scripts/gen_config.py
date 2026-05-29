@@ -149,10 +149,10 @@ DEFAULTS = {
     # Sync-Feedback Sensor
     "buf_sensor_type": "0",
     "buf_home_state": "0",
-    "buf_psf_max_comp": "0.0",
-    "buf_psf_max_tens": "1.0",
+    "buf_psf_max_comp": "1.0",
+    "buf_psf_max_tens": "0.0",
     "buf_psf_neutral": "0.5",
-    "buf_psf_goal": "0.3",
+    "buf_psf_goal": "0.7",
     "buf_analog_alpha": "0.20",
     "psf_ctrl_deadband": "0.1",
     "kd_psf": "0.0",
