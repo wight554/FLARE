@@ -79,6 +79,15 @@
 // ----- Analog PSF input filter -----
 #define FLARE_INT_BUF_ANALOG_ALPHA           0.20f  // analog buffer position EWMA
 
+// ----- Watchdog timeouts (padded for worst-case slow hardware; trip => abort a
+//        stuck op, so they only need to exceed the slowest legitimate duration) -----
+#define FLARE_INT_CUT_TIMEOUT_FEED_MS        30000  // feed-to-cutter (200mm @ sane rate << 30s)
+#define FLARE_INT_CUT_TIMEOUT_SETTLE_MS      5000   // per servo-settle step (>= SERVO_SETTLE clamp 2000 + margin)
+#define FLARE_INT_TC_TIMEOUT_CUT_MS          8000   // outer cut watchdog floor (firmware extends to cut duration)
+#define FLARE_INT_TC_TIMEOUT_TH_MS           8000   // toolhead-clear on TC unload (slow retract margin)
+#define FLARE_INT_TC_TIMEOUT_Y_MS            12000  // tail clears Y-split (long bowden + slow unload)
+#define FLARE_INT_RELOAD_Y_TIMEOUT_MS        15000  // Y-clear during RELOAD
+
 // ----- Misc internal timing -----
 #define FLARE_INT_MOTION_STARTUP_MS          1000   // lane motion startup window
 #define FLARE_INT_POST_PRINT_STAB_DELAY_MS   0      // idle-compression negative-sync delay

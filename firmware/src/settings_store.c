@@ -14,7 +14,7 @@
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 58u
+#define SETTINGS_VERSION 59u
 
 typedef struct {
     uint32_t magic;
@@ -26,7 +26,6 @@ typedef struct {
     int load_max_mm;
     int unload_max_mm;
     int unload_tension_block_ms;
-    int reload_y_timeout_ms;
     int reload_join_delay_ms;
     int autoload_max_mm;
     int auto_mode;
@@ -39,11 +38,7 @@ typedef struct {
     int servo_settle_ms;
     int cut_feed_sps;
     int cut_feed_mm, cut_length_mm, cut_amount;
-    int cutter_feed_timeout_ms, cutter_settle_timeout_ms;
 
-    int tc_timeout_cut_ms;
-    int tc_timeout_th_ms;
-    int tc_timeout_y_ms;
 
     int runout_cooldown_ms;
 
@@ -117,7 +112,6 @@ void settings_defaults(void) {
     LOAD_MAX_MM = CONF_LOAD_MAX_MM;
     UNLOAD_MAX_MM = CONF_UNLOAD_MAX_MM;
     UNLOAD_TENSION_BLOCK_MS = CONF_UNLOAD_TENSION_BLOCK_MS;
-    RELOAD_Y_TIMEOUT_MS = CONF_RELOAD_Y_TIMEOUT_MS;
     RELOAD_JOIN_DELAY_MS = CONF_RELOAD_JOIN_DELAY_MS;
     RELOAD_MODE = CONF_RELOAD_MODE;
     AUTO_MODE = 1;
@@ -154,12 +148,7 @@ void settings_defaults(void) {
     CUT_FEED_MM = CONF_CUT_FEED_MM;
     CUT_LENGTH_MM = CONF_CUT_LENGTH_MM;
     CUT_AMOUNT = CONF_CUT_AMOUNT;
-    CUT_TIMEOUT_FEED_MS = CONF_CUT_FEED_MS;
-    CUT_TIMEOUT_SETTLE_MS = CONF_CUT_SETTLE_MS;
 
-    TC_TIMEOUT_CUT_MS = CONF_TC_TIMEOUT_CUT_MS;
-    TC_TIMEOUT_TH_MS = CONF_TC_TIMEOUT_TH_MS;
-    TC_TIMEOUT_Y_MS = CONF_TC_TIMEOUT_Y_MS;
 
     RUNOUT_COOLDOWN_MS = CONF_RUNOUT_COOLDOWN_MS;
 
@@ -232,7 +221,6 @@ void settings_save(void) {
     s.load_max_mm = LOAD_MAX_MM;
     s.unload_max_mm = UNLOAD_MAX_MM;
     s.unload_tension_block_ms = UNLOAD_TENSION_BLOCK_MS;
-    s.reload_y_timeout_ms = RELOAD_Y_TIMEOUT_MS;
     s.reload_join_delay_ms = RELOAD_JOIN_DELAY_MS;
     s.auto_mode = AUTO_MODE;
     s.auto_preload = AUTO_PRELOAD ? 1 : 0;
@@ -256,12 +244,7 @@ void settings_save(void) {
     s.cut_feed_mm = CUT_FEED_MM;
     s.cut_length_mm = CUT_LENGTH_MM;
     s.cut_amount = CUT_AMOUNT;
-    s.cutter_feed_timeout_ms = CUT_TIMEOUT_FEED_MS;
-    s.cutter_settle_timeout_ms = CUT_TIMEOUT_SETTLE_MS;
 
-    s.tc_timeout_cut_ms = TC_TIMEOUT_CUT_MS;
-    s.tc_timeout_th_ms = TC_TIMEOUT_TH_MS;
-    s.tc_timeout_y_ms = TC_TIMEOUT_Y_MS;
 
     s.runout_cooldown_ms = RUNOUT_COOLDOWN_MS;
 
@@ -377,7 +360,6 @@ void settings_load(void) {
     LOAD_MAX_MM = s->load_max_mm;
     UNLOAD_MAX_MM = s->unload_max_mm;
     UNLOAD_TENSION_BLOCK_MS = s->unload_tension_block_ms;
-    RELOAD_Y_TIMEOUT_MS = s->reload_y_timeout_ms;
     RELOAD_JOIN_DELAY_MS = s->reload_join_delay_ms;
     AUTO_MODE = s->auto_mode;
     AUTO_PRELOAD = (s->auto_preload != 0);
@@ -419,12 +401,7 @@ void settings_load(void) {
     CUT_FEED_MM = s->cut_feed_mm;
     CUT_LENGTH_MM = s->cut_length_mm;
     CUT_AMOUNT = s->cut_amount;
-    CUT_TIMEOUT_FEED_MS = s->cutter_feed_timeout_ms;
-    CUT_TIMEOUT_SETTLE_MS = s->cutter_settle_timeout_ms;
 
-    TC_TIMEOUT_CUT_MS = s->tc_timeout_cut_ms;
-    TC_TIMEOUT_TH_MS = s->tc_timeout_th_ms;
-    TC_TIMEOUT_Y_MS = s->tc_timeout_y_ms;
 
     RUNOUT_COOLDOWN_MS = s->runout_cooldown_ms;
 

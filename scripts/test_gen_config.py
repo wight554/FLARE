@@ -56,12 +56,13 @@ def test_scalar_config_emits_one_point():
     assert macro_int(text, "CONF_FLOW_SCHED_CAP") == 8
     assert macro_int(text, "CONF_FLOW_SCHED_LEN") == 1
     assert f"{{{baseline}, {baseline}, 250}}" in text
-    assert macro_int(text, "CONF_CUT_FEED_MS") == 30000
-    assert macro_int(text, "CONF_CUT_SETTLE_MS") == 3000
-    # Tier-3 internal constants (relay collapse, relay_min_flip, est sigma, ...)
-    # are no longer emitted as CONF_* — they live in tune_internal.h.
+    # Tier-3 internal constants (relay collapse, relay_min_flip, est sigma,
+    # watchdog timeouts, ...) are no longer emitted as CONF_* — they live in
+    # tune_internal.h.
     assert "CONF_RELAY_COLLAPSE_DELAY_MS" not in text
     assert "CONF_RELAY_MIN_FLIP_MM" not in text
+    assert "CONF_CUT_FEED_MS" not in text
+    assert "CONF_TC_TIMEOUT_CUT_MS" not in text
 
 
 def test_schedule_section_sorts_points():
@@ -93,21 +94,25 @@ est_sigma_hard_cap_mm: 2.0
     assert "CONF_EST_SIGMA_HARD_CAP_MM" not in text
 
 
-def test_cutter_timeout_config_overrides_defaults():
+def test_demoted_watchdog_timeouts_not_emitted():
+    # Watchdog timeouts demoted to tune_internal.h: stale config keys warn + are
+    # ignored, and no CONF_* macro is emitted for them.
     text = generate(BASE_CONFIG + """
 cut_feed_timeout_ms: 45000
-cut_settle_timeout_ms: 2500
+tc_timeout_y_ms: 9000
+reload_y_timeout_ms: 20000
 """)
 
-    assert macro_int(text, "CONF_CUT_FEED_MS") == 45000
-    assert macro_int(text, "CONF_CUT_SETTLE_MS") == 2500
+    assert "CONF_CUT_FEED_MS" not in text
+    assert "CONF_TC_TIMEOUT_Y_MS" not in text
+    assert "CONF_RELOAD_Y_TIMEOUT_MS" not in text
 
 
 def main():
     test_scalar_config_emits_one_point()
     test_schedule_section_sorts_points()
     test_demoted_key_is_ignored_not_emitted()
-    test_cutter_timeout_config_overrides_defaults()
+    test_demoted_watchdog_timeouts_not_emitted()
     print("gen_config schedule tests PASS")
 
 

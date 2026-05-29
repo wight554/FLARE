@@ -164,24 +164,7 @@ void cmd_event(const char *type, const char *data) {
 }
 
 static void status_dump(void) {
-    lane_t *A = lane_ptr(active_lane);
-    uint32_t drv = 0, gconf = 0, tpwmthrs = 0, tstep = 0, pwmconf = 0;
-    bool r_drv = false, r_gconf = false, r_tp = false, r_ts = false, r_pw = false;
-
-    if (A) {
-        r_drv = tmc_read(A->tmc, TMC_REG_DRV_STATUS, &drv);
-        r_gconf = tmc_read(A->tmc, TMC_REG_GCONF, &gconf);
-        r_tp = tmc_read(A->tmc, TMC_REG_TPWMTHRS, &tpwmthrs);
-        r_ts = tmc_read(A->tmc, 0x12, &tstep);
-        r_pw = tmc_read(A->tmc, TMC_REG_PWMCONF, &pwmconf);
-    }
     int idx = (active_lane == 2) ? 1 : 0;
-    uint32_t target_tp = 0;
-    if (TMC_STEALTHCHOP_SPS[idx] > 0) {
-        uint32_t scale = 256 / (uint32_t)TMC_MICROSTEPS[idx];
-        target_tp = 12000000 / ((uint32_t)TMC_STEALTHCHOP_SPS[idx] * scale);
-        if (target_tp > 0xFFFFF) target_tp = 0xFFFFF;
-    }
     flow_param_t active_flow_param = flow_param((int)extruder_est_sps);
 
     char b[768];
@@ -189,8 +172,7 @@ static void status_dump(void) {
         "LN:%d,TC:%s,L1T:%s,L2T:%s,"
         "I1:%d,O1:%d,I2:%d,O2:%d,"
         "TH:%d,YS:%d,BUF:%s,MM:%.1f,BF:%.1f,BP:%.2f,SM:%d,BL:%s,ST:%d,TPR:%d,CU:%d,RELOAD:%d,UC:%d,BST:%d,"
-        "EST:%.1f,RE:%.2f,DP:%d,PR:%d,AV:%.2f,SC:%.1f,SA:%d,GC:0x%X,TP:%u,TS:%u,PW:0x%X,"
-        "RS:%d%d%d%d%d,SS:%d",
+        "EST:%.1f,RE:%.2f,AV:%.2f,SC:%.1f",
         active_lane, tc_state_name(g_tc_ctx.state),
         task_name(g_lane_l1.task), task_name(g_lane_l2.task),
         lane_in_present(&g_lane_l1) ? 1 : 0,
@@ -213,58 +195,26 @@ static void status_dump(void) {
         BUF_SENSOR_TYPE,
         (double)sps_to_mm_per_min((int)extruder_est_sps),
         (double)sync_reserve_error_mm(),
-        sync_is_positive_relaunch_damped() ? 1 : 0,
-        sync_is_tension_predicted() ? 1 : 0,
         (double)g_buf.arm_vel_mm_s,
-        (double)sps_to_mm_per_min_idx(TMC_STEALTHCHOP_SPS[idx], idx),
-        (drv >> 30) & 1,
-        (unsigned int)gconf,
-        (unsigned int)target_tp,
-        (unsigned int)tstep,
-        (unsigned int)pwmconf,
-        r_drv, r_gconf, r_tp, r_ts, r_pw,
-        TMC_STEALTHCHOP_SPS[idx]);
+        (double)sps_to_mm_per_min_idx(TMC_STEALTHCHOP_SPS[idx], idx));
 
     if (blen > 0 && blen < (int)sizeof(b)) {
         uint32_t now_ms = g_now_ms;
         uint32_t ad_ms = sync_tension_dwell_ms(now_ms);
         uint32_t td_ms = (g_buf.state == BUF_COMPRESSION && g_buf.entered_ms > 0)
                          ? (now_ms - g_buf.entered_ms) : 0;
-        float tw_raw = sync_compression_wall_time_ms(A);
-        uint32_t tw_ms = (tw_raw >= 99999.0f) ? 99999u : (uint32_t)tw_raw;
-        uint32_t ea_ms = sync_est_age_ms(now_ms);
-        int rc = (SYNC_RESERVE_INTEGRAL_GAIN > 0.0f && sync_enabled
-                  && g_buf.state == BUF_NEUTRAL && g_buf_signal.confidence >= 0.7f) ? 100 : 0;
-        float drift_corr = sync_bp_drift_correction_applied_mm();
-        int rdc = 0;
-        if (BUF_DRIFT_CLAMP_MM > 0.0f && drift_corr != 0.0f) {
-            rdc = (int)(fabsf(drift_corr) / BUF_DRIFT_CLAMP_MM * 100.0f);
-            if (rdc > 100) rdc = 100;
-        }
         snprintf(b + blen, sizeof(b) - (size_t)blen,
-            ",RT:%.2f,RD:%.2f,TT:%u,CT:%u,CW:%u,EA:%u,SK:%u,CF:%.2f,RI:%.2f,RC:%d,ES:%.2f,EC:%d"
-            ",BPR:%.2f,BPD:%.2f,BPN:%d,TPX:%d,RDC:%d,CB:%d,NC:%d,VB:%d,BPV:%d,MK:%u:%s"
+            ",RT:%.2f,TT:%u,CT:%u,SK:%u,CF:%.2f,ES:%.2f"
+            ",TPX:%d,CB:%d,BPV:%d,MK:%u:%s"
             ",SYNC_REFILL_MM:%d,SYNC_RELIEVE_MM:%d,TF:%.1f,FL_RATE:%.1f,UL_RATE:%.1f",
             (double)sync_reserve_target_mm(),
-            (double)sync_reserve_deadband_mm(),
             (unsigned)ad_ms,
             (unsigned)td_ms,
-            (unsigned)tw_ms,
-            (unsigned)ea_ms,
             (unsigned)g_buf_signal.kind,
             (double)g_buf_signal.confidence,
-            (double)sync_reserve_integral_get_mm(),
-            rc,
             (double)sync_buf_sigma_mm(),
-            (int)(g_buf_signal.confidence * 100.0f),
-            (double)sync_bp_residual_last_mm(),
-            (double)sync_bp_drift_ewma_mm(),
-            sync_bp_drift_samples(),
             sync_tension_pin_window_count(now_ms),
-            rdc,
             (active_flow_param.bias_milli + 5) / 10,
-            sync_neutral_creep_sps(),
-            (int)(BUF_VARIANCE_BLEND_FRAC * 100.0f),
             (int)(g_buf_pos * 100.0f),
             g_marker_seq,
             g_marker_tag,
@@ -892,7 +842,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "POST_PRINT_STAB_MS")) POST_PRINT_STAB_DELAY_MS = clamp_i(iv, 0, 300000);
 #endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "RELOAD_Y_MS")) RELOAD_Y_TIMEOUT_MS = clamp_i(iv, 100, 30000);
+#endif
         else if (!strcmp(base_param, "RELOAD_JOIN_MS")) RELOAD_JOIN_DELAY_MS = clamp_i(iv, 0, 10000);
         else if (!strcmp(base_param, "DIST_IN_OUT")) DIST_IN_OUT = clamp_i(iv, 10, 5000);
         else if (!strcmp(base_param, "DIST_OUT_Y")) DIST_OUT_Y = clamp_i(iv, 0, 5000);
@@ -1024,13 +976,17 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "UNLOAD_CUT")) UNLOAD_CUT = (iv == 1);
         else if (!strcmp(base_param, "CUT_FEED_RATE")) CUT_FEED_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 100, 30000));
         else if (!strcmp(base_param, "CUT_FEED")) CUT_FEED_MM = clamp_i(iv, 1, 200);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "CUT_FEED_MS")) CUT_TIMEOUT_FEED_MS = clamp_i(iv, 1000, 120000);
         else if (!strcmp(base_param, "CUT_SETTLE_MS")) CUT_TIMEOUT_SETTLE_MS = clamp_i(iv, 500, 10000);
+#endif
         else if (!strcmp(base_param, "CUT_LEN")) CUT_LENGTH_MM = clamp_i(iv, 1, 50);
         else if (!strcmp(base_param, "CUT_AMT")) CUT_AMOUNT = clamp_i(iv, 1, 5);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "TC_CUT_MS")) TC_TIMEOUT_CUT_MS = clamp_i(iv, 1000, 30000);
         else if (!strcmp(base_param, "TC_TH_MS")) TC_TIMEOUT_TH_MS = clamp_i(iv, 0, 10000);
         else if (!strcmp(base_param, "TC_Y_MS")) TC_TIMEOUT_Y_MS = clamp_i(iv, 0, 30000);
+#endif
         else handled = false;
 
         #undef SET_LANE
@@ -1101,7 +1057,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "POST_PRINT_STAB_MS")) snprintf(out, sizeof(out), "POST_PRINT_STAB_MS:%d", POST_PRINT_STAB_DELAY_MS);
 #endif
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "RELOAD_Y_MS")) snprintf(out, sizeof(out), "RELOAD_Y_MS:%d", RELOAD_Y_TIMEOUT_MS);
+#endif
         else if (!strcmp(param, "RELOAD_JOIN_MS")) snprintf(out, sizeof(out), "RELOAD_JOIN_MS:%d", RELOAD_JOIN_DELAY_MS);
         else if (!strcmp(param, "DIST_IN_OUT")) snprintf(out, sizeof(out), "DIST_IN_OUT:%d", DIST_IN_OUT);
         else if (!strcmp(param, "DIST_OUT_Y")) snprintf(out, sizeof(out), "DIST_OUT_Y:%d", DIST_OUT_Y);
@@ -1135,9 +1093,11 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "UNLOAD_TENSION_BLOCK_MS")) snprintf(out, sizeof(out), "UNLOAD_TENSION_BLOCK_MS:%d", UNLOAD_TENSION_BLOCK_MS);
         else if (!strcmp(param, "TC_LOAD_MS")) snprintf(out, sizeof(out), "TC_LOAD_MS:%d", LOAD_MAX_MM);
         else if (!strcmp(param, "TC_UNLOAD_MS")) snprintf(out, sizeof(out), "TC_UNLOAD_MS:%d", UNLOAD_MAX_MM);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "TC_CUT_MS")) snprintf(out, sizeof(out), "TC_CUT_MS:%d", TC_TIMEOUT_CUT_MS);
         else if (!strcmp(param, "TC_TH_MS")) snprintf(out, sizeof(out), "TC_TH_MS:%d", TC_TIMEOUT_TH_MS);
         else if (!strcmp(param, "TC_Y_MS")) snprintf(out, sizeof(out), "TC_Y_MS:%d", TC_TIMEOUT_Y_MS);
+#endif
         else if (!strcmp(param, "SYNC_REFILL_MM")) snprintf(out, sizeof(out), "SYNC_REFILL_MM:%d", (int)g_sync_refill_effort_mm);
         else if (!strcmp(param, "SYNC_RELIEVE_MM")) snprintf(out, sizeof(out), "SYNC_RELIEVE_MM:%d", (int)g_sync_relieve_effort_mm);
         else if (!strcmp(param, "SYNC_KP_RATE")) snprintf(out, sizeof(out), "SYNC_KP_RATE:%.1f", (double)sps_to_mm_per_min(SYNC_KP_SPS));
@@ -1218,13 +1178,17 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "UNLOAD_CUT")) snprintf(out, sizeof(out), "UNLOAD_CUT:%d", UNLOAD_CUT ? 1 : 0);
         else if (!strcmp(param, "CUT_FEED_RATE")) snprintf(out, sizeof(out), "CUT_FEED_RATE:%.1f", (double)sps_to_mm_per_min_idx(CUT_FEED_SPS, idx));
         else if (!strcmp(param, "CUT_FEED")) snprintf(out, sizeof(out), "CUT_FEED:%d", CUT_FEED_MM);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "CUT_FEED_MS")) snprintf(out, sizeof(out), "CUT_FEED_MS:%d", CUT_TIMEOUT_FEED_MS);
         else if (!strcmp(param, "CUT_SETTLE_MS")) snprintf(out, sizeof(out), "CUT_SETTLE_MS:%d", CUT_TIMEOUT_SETTLE_MS);
+#endif
         else if (!strcmp(param, "CUT_LEN")) snprintf(out, sizeof(out), "CUT_LEN:%d", CUT_LENGTH_MM);
         else if (!strcmp(param, "CUT_AMT")) snprintf(out, sizeof(out), "CUT_AMT:%d", CUT_AMOUNT);
+#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "TC_CUT_MS")) snprintf(out, sizeof(out), "TC_CUT_MS:%d", TC_TIMEOUT_CUT_MS);
         else if (!strcmp(param, "TC_TH_MS")) snprintf(out, sizeof(out), "TC_TH_MS:%d", TC_TIMEOUT_TH_MS);
         else if (!strcmp(param, "TC_Y_MS")) snprintf(out, sizeof(out), "TC_Y_MS:%d", TC_TIMEOUT_Y_MS);
+#endif
         else handled = false;
 
         if (handled) cmd_reply("OK", out);

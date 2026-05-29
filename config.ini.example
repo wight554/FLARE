@@ -95,18 +95,15 @@ run_current:
 # servo_close_us: 1400
 # servo_block_us: 950
 # servo_settle_ms: 500
-# cut_feed_timeout_ms: 30000
-# cut_settle_timeout_ms: 3000
 # cut_feed_rate: 1500
 # cut_feed_mm: 150
 # cut_length_mm: 10
 # cut_amount: 1
 
-# ─── Toolchange Timeouts ─────────────────────────────────────────────────────
-# Outer cut watchdog floor; firmware extends it to configured cutter duration.
-# tc_timeout_cut_ms: 5000
-# tc_timeout_th_ms: 3000
-# tc_timeout_y_ms: 5000
+# ─── Watchdog timeouts ───────────────────────────────────────────────────────
+# Toolchange (cut/toolhead/Y), cutter (feed/settle), and RELOAD-Y watchdogs are
+# internal constants in firmware/include/tune_internal.h, padded for worst-case
+# slow hardware. Not user-tunable; -DFLARE_DEV_TUNING exposes them ephemerally.
 
 # ─── Safety / Limits ─────────────────────────────────────────────────────────
 # load_max_mm: 3000           # Max distance for toolhead load
@@ -144,7 +141,6 @@ run_current:
 
 # ─── Reload Mode ─────────────────────────────────────────────────────────────
 # reload_mode: 1              # Enable autonomous swap on runout
-# reload_y_timeout_ms: 10000  # max wait for Y to clear during RELOAD
 # reload_join_delay_ms: 10000 # extra wait after tail/Y clear before JOINING
 
 # ─── RELOAD Tuning ───────────────────────────────────────────────────────────

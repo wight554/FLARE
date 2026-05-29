@@ -58,6 +58,12 @@ DEPRECATED_KEYS = {
     "reload_lean_factor",
     "buf_analog_alpha",
     "ts_buf_fallback_ms",
+    "cut_feed_timeout_ms",
+    "cut_settle_timeout_ms",
+    "tc_timeout_cut_ms",
+    "tc_timeout_th_ms",
+    "tc_timeout_y_ms",
+    "reload_y_timeout_ms",
 }
 
 # --- Defaults (merged from config.h and Klipper standards) ---
@@ -132,17 +138,12 @@ DEFAULTS = {
     "servo_close_us": "1400",
     "servo_block_us": "950",
     "servo_settle_ms": "500",
-    "cut_feed_timeout_ms": "30000",
-    "cut_settle_timeout_ms": "3000",
     "cut_feed_rate": "1500",
     "cut_feed_mm": "150",
     "cut_length_mm": "10",
     "cut_amount": "1",
 
     # Toolchange / Safety
-    "tc_timeout_cut_ms": "5000",
-    "tc_timeout_th_ms": "3000",
-    "tc_timeout_y_ms": "5000",
 
     # Safety / Swap
     "runout_cooldown_ms": "12000",
@@ -151,7 +152,6 @@ DEFAULTS = {
     "unload_tension_block_ms": "5000",
     "autoload_max_mm": "600",
     "autoload_retract_mm": "3",
-    "reload_y_timeout_ms": "10000",
     "auto_mode": "1",
     "auto_preload": "True",
 
@@ -167,7 +167,6 @@ DEFAULTS = {
 
     # Reload Mode
     "reload_mode": "1",
-    "reload_y_timeout_ms": "10000",
     "reload_join_delay_ms": "10000",
     "compression_rate": "90",
     "join_rate": "1600",
@@ -519,23 +518,17 @@ def main():
         f"#define CONF_SERVO_CLOSE_US     {get('servo_close_us')}",
         f"#define CONF_SERVO_BLOCK_US     {get('servo_block_us')}",
         f"#define CONF_SERVO_SETTLE_MS    {get('servo_settle_ms')}",
-        f"#define CONF_CUT_FEED_MS        {get('cut_feed_timeout_ms')}",
-        f"#define CONF_CUT_SETTLE_MS      {get('cut_settle_timeout_ms')}",
         f"#define CONF_CUT_FEED_SPS       {mm_min_to_sps(get('cut_feed_rate'), l1)}",
         f"#define CONF_CUT_FEED_MM        {get('cut_feed_mm')}",
         f"#define CONF_CUT_LENGTH_MM      {get('cut_length_mm')}",
         f"#define CONF_CUT_AMOUNT         {get('cut_amount')}",
         "",
         "// --- Toolchange Timeouts ---",
-        f"#define CONF_TC_TIMEOUT_CUT_MS      {get('tc_timeout_cut_ms')}",
-        f"#define CONF_TC_TIMEOUT_TH_MS       {get('tc_timeout_th_ms')}",
-        f"#define CONF_TC_TIMEOUT_Y_MS        {get('tc_timeout_y_ms')}",
         f"#define CONF_LOAD_MAX_MM            {get('load_max_mm')}",
         f"#define CONF_UNLOAD_MAX_MM          {get('unload_max_mm')}",
         f"#define CONF_UNLOAD_TENSION_BLOCK_MS    {get('unload_tension_block_ms')}",
         f"#define CONF_AUTOLOAD_MAX_MM        {get('autoload_max_mm')}",
         f"#define CONF_AUTOLOAD_RETRACT_MM    {get('autoload_retract_mm')}",
-        f"#define CONF_RELOAD_Y_TIMEOUT_MS   {get('reload_y_timeout_ms')}",
         f"#define CONF_RELOAD_JOIN_DELAY_MS  {get('reload_join_delay_ms')}",
         f"#define CONF_AUTO_MODE              {1 if get_bool('auto_mode') else 0}",
         f"#define CONF_AUTO_PRELOAD           {1 if get_bool('auto_preload') else 0}",
