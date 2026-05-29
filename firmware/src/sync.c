@@ -150,6 +150,8 @@ static float          g_bl_follow_rate_mmpm = 0.0f;    /* armed follow-on rate (
 static uint32_t       g_bl_follow_start_ms  = 0;       /* when FOLLOW motion began */
 static float          g_bl_follow_mm_per_s  = 0.0f;    /* FOLLOW commanded speed in mm/s */
 static uint32_t       g_bl_watchdog_ms = 0;
+static float          g_bl_follow_traveled_mm = 0.0f;
+static uint32_t       g_bl_last_tick_ms = 0;
 #define BL_WATCHDOG_DEFAULT_MS 30000u
 /* Suppress sync auto-start on BUF_TENSION after a BL abort (ST path).
  * The buffer is at tension because BL put it there, not because the
@@ -1216,6 +1218,8 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm,
     }
     g_bl_follow_start_ms     = 0;
     g_bl_follow_mm_per_s     = 0.0f;
+    g_bl_follow_traveled_mm  = 0.0f;
+    g_bl_last_tick_ms        = now_ms;
     g_bl_watchdog_ms = 0;
     g_bl_sub_state = BL_PRIME;
 
@@ -1325,6 +1329,8 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
 
                 g_bl_follow_start_ms = now_ms;
                 g_bl_follow_mm_per_s = (float)follow_sps * MM_PER_STEP[idx];
+                g_bl_follow_traveled_mm = 0.0f;
+                g_bl_last_tick_ms = now_ms;
                 g_bl_sub_state = BL_FOLLOW;
                 cmd_event("BL", "FOLLOW");
                 return;
@@ -1338,15 +1344,56 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         /* Concurrent follow-on retract. Mass-balances the extruder fill
          * over a known distance; when the armed distance is consumed,
          * stop the motor and return to LOCKED (waiting for BS or watchdog). */
-        float traveled = (g_bl_follow_mm_per_s > 0.0f)
-            ? ((float)(now_ms - g_bl_follow_start_ms) / 1000.0f * g_bl_follow_mm_per_s)
-            : g_bl_follow_mm;
+        int idx = A->lane_id - 1;
+        float dt_s = (float)(now_ms - g_bl_last_tick_ms) / 1000.0f;
+        if (dt_s < 0.0001f) dt_s = 0.0001f;
+        if (dt_s > 0.1f) dt_s = 0.001f;
+
+        float traveled = 0.0f;
+        if (BUF_SENSOR_TYPE == 1) {
+            /* Closed-loop dynamic speed adjustment to keep buffer neutral */
+            float err = g_buf_pos - psf_goal_norm();
+            int follow_sps = 0;
+            if (g_bl_target_state == BUF_TENSION && err < 0.0f) {
+                float den = 1.0f + psf_goal_norm();
+                if (den < 0.001f) den = 0.001f;
+                float factor = -err / den;
+                if (factor > 1.0f) factor = 1.0f;
+                int max_follow_sps = (int)(g_bl_follow_rate_mmpm / 60.0f / MM_PER_STEP[idx] + 0.5f);
+                max_follow_sps = sync_clamp_max_sps(max_follow_sps);
+                follow_sps = (int)(factor * (float)max_follow_sps);
+            } else if (g_bl_target_state == BUF_COMPRESSION && err > 0.0f) {
+                float den = 1.0f - psf_goal_norm();
+                if (den < 0.001f) den = 0.001f;
+                float factor = err / den;
+                if (factor > 1.0f) factor = 1.0f;
+                int max_follow_sps = (int)(g_bl_follow_rate_mmpm / 60.0f / MM_PER_STEP[idx] + 0.5f);
+                max_follow_sps = sync_clamp_max_sps(max_follow_sps);
+                follow_sps = (int)(factor * (float)max_follow_sps);
+            }
+            if (follow_sps < 1 && (g_bl_target_state == BUF_TENSION ? err < 0.0f : err > 0.0f)) {
+                follow_sps = 1;
+            }
+
+            bool forward = (g_bl_target_state == BUF_COMPRESSION);
+            motor_set_dir(&A->m, forward);
+            motor_set_rate_sps(&A->m, follow_sps);
+
+            g_bl_follow_traveled_mm += (float)follow_sps * MM_PER_STEP[idx] * dt_s;
+            traveled = g_bl_follow_traveled_mm;
+        } else {
+            traveled = (g_bl_follow_mm_per_s > 0.0f)
+                ? ((float)(now_ms - g_bl_follow_start_ms) / 1000.0f * g_bl_follow_mm_per_s)
+                : g_bl_follow_mm;
+        }
+
         if (traveled >= g_bl_follow_mm) {
             motor_set_rate_sps(&A->m, 0);
             g_bl_follow_mm        = 0.0f;
             g_bl_follow_rate_mmpm = 0.0f;
             g_bl_follow_start_ms  = 0;
             g_bl_follow_mm_per_s  = 0.0f;
+            g_bl_follow_traveled_mm = 0.0f;
             g_bl_sub_state = BL_LOCKED;
             cmd_event("BL", "FOLLOW_DONE");
         } else if (g_bl_watchdog_ms != 0 &&
@@ -1354,6 +1401,7 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
             handle_bl_watchdog_timeout(now_ms);
         }
     }
+    g_bl_last_tick_ms = now_ms;
 }
 
 void sync_relief_pause(void) {

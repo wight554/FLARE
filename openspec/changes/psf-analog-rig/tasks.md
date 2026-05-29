@@ -81,6 +81,8 @@
 - [x] 11.9 **Rig**: Auto-sync transition gating (Type-P only). Prevent spurious auto-sync when homed or booted at tension. Only trigger when transitioning to tension, and require `g_buf_pos > 0.6f` for Type-P analog sensor. Keep Type-D untouched.
 - [x] 11.10 **Rig**: Gate manual load/unload buffer checks in motion.c to Type-D only, and implement high-frequency `scripts/flare_unload_tracker.py` diagnostic telemetry tracker.
 - [x] 11.11 **Rig**: Implement buffer-lock (`BL:`) physical extreme targeting and highly sensitive lock-break detection for Type-P analog configuration.
+- [x] 11.12 **Rig**: Implement closed-loop dynamic analog follow inside `BL_FOLLOW` for Type-P to keep the buffer neutral during fast printer retracts.
+
 
 
 
@@ -101,7 +103,9 @@
 - [x] 14.4 Commit milestone(s) — split firmware foundation (groups 1-7) from control redesign (groups 8-10) into separate commits per AGENTS.md one-milestone-per-commit.
 
 2026-05-27 validation: `python3 -m py_compile scripts/*.py`, `python3 scripts/gen_config.py`, `git diff --check`, `ninja -C build_local`. Commit `4f47251`.
-2026-05-29 validation: `python3 -m py_compile scripts/*.py`, `ninja -C build_local`. Commits: `88ac086` (config defaults), `4fd2efc` (gate load/unload buffer checks), `254aa98` (flare_unload_tracker.py telemetry script), `a5c6893` (BL: buffer-lock analog implementation).
+2026-05-29 validation: `python3 -m py_compile scripts/*.py`, `ninja -C build_local`. Commits: `88ac086` (config defaults), `4fd2efc` (gate load/unload buffer checks), `254aa98` (flare_unload_tracker.py telemetry script), `a5c6893` (BL: buffer-lock analog implementation), `ac5b0dd` (closed-loop dynamic follow inside BL_FOLLOW for type-P).
+
+
 
 
 

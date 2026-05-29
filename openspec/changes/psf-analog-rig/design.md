@@ -343,6 +343,15 @@ To enable `BL:` buffer-lock commands to work efficiently and pick up faster on T
 1. Define physical extreme targets in the `BL_PRIME` phase for Type-P. Reached is defined as `g_buf_pos >= 0.90f` for `BUF_TENSION` and `g_buf_pos <= -0.90f` for `BUF_COMPRESSION`. This ensures the prime phase drives the arm all the way to the endstop rather than stopping immediately at the zone neutral deadband.
 2. Implement tight lock-break detection in `BL_LOCKED` for Type-P. The lock is broken as soon as `g_buf_pos < 0.90f` for tension or `g_buf_pos > -0.90f` for compression. This allows instant follow-on triggering the millisecond the extruder starts pulling, yielding a much faster pick-up reaction than the digital microswitch.
 
+### D20 — Closed-Loop Buffer-Lock Follow for Type-P (Analog)
+
+To keep the buffer perfectly neutral during fast print head retracts (where open-loop follow-on speed would cause tension or compression drift), we implement a closed-loop dynamic analog follower inside `BL_FOLLOW` for Type-P:
+1. Calculate position error relative to goal: `err = g_buf_pos - psf_goal_norm()`.
+2. Compute dynamic factor: `factor = -err / (1.0f + psf_goal_norm())` for tension, and `factor = err / (1.0f - psf_goal_norm())` for compression.
+3. Dynamically set motor sps as a fraction of user-requested `max_follow_sps` proportional to the error: `follow_sps = (int)(factor * max_follow_sps)`.
+4. This ensures that as the buffer compresses, the MMU retracts faster, automatically slowing down to 0 sps as the buffer returns to neutral.
+5. Integrate actual distance traveled dynamically (`g_bl_follow_traveled_mm += follow_sps * MM_PER_STEP * dt_s`) to stop precisely when `g_bl_follow_mm` is consumed.
+
 ## Risks / Trade-offs
 
 - **#7 compression_recovery timing unverified** → Tasks for #7 and H2 are
