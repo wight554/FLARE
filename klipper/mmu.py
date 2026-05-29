@@ -58,6 +58,7 @@ class MMUMock:
         self.toolhead_sensor = 0 # toolhead sensor state
         self.sync_feedback = 0.0 # buffer compression/tension offset
         self.sync_feedback_state = "neutral"
+        self.sync_feedback_enabled = False
         self.print_job_state = "standby"
         self.print_state = "ready"
         self.filament = "Unloaded"
@@ -201,6 +202,7 @@ class MMUMock:
 
         self.toolhead_sensor = gcmd.get_int('TOOLHEAD_SENSOR', self.toolhead_sensor)
         self.sync_feedback = gcmd.get_float('SYNC_FEEDBACK', self.sync_feedback)
+        self.sync_feedback_enabled = gcmd.get_int('SYNC_FEEDBACK_ENABLED', 1 if self.sync_feedback_enabled else 0) != 0
         
         # Strip quotes from standard string parameters
         self.sync_feedback_state = gcmd.get('SYNC_FEEDBACK_STATE', self.sync_feedback_state).strip("'\"")
@@ -1469,7 +1471,7 @@ class MMUMock:
             'sync_feedback': self.sync_feedback,
             'sync_feedback_state': self.sync_feedback_state,
             'sync_feedback_bias_modelled': self.sync_feedback,
-            'sync_feedback_enabled': False,
+            'sync_feedback_enabled': self.sync_feedback_enabled,
             'print_job_state': self.print_job_state,
             'print_state': self.print_state,
             'board_online': self.board_online,
