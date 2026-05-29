@@ -101,6 +101,7 @@
 - [x] 14.4 Commit milestone(s) — split firmware foundation (groups 1-7) from control redesign (groups 8-10) into separate commits per AGENTS.md one-milestone-per-commit.
 
 2026-05-27 validation: `python3 -m py_compile scripts/*.py`, `python3 scripts/gen_config.py`, `git diff --check`, `ninja -C build_local`. Commit `4f47251`.
-2026-05-29 validation: `python3 -m py_compile scripts/*.py`, `ninja -C build_local`. Commits: `88ac086` (config defaults), `4fd2efc` (gate load/unload buffer checks), `254aa98` (flare_unload_tracker.py telemetry script).
+2026-05-29 validation: `python3 -m py_compile scripts/*.py`, `ninja -C build_local`. Commits: `88ac086` (config defaults), `4fd2efc` (gate load/unload buffer checks), `254aa98` (flare_unload_tracker.py telemetry script), `a5c6893` (BL: buffer-lock analog implementation).
+
 
 
