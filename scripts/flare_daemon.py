@@ -507,9 +507,17 @@ def parse_status_line(line):
             elif key == "L2T":
                 new_data["lane2_task"] = val
             elif key == "BP":
-                new_data["g_buf_pos"] = float(val)
-                # Rescale to Happy Hare -1.0 to 1.0 (assuming 15.0mm max travel)
-                new_data["sync_feedback"] = max(-1.0, min(1.0, float(val) / 15.0))
+                bp_val = float(val)
+                new_data["g_buf_pos"] = bp_val
+                # Check sensor type (0 = Type-D digital, 1 = Type-P analog)
+                stype = new_data.get("buf_sensor_type", status_cache.get("buf_sensor_type", 0))
+                if stype == 1:
+                    new_data["sync_feedback"] = max(-1.0, min(1.0, bp_val))
+                else:
+                    new_data["sync_feedback"] = max(-1.0, min(1.0, bp_val / 15.0))
+            elif key == "BST":
+                val_int = int(val)
+                new_data["buf_sensor_type"] = val_int
             elif key == "BUF":
                 new_data["buf_state"] = val
                 new_data["sync_feedback_state"] = val.lower()
@@ -989,7 +997,11 @@ def klipper_syncer(moonraker_url):
         in2 = state.get("in2", 0)
         toolhead = state.get("toolhead", 0)
         g_buf_pos = state.get("g_buf_pos", 0.0)
-        sync_feedback = max(-1.0, min(1.0, g_buf_pos / 15.0))
+        stype = state.get("buf_sensor_type", 0)
+        if stype == 1:
+            sync_feedback = max(-1.0, min(1.0, g_buf_pos))
+        else:
+            sync_feedback = max(-1.0, min(1.0, g_buf_pos / 15.0))
         buf_state = state.get("buf_state", "NEUTRAL").lower()
         if buf_state == "compression":
             buf_state = "compressed"

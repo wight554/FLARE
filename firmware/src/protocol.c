@@ -188,7 +188,7 @@ static void status_dump(void) {
     int blen = snprintf(b, sizeof(b),
         "LN:%d,TC:%s,L1T:%s,L2T:%s,"
         "I1:%d,O1:%d,I2:%d,O2:%d,"
-        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BF:%.1f,BP:%.2f,SM:%d,BL:%s,ST:%d,TPR:%d,CU:%d,RELOAD:%d,UC:%d,"
+        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BF:%.1f,BP:%.2f,SM:%d,BL:%s,ST:%d,TPR:%d,CU:%d,RELOAD:%d,UC:%d,BST:%d,"
         "EST:%.1f,RE:%.2f,DP:%d,PR:%d,AV:%.2f,SC:%.1f,SA:%d,GC:0x%X,TP:%u,TS:%u,PW:0x%X,"
         "RS:%d%d%d%d%d,SS:%d",
         active_lane, tc_state_name(g_tc_ctx.state),
@@ -210,6 +210,7 @@ static void status_dump(void) {
         ENABLE_CUTTER ? 1 : 0,
         RELOAD_MODE,
         UNLOAD_CUT ? 1 : 0,
+        BUF_SENSOR_TYPE,
         (double)sps_to_mm_per_min((int)extruder_est_sps),
         (double)sync_reserve_error_mm(),
         sync_is_positive_relaunch_damped() ? 1 : 0,
