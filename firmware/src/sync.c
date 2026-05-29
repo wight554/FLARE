@@ -1253,8 +1253,14 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
     if (!A) return;
 
     if (g_bl_sub_state == BL_PRIME) {
-        buf_state_t raw = buf_state_raw();
-        bool reached = (raw == g_bl_target_state);
+        bool reached = false;
+        if (BUF_SENSOR_TYPE == 1) {
+            if (g_bl_target_state == BUF_TENSION) reached = (g_buf_pos >= 0.90f);
+            else if (g_bl_target_state == BUF_COMPRESSION) reached = (g_buf_pos <= -0.90f);
+        } else {
+            buf_state_t raw = buf_state_raw();
+            reached = (raw == g_bl_target_state);
+        }
 
         /* Phase 1 — search: outer safety cap fires if switch never triggers */
         float traveled_mm = (g_bl_prime_mm_per_s > 0.0f)
@@ -1299,8 +1305,16 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
          * direction. Otherwise, buffer is free to migrate via external
          * force; only the watchdog can break the lock from firmware. */
         if (g_bl_follow_mm > 0.0f) {
-            buf_state_t raw = buf_state_raw();
-            if (raw != g_bl_target_state) {
+            bool lock_broken = false;
+            if (BUF_SENSOR_TYPE == 1) {
+                if (g_bl_target_state == BUF_TENSION) lock_broken = (g_buf_pos < 0.90f);
+                else if (g_bl_target_state == BUF_COMPRESSION) lock_broken = (g_buf_pos > -0.90f);
+            } else {
+                buf_state_t raw = buf_state_raw();
+                lock_broken = (raw != g_bl_target_state);
+            }
+
+            if (lock_broken) {
                 int idx = A->lane_id - 1;
                 int follow_sps = (int)(g_bl_follow_rate_mmpm / 60.0f / MM_PER_STEP[idx] + 0.5f);
                 if (follow_sps < 1) follow_sps = 1;

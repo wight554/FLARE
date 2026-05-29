@@ -337,6 +337,12 @@ To prevent spurious auto-sync/feeding behavior when booted or homed at tension o
 4. For Type-P, only allow auto-start in `sync_tick()` when `g_sync_tension_transitioned` is true and `g_buf_pos > 0.6f` to avoid minor drift near the deadband zone from triggering auto-start.
 5. For Type-D, keep original behavior untouched: auto-start triggers directly on `s == BUF_TENSION` without requiring a transition gate.
 
+### D19 — Buffer Lock (BL) Support and Tighter Lock-Break for Type-P (Analog)
+
+To enable `BL:` buffer-lock commands to work efficiently and pick up faster on Type-P analog configurations, we:
+1. Define physical extreme targets in the `BL_PRIME` phase for Type-P. Reached is defined as `g_buf_pos >= 0.90f` for `BUF_TENSION` and `g_buf_pos <= -0.90f` for `BUF_COMPRESSION`. This ensures the prime phase drives the arm all the way to the endstop rather than stopping immediately at the zone neutral deadband.
+2. Implement tight lock-break detection in `BL_LOCKED` for Type-P. The lock is broken as soon as `g_buf_pos < 0.90f` for tension or `g_buf_pos > -0.90f` for compression. This allows instant follow-on triggering the millisecond the extruder starts pulling, yielding a much faster pick-up reaction than the digital microswitch.
+
 ## Risks / Trade-offs
 
 - **#7 compression_recovery timing unverified** → Tasks for #7 and H2 are
