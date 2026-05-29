@@ -42,5 +42,10 @@
 
 ## 5. On-hardware confirmation (operator) — OPEN, blocked on rig
 
-- [ ] 5.1 `SET:VAR_BLEND_FRAC:0.3`; `SV:`; power-cycle; `GET:VAR_BLEND_FRAC`
-  returns `0.3` (pre-fix: reverts to compile default).
+- [x] 5.1 SUPERSEDED by `tier-config-surface`: `buf_variance_blend_*` was demoted
+  out of `settings_t` (now a `tune_internal.h` constant), so the VAR_BLEND
+  persistence path no longer exists to test. The durable value of this change —
+  the `RELOAD_MODE` default fix, the dead-code removals, and the
+  `test_settings_parity.py` guard on the remaining fields — is build+parity
+  verified, and the v58 firmware was flashed with no regression (see
+  tier-config-surface 6.4).

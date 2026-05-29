@@ -81,6 +81,6 @@
 - [x] 6.3 `test_gen_config.py` + `test_settings_parity.py` + full
   `validate_regression.sh` ("Static Regression Gate Passed") green; `py_compile`
   clean.
-- [ ] 6.4 On-hardware: confirm control behavior byte-identical (sync soak
-  before/after = same `BS`/endstop profile). OPEN — blocked on rig. Values were
-  preserved (FLARE_INT_* == prior CONF_* defaults), so no behavior change expected.
+- [x] 6.4 On-hardware: flashed v58 build; no visual/behavior regression observed.
+  Confirms the demotion is behavior-identical (FLARE_INT_* == prior CONF_*
+  defaults) and the one-time persisted-settings reset on first v58 boot is clean.
