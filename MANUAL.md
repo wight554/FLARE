@@ -109,6 +109,29 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 
 ## Parameters (`SET:` / `GET:`)
 
+> **Internal control-loop constants are dev-build-only.** EWMA alphas, estimator
+> confidence/sigma, drift observer, relay-collapse law, neutral-creep, variance
+> blend, est/zone-bias, sync integral/overshoot/tension guards, PSF
+> derivative/filter terms, debounce/predict/tick windows, and the open-loop ramp
+> rates are now compiled constants (`firmware/include/tune_internal.h`, or
+> motor-aware `tune.h` `CONF_*`). A normal **release build does not expose them**
+> via `SET:`/`GET:` — it replies `ER:SET:UNKNOWN_PARAM`, and `flare_cmd --config`
+> omits them. Build with `-DFLARE_DEV_TUNING=ON` to re-expose them as **ephemeral**
+> overrides (runtime-only, not persisted; revert on reboot). Affected keys:
+> `SYNC_TICK_MS`, `RAMP_TICK_MS`, `BUF_HYST`, `BUF_PREDICT_THR_MS`,
+> `BASELINE_ALPHA`, `BUF_ALPHA`, `BUF_STAB_RATE`, `PRE_RAMP_RATE`,
+> `GLOBAL_MAX_ACCEL`, `SYNC_RAMP_ACCEL`/`SYNC_RAMP_DECEL`, `SYNC_OVERSHOOT_PCT`,
+> `SYNC_OVERSHOOT_NEUTRAL_EXT`, `SYNC_INT_GAIN`/`SYNC_INT_CLAMP`/`SYNC_INT_DECAY_MS`,
+> `SYNC_TENSION_STOP_MS`/`SYNC_TENSION_RAMP_MS`, `EST_SIGMA_CAP`, `EST_LOW_CF_THR`,
+> `EST_FALLBACK_THR`, `EST_ALPHA_MIN`/`EST_ALPHA_MAX`,
+> `ZONE_BIAS_BASE`/`ZONE_BIAS_RAMP`/`ZONE_BIAS_MAX`,
+> `NEUTRAL_CREEP_TIMEOUT_MS`/`NEUTRAL_CREEP_RATE`/`NEUTRAL_CREEP_CAP`,
+> `VAR_BLEND_FRAC`/`VAR_BLEND_REF_MM`, `RELAY_MIN_FLIP_MM`,
+> `RELAY_COLLAPSE_DELAY_MS`/`RELAY_COLLAPSE_RAMP_MULT`/`RELAY_COLLAPSE_CAP_MS`,
+> `KD_PSF`, `POST_PRINT_STAB_MS`, `TS_BUF_MS`, `STARTUP_MS`, `RELOAD_LEAN`,
+> `BUF_DRIFT_TAU_MS`/`_MIN_SMP`/`_THR_MM`/`_CLAMP`/`_MIN_CF`,
+> `TENSION_RISK_WINDOW`/`TENSION_RISK_THR`.
+
 ### Physical Model (Hardware Dimensions)
 | Parameter | `config.ini` Key | Description | Default |
 |-----------|------------------|-------------|---------|
@@ -128,7 +151,6 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `BUF_PSF_MAX_TENS` | `buf_psf_max_tens` | Raw ADC fraction at tension extreme | 1.0 |
 | `BUF_PSF_NEUTRAL` | `buf_psf_neutral` | Raw ADC fraction at neutral calibration point | 0.5 |
 | `BUF_GOAL` | `buf_psf_goal` | Raw ADC goal bias used by type-P zone control | 0.3 |
-| `BUF_ALPHA` | `buf_analog_alpha` | EWMA smoothing factor for analog position | 0.20 |
 
 ### Speeds & Rates (mm/min)
 | Parameter | `config.ini` Key | Description | Default |
@@ -136,7 +158,6 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `FEED_RATE` | `feed_rate` | Standard feeding speed | 3000 |
 | `REV_RATE` | `rev_rate` | Standard retract speed | 3000 |
 | `AUTO_RATE` | `auto_rate` | Preload speed (`LO:`) | 3000 |
-| `BUF_STAB_RATE` | `buf_stab_rate` | Buffer stabilization speed for boot neutralization and UL tension-recovery move | 600 |
 | `JOIN_RATE` | `join_rate` | RELOAD: Fast approach speed | 1600 |
 | `PRESS_RATE` | `press_rate` | RELOAD: Slow follow-sync speed | 1200 |
 | `GLOBAL_MAX_RATE` | `global_max_rate` | Absolute ceiling applied to every commanded motor rate; `SYNC_MAX_RATE` remains the sync-only soft cap under it | 4000 |
@@ -144,36 +165,22 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `BASELINE_RATE` | `baseline_rate` | Sync bootstrap target and scalar fallback baseline when no flow schedule is configured | 1600 |
 
 ### Smarter Sync (Estimator)
+Operator-facing sync knobs only. Estimator/relay internals (`EST_ALPHA_*`,
+`ZONE_BIAS_*`, `NEUTRAL_CREEP_*`, `VAR_BLEND_*`, `RELAY_MIN_FLIP_MM`,
+`SYNC_TICK_MS`, `BASELINE_ALPHA`, `BUF_PREDICT_THR_MS`, `RELOAD_LEAN`, …) are
+dev-build-only — see the note at the top of this section.
 | Parameter | `config.ini` Key | Description | Default |
 |-----------|------------------|-------------|---------|
-| `SYNC_TICK_MS` | `sync_tick_ms` | Period between sync-controller updates | 20 |
-| `SYNC_UP_RATE` | `sync_ramp_up_rate` | Max sync-speed increase applied each control tick | 40 |
-| `SYNC_DN_RATE` | `sync_ramp_dn_rate` | Max sync-speed decrease applied each control tick | 80 |
-| `BASELINE_ALPHA` | `baseline_alpha` | Settled-NEUTRAL baseline adaptation factor | 0.02 |
-| `BUF_PREDICT_THR_MS` | `buf_predict_thr_ms` | NEUTRAL-dwell threshold used by tension prediction | 250 |
 | `SYNC_KP_RATE` | `sync_kp_rate` | Proportional reserve-correction window around the virtual buffer target | 900 |
-| `EST_ALPHA_MIN`| `est_alpha_min` | Estimator responsiveness for slow drifts | 0.12 |
-| `EST_ALPHA_MAX`| `est_alpha_max` | Estimator responsiveness for sharp jumps | 0.65 |
 | `SYNC_RESERVE_PCT` | `sync_reserve_pct` | Normal-sync reserve target as % of half `BUF_SWITCH_SPAN` toward compression | 35 |
 | `COMPRESSION_BIAS_FRAC` | `sync_compression_bias_frac` | Scalar fallback compression-side setpoint shift when no flow schedule is configured (0.0 to 0.7) | 0.45 |
-| `NEUTRAL_CREEP_TIMEOUT_MS` | `neutral_creep_timeout_ms` | Neutral-dwell wait before creep activates | 0 |
-| `NEUTRAL_CREEP_RATE` | `neutral_creep_rate_sps_per_s` | Creep ramp slope (SPS/s) | 0 |
-| `NEUTRAL_CREEP_CAP` | `neutral_creep_cap_frac` | Hard cap on creep as % of extruder_est_sps | 10 |
 | `RELAY_CATCHUP_FRAC` | `relay_catchup_frac` | Type-D relay TENSION refill multiplier | 1.30 |
-| `RELAY_NEUTRAL_FRAC` | `relay_neutral_frac` | Type-D relay NEUTRAL fallback/lean multiplier | 1.25 |
-| `RELAY_MIN_FLIP_MM` | `relay_min_flip_mm` | Distance hysteresis for type-D flips; 0.0 keeps time-only `BUF_HYST` behavior | 0.5 |
-| `VAR_BLEND_FRAC` | `buf_variance_blend_frac` | Max variance-aware blend fraction (0.0=OFF) | 0.0 |
-| `VAR_BLEND_REF_MM` | `buf_variance_blend_ref_mm` | Sigma value at which blend distrust saturates | 1.0 |
-| `ZONE_BIAS_BASE`| `zone_bias_base_rate`| Base reserve-recovery correction around the virtual buffer target (mm/min) | 120 |
-| `ZONE_BIAS_RAMP`| `zone_bias_ramp_rate`| Extra reserve-recovery ramp while buffer stays away from target (mm/min per second) | 45 |
-| `ZONE_BIAS_MAX` | `zone_bias_max_rate` | Max reserve-recovery correction (mm/min) | 600 |
-| `RELOAD_LEAN`  | `reload_lean_factor` | RELOAD follow over-feed factor (0.0 to 5.0) | 1.15 |
+| `RELAY_NEUTRAL_FRAC` | `relay_neutral_frac` | Type-D relay NEUTRAL fallback/lean multiplier (gentle compression lean) | 1.10 |
 | `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
 
 ### Safety & Timeouts
 | Parameter | `config.ini` Key | Description | Default |
 |-----------|------------------|-------------|---------|
-| `RAMP_TICK_MS` | `ramp_tick_ms` | Period between lane acceleration ramp steps | 5 |
 | `LOAD_MAX` | `load_max_mm` | Max distance for `FL:` or **Auto-Load** | 3000 |
 | `UNLOAD_MAX` | `unload_max_mm` | Max distance for `UL:`, `UM:` | 3000 |
 | `RETRACT_MM` | `autoload_retract_mm` | Distance to retract after `LO:` triggers OUT, and after `UL:` clears OUT. 0 = stop immediately. | 5 |

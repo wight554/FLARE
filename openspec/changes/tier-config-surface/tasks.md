@@ -67,8 +67,10 @@
 - [x] 5.2 `config.ini.example`: demoted entries replaced with a consolidated
   "Internal control-loop constants (NOT user-tunable)" note pointing at
   `tune_internal.h`. (`TUNING.md` deep-pass — minor doc follow-up.)
-- [ ] 5.3 `MANUAL.md`: note the demoted `SET:`/`GET:` keys are dev-build-only.
-  OPEN — minor doc follow-up.
+- [x] 5.3 `MANUAL.md`: added a dev-build-only note at the `Parameters` head
+  (lists the gated keys, explains `ER:SET:UNKNOWN_PARAM` + `FLARE_DEV_TUNING`);
+  trimmed the demoted rows from the Smarter Sync / Sync-Feedback / Speeds /
+  Safety tables (also fixed stale `RELAY_NEUTRAL_FRAC` default 1.25→1.10).
 
 ## 6. Build + regression
 
