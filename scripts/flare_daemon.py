@@ -512,9 +512,9 @@ def parse_status_line(line):
                 # Check sensor type (0 = Type-D digital, 1 = Type-P analog)
                 stype = new_data.get("buf_sensor_type", status_cache.get("buf_sensor_type", 0))
                 if stype == 1:
-                    new_data["sync_feedback"] = max(-1.0, min(1.0, bp_val))
+                    new_data["sync_feedback"] = max(-1.0, min(1.0, -bp_val))
                 else:
-                    new_data["sync_feedback"] = max(-1.0, min(1.0, bp_val / 15.0))
+                    new_data["sync_feedback"] = max(-1.0, min(1.0, -bp_val / 15.0))
             elif key == "BST":
                 val_int = int(val)
                 new_data["buf_sensor_type"] = val_int
@@ -999,9 +999,9 @@ def klipper_syncer(moonraker_url):
         g_buf_pos = state.get("g_buf_pos", 0.0)
         stype = state.get("buf_sensor_type", 0)
         if stype == 1:
-            sync_feedback = max(-1.0, min(1.0, g_buf_pos))
+            sync_feedback = max(-1.0, min(1.0, -g_buf_pos))
         else:
-            sync_feedback = max(-1.0, min(1.0, g_buf_pos / 15.0))
+            sync_feedback = max(-1.0, min(1.0, -g_buf_pos / 15.0))
         buf_state = state.get("buf_state", "NEUTRAL").lower()
         if buf_state == "compression":
             buf_state = "compressed"

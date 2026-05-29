@@ -15,9 +15,9 @@ Mainsail and Fluidd look for specific fields in the `printer.mmu` Klipper state 
 
 ### Rescaling Formula for Buffer Position
 ```python
-# Convert raw mm to the -1.0 to 1.0 float expected by Mainsail
+# Convert raw mm to the -1.0 to 1.0 float expected by Mainsail (inverted to match Happy Hare convention)
 max_travel = 15.0  # mm (derived from BUF_SWITCH_SPAN or BUF_MAX_TRAVEL_MM)
-sync_feedback = clamp(g_buf_pos / max_travel, -1.0, 1.0)
+sync_feedback = clamp(-g_buf_pos / max_travel, -1.0, 1.0)
 ```
 
 ---
