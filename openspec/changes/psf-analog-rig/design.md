@@ -352,6 +352,13 @@ To keep the buffer perfectly neutral during fast print head retracts (where open
 4. This ensures that as the buffer compresses, the MMU retracts faster, automatically slowing down to 0 sps as the buffer returns to neutral.
 5. Integrate actual distance traveled dynamically (`g_bl_follow_traveled_mm += follow_sps * MM_PER_STEP * dt_s`) to stop precisely when `g_bl_follow_mm` is consumed.
 
+### D21 — Highly Sensitive Contact Detection in RELOAD Approach for Type-P (Analog)
+
+To achieve instantaneous contact/touch tracking when the new filament tip hits the tail of the old filament during the `TC_RELOAD_APPROACH` phase:
+1. On Type-D digital buffer, contact is blocked until the microswitch closes at `BUF_COMPRESSION`.
+2. On Type-P analog buffer, the arm sits at the tension/home position (`g_buf_pos == 1.0f`) during free feed. Any physical contact with the tail will instantly push the arm away from the home stop.
+3. We define contact when `g_buf_pos < 0.85f` for Type-P. This detects contact the moment the tip touches the tail, avoiding filament bowing or pressure build-ups.
+
 ## Risks / Trade-offs
 
 - **#7 compression_recovery timing unverified** → Tasks for #7 and H2 are

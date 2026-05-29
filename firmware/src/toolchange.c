@@ -325,7 +325,12 @@ void tc_tick(uint32_t now_ms) {
                 break;
             }
 
-            bool contacted = (g_buf.state == BUF_COMPRESSION);
+            bool contacted = false;
+            if (BUF_SENSOR_TYPE == 1) {
+                contacted = (g_buf_pos < 0.85f);
+            } else {
+                contacted = (g_buf.state == BUF_COMPRESSION);
+            }
 
             if (A && A->task_limit_mm > 0.0f && A->task_dist_mm >= A->task_limit_mm) {
                 lane_stop(A);
