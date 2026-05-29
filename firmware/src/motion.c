@@ -294,7 +294,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                     motor_set_dir(&L->m, false);
                     motor_set_rate_sps(&L->m, L->current_sps);
                 }
-            } else if (!L->unload_to_in && !L->unload_buf_recover_done && g_buf.state == BUF_TENSION) {
+            } else if (BUF_SENSOR_TYPE == 0 && !L->unload_to_in && !L->unload_buf_recover_done && g_buf.state == BUF_TENSION) {
                 motor_stop(&L->m);
                 L->unload_buf_recover_done = true;
                 L->unload_sensor_latch = true;
@@ -340,7 +340,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                by the printer blocking THIS lane.  Skip the check in that case. */
             if (UNLOAD_TENSION_BLOCK_MS > 0 && !L->unload_to_in &&
                     !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
-                if (g_buf.state == BUF_TENSION) {
+                if (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION) {
                     if (L->buf_tension_since_ms == 0) L->buf_tension_since_ms = now_ms;
                     else if ((int32_t)(now_ms - L->buf_tension_since_ms) >= UNLOAD_TENSION_BLOCK_MS) {
                         lane_stop(L);
@@ -383,7 +383,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
             }
         }
 
-        bool buf_tension_sane = (g_buf.state == BUF_TENSION);
+        bool buf_tension_sane = (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION);
         bool buf_compression_sane = false;
         if (L->unload_sensor_latch) {
             float dist_since_out = L->task_dist_mm - L->dist_at_out_mm;
