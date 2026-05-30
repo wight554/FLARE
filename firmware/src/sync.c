@@ -2234,6 +2234,7 @@ void sync_tick(uint32_t now_ms) {
     }
 
     if (fast_brake_active) sync_current_sps = 0;
+    else if (BUF_SENSOR_TYPE == 1) sync_current_sps = target_sps; /* PD law tracks directly; ramp fights it */
     else if (sync_current_sps > target_sps) sync_current_sps -= ramp_dn_sps;
     else if (sync_current_sps < target_sps) sync_current_sps += SYNC_RAMP_UP_SPS;
 
