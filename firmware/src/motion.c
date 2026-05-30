@@ -461,7 +461,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
     }
 
     if (L->task == TASK_MOVE) {
-        if (!L->move_ignore_buffer) {
+        if (!L->move_ignore_buffer && BUF_SENSOR_TYPE == 0) {
             if (L->task_forward && g_buf.state == BUF_COMPRESSION) {
                 lane_stop(L);
                 L->fault = FAULT_BUF;
