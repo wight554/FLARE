@@ -1758,7 +1758,13 @@ void sync_tick(uint32_t now_ms) {
     lane_t *A = lane_ptr(active_lane);
     if (!A || tc_state() != TC_IDLE || g_boot_stabilizing) return;
 
-    if (BUF_SENSOR_TYPE == 1) {
+    if (BUF_SENSOR_TYPE == 1 && sync_enabled) {
+        /* Gated to active sync: type-P rests at the tension rail (+1.0) whenever
+           unloaded/idle/mid-tube, so this saturation catch must NOT run when the
+           sync loop isn't driving — otherwise the resting home position trips
+           sync_fault_hold() at idle and breaks a manual UL (the buffer is its own
+           normal home, not a starvation fault). Over-tension is only a fault while
+           actively syncing a loaded buffer. */
         /* 10.1: Velocity-triggered brake on compression slam */
         if (g_vel_norm < -CONF_PSF_JUMP_NORM_PER_S) {
             sync_fast_brake_until_ms = now_ms + CONF_PSF_STOP_CONFIRM_MS;

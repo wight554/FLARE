@@ -185,6 +185,7 @@ void lane_stop(lane_t *L) {
     L->dry_spin_ms = 0;
     L->unload_sensor_latch = false;
     L->unload_buf_recover_done = false;
+    L->unload_buf_left_rail = false;
     L->retract_deadline_ms = 0;
     L->buf_tension_since_ms = 0;
     L->reload_tail_ms = 0;
@@ -205,6 +206,7 @@ void lane_start(lane_t *L, task_t t, int sps, bool forward, uint32_t now_ms, flo
     L->task_dist_mm = 0.0f;
     L->dist_at_out_mm = 0.0f;
     L->unload_sensor_latch = false;
+    L->unload_buf_left_rail = false;
     L->retract_deadline_ms = 0;
     L->dist_at_in_clear_mm = 0.0f;
     L->suppress_unloaded_event = false;
@@ -280,13 +282,18 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
 
     if (L->task == TASK_UNLOAD) {
         if (L->retract_deadline_ms == 0) {
-            /* D22: type-P unload over-tension guard. Type-P homes at the tension
-               rail, so "at tension" alone is not a fault — a fault is the rail
-               PINNED while filament is still present (extruder out-pulling the
-               retract). buf_tension_since_ms (managed by the block check below)
-               supplies the dwell; a velocity slam toward tension short-circuits
-               the dwell for fast prevention (tier A folded into the relief jog). */
-            bool psf_pinned = (BUF_SENSOR_TYPE == 1 && g_buf_pos >= PSF_TENSION_PIN_NORM);
+            /* D22 + Fix B: type-P unload over-tension guard. Type-P homes at the
+               tension rail, so a pin is a fault only AFTER the buffer has left the
+               rail at least once this unload (g_buf_pos < HOME_DEVIATION) — that
+               proves real toolhead-side load. Without this arming, a mid-tube or
+               unloaded retract that never leaves home would false-trip. A pin then
+               = the rail held while filament is still present (extruder out-pulling
+               the retract). buf_tension_since_ms supplies the dwell; a velocity
+               slam short-circuits it (tier A folded into the relief jog). */
+            if (BUF_SENSOR_TYPE == 1 && g_buf_pos < PSF_HOME_DEVIATION_THRESHOLD_NORM)
+                L->unload_buf_left_rail = true;
+            bool psf_pinned = (BUF_SENSOR_TYPE == 1 && L->unload_buf_left_rail &&
+                               g_buf_pos >= PSF_TENSION_PIN_NORM);
             bool psf_relief_due = psf_pinned && !L->unload_to_in &&
                 ((L->buf_tension_since_ms != 0 &&
                   (int32_t)(now_ms - L->buf_tension_since_ms) >= (int32_t)PSF_UNLOAD_RELIEF_ARM_MS)
@@ -356,7 +363,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                     !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
                 bool buf_overtensioned = (BUF_SENSOR_TYPE == 0)
                     ? (g_buf.state == BUF_TENSION)
-                    : (g_buf_pos >= PSF_TENSION_PIN_NORM);
+                    : (L->unload_buf_left_rail && g_buf_pos >= PSF_TENSION_PIN_NORM);
                 if (buf_overtensioned) {
                     if (L->buf_tension_since_ms == 0) L->buf_tension_since_ms = now_ms;
                     else if ((int32_t)(now_ms - L->buf_tension_since_ms) >= UNLOAD_TENSION_BLOCK_MS) {
