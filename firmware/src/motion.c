@@ -434,6 +434,12 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                 sync_set_state(SYNC_ACTIVE);
                 sync_auto_started = true;
                 sync_idle_since_ms = 0;
+            } else if (BUF_SENSOR_TYPE == 1) {
+                /* Type-P: confidently loaded now (gear contact / toolhead), so park
+                   the buffer at goal. Presence-gated; self-aborts (~200 ms,
+                   BUF_STAB:STAGNANT_TIMEOUT) if the buffer doesn't track the MMU —
+                   i.e. not actually coupled, so we stop rather than dry-spin. */
+                buffer_stabilize_request(now_ms);
             }
         } else if (!lane_in_present(L) && (int32_t)(now_ms - L->task_started_ms) >= 1000) {
             if (lane_out_present(L)) {
