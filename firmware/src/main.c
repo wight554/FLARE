@@ -470,7 +470,11 @@ int main(void) {
     prev_lane1_in_present = lane_in_present(&g_lane_l1);
     prev_lane2_in_present = lane_in_present(&g_lane_l2);
 
-
+    // Start any needed dual-endstop buffer neutralization in the background so
+    // commands and state machines are responsive immediately after boot.
+    if (active_lane != 0) {
+        boot_stabilize_start(to_ms_since_boot(get_absolute_time()));
+    }
 
     while (true) {
         g_now_ms = to_ms_since_boot(get_absolute_time());
