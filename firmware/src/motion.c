@@ -408,7 +408,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                 buf_tension_sane = false;
             } else {
                 if (BUF_SENSOR_TYPE == 1) {
-                    if (g_buf_pos < PSF_LOAD_CONTACT_THRESHOLD_NORM) {
+                    if (g_buf_pos > PSF_LOAD_CONTACT_THRESHOLD_NORM) {
                         buf_compression_sane = true;
                     }
                 } else if (g_buf.state == BUF_COMPRESSION) {

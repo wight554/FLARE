@@ -335,21 +335,21 @@ static float buf_target_reserve_mm(void) {
     flow_param_t fp = flow_param((int)extruder_est_sps);
     float schedule_bias = (float)fp.bias_milli / 1000.0f;
     float bias = clamp_f(fmaxf(SYNC_COMPRESSION_BIAS_FRAC, schedule_bias), 0.0f, 0.7f);
-    float target = -(threshold * pct);
+    float target = (threshold * pct);
     float center_guard_mm = threshold * SYNC_RESERVE_CENTER_GUARD_FRAC;
 
-    if (pct > 0.0f) target -= center_guard_mm;
+    if (pct > 0.0f) target += center_guard_mm;
 
     /* H1: holdable target. Cap the bias position contribution so the
      * buffer parks off the fault wall with room for frequent switch
      * crossings (keeps the estimator fresh). Remaining compression lean is
      * applied as a feed trim (H2), not parked depth. */
     float bias_pos = fminf(bias, SYNC_RESERVE_BIAS_POS_FRAC_CAP);
-    target -= bias_pos * threshold;
+    target += bias_pos * threshold;
 
-    float min_target = -physical_half + 0.5f;
-    if (target < min_target) target = min_target;
-    if (target > threshold) target = threshold;
+    float max_target = physical_half - 0.5f;
+    if (target > max_target) target = max_target;
+    if (target < -threshold) target = -threshold;
     return target;
 }
 
@@ -367,8 +367,8 @@ static void buf_anchor_virtual_position(buf_state_t old_state, buf_state_t new_s
     buf_state_t anchor_state = new_state;
     if (new_state == BUF_NEUTRAL) anchor_state = old_state;
 
-    if (anchor_state == BUF_TENSION) g_buf_pos = threshold;
-    else if (anchor_state == BUF_COMPRESSION) g_buf_pos = -threshold;
+    if (anchor_state == BUF_TENSION) g_buf_pos = -threshold;
+    else if (anchor_state == BUF_COMPRESSION) g_buf_pos = threshold;
     else g_buf_pos = 0.0f;
 }
 
@@ -392,7 +392,7 @@ static void buf_virtual_position_tick(lane_t *A, uint32_t elapsed_ms) {
         float dt_s = (float)elapsed_ms / 1000.0f;
         float mmu_mm_s = (float)lane_motion_sps(A) * MM_PER_STEP[idx];
         float extruder_mm_s = extruder_est_sps * MM_PER_STEP[idx];
-        float net_delta = (extruder_mm_s - mmu_mm_s) * dt_s;
+        float net_delta = (mmu_mm_s - extruder_mm_s) * dt_s;
         g_buf_pos += net_delta;
         if (g_buf.state == BUF_NEUTRAL) {
             g_buf_pos_sigma_accum_mm += fabsf(net_delta);
@@ -400,8 +400,8 @@ static void buf_virtual_position_tick(lane_t *A, uint32_t elapsed_ms) {
     }
 
     g_buf_pos = clamp_f(g_buf_pos, -physical_half, physical_half);
-    if (g_buf.state == BUF_TENSION && g_buf_pos < threshold) g_buf_pos = threshold;
-    else if (g_buf.state == BUF_COMPRESSION && g_buf_pos > -threshold) g_buf_pos = -threshold;
+    if (g_buf.state == BUF_TENSION && g_buf_pos > -threshold) g_buf_pos = -threshold;
+    else if (g_buf.state == BUF_COMPRESSION && g_buf_pos < threshold) g_buf_pos = threshold;
     else if (g_buf.state == BUF_NEUTRAL) g_buf_pos = clamp_f(g_buf_pos, -threshold, threshold);
 }
 
@@ -427,7 +427,7 @@ float sync_compression_wall_velocity_mm_s(lane_t *L) {
 
 static float sync_compression_wall_remaining_mm(void) {
     if (g_buf_signal.kind != BUF_SRC_VIRTUAL_ENDSTOP) return 0.0f;
-    float remaining = g_buf_pos + buf_physical_half_travel_mm();
+    float remaining = buf_physical_half_travel_mm() - g_buf_pos;
     if (remaining < 0.0f) remaining = 0.0f;
     return remaining;
 }
@@ -570,7 +570,7 @@ void buf_analog_update(void) {
              ? -(fraction - neutral) / d_comp
              :  (neutral - fraction) / d_tens;
     }
-    norm = clamp_f(norm, -1.0f, 1.0f);
+    norm = clamp_f(-norm, -1.0f, 1.0f);
 
     g_buf_pos = BUF_ANALOG_ALPHA * norm + (1.0f - BUF_ANALOG_ALPHA) * g_buf_pos;
 
@@ -606,7 +606,7 @@ static float psf_goal_norm(void) {
                   ? -(goal_raw - BUF_PSF_NEUTRAL) / d_comp
                   :  (BUF_PSF_NEUTRAL - goal_raw) / d_tens;
     }
-    return clamp_f(goal_norm, -1.0f, 1.0f);
+    return clamp_f(-goal_norm, -1.0f, 1.0f);
 }
 
 static float buf_pos_norm(void) {
@@ -633,8 +633,8 @@ buf_state_t buf_state_raw(void) {
     if (BUF_SENSOR_TYPE == 1) {
         float goal_norm = psf_goal_norm();
         const float deadband = 0.1f;
-        if (g_buf_pos > goal_norm + deadband) return BUF_TENSION;
-        if (g_buf_pos < goal_norm - deadband) return BUF_COMPRESSION;
+        if (g_buf_pos < goal_norm - deadband) return BUF_TENSION;
+        if (g_buf_pos > goal_norm + deadband) return BUF_COMPRESSION;
         return BUF_NEUTRAL;
     }
 
@@ -930,25 +930,25 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     g_buf.arm_vel_mm_s = 0.0f;
 
     if (old == BUF_NEUTRAL) {
-        if (new_state == BUF_TENSION) travel_mm = threshold - g_buf_physical_entry_pos_mm;
-        else if (new_state == BUF_COMPRESSION) travel_mm = -threshold - g_buf_physical_entry_pos_mm;
+        if (new_state == BUF_TENSION) travel_mm = -threshold - g_buf_physical_entry_pos_mm;
+        else if (new_state == BUF_COMPRESSION) travel_mm = threshold - g_buf_physical_entry_pos_mm;
     } else if (old == BUF_TENSION) {
         if (new_state == BUF_NEUTRAL) travel_mm = 0.0f;
-        else if (new_state == BUF_COMPRESSION) travel_mm = -max_transition_mm;
+        else if (new_state == BUF_COMPRESSION) travel_mm = max_transition_mm;
     } else if (old == BUF_COMPRESSION) {
         if (new_state == BUF_NEUTRAL) travel_mm = 0.0f;
-        else if (new_state == BUF_TENSION) travel_mm = max_transition_mm;
+        else if (new_state == BUF_TENSION) travel_mm = -max_transition_mm;
     }
 
     travel_mm = clamp_f(travel_mm, -max_transition_mm, max_transition_mm);
 
     if (new_state == BUF_TENSION) {
-        g_buf_physical_entry_pos_mm = threshold;
-    } else if (new_state == BUF_COMPRESSION) {
         g_buf_physical_entry_pos_mm = -threshold;
+    } else if (new_state == BUF_COMPRESSION) {
+        g_buf_physical_entry_pos_mm = threshold;
     } else if (new_state == BUF_NEUTRAL) {
-        if (old == BUF_TENSION) g_buf_physical_entry_pos_mm = threshold;
-        else if (old == BUF_COMPRESSION) g_buf_physical_entry_pos_mm = -threshold;
+        if (old == BUF_TENSION) g_buf_physical_entry_pos_mm = -threshold;
+        else if (old == BUF_COMPRESSION) g_buf_physical_entry_pos_mm = threshold;
     }
 
     if (BUF_SENSOR_TYPE == 0 && fabsf(travel_mm) > 0.001f && prev_dwell > (uint32_t)BUF_HYST_MS) {
@@ -987,7 +987,7 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     /* Residual observer — measure pre-snap virtual/physical mismatch.
      * Record on both endstops to capture both positive and negative drift correctly. */
     if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL && (new_state == BUF_TENSION || new_state == BUF_COMPRESSION)) {
-        float switch_pos_mm = (new_state == BUF_TENSION) ? threshold : -threshold;
+        float switch_pos_mm = (new_state == BUF_TENSION) ? -threshold : threshold;
         float residual = g_buf_pos - switch_pos_mm;
         g_bp_residual_last_mm = residual;
 
@@ -1315,8 +1315,8 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
     if (g_bl_sub_state == BL_PRIME) {
         bool reached = false;
         if (BUF_SENSOR_TYPE == 1) {
-            if (g_bl_target_state == BUF_TENSION) reached = (g_buf_pos >= PSF_HOME_THRESHOLD_NORM);
-            else if (g_bl_target_state == BUF_COMPRESSION) reached = (g_buf_pos <= -PSF_HOME_THRESHOLD_NORM);
+            if (g_bl_target_state == BUF_TENSION) reached = (g_buf_pos <= -PSF_HOME_THRESHOLD_NORM);
+            else if (g_bl_target_state == BUF_COMPRESSION) reached = (g_buf_pos >= PSF_HOME_THRESHOLD_NORM);
         } else {
             buf_state_t raw = buf_state_raw();
             reached = (raw == g_bl_target_state);
@@ -1367,8 +1367,8 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         if (g_bl_follow_mm > 0.0f) {
             bool lock_broken = false;
             if (BUF_SENSOR_TYPE == 1) {
-                if (g_bl_target_state == BUF_TENSION) lock_broken = (g_buf_pos < PSF_HOME_THRESHOLD_NORM);
-                else if (g_bl_target_state == BUF_COMPRESSION) lock_broken = (g_buf_pos > -PSF_HOME_THRESHOLD_NORM);
+                if (g_bl_target_state == BUF_TENSION) lock_broken = (g_buf_pos > -PSF_HOME_THRESHOLD_NORM);
+                else if (g_bl_target_state == BUF_COMPRESSION) lock_broken = (g_buf_pos < PSF_HOME_THRESHOLD_NORM);
             } else {
                 buf_state_t raw = buf_state_raw();
                 lock_broken = (raw != g_bl_target_state);
@@ -1413,8 +1413,8 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
          * position, so it can only rely on the elapsed-distance budget below. */
         if (BUF_SENSOR_TYPE == 1) {
             bool rail_hit = (g_bl_target_state == BUF_TENSION)
-                            ? (g_buf_pos >= PSF_FOLLOW_RAIL_NORM)
-                            : (g_buf_pos <= -PSF_FOLLOW_RAIL_NORM);
+                            ? (g_buf_pos <= -PSF_FOLLOW_RAIL_NORM)
+                            : (g_buf_pos >= PSF_FOLLOW_RAIL_NORM);
             if (rail_hit) {
                 motor_set_rate_sps(&A->m, 0);
                 g_bl_sub_state = BL_LOCKED;
@@ -1808,7 +1808,7 @@ void sync_tick(uint32_t now_ms) {
         } else if (sync_fast_brake_until_ms != 0 && (int32_t)(now_ms - sync_fast_brake_until_ms) >= 0) {
             /* Brake expired: check if pinned */
             sync_fast_brake_until_ms = 0;
-            if (g_buf_pos <= -0.99f) {
+            if (g_buf_pos >= 0.99f) {
                 sync_relief_pause();
                 sync_apply_to_active();
                 cmd_event("SYNC", "RELIEF_PAUSE");
@@ -1819,12 +1819,12 @@ void sync_tick(uint32_t now_ms) {
         /* 10.3: Saturation-sustained relief/fault triggers */
         if (g_buf_analog_saturated_since_ms != 0 &&
             (now_ms - g_buf_analog_saturated_since_ms) >= CONF_PSF_WALL_SAT_MS) {
-            if (g_buf_pos <= -0.99f) {
+            if (g_buf_pos >= 0.99f) {
                 sync_relief_pause();
                 sync_apply_to_active();
                 cmd_event("SYNC", "RELIEF_PAUSE");
                 return;
-            } else if (g_buf_pos >= 0.99f) {
+            } else if (g_buf_pos <= -0.99f) {
                 sync_fault_hold();
                 sync_apply_to_active();
                 cmd_event("SYNC", "FAULT_HOLD");
@@ -1889,7 +1889,7 @@ void sync_tick(uint32_t now_ms) {
        fresh transition fires — but the extruder pulling still makes it rise.
        A static rest at home (+1.0) has vel~0, so this stays gated there (D18). */
     bool is_tension_active = (BUF_SENSOR_TYPE == 1)
-        ? ((g_buf_pos > 0.6f) && (g_sync_tension_transitioned || g_vel_norm > 0.1f))
+        ? ((g_buf_pos < -0.6f) && (g_sync_tension_transitioned || g_vel_norm < -0.1f))
         : (s == BUF_TENSION);
     if (AUTO_MODE && !sync_enabled && auto_start_allowed && is_tension_active &&
             !g_bl_autostart_suppressed &&
@@ -1990,12 +1990,12 @@ void sync_tick(uint32_t now_ms) {
         if (wall_taper_mm < 0.5f) wall_taper_mm = 0.5f;
 
         if (drift_correction_mm < 0.0f) {
-            float dist_from_compression_mm = g_buf_pos + thr;
-            float wall_frac = clamp_f(dist_from_compression_mm / wall_taper_mm, 0.0f, 1.0f);
+            float dist_from_tension_mm = g_buf_pos + thr;
+            float wall_frac = clamp_f(dist_from_tension_mm / wall_taper_mm, 0.0f, 1.0f);
             drift_correction_mm *= wall_frac;
         } else if (drift_correction_mm > 0.0f) {
-            float dist_from_tension_mm = thr - g_buf_pos;
-            float wall_frac = clamp_f(dist_from_tension_mm / wall_taper_mm, 0.0f, 1.0f);
+            float dist_from_compression_mm = thr - g_buf_pos;
+            float wall_frac = clamp_f(dist_from_compression_mm / wall_taper_mm, 0.0f, 1.0f);
             drift_correction_mm *= wall_frac;
         }
 
@@ -2003,8 +2003,8 @@ void sync_tick(uint32_t now_ms) {
 
         /* SAFETY: Don't let correction push bp_eff to the opposite side of physical state.
          * If we are physically at a wall, the controller must see it as at or beyond that wall. */
-        if (s == BUF_COMPRESSION && bp_eff > -thr) bp_eff = -thr;
-        else if (s == BUF_TENSION && bp_eff < thr) bp_eff = thr;
+        if (s == BUF_COMPRESSION && bp_eff < thr) bp_eff = thr;
+        else if (s == BUF_TENSION && bp_eff > -thr) bp_eff = -thr;
 
         /* CONFIDENCE BIAS: If we are uncertain, shift bp_eff toward the TENSION side.
          * This creates a gentle "feed pressure" that ensures we don't under-feed
@@ -2014,7 +2014,7 @@ void sync_tick(uint32_t now_ms) {
          * redundant. Gate it off in that case. */
         if (BUF_VARIANCE_BLEND_FRAC <= 0.0f) {
             float uncertainty_shift_mm = (1.0f - g_buf_signal.confidence) * (thr * 0.8f);
-            bp_eff += uncertainty_shift_mm;
+            bp_eff -= uncertainty_shift_mm;
         }
 
         /* Clamp so correction cannot push bp_eff past the endstop zone boundary */
@@ -2065,8 +2065,8 @@ void sync_tick(uint32_t now_ms) {
 
         float thr = buf_threshold_mm();
         /* Use raw g_buf_pos to detect model stalls, ignoring any drift correction. */
-        bool model_stalled_compression = (g_buf_pos <= -thr + 0.01f);
-        bool model_stalled_tension  = (g_buf_pos >= thr - 0.01f);
+        bool model_stalled_compression = (g_buf_pos >= thr - 0.01f);
+        bool model_stalled_tension  = (g_buf_pos <= -thr + 0.01f);
 
         if (model_stalled_compression) {
             /* Model thinks we are full, but we are physically in NEUTRAL.
@@ -2331,7 +2331,7 @@ bool sync_is_positive_relaunch_damped(void) {
 
     // If reserve error is clearly positive the buffer is already refilling —
     // stop damping so the correction can run at full strength.
-    if (sync_reserve_error_mm() > buf_virtual_deadband_mm() * 0.5f) return false;
+    if (sync_reserve_error_mm() < -buf_virtual_deadband_mm() * 0.5f) return false;
 
     return true;
 }
