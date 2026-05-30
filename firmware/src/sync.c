@@ -1409,20 +1409,21 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
 
         float traveled = 0.0f;
         if (BUF_SENSOR_TYPE == 1) {
-            /* Closed-loop hold at goal: bidirectional, ignores the macro's
-               len/rate (type-D open-loop params). Feed when the buffer is above
-               goal (toward tension), retract when below — speed proportional to
-               the distance from goal, capped at SYNC_MAX_SPS, self-limiting (->0
-               at goal). No distance cap: hold until BS or the watchdog releases. */
+            /* Closed-loop hold at NEUTRAL (0), bidirectional, ignores the macro's
+               len/rate (type-D open-loop params). During a retract the buffer must
+               stay off the compression side — holding at goal (compression-side)
+               overfeeds the buffer toward the compression rail, which bulges the
+               filament. Target 0: feed to relieve when the retract pulls the buffer
+               toward tension, retract to remove slack if it drifts compression.
+               Speed ∝ distance from neutral, capped at SYNC_MAX_SPS, ->0 at neutral.
+               No distance cap: hold until BS or the watchdog releases. */
             (void)dt_s;
-            float err = g_buf_pos - psf_goal_norm();
+            float err = g_buf_pos;   /* target = 0 (neutral) */
             int follow_sps = 0;
             bool forward = true;
             if (fabsf(err) > 0.05f) {
-                forward = (err > 0.0f);
-                float span = forward ? (1.0f - psf_goal_norm()) : (1.0f + psf_goal_norm());
-                if (span < 0.001f) span = 0.001f;
-                float factor = fabsf(err) / span;
+                forward = (err > 0.0f);   /* tension side -> feed; compression -> retract */
+                float factor = fabsf(err); /* span 0..1 (neutral to either rail) */
                 if (factor > 1.0f) factor = 1.0f;
                 follow_sps = (int)(factor * (float)sync_clamp_max_sps(SYNC_MAX_SPS));
                 if (follow_sps < 1) follow_sps = 1;
