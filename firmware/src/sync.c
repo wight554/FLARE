@@ -732,7 +732,16 @@ static bool buffer_negative_sync_eligible(void) {
 static bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events, buffer_service_mode_t mode) {
     if (g_boot_stabilizing) return true;
     if (!buffer_stabilize_controller_idle()) return false;
-    if (BUF_SENSOR_TYPE != 0) return false;
+    if (BUF_SENSOR_TYPE != 0) {
+        /* D23 Gate A: type-P idle stabilize. Drive toward goal via the shared
+           goal-relative path below (buf_state_raw() zones pick direction, the
+           stabilize tick stops at BUF_NEUTRAL = near goal), but only when
+           filament is present on a board-local sensor. Unloaded, the buffer
+           rests at the tension/home rail by design, so driving the motor would
+           dry-spin against the home stop. */
+        lane_t *pl = pick_boot_stabilize_lane();
+        if (!(lane_out_present(pl) || lane_in_present(pl))) return true;
+    }
     if (mode == BUFFER_SERVICE_NEG_SYNC && sync_guard_active) return true;
 
     buf_state_t buf_state = buf_state_raw();
@@ -1415,6 +1424,13 @@ void sync_fault_hold(void) {
     sync_set_state(SYNC_FAULT_HOLD);
     sync_current_sps = 0;
     g_sync_fault_hold_entry_ms = g_now_ms;
+}
+
+/* D22: true when the analog buffer is moving toward the tension rail fast enough
+   to count as a slam. Lets the motion.c unload guard short-circuit its dwell for
+   fast over-tension prevention. Threshold single-sourced in tune.h. */
+bool sync_buf_tension_slam(void) {
+    return g_vel_norm > CONF_PSF_JUMP_NORM_PER_S;
 }
 
 void sync_disable(bool reset_estimator) {

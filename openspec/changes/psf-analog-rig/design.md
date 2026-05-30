@@ -359,6 +359,122 @@ To achieve instantaneous contact/touch tracking when the new filament tip hits t
 2. On Type-P analog buffer, the arm sits at the tension/home position (`g_buf_pos == 1.0f`) during free feed. Any physical contact with the tail will instantly push the arm away from the home stop.
 3. We define contact when `g_buf_pos < 0.85f` for Type-P. This detects contact the moment the tip touches the tail, avoiding filament bowing or pressure build-ups.
 
+### D22 — Type-P unload over-tension guard (motion.c TASK_UNLOAD)
+
+Both type-D unload guards — buffer recover (`motion.c:297`) and
+`UNLOAD_TENSION_BLOCK` (`motion.c:343`) — are gated `BUF_SENSOR_TYPE == 0`, so
+type-P has no unload over-tension protection. The print-sync Layer-3 catch (D14)
+does not cover it: during `TASK_UNLOAD` the motor is driven open-loop by
+`motion.c` with `g_sync_state == SYNC_OFF`, so `sync_tick()`'s saturation catch
+never runs. The guard must live in the `motion.c` unload path.
+
+Type-D keys on `g_buf.state == BUF_TENSION` meaning "filament is pulling."
+Type-P homes at max tension (`g_buf_pos == +1.0`) — its relaxed / no-load
+resting position — so "at tension" is not by itself an anomaly. Physical
+behavior on unload:
+- While filament is present and the MMU is retracting, the arm is **deflected
+  below the tension rail** (`g_buf_pos < +1.0`) — reliable signal.
+- As soon as filament clears, the arm **relaxes back to +1.0** — this is the
+  **success terminal**, not a fault.
+- Over-tension = the printer extruder grips and pulls forward faster than the
+  MMU retracts (tug-of-war): the arm is **slammed to and pinned at the rail
+  while filament is still present**, unable to relieve.
+
+Discriminator: pinned-at-tension is a fault only **while filament is still
+present in the active-retract phase**. The existing `motion.c` structure already
+scopes both type-D guards to exactly that window — they run only inside
+`retract_deadline_ms == 0` (pre-OUT-clear); once OUT clears, `retract_deadline_ms`
+is set and the branch is dead, so a relax-to-home never trips them. The type-P
+port therefore needs **no arming / left-rail gate** — it is a near-direct
+substitution of the tension test:
+
+```
+type-D:  g_buf.state == BUF_TENSION
+type-P:  g_buf_pos  >= PSF_TENSION_PIN_NORM
+```
+
+within the same scope (`retract_deadline_ms == 0`, `!unload_to_in`, not the
+double-load exception). Tiers:
+
+- **A — fast brake (type-P prevention upgrade)**: a velocity spike toward
+  tension during retract stops the MMU reverse within one control tick
+  (reversible), so over-tension is arrested on the slam rather than after the
+  full block timeout. Mirrors D14 on the tension side. Requires `g_vel_norm`
+  (or an equivalent per-tick `g_buf_pos` delta) visible to `motion.c`.
+- **B — detect**: `pinned = g_buf_pos >= PSF_TENSION_PIN_NORM` → accumulate
+  `buf_tension_since_ms` (reuse existing lane field); not pinned → reset.
+- **C — relief jog (mirror `motion.c:297`, one-shot)**: pinned for
+  `PSF_UNLOAD_RELIEF_ARM_MS` and `!unload_buf_recover_done` → stop reverse, jog
+  FORWARD `BUF_STAB_SPS` a bounded distance; if it deflects off the rail,
+  healthy retract resumes. Distance accounted via `dist_at_out_mm` as type-D.
+- **D — block abort (mirror `motion.c:343`)**: pinned for
+  `UNLOAD_TENSION_BLOCK_MS` → `lane_stop()` + `cmd_event("UNLOAD_BLOCKED", NULL)`.
+
+Type-D is B+D at 5 s; type-P adds A for actual prevention (react in ~1 tick,
+not 5 s).
+
+Klipper: event vocabulary and scope unchanged — `UNLOAD_BLOCKED` / `UNLOADED`
+fire under equivalent physical conditions; brake and relief jog are
+motor-internal. Reuses `UNLOAD_TENSION_BLOCK_MS`, `BUF_STAB_SPS`. New constants:
+`PSF_TENSION_PIN_NORM`, `PSF_UNLOAD_RELIEF_ARM_MS` (`tune.h`). TC-driven unload
+keeps type-D parity: `tc_start_unload_lane` pre-sets `unload_buf_recover_done =
+true` (`toolchange.c:153`) so tier C is skipped during a toolchange, while tier
+D (not gated by the recover flag) stays active.
+
+*Rig-gated open items*:
+- `PSF_TENSION_PIN_NORM`: measure how high a healthy unload rides; threshold
+  must sit above the healthy-unload buffer floor (starting guess reuse
+  `PSF_HOME_THRESHOLD_NORM` 0.90, likely too low).
+- Brake vs jog sufficiency against a gripping extruder.
+- `g_vel_norm` sign on rig (+ = toward tension).
+- Verify klipper toolhead-clear reliably precedes the bowden retract, so a
+  from-start hotend stick is caught upstream rather than as a silent pass.
+
+### D23 — Type-P tension safety: klipper-agnostic idle stabilize + sync starvation guard
+
+Resolves the recurring `g_buf_pos = +1.0` (home / tension) ambiguity: it is
+**benign** (spring relaxed at rest) when filament is **absent**, and **dangerous**
+(starvation — filament about to be pulled taut) when filament is **present and
+sync is active**. The discriminator is `(mode × filament_present)`, both
+board-local. **Constraint: sync stays klipper-agnostic** — the firmware MUST NOT
+depend on the host pausing the extruder. Safety is therefore "control hard
+enough to keep the buffer off home, terminal-fault if that is physically
+impossible," not "ask klipper to slow down."
+
+**Gate A — idle BUF_STAB (type-P).** `buffer_stabilize_start_internal`
+(`sync.c:735`) hard-returns for type-P, so type-P has no idle/boot neutralize.
+Replace with a type-P branch gated on board-local filament presence (lane
+OUT/IN sensors):
+- present + `|g_buf_pos - psf_goal_norm()| > PSF_STAB_DEADBAND` → drive toward
+  goal (direction from the sign of the error) at `BUF_STAB_SPS`, emit `BUF_STAB`.
+- absent → no-op (tension = home = correct rest; driving the motor dry-spins).
+
+Type-D path unchanged. This is what you described: loaded → stabilize to goal;
+unloaded → leave at tension home.
+
+**Gate B — sync tension-starvation (klipper-agnostic).** During SYNC with
+filament present, the buffer climbing to home is starvation. The firmware cannot
+stop the extruder, so the guard is layered and host-independent:
+1. *Feedforward* — continuous extruder estimate pre-feeds demand (D10, exists).
+2. *Soft wall* — `|norm| ∈ [0.8, 1.0]` blends the MMU to max refill (D13, exists).
+3. *Velocity pre-catch (NEW)* — mirror the compression fast-brake (`sync.c:1747`)
+   on the tension side: `g_vel_norm > CONF_PSF_JUMP_NORM_PER_S` while below home →
+   preemptively command max refill before the buffer reaches home.
+4. *Terminal fault* — sustained tension at `PSF_HOME_THRESHOLD_NORM` →
+   `fault_hold` (`sync.c:2078`/`1775`, exists): stops the MMU to protect the
+   gear. Accepts that a genuine jam (MMU max throughput < extruder demand —
+   slip/grind) fails the print, but never grinds the hardware.
+
+The goal bias toward compression (`BUF_GOAL = 0.7` raw → norm −0.4) parks the
+steady state ~1.4 norm-units off home, so only a real fault drives it there.
+**No klipper pause actuator** — explicitly dropped per the klipper-agnostic
+constraint; the open-loop `cmd_MMU_PAUSE` stub / `filament_tension` status key
+are NOT a dependency of the sync safety.
+
+*Rig-gated*: tune soft-wall-start / pre-catch / dwell so normal print flow never
+reaches home, and the terminal fault fires only on genuine jam, not transient
+fast moves. Confirm `g_vel_norm` sign + thresholds.
+
 ## Risks / Trade-offs
 
 - **#7 compression_recovery timing unverified** → Tasks for #7 and H2 are

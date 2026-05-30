@@ -175,3 +175,40 @@ SHALL enter relief pause.
 #### Scenario: Sustained tension saturation
 - **WHEN** `pos_norm >= +0.99` for `PSF_WALL_SAT_MS`
 - **THEN** the controller enters `sync_fault_hold()`
+
+### Requirement: Type-P Unload Over-Tension Guard
+During `TASK_UNLOAD`, for type-P sensors the firmware SHALL protect against
+over-tension caused by the printer extruder out-pulling the MMU retract. While
+filament is still present in the active-retract phase (the same scope as the
+type-D unload guards: `retract_deadline_ms == 0`, `!unload_to_in`, outside the
+double-load exception), a buffer pinned at the tension rail
+(`g_buf_pos >= PSF_TENSION_PIN_NORM`) SHALL be treated as a fault and a buffer
+deflected below the rail SHALL be treated as healthy. A relaxation back to the
+home tension position after the OUT sensor clears SHALL NOT be treated as a
+fault. A sustained pin SHALL escalate to `UNLOAD_BLOCKED`, reusing
+`UNLOAD_TENSION_BLOCK_MS`. A velocity spike toward tension SHALL trigger a
+reversible brake of the MMU retract within one control tick.
+
+#### Scenario: Healthy unload deflects below rail
+- **WHEN** filament is present and the MMU is retracting
+- **THEN** `g_buf_pos` is below `PSF_TENSION_PIN_NORM`
+- **AND** `buf_tension_since_ms` is reset (no block accumulates)
+
+#### Scenario: Relaxation to home after clear is not a fault
+- **WHEN** filament clears and `g_buf_pos` returns to ~+1.0 after the OUT sensor clears
+- **THEN** the unload guard branch is inactive (`retract_deadline_ms` set)
+- **AND** no `UNLOAD_BLOCKED` is emitted
+
+#### Scenario: Tug-of-war pins the rail and blocks
+- **WHEN** the extruder grips and the buffer stays pinned at `>= PSF_TENSION_PIN_NORM` while filament is present
+- **THEN** `buf_tension_since_ms` accumulates
+- **AND** after `UNLOAD_TENSION_BLOCK_MS` the lane stops and `UNLOAD_BLOCKED` is emitted
+
+#### Scenario: Velocity spike toward tension brakes immediately
+- **WHEN** buffer velocity spikes toward tension during retract
+- **THEN** the MMU reverse is braked within one control tick (reversible)
+
+#### Scenario: Relief jog skipped during toolchange unload
+- **WHEN** the unload is toolchange-driven (`unload_buf_recover_done` preset true)
+- **THEN** the one-shot relief jog is skipped
+- **AND** the block-abort tier remains active

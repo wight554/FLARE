@@ -280,6 +280,20 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
 
     if (L->task == TASK_UNLOAD) {
         if (L->retract_deadline_ms == 0) {
+            /* D22: type-P unload over-tension guard. Type-P homes at the tension
+               rail, so "at tension" alone is not a fault — a fault is the rail
+               PINNED while filament is still present (extruder out-pulling the
+               retract). buf_tension_since_ms (managed by the block check below)
+               supplies the dwell; a velocity slam toward tension short-circuits
+               the dwell for fast prevention (tier A folded into the relief jog). */
+            bool psf_pinned = (BUF_SENSOR_TYPE == 1 && g_buf_pos >= PSF_TENSION_PIN_NORM);
+            bool psf_relief_due = psf_pinned && !L->unload_to_in &&
+                ((L->buf_tension_since_ms != 0 &&
+                  (int32_t)(now_ms - L->buf_tension_since_ms) >= (int32_t)PSF_UNLOAD_RELIEF_ARM_MS)
+                 || sync_buf_tension_slam());
+            bool buf_recover_due =
+                (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION) || psf_relief_due;
+
             if (L->unload_sensor_latch && !L->unload_to_in) {
                 float moved_mm = L->task_dist_mm - L->dist_at_out_mm;
                 if (moved_mm >= BUF_SWITCH_SPAN_HALF_MM) {
@@ -294,7 +308,7 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                     motor_set_dir(&L->m, false);
                     motor_set_rate_sps(&L->m, L->current_sps);
                 }
-            } else if (BUF_SENSOR_TYPE == 0 && !L->unload_to_in && !L->unload_buf_recover_done && g_buf.state == BUF_TENSION) {
+            } else if (!L->unload_to_in && !L->unload_buf_recover_done && buf_recover_due) {
                 motor_stop(&L->m);
                 L->unload_buf_recover_done = true;
                 L->unload_sensor_latch = true;
@@ -340,7 +354,10 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                by the printer blocking THIS lane.  Skip the check in that case. */
             if (UNLOAD_TENSION_BLOCK_MS > 0 && !L->unload_to_in &&
                     !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
-                if (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION) {
+                bool buf_overtensioned = (BUF_SENSOR_TYPE == 0)
+                    ? (g_buf.state == BUF_TENSION)
+                    : (g_buf_pos >= PSF_TENSION_PIN_NORM);
+                if (buf_overtensioned) {
                     if (L->buf_tension_since_ms == 0) L->buf_tension_since_ms = now_ms;
                     else if ((int32_t)(now_ms - L->buf_tension_since_ms) >= UNLOAD_TENSION_BLOCK_MS) {
                         lane_stop(L);

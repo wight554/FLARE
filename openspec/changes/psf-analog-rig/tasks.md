@@ -83,6 +83,16 @@
 - [x] 11.11 **Rig**: Implement buffer-lock (`BL:`) physical extreme targeting and highly sensitive lock-break detection for Type-P analog configuration.
 - [x] 11.12 **Rig**: Implement closed-loop dynamic analog follow inside `BL_FOLLOW` for Type-P to keep the buffer neutral during fast printer retracts.
 - [x] 11.13 **Rig**: Implement highly sensitive contact detection (`g_buf_pos < 0.85f`) in `TC_RELOAD_APPROACH` for Type-P to detect tail contact instantly.
+- [x] 11.14 Add `PSF_TENSION_PIN_NORM` (`0.90f`, rig-tune) + `PSF_UNLOAD_RELIEF_ARM_MS` (`300u`) to `controller_shared.h` — sibling of `PSF_HOME_THRESHOLD_NORM`, reachable from `motion.c` (which does not include `tune.h`). Velocity-slam threshold stays `CONF_PSF_JUMP_NORM_PER_S` in `tune.h`, single-sourced via the `sync_buf_tension_slam()` accessor. (D22)
+- [x] 11.15 `motion.c` `TASK_UNLOAD`: type-P relief jog — extended the recover branch (L297) via `buf_recover_due`; pinned `g_buf_pos >= PSF_TENSION_PIN_NORM` for `PSF_UNLOAD_RELIEF_ARM_MS` (or a velocity slam) && `!unload_buf_recover_done` → one-shot forward jog reusing the existing latch jog-then-reverse mechanic (bounded by `BUF_SWITCH_SPAN_HALF_MM` at `BUF_STAB_SPS`, distance via `dist_at_out_mm`). (D22 tier C)
+- [x] 11.16 `motion.c` `UNLOAD_TENSION_BLOCK` (L341): `buf_overtensioned` substitutes `g_buf_pos >= PSF_TENSION_PIN_NORM` for the `g_buf.state == BUF_TENSION` test on type-P; reuses `buf_tension_since_ms` + `UNLOAD_TENSION_BLOCK_MS`; double-load exception kept. (D22 tier D)
+- [x] 11.17 Tier A folded into tier C: `sync_buf_tension_slam()` (new `sync.c`/`sync.h` accessor = `g_vel_norm > CONF_PSF_JUMP_NORM_PER_S`) short-circuits the relief dwell, so a slam triggers the stop-then-jog within one control tick — reversible via the bounded jog-then-resume. No separate brake state machine. (D22 tier A)
+- [ ] 11.18 **BLOCKER: requires PSF rig** — measure healthy-unload buffer floor; set `PSF_TENSION_PIN_NORM` above it. Verify tug-of-war → `UNLOAD_BLOCKED`, healthy + relax-to-home → no false block, TC-unload parity, velocity-slam sign + threshold.
+- [x] 11.19 Gate A needs no `PSF_STAB_DEADBAND`: `buf_state_raw()` already reports `BUF_NEUTRAL` within `PSF_ZONE_DEADBAND` (0.1) of goal (D3), which is the stabilize stop tolerance. Folded. (D23 Gate A)
+- [x] 11.20 `sync.c` `buffer_stabilize_start_internal` (L735): replaced the type-P hard-return with a board-local presence gate (`lane_out_present`/`lane_in_present` on `pick_boot_stabilize_lane()`); present → fall through to the shared goal-relative path; absent → no-op (tension=home, no dry-spin). Direction (`forward = buf_state==BUF_TENSION`) and motor-start reuse the existing path. Type-D untouched. (D23 Gate A)
+- [x] 11.21 Stabilize tick (L816–862) already keys on `buf_state_raw()==BUF_NEUTRAL` for `BUF_STAB DONE` and on the goal-relative zones for the overshoot REVERSE, so type-P drives to goal and stops correctly with no change. Confirmed. (D23 Gate A)
+- [x] 11.22 Gate B (klipper-agnostic) already provided: continuous feedforward (D10, L1663), soft-wall tension→max refill (D13, L1732), and terminal `fault_hold` on sustained tension at the home rail (type-P tension-dwell L2078 + saturation L1775). No host-pause dependency. Velocity pre-catch NOT added blind (overlaps the soft wall) — deferred to rig (11.23) to decide if it adds value. (D23 Gate B)
+- [ ] 11.23 **BLOCKER: requires PSF rig** — tune Gate B so normal print flow never reaches home (feedforward + soft-wall-start + pre-catch + goal bias) and the terminal fault fires only on genuine jam, not transient fast moves. Verify Gate A: loaded → stabilize-to-goal, unloaded → no-op. Confirm `g_vel_norm` tension sign.
 
 
 
@@ -106,6 +116,7 @@
 
 2026-05-27 validation: `python3 -m py_compile scripts/*.py`, `python3 scripts/gen_config.py`, `git diff --check`, `ninja -C build_local`. Commit `4f47251`.
 2026-05-29 validation: `python3 -m py_compile scripts/*.py`, `ninja -C build_local`. Commits: `88ac086` (config defaults), `4fd2efc` (gate load/unload buffer checks), `254aa98` (flare_unload_tracker.py telemetry script), `a5c6893` (BL: buffer-lock analog implementation), `e2686f4` (closed-loop dynamic follow inside BL_FOLLOW for type-P), `b51f6db` (sensitive RELOAD contact detection for type-P), `551c41a` (PSF home and deviation named constants).
+2026-05-30 validation: D22 type-P unload over-tension guard (11.14–11.17) — `controller_shared.h` consts, `sync_buf_tension_slam()` accessor (`sync.c`/`sync.h`), `motion.c` `TASK_UNLOAD` relief jog + block extended to type-P. `ninja -C build_local` clean, no warnings, links. 11.18 rig-blocked. (uncommitted)
 
 
 
