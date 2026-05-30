@@ -169,19 +169,28 @@ stored value.
 sequence that replaces the legacy blind `RA`-gated retract. The lifecycle has
 four sub-states inside `SYNC_RETRACT_ASSIST`:
 
-1. **PRIME** — the active-lane motor drives toward the requested extreme at
-   `BUF_STAB_SPS`. The prime is bounded to `BUF_MAX_TRAVEL_MM / 2` of travel
-   (approximately half the physical buffer range). When the target extreme is
-   reached or the deadline elapses the state advances to LOCKED and emits
-   `EV:BL,PRIME_BOUND` on deadline or `EV:BL,LOCKED` on success.
+1. **PRIME** — the active-lane motor drives toward the requested extreme. Type-D
+   (switch) primes at `SYNC_MAX_SPS` — the switch click is bang-bang, so full
+   speed stops instantly at the extreme. Type-P (analog) primes at `BUF_STAB_SPS`:
+   the PSF reading is EMA-filtered and lags, so a full-speed prime would overshoot
+   `PSF_HOME_THRESHOLD_NORM` (0.90) and slam the `±1.0` rail before the motor reads
+   the threshold and stops. The prime is bounded to `BUF_MAX_TRAVEL_MM / 2` of
+   travel. When the target extreme is reached or the deadline elapses the state
+   advances to LOCKED and emits `EV:BL,PRIME_BOUND` on deadline or `EV:BL,LOCKED`
+   on success.
 2. **LOCKED** — motor stays energized at zero feed, holding the buffer at the
-   extreme. Any external force (printer-side retract) that causes a raw sensor
-   flip away from the target extreme breaks the lock immediately.
-3. **CATCH** — on lock-break (`EV:BL,BREAK`) the motor slams in the mirror
-   direction at `SYNC_MAX_SPS`, following the printer retract. The catch ends
-   when the buffer reaches the opposite extreme (`EV:BL,CATCH_SETTLE`). A
-   watchdog caps the total arm time (`BL_WATCHDOG_DEFAULT_MS`, default 30 s);
-   timeout emits `EV:BL,WATCHDOG` and releases via `sync_retract_assist_set`.
+   extreme. Any external force (printer-side retract) that breaks away from the
+   target extreme (raw flip for type-D, `g_buf_pos` crossing `PSF_HOME_THRESHOLD_NORM`
+   for type-P) fires the follow-on if one was armed (`BL:<T|C>:<follow_mm>:<rate>`).
+3. **FOLLOW** — open-loop concurrent retract in the prime direction, feeding
+   `follow_mm` at `follow_rate` to mass-balance the extruder move, then returning
+   to LOCKED (`EV:BL,FOLLOW_DONE`). For type-P the open-loop feed is **position-gated**:
+   if `g_buf_pos` reaches `PSF_FOLLOW_RAIL_NORM` (0.95) the feed stops early and
+   drops back to LOCKED (`EV:BL,FOLLOW_GATED`) so it never slams the armed rail; if
+   backflow later pushes the buffer off the extreme the lock re-breaks and the
+   follow re-fires. Type-D has no analog position and relies on the elapsed-distance
+   budget alone. A watchdog caps total arm time (`BL_WATCHDOG_DEFAULT_MS`, default
+   30 s); timeout emits `EV:BL,WATCHDOG` and releases.
 4. **Release** — `BS` sent by the host (or watchdog expiry) calls
    `sync_retract_assist_release` which drops back to `SYNC_ACTIVE` and
    re-enables normal sync.

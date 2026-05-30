@@ -209,6 +209,27 @@ Tune only from real print behavior:
 - Leave `relay_min_flip_mm` at `0.0` unless deliberately testing the deadlock
   caveat above.
 
+## Type-P Buffer Lock (Tip Forming)
+
+Tip forming uses `BL:<T|C>:<follow_mm>:<rate>` (via `_FLARE_BL_MOVE`) to hold the
+buffer at an extreme and feed-follow the extruder retract. Two firmware constants
+gate the type-P (analog) behavior — both compile-time in `controller_shared.h`:
+
+- **Prime speed.** Type-P primes at `BUF_STAB_SPS`, not `SYNC_MAX_SPS`. The PSF
+  reading is EMA-filtered (`BUF_ANALOG_ALPHA`) and lags, so a full-speed prime
+  overshoots `PSF_HOME_THRESHOLD_NORM` (0.90) and slams the `±1.0` rail. If prime
+  still bottoms hard against the rail, lower `BUF_STAB_SPS` or raise
+  `BUF_ANALOG_ALPHA` (faster, less-laggy filter). Symptom of the bug: buffer pins
+  at `BP:1.000,BUF:+` for the full lock duration.
+- **Follow gate.** `PSF_FOLLOW_RAIL_NORM` (default `0.95`) stops the open-loop
+  follow feed before it reaches the armed rail; it then drops to LOCKED and emits
+  `EV:BL,FOLLOW_GATED`, re-firing only if backflow pushes the buffer off the
+  extreme. Lower it (e.g. `0.90`) for more rail margin if the follow still over-feeds;
+  raise it toward `1.0` to let the follow run closer to the extreme.
+
+Type-D (switch) is bang-bang and uses neither knob — it primes at `SYNC_MAX_SPS`
+and follows purely on the elapsed-distance budget.
+
 ## If Behavior Is Scary (Do This First)
 
 Scary means: repeated `FAULT_HOLD`, repeated `cannot_refill` or

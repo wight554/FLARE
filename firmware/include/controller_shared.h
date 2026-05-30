@@ -10,6 +10,7 @@
 
 /* Type-P Analog home / physical extreme thresholds */
 #define PSF_HOME_THRESHOLD_NORM             0.90f   /* reached/locked extreme boundary */
+#define PSF_FOLLOW_RAIL_NORM                0.95f   /* BL_FOLLOW open-loop safety gate: stop feed before slamming the armed rail */
 #define PSF_HOME_DEVIATION_THRESHOLD_NORM   0.85f   /* non-home / contact detection boundary */
 #define PSF_LOAD_CONTACT_THRESHOLD_NORM     -0.50f  /* load contact detection boundary (compression zone) */
 /* Type-P unload over-tension guard (D22). Type-P homes at the tension rail, so

@@ -1238,7 +1238,13 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm,
      *   phase 1 — search until switch fires (outer cap: BUF_MAX_TRAVEL_MM)
      *   phase 2 — lock at switch click (no post-settle travel). */
     int idx = A->lane_id - 1;
-    int prime_sps  = sync_clamp_max_sps(SYNC_MAX_SPS);
+    /* Type-P (analog) primes gently at BUF_STAB_SPS: the PSF EMA filter lags,
+     * so a full-speed SYNC_MAX_SPS prime overshoots PSF_HOME_THRESHOLD_NORM and
+     * slams the rail before the motor reads the threshold and stops. Type-D
+     * (switch) is bang-bang — the click stops it instantly, so full speed is fine. */
+    int prime_sps  = (BUF_SENSOR_TYPE == 1)
+                     ? sync_clamp_max_sps(BUF_STAB_SPS)
+                     : sync_clamp_max_sps(SYNC_MAX_SPS);
     float mm_per_s = (float)prime_sps * MM_PER_STEP[idx];
     float max_cap_mm  = (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : 25.0f;
     g_bl_prime_start_ms      = now_ms;
@@ -1393,6 +1399,25 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         float dt_s = (float)(now_ms - g_bl_last_tick_ms) / 1000.0f;
         if (dt_s < 0.0001f) dt_s = 0.0001f;
         if (dt_s > 0.1f) dt_s = 0.001f;
+
+        /* Type-P safety gate: the open-loop follow is blind to position, so if
+         * it out-drives the extruder backflow it would slam the armed rail.
+         * Stop the motor and drop to LOCKED before reaching the rail; if the
+         * backflow later pushes the buffer back off the extreme the lock breaks
+         * again and the follow re-fires to keep absorbing. Type-D has no analog
+         * position, so it can only rely on the elapsed-distance budget below. */
+        if (BUF_SENSOR_TYPE == 1) {
+            bool rail_hit = (g_bl_target_state == BUF_TENSION)
+                            ? (g_buf_pos >= PSF_FOLLOW_RAIL_NORM)
+                            : (g_buf_pos <= -PSF_FOLLOW_RAIL_NORM);
+            if (rail_hit) {
+                motor_set_rate_sps(&A->m, 0);
+                g_bl_sub_state = BL_LOCKED;
+                cmd_event("EV:BL", "FOLLOW_GATED");
+                g_bl_last_tick_ms = now_ms;
+                return;
+            }
+        }
 
         float traveled = (g_bl_follow_mm_per_s > 0.0f)
                 ? ((float)(now_ms - g_bl_follow_start_ms) / 1000.0f * g_bl_follow_mm_per_s)
