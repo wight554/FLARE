@@ -929,9 +929,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "UNLOAD_MAX")) UNLOAD_MAX_MM = clamp_i(iv, 100, 10000);
         else if (!strcmp(base_param, "UNLOAD_TENSION_BLOCK_MS")) UNLOAD_TENSION_BLOCK_MS = clamp_i(iv, 0, 60000);
         else if (!strcmp(base_param, "SYNC_KP_RATE")) SYNC_KP_SPS = clamp_i(mm_per_min_to_sps(fv), 0, 50000);
-#ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "KD_PSF")) KD_PSF = clamp_f(fv, 0.0f, 100.0f);
-#endif
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "SYNC_OVERSHOOT_PCT")) SYNC_OVERSHOOT_PCT = clamp_i(iv, 0, 200);
 #endif
@@ -1114,9 +1112,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "SYNC_REFILL_MM")) snprintf(out, sizeof(out), "SYNC_REFILL_MM:%d", (int)g_sync_refill_effort_mm);
         else if (!strcmp(param, "SYNC_RELIEVE_MM")) snprintf(out, sizeof(out), "SYNC_RELIEVE_MM:%d", (int)g_sync_relieve_effort_mm);
         else if (!strcmp(param, "SYNC_KP_RATE")) snprintf(out, sizeof(out), "SYNC_KP_RATE:%.1f", (double)sps_to_mm_per_min(SYNC_KP_SPS));
-#ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "KD_PSF")) snprintf(out, sizeof(out), "KD_PSF:%.3f", (double)KD_PSF);
-#endif
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "SYNC_OVERSHOOT_PCT")) snprintf(out, sizeof(out), "SYNC_OVERSHOOT_PCT:%d", SYNC_OVERSHOOT_PCT);
 #endif

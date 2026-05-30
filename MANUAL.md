@@ -128,7 +128,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 > `NEUTRAL_CREEP_TIMEOUT_MS`/`NEUTRAL_CREEP_RATE`/`NEUTRAL_CREEP_CAP`,
 > `VAR_BLEND_FRAC`/`VAR_BLEND_REF_MM`, `RELAY_MIN_FLIP_MM`,
 > `RELAY_COLLAPSE_DELAY_MS`/`RELAY_COLLAPSE_RAMP_MULT`/`RELAY_COLLAPSE_CAP_MS`,
-> `KD_PSF`, `POST_PRINT_STAB_MS`, `TS_BUF_MS`, `STARTUP_MS`, `RELOAD_LEAN`,
+> `POST_PRINT_STAB_MS`, `TS_BUF_MS`, `STARTUP_MS`, `RELOAD_LEAN`,
 > `BUF_DRIFT_TAU_MS`/`_MIN_SMP`/`_THR_MM`/`_CLAMP`/`_MIN_CF`,
 > `TENSION_RISK_WINDOW`/`TENSION_RISK_THR`.
 
@@ -151,6 +151,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `BUF_PSF_MAX_TENS` | `buf_psf_max_tens` | Raw ADC fraction at tension extreme | 1.0 |
 | `BUF_PSF_NEUTRAL` | `buf_psf_neutral` | Raw ADC fraction at neutral calibration point | 0.5 |
 | `BUF_GOAL` | `buf_psf_goal` | Raw ADC goal bias used by type-P zone control | 0.3 |
+| `KD_PSF` | _(runtime only)_ | Type-P derivative gain: velocity damping applied to sync output (units: sps per normalised vel). Not persisted; resets to `0.0` on boot. | 0.0 |
 
 ### Speeds & Rates (mm/min)
 | Parameter | `config.ini` Key | Description | Default |
