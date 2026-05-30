@@ -552,6 +552,26 @@ hardware. Run it, then drive `MMU_LOAD` / `MMU_UNLOAD` / a cut.
 `MmuControls` has no bypass gating for Check Gate/Recover, and Preload/Eject key off `gate_status[gate]` which resolves to -1 in bypass (`gate = -2`). A *visual* disable would require an upstream Fluidd change/upgrade; FLARE's contract is safe handlers instead (see `design.md` §33 and the `cmd_MMU_RECOVER` comment).
 
 
+## Phase 39: Proportional Buffer UI & State Resolution (Type-P Piston Value and Label)
+- [x] 39.1 Expose `buf_sensor_type` in Klipper `SET_MMU` commands from the background daemon's `klipper_syncer` thread in `scripts/flare_daemon.py` by adding `BUF_SENSOR_TYPE={stype}` to `SET_MMU`.
+- [x] 39.2 In `scripts/flare_daemon.py`, when `stype == 1`, normalize the compact firmware `buf_state` `"+"`, `"-"`, or `"0"` into `"tension"`, `"compressed"`, and `"neutral"` respectively, so that Fluidd's UI displays the text labels and arrows.
+- [x] 39.3 In `klipper/mmu.py`, initialize `self.buf_sensor_type = 0` in `__init__` and parse `BUF_SENSOR_TYPE` parameter in `cmd_SET_MMU`.
+- [x] 39.4 Expose `'buf_sensor_type': self.buf_sensor_type` in `get_status` and, if `self.buf_sensor_type == 1`, set `'filament_proportional' = True` in `sensors_dict` so that Fluidd renders the real-time numeric value next to the buffer icon.
+- [x] 39.5 Validate Python syntax and check local C builds.
+
+---
+
+### Validation Notes — 2026-05-30 (Proportional Buffer UI & State Resolution)
+- Successfully resolved the issue where Type-P proportional analog sensors only displayed a static icon with no numeric value/text or state labels next to the buffer in Fluidd.
+- Exposed the buffer sensor type `stype` as `BUF_SENSOR_TYPE` in Klipper's `SET_MMU` command parameters.
+- Mapped compact firmware status-line indicators `"+"`, `"-"`, and `"0"` into `'tension'`, `'compressed'`, and `'neutral'` in `flare_daemon.py` whenever a Type-P sensor (`stype == 1`) is active.
+- Registered `'filament_proportional' = True` inside `sensors_dict` in `klipper/mmu.py` when `self.buf_sensor_type == 1` is reported.
+- Added comprehensive unit tests in `scripts/test_flare_mmu_status.py` verifying correct dynamic sensor rendering and state mappings for Type-P proportional buffer sensors.
+- Verified all 26 unit tests pass, python syntax compiles cleanly, and local C firmware compiles without any warnings or regressions.
+
+
+
+
 
 
 

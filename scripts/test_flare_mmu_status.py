@@ -210,5 +210,18 @@ m.bypass = True
 m.cmd_SET_MMU(FakeGcmd({}))                     # no BYPASS field -> leave as-is
 check("absent BYPASS leaves bypass unchanged", m.bypass is True, m.bypass)
 
+print("proportional buffer — check filament_proportional sensor mapping")
+m, p = new_mock()
+check("fresh mock defaults buf_sensor_type to 0", m.buf_sensor_type == 0, m.buf_sensor_type)
+s = m.get_status(0)
+check("buf_sensor_type 0 exposes filament_tension/compression", "filament_tension" in s["sensors"] and "filament_compression" in s["sensors"], s["sensors"])
+check("buf_sensor_type 0 does NOT expose filament_proportional", "filament_proportional" not in s["sensors"], s["sensors"])
+
+m.cmd_SET_MMU(FakeGcmd({"BUF_SENSOR_TYPE": 1}))
+check("cmd_SET_MMU sets buf_sensor_type to 1", m.buf_sensor_type == 1, m.buf_sensor_type)
+s = m.get_status(0)
+check("buf_sensor_type 1 exposes filament_proportional", s["sensors"].get("filament_proportional") is True, s["sensors"])
+check("buf_sensor_type 1 does NOT expose filament_tension/compression", "filament_tension" not in s["sensors"] and "filament_compression" not in s["sensors"], s["sensors"])
+
 print(f"\n{_PASS} passed, {_FAIL} failed")
 sys.exit(1 if _FAIL else 0)

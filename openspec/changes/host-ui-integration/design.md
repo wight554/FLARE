@@ -572,3 +572,15 @@ the source of truth; `MMU_SELECT_BYPASS` / lane-select still set `bypass`
 locally and notify the daemon, which echoes the same value, so bypass is
 restored within one push (~250 ms) after a restart. Covered offline by
 `scripts/test_flare_mmu_status.py`.
+
+## 35. Proportional Buffer UI & State Resolution (Type-P Piston Value and Label) (2026-05-30)
+
+When a Type-P (analog/proportional) buffer sensor is configured (`stype == 1`), the Fluidd UI is designed to render a real-time numeric value (e.g. `+1.00`, `-0.50`, etc.) next to the buffer icon, rather than just the raw icon. It also displays the text labels "Tension" / "Compression" / "Neutral" and matching directional arrows.
+
+- **Numeric Range/Text:** In Fluidd's `MmuFilamentStatus.vue`, the numeric text next to the buffer piston is computed via `syncFeedbackPistonText()`, which is only returned if `hasFilamentProportionalSensor` is `true`. This in turn keys off `hasSensor('filament_proportional')`, i.e., whether `'filament_proportional'` exists in Klipper's `mmu.sensors`.
+  - Fix: Pass `BUF_SENSOR_TYPE` from the daemon via `SET_MMU`. If `buf_sensor_type == 1`, Klipper's `get_status` includes `'filament_proportional': True` in `sensors_dict`, which unlocks the text and renders the numeric range/value in the UI.
+
+- **Tension / Compression / Neutral State Labels:** In Fluidd, the arrows and status text labels render dynamically under `syncFeedbackActive` depending on `syncFeedbackState` matching `'tension'`, `'compressed'`, or `'neutral'`. 
+  - Problem: The firmware compacts status line updates using signed position labels: `"+"` for positive `g_buf_pos` (tension), `"-"` for negative `g_buf_pos` (compression), and `"0"` for neutral. The daemon was passing these raw values to `SET_MMU`'s `SYNC_FEEDBACK_STATE` directly, which Fluidd didn't recognize.
+  - Fix: The daemon's `klipper_syncer` thread now maps the Type-P buffer states: `"+"` maps to `"tension"`, `"-"` maps to `"compressed"`, and `"0"` (or anything else) maps to `"neutral"`. This allows Fluidd's UI to parse and display the correct states and arrows for analog sensors.
+

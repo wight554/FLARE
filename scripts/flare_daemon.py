@@ -1004,7 +1004,14 @@ def klipper_syncer(moonraker_url):
             sync_feedback = max(-1.0, min(1.0, g_buf_pos / 15.0))
         sync_feedback_enabled = 1 if stype == 1 else 0
         buf_state = state.get("buf_state", "NEUTRAL").lower()
-        if buf_state == "compression":
+        if stype == 1:
+            if buf_state == "+":
+                buf_state = "tension"
+            elif buf_state == "-":
+                buf_state = "compressed"
+            else:
+                buf_state = "neutral"
+        elif buf_state == "compression":
             buf_state = "compressed"
         tc_state = state.get("tc_state", "UNKNOWN")
         board_online = 1 if state.get("board_online", False) else 0
@@ -1077,7 +1084,7 @@ def klipper_syncer(moonraker_url):
             f"SYNC_FEEDBACK_STATE='{buf_state}' PRINT_JOB_STATE='{print_job_state}' "
             f"PRINT_STATE='{print_state}' BOARD_ONLINE={board_online} "
             f"SPS={sps:.3f} RELOAD_MODE={reload_mode} ENABLE_CUTTER={enable_cutter} "
-            f"UNLOAD_CUT={unload_cut} GATE_SENSOR_ACTIVE={gate_sensor_active} "
+            f"UNLOAD_CUT={unload_cut} BUF_SENSOR_TYPE={stype} GATE_SENSOR_ACTIVE={gate_sensor_active} "
             f"EXTRUDER_SENSOR_ACTIVE={extruder_sensor_active} "
             f"PRE_GATE_SENSOR_ACTIVE={pre_gate_sensor_active} HUB_SENSOR_ACTIVE={hub_sensor_active} "
             f"SWAPS_TOTAL={st['swaps_total']} SWAPS_SUCCESS={st['swaps_success']} "

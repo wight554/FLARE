@@ -59,6 +59,7 @@ class MMUMock:
         self.sync_feedback = 0.0 # buffer compression/tension offset
         self.sync_feedback_state = "neutral"
         self.sync_feedback_enabled = False
+        self.buf_sensor_type = 0
         self.print_job_state = "standby"
         self.print_state = "ready"
         self.filament = "Unloaded"
@@ -203,6 +204,7 @@ class MMUMock:
         self.toolhead_sensor = gcmd.get_int('TOOLHEAD_SENSOR', self.toolhead_sensor)
         self.sync_feedback = gcmd.get_float('SYNC_FEEDBACK', self.sync_feedback)
         self.sync_feedback_enabled = gcmd.get_int('SYNC_FEEDBACK_ENABLED', 1 if self.sync_feedback_enabled else 0) != 0
+        self.buf_sensor_type = gcmd.get_int('BUF_SENSOR_TYPE', self.buf_sensor_type)
         
         # Strip quotes from standard string parameters
         self.sync_feedback_state = gcmd.get('SYNC_FEEDBACK_STATE', self.sync_feedback_state).strip("'\"")
@@ -1425,13 +1427,11 @@ class MMUMock:
             'toolhead': path_toolhead,
         }
         if not self.bypass:
-            # The sync-feedback / buffer piston in Fluidd renders only when
-            # hasSyncFeedback is true, which keys off the presence of the
-            # filament_compression / filament_tension sensor keys. Bypass feeds
-            # the extruder directly with no buffer, so omit them to hide the
-            # piston (matches the standalone WebUI hiding the buffer panel).
-            sensors_dict['filament_tension'] = self.sync_feedback_state == "tension"
-            sensors_dict['filament_compression'] = self.sync_feedback_state == "compressed"
+            if self.buf_sensor_type == 1:
+                sensors_dict['filament_proportional'] = True
+            else:
+                sensors_dict['filament_tension'] = self.sync_feedback_state == "tension"
+                sensors_dict['filament_compression'] = self.sync_feedback_state == "compressed"
             sensors_dict['mmu_pre_gate'] = path_pre_gate
             sensors_dict['mmu_gear'] = path_gear
             sensors_dict['mmu_gate'] = path_gate
@@ -1477,6 +1477,7 @@ class MMUMock:
             'board_online': self.board_online,
             'sps': self.sps,
             'reload_mode': self.reload_mode,
+            'buf_sensor_type': self.buf_sensor_type,
             'enable_cutter': self.enable_cutter,
             'unload_cut': self.unload_cut,
             'spoolman_support': self.spoolman_support,
