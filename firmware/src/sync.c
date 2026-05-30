@@ -699,6 +699,24 @@ static void buf_force_stable_state(buf_state_t state, uint32_t now_ms) {
     }
 }
 
+void sync_init(uint32_t now_ms) {
+    buf_state_t raw = buf_state_raw();
+    g_buf_stable_state = raw;
+    g_buf_pending_state = raw;
+    g_buf_pending_since_ms = 0;
+    g_buf.state = raw;
+    g_buf.entered_ms = now_ms;
+    
+    g_sync_tension_transitioned = false; /* Never false-trigger tension auto-start on boot! */
+    g_sync_state = SYNC_OFF;
+    sync_auto_started = false;
+    sync_tail_assist_active = false;
+    sync_current_sps = 0;
+    g_buf_pos_prev = g_buf_pos;
+    g_vel_norm = 0.0f;
+    g_vel_norm_f = 0.0f;
+}
+
 static void boot_stabilize_stop(void) {
     if (g_boot_stabilize_lane) {
         motor_stop(&g_boot_stabilize_lane->m);
@@ -746,12 +764,7 @@ static bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events, b
     }
     if (mode == BUFFER_SERVICE_NEG_SYNC && sync_guard_active) return true;
 
-    if (BUF_SENSOR_TYPE == 1 && mode == BUFFER_SERVICE_STABILIZE) {
-        /* Gated for Type-P: do not start boot/idle stabilize if already at home state */
-        if (buf_state_raw() == (buf_state_t)BUF_HOME_STATE) {
-            return true;
-        }
-    }
+
 
     buf_state_t buf_state = buf_state_raw();
     lane_t *stab_lane = NULL;
@@ -834,9 +847,9 @@ void buffer_stabilize_tick(uint32_t now_ms) {
     }
 
     if (BUF_SENSOR_TYPE == 1 && g_boot_stabilizing) {
-        if ((int32_t)(now_ms - g_boot_stabilize_started_ms) >= 500) {
+        if ((int32_t)(now_ms - g_boot_stabilize_started_ms) >= 200) {
             float change = fabsf(g_buf_pos - g_boot_stabilize_start_pos);
-            if (change < 0.05f) {
+            if (change < 0.03f) {
                 if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "STAGNANT_TIMEOUT");
                 boot_stabilize_stop();
                 return;

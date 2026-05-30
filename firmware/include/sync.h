@@ -22,6 +22,7 @@ typedef struct {
     int bias_milli;
 } flow_param_t;
 
+void sync_init(uint32_t now_ms);
 void sync_set_state(sync_state_t new_state);
 void sync_retract_assist_set(bool enabled);
 void sync_retract_assist_release(uint32_t now_ms);

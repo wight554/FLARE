@@ -456,8 +456,7 @@ int main(void) {
         sleep_ms(1);
     }
 
-    g_buf.state = buf_state_raw();
-    g_buf.entered_ms = to_ms_since_boot(get_absolute_time());
+    sync_init(to_ms_since_boot(get_absolute_time()));
 
     active_lane = detect_active_lane_from_out();
     if (active_lane == 0) {
