@@ -13,7 +13,7 @@
 ## 3. Flow cases
 
 - [x] 3.1 **unload**: P tug-of-war → `UNLOAD_BLOCKED` (D22); P healthy → refute block; D parity tension-block.
-- [x] 3.2 **sync**: P compression pin → `SYNC:RELIEF_PAUSE`; P tension pin → `SYNC:FAULT_HOLD`; P `AUTO_MODE` transition → `SYNC:AUTO_START`; P resting-at-home → refute `AUTO_START` (D18 gate).
+- [x] 3.2 **sync**: P compression pin → `SYNC:RELIEF_PAUSE`; P tension pin → `SYNC:FAULT_HOLD`; P `AUTO_MODE` transition → `SYNC:AUTO_START`; P resting-at-home → refute `AUTO_START` (D18 gate); P tail-assist idle at compression → `SYNC:AUTO_STOP`.
 - [x] 3.3 **stab**: P loaded+off-goal → `BUF_STAB:START`/`DONE` (D23); P unloaded → refute `BUF_STAB:START` (presence gate); D parity to-neutral.
 - [x] 3.4 **buflock**: P `BL:T` → `BL:PRIME`/`BL:LOCKED` (D19); P follow break → `BL:FOLLOW`/`FOLLOW_DONE` (D20); P no-motion → `BL:TIMEOUT`.
 - [x] 3.5 **load**: P `FL` with filament → `LOADED`; `FL` without filament → `ER:NO_FILAMENT` guard. (Load = `FL` only; preload/autoload excluded.)

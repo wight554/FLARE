@@ -122,6 +122,21 @@ def _sync_auto_gate(board):
     board.refute("SYNC:AUTO_START", window=4.0)
 
 
+@case("sync", "sync_auto_stop_p", "P: tail-assist auto-sync idle at compression -> SYNC:AUTO_STOP")
+def _sync_auto_stop(board):
+    # AUTO_STOP only fires for an auto-started, tail-assist sync (filament past
+    # OUT but absent at IN) once the buffer sits at COMPRESSION for
+    # SYNC_AUTO_STOP_MS (5 s) with no further demand.
+    board.send("SET:AUTO_MODE:1")
+    board.prompt("Tail-assist setup: filament PRESENT at the OUT sensor but NOT at the "
+                 "IN/gate sensor. Set the buffer below +0.6, then push UP across +0.6 "
+                 "toward TENSION to auto-start sync.")
+    board.expect("SYNC:AUTO_START", timeout=6.0)
+    board.prompt("Now push and HOLD the buffer at COMPRESSION (-1.0) with no demand "
+                 "for ~6 s (tail consumed).")
+    board.expect("SYNC:AUTO_STOP", timeout=8.0)    # > SYNC_AUTO_STOP_MS (5 s)
+
+
 # ---------------------------------------------------------------------------
 # STAB  (BUF_STAB — D23 Gate A for type-P)
 # ---------------------------------------------------------------------------
