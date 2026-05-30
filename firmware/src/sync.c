@@ -1890,8 +1890,15 @@ void sync_tick(uint32_t now_ms) {
     bool l2_out = lane_out_present(&g_lane_l2);
     bool any_lane_loaded = l1_out || l2_out;
     bool both_loaded = l1_out && l2_out;
+    /* Type-P auto-start = buffer high AND under real extruder demand. Demand is
+       either a fresh transition into the tension zone OR the buffer actively
+       rising toward tension (g_vel_norm > 0). The velocity term is the robust
+       signal: if the buffer rests already inside the goal-relative tension zone
+       (goal is compression-side, so even a near-neutral rest reads TENSION), no
+       fresh transition fires — but the extruder pulling still makes it rise.
+       A static rest at home (+1.0) has vel~0, so this stays gated there (D18). */
     bool is_tension_active = (BUF_SENSOR_TYPE == 1)
-        ? ((g_buf_pos > 0.6f) && g_sync_tension_transitioned)
+        ? ((g_buf_pos > 0.6f) && (g_sync_tension_transitioned || g_vel_norm > 0.1f))
         : (s == BUF_TENSION);
     if (AUTO_MODE && !sync_enabled && auto_start_allowed && is_tension_active &&
             !g_bl_autostart_suppressed &&
