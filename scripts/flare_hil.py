@@ -138,6 +138,25 @@ def _sync_auto_stop(board):
     board.expect("SYNC:AUTO_STOP", timeout=8.0, progress=True)   # > SYNC_AUTO_STOP_MS (5 s)
 
 
+@case("sync", "sync_polarity_d", "D: g_buf_pos sign matches state (COMPRESSION>0, TENSION<0)",
+      buf_types=("d",))
+def _sync_polarity_d(board):
+    # Regression guard for the 2026-05-31 polarity unification: + = COMPRESSION,
+    # - = TENSION. cf63cc1 flipped the type-D sensor/state/virtual-position; a
+    # half-migrated flip (sign vs state disagreeing) or a re-inverted virtual
+    # position would surface here. Pure sign/state read — no motion, no sync.
+    board.await_buffer("Push and HOLD the buffer to the COMPRESSION switch.", lo=0.9)
+    pos, zone = board.buf_pos()
+    assert zone == "COMPRESSION", f"expected COMPRESSION state, got {zone!r} (BP={pos})"
+    assert isinstance(pos, (int, float)) and pos > 0.0, \
+        f"COMPRESSION must read +BP under the new convention, got {pos:+.2f} (polarity regression)"
+    board.await_buffer("Now pull and HOLD the buffer to the TENSION switch.", hi=-0.9)
+    pos, zone = board.buf_pos()
+    assert zone == "TENSION", f"expected TENSION state, got {zone!r} (BP={pos})"
+    assert isinstance(pos, (int, float)) and pos < 0.0, \
+        f"TENSION must read -BP under the new convention, got {pos:+.2f} (polarity regression)"
+
+
 # ---------------------------------------------------------------------------
 # STAB  (BUF_STAB — D23 Gate A for type-P)
 # ---------------------------------------------------------------------------
