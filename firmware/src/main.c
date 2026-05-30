@@ -438,10 +438,10 @@ int main(void) {
 
     settings_load();
     cutter_init();
-    g_buf.entered_ms = to_ms_since_boot(get_absolute_time());
 
     // din_init reads GPIOs once without debounce; sensors may not have settled.
     // Spin din_update for 25 ms so the 10 ms debounce threshold commits correctly.
+    // For Type-P, also poll the ADC pin to let the EWMA filter settle to the true physical value.
     for (int i = 0; i < 25; i++) {
         din_update(&g_lane_l1.in_sw);
         din_update(&g_lane_l1.out_sw);
@@ -450,8 +450,14 @@ int main(void) {
         din_update(&g_y_split);
         din_update(&g_buf_tension_din);
         din_update(&g_buf_compression_din);
+        if (BUF_SENSOR_TYPE == 1) {
+            buf_analog_update();
+        }
         sleep_ms(1);
     }
+
+    g_buf.state = buf_state_raw();
+    g_buf.entered_ms = to_ms_since_boot(get_absolute_time());
 
     active_lane = detect_active_lane_from_out();
     if (active_lane == 0) {
