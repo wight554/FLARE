@@ -488,13 +488,16 @@ static int sync_apply_scaling(int base_sps, float target_norm, float pos_norm) {
         ? 0.1f
         : (buf_virtual_deadband_mm() / buf_threshold_mm());
 
-    if (pos_norm < (target_norm - deadband_norm)) {
-        float taper_start = target_norm - deadband_norm;
-        float taper_end = -1.0f;
-        float taper_span = taper_start - taper_end;
+    /* Overfeed taper: as the buffer pushes past goal toward the COMPRESSION rail
+       (+1 under the new convention), taper feed down toward the compression floor
+       so it doesn't slam the wall. Fires on the compression side (pos > goal). */
+    if (pos_norm > (target_norm + deadband_norm)) {
+        float taper_start = target_norm + deadband_norm;
+        float taper_end = 1.0f;
+        float taper_span = taper_end - taper_start;
 
         if (target > COMPRESSION_SPS && taper_span > 0.001f) {
-            float overfill = taper_start - pos_norm;
+            float overfill = pos_norm - taper_start;
             float taper_frac = clamp_f(overfill / taper_span, 0.0f, 1.0f);
             int taper_floor_sps = COMPRESSION_SPS;
             if (g_buf.state == BUF_NEUTRAL) {
@@ -1700,7 +1703,10 @@ void buf_sensor_tick(uint32_t now_ms) {
             if (BUF_SENSOR_TYPE == 1 && sync_enabled) {
                 float mmu_mm_s = (float)lane_motion_sps(A) * MM_PER_STEP[idx];
                 float arm_vel = g_vel_norm * buf_physical_half_travel_mm();
-                float extruder_mm_s = mmu_mm_s + arm_vel;
+                /* Filament conservation: extruder draw = mmu feed + buffer drain rate.
+                   Buffer drains toward TENSION, which is now NEGATIVE velocity, so the
+                   drain rate is -arm_vel (was +arm_vel under the old +tension sign). */
+                float extruder_mm_s = mmu_mm_s - arm_vel;
                 float est_sps = 0.0f;
                 if (MM_PER_STEP[idx] > 1e-6f) {
                     est_sps = extruder_mm_s / MM_PER_STEP[idx];
@@ -1752,14 +1758,18 @@ static int psf_control_law(float error_norm) {
     int max_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
     int kp_window = sync_effective_kp_sps(g_buf.state);
 
-    float p_err = error_norm;
+    /* Convention: g_buf_pos +compression / -tension. error_norm = pos - goal,
+       so +error = compression-side (overfed) → must FEED LESS, -error = tension
+       (starved) → FEED MORE. Negate so the proportional correction drives toward
+       goal instead of away (positive feedback). Same for the velocity damping. */
+    float p_err = -error_norm;
     if (fabsf(p_err) < CONF_PSF_CTRL_DEADBAND) {
         p_err = 0.0f;
     }
 
     int ff = (int)extruder_est_sps;
     int p  = (int)(p_err * (float)kp_window);
-    int d  = (int)(g_vel_norm_f * KD_PSF);
+    int d  = (int)(-g_vel_norm_f * KD_PSF);
 
     int target = ff + p + d;
 
@@ -1771,11 +1781,11 @@ static int psf_control_law(float error_norm) {
         if (wall > 1.0f) wall = 1.0f;
         if (wall < 0.0f) wall = 0.0f;
         if (pos_norm > 0.0f) {
-            /* TENSION: blend toward max_sps to urge refill */
-            target = (int)((float)target + (float)(max_sps - target) * wall);
-        } else {
-            /* COMPRESSION: blend toward 0 SPS to prevent overfeed */
+            /* COMPRESSION (+): blend toward 0 SPS to prevent overfeed */
             target = (int)((float)target * (1.0f - wall));
+        } else {
+            /* TENSION (-): blend toward max_sps to urge refill */
+            target = (int)((float)target + (float)(max_sps - target) * wall);
         }
     }
 
@@ -1793,16 +1803,19 @@ void sync_tick(uint32_t now_ms) {
            sync_fault_hold() at idle and breaks a manual UL (the buffer is its own
            normal home, not a starvation fault). Over-tension is only a fault while
            actively syncing a loaded buffer. */
-        /* 10.1: Velocity-triggered brake on compression slam */
-        if (g_vel_norm < -CONF_PSF_JUMP_NORM_PER_S) {
+        /* 10.1: Velocity-triggered brake on compression slam. Compression is +
+           under the new convention, so a slam toward the compression rail is a
+           POSITIVE velocity spike. */
+        if (g_vel_norm > CONF_PSF_JUMP_NORM_PER_S) {
             sync_fast_brake_until_ms = now_ms + CONF_PSF_STOP_CONFIRM_MS;
         }
 
         /* 10.2: Stop/slowdown classification during brake */
         bool fast_brake_active = sync_fast_brake_until_ms != 0 && (int32_t)(sync_fast_brake_until_ms - now_ms) > 0;
         if (fast_brake_active) {
-            if (g_vel_norm > 0.1f) {
-                /* Extruder resumed or buffer recovered: clear brake, resume PD */
+            if (g_vel_norm < -0.1f) {
+                /* Extruder resumed or buffer recovered (moving back off compression,
+                   toward tension): clear brake, resume PD */
                 sync_fast_brake_until_ms = 0;
             }
         } else if (sync_fast_brake_until_ms != 0 && (int32_t)(now_ms - sync_fast_brake_until_ms) >= 0) {
@@ -1883,11 +1896,12 @@ void sync_tick(uint32_t now_ms) {
     bool both_loaded = l1_out && l2_out;
     /* Type-P auto-start = buffer high AND under real extruder demand. Demand is
        either a fresh transition into the tension zone OR the buffer actively
-       rising toward tension (g_vel_norm > 0). The velocity term is the robust
-       signal: if the buffer rests already inside the goal-relative tension zone
-       (goal is compression-side, so even a near-neutral rest reads TENSION), no
-       fresh transition fires — but the extruder pulling still makes it rise.
-       A static rest at home (+1.0) has vel~0, so this stays gated there (D18). */
+       falling toward tension (g_vel_norm < 0, since tension is now the - rail).
+       The velocity term is the robust signal: if the buffer rests already inside
+       the goal-relative tension zone (goal is compression-side, so even a
+       near-neutral rest reads TENSION), no fresh transition fires — but the
+       extruder pulling still makes it fall. A static rest at home (-1.0) has
+       vel~0, so this stays gated there (D18). */
     bool is_tension_active = (BUF_SENSOR_TYPE == 1)
         ? ((g_buf_pos < -0.6f) && (g_sync_tension_transitioned || g_vel_norm < -0.1f))
         : (s == BUF_TENSION);
