@@ -630,7 +630,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         if (v == 0 || v == 1) {
             if (v == 1) {
                 sync_retract_assist_set(false);
-                sync_set_state(SYNC_OFF);
+                sync_disable(false);
                 /* Explicit "toolhead loaded" signal — clear any leftover BL
                  * auto-start suppression so the buffer-tension auto-engage
                  * gate can fire on the next BUF_TENSION. Without this the

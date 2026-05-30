@@ -1554,7 +1554,10 @@ static void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t
 
     if (now_state == BUF_TENSION) {
         sync_tension_pin_since_ms = now_ms;
-        g_sync_tension_transitioned = true;
+        lane_t *A = lane_ptr(active_lane);
+        if (A && (A->task == TASK_IDLE || A->task == TASK_FEED)) {
+            g_sync_tension_transitioned = true;
+        }
         g_tension_pin_ts[g_tension_pin_ts_idx] = now_ms;
         g_tension_pin_ts_idx = (g_tension_pin_ts_idx + 1) % TENSION_PIN_WINDOW_LEN;
     } else if (prev == BUF_TENSION) {
