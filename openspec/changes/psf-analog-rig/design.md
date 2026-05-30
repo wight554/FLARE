@@ -432,8 +432,13 @@ position-based unload guard**; it relies on the existing `UNLOAD_MAX` distance
 limit (`UNLOAD_TIMEOUT`) for the stuck case. The relief jog, dwell block,
 `unload_buf_left_rail` arming, and `sync_buf_tension_slam()` were deleted; the
 type-D recover + `UNLOAD_TENSION_BLOCK` are unchanged (gated `BUF_SENSOR_TYPE ==
-0`). Early jam detection for type-P, if wanted later, needs a load signal
-(TMC StallGuard / current), not buffer position. Also fixed same session: the
+0`). Early jam detection for type-P would need a load signal, not buffer position —
+**DECIDED: not pursued.** StallGuard is unreliable here (the gears slip, so a
+jam and a slip look the same), and standalone `UL` is a manual/rare flow; under
+klipper the toolhead sensor is the real unload-completion/jam judge. Accepted
+drawback: a genuine *standalone* type-P unload jam grinds to `UNLOAD_MAX` →
+`UNLOAD_TIMEOUT` rather than stopping early. (Note the boundary: sync stays
+firmware-only/klipper-agnostic; unload-jam judgment may lean on klipper.) Also fixed same session: the
 post-load `AUTO_MODE` auto-start was forcing `SYNC_ACTIVE` into the compressed
 post-load buffer (overfeeding the gears) — now type-D only; type-P waits for the
 D18 tension-transition auto-start.
