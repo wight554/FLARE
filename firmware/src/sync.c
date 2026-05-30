@@ -1823,6 +1823,7 @@ void sync_tick(uint32_t now_ms) {
             sync_fast_brake_until_ms = 0;
             if (g_buf_pos <= -0.99f) {
                 sync_relief_pause();
+                sync_apply_to_active();
                 cmd_event("SYNC", "RELIEF_PAUSE");
                 return;
             }
@@ -1833,10 +1834,12 @@ void sync_tick(uint32_t now_ms) {
             (now_ms - g_buf_analog_saturated_since_ms) >= CONF_PSF_WALL_SAT_MS) {
             if (g_buf_pos <= -0.99f) {
                 sync_relief_pause();
+                sync_apply_to_active();
                 cmd_event("SYNC", "RELIEF_PAUSE");
                 return;
             } else if (g_buf_pos >= 0.99f) {
                 sync_fault_hold();
+                sync_apply_to_active();
                 cmd_event("SYNC", "FAULT_HOLD");
                 return;
             }
