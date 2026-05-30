@@ -32,3 +32,11 @@
 
 - [x] 6.1 `python3 -m py_compile`, `-m doctest`, `-m unittest test_flare_hil_harness` — all pass; `flare_hil.py --list` renders the registry.
 - [ ] 6.2 Add a short "HIL buffer-flow tests" section to `TEST_CASES.md` (how to start the daemon + run a flow). (Operator-doc follow-up.)
+
+## 7. Operator UX
+
+- [x] 7.1 `await_buffer`: live `g_buf_pos`/zone readout from `/status` while staging; auto-proceeds at the target window, ENTER forces. Buffer-position cases use it (unload tug, sync relief/fault/auto-start/auto-stop, stab loaded, buflock prime/lock/break).
+- [x] 7.2 Echo muting: `< EV` / `>` echo suppressed while a prompt, staged wait, or progress countdown is on screen (events still captured). `_mute_echo` flag honored in `_ingest`/`send`.
+- [x] 7.3 Progress countdown: `expect(progress=True)` shows a one-line `\r` countdown on long waits (load `LOADED`, lock acquire/follow, auto-stop) with echo muted.
+- [x] 7.4 Per-case retry/skip: on failure the runner offers `[r]etry / [s]kip / ENTER=fail`; results track pass/fail/skip; `Ctrl-C` aborts the run cleanly (`ST:`).
+- [x] 7.5 Unit tests for the new pure helpers (`_in_range`, `_target_str`, muted-capture).

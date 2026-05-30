@@ -7,24 +7,34 @@ port itself (no conflict, no second reader):
 
   * commands  -> ``POST /cmd``        (returns the board's OK:/ER: reply)
   * events    -> ``GET /telemetry``   (SSE stream of {event_type,event_data})
-  * status    -> ``GET /status``      (state snapshot incl. recent events)
+  * status    -> ``GET /status``      (snapshot incl. g_buf_pos / buf_state)
 
 This is hardware-in-the-loop, not CI: the flow tests in ``flare_hil.py`` need a
-powered board, a running daemon, and an operator to move the buffer when
-prompted. The pure event-parsing / matching logic is factored behind
-``event_from_sse`` / ``parse_event`` / ``HilBoard._ingest`` so it is unit-tested
-with no hardware in ``test_flare_hil_harness.py``.
+powered board, a running daemon, and an operator. The pure event-parsing /
+matching logic is factored behind ``event_from_sse`` / ``parse_event`` /
+``HilBoard._ingest`` (plus the ``_in_range`` / ``_target_str`` helpers) so it is
+unit-tested with no hardware in ``test_flare_hil_harness.py``.
+
+UX:
+  * ``await_buffer`` polls ``/status`` and shows the live ``g_buf_pos`` while the
+    operator stages the buffer, auto-proceeding when it reaches the target
+    window (ENTER forces). No more guessing where the arm is.
+  * raw ``< EV`` echo is muted while a prompt / staged wait / progress countdown
+    is on screen, so those lines stay clean (events are still captured).
+  * ``expect(..., progress=True)`` shows a one-line countdown on long waits.
 
 Event matching note: the firmware emits ``EV:<type>:<data>`` (colon), and the
 daemon only comma-splits, so the daemon's ``event_type`` carries the whole
 colon-delimited token (e.g. ``SYNC:RELIEF_PAUSE``, ``BUF_STAB:DONE``,
-``BL:LOCKED``). Matching is therefore a substring/regex test against the
-reconstructed payload, which is robust for every buffer event.
+``BL:LOCKED``). Matching is a substring/regex test against the reconstructed
+payload, robust for every buffer event.
 """
 
 import collections
 import json
 import re
+import select
+import sys
 import threading
 import time
 import urllib.request
@@ -58,9 +68,6 @@ def parse_event(line):
 def event_from_sse(data):
     """Reconstruct the matchable payload from a daemon SSE message dict.
 
-    Returns the payload string for board events, or None for non-event
-    telemetry frames.
-
     >>> event_from_sse({"event_type": "UNLOAD_BLOCKED", "event_data": ""})
     'UNLOAD_BLOCKED'
     >>> event_from_sse({"event_type": "SYNC", "event_data": "RELIEF_PAUSE"})
@@ -90,11 +97,11 @@ class HilBoard:
         self._stop = threading.Event()
         self._reader = None
         self._sse = None
+        self._mute_echo = False     # silence < EV echo while a prompt/wait is on screen
 
     # -- lifecycle ------------------------------------------------------------
 
     def connect(self):
-        # Verify the daemon is up (and thus owns the serial port).
         try:
             self.status(timeout=2.0)
         except Exception as e:
@@ -155,7 +162,7 @@ class HilBoard:
         payload = event_from_sse(data)
         if payload is None:
             return None
-        if self.verbose:
+        if self.verbose and not self._mute_echo:
             print(f"   < EV {payload}")
         ev = Event(payload, data.get("event_data") or "", time.monotonic())
         with self._lock:
@@ -165,8 +172,7 @@ class HilBoard:
     # -- commands -------------------------------------------------------------
 
     def send(self, cmd, timeout=10.0):
-        """POST a command via the daemon; return the board's reply string."""
-        if self.verbose:
+        if self.verbose and not self._mute_echo:
             print(f"   > {cmd}")
         body = json.dumps({"cmd": cmd}).encode("utf-8")
         req = urllib.request.Request(
@@ -190,6 +196,14 @@ class HilBoard:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
 
+    def buf_pos(self):
+        """(g_buf_pos, buf_state) from /status, or (None, None) on error."""
+        try:
+            s = self.status(timeout=1.0)
+            return s.get("g_buf_pos"), s.get("buf_state")
+        except Exception:
+            return None, None
+
     # -- event assertions -----------------------------------------------------
 
     @staticmethod
@@ -206,26 +220,44 @@ class HilBoard:
         with self._lock:
             return list(self._events)
 
-    def wait_event(self, needle, timeout=5.0, regex=False, since=0.0, poll=0.02):
+    def wait_event(self, needle, timeout=5.0, regex=False, since=0.0, poll=0.02,
+                   progress=False):
         """Block until an event payload matches ``needle``; return it or None.
 
-        Only events with timestamp >= ``since`` are considered, so a caller can
-        snapshot ``t0 = time.monotonic()`` before an action and ignore stale
-        events without clearing the buffer.
+        With ``progress`` (and verbose) a one-line countdown is shown and the
+        ``< EV`` echo is muted so the line stays clean; the matched event is
+        printed on success.
         """
         deadline = time.monotonic() + timeout
-        while True:
-            with self._lock:
-                for ev in self._events:
-                    if ev.t >= since and self._matches(ev, needle, regex):
-                        return ev
-            if time.monotonic() >= deadline:
-                return None
-            time.sleep(poll)
+        show = progress and self.verbose
+        prev_mute = self._mute_echo
+        if show:
+            self._mute_echo = True
+        last = 0.0
+        try:
+            while True:
+                with self._lock:
+                    for ev in self._events:
+                        if ev.t >= since and self._matches(ev, needle, regex):
+                            if show:
+                                self._clear_line()
+                                print(f"   < EV {ev.payload}")
+                            return ev
+                now = time.monotonic()
+                if show and now - last >= 0.5:
+                    sys.stdout.write(f"\r   ... waiting '{needle}'  {max(0.0, deadline - now):4.0f}s ")
+                    sys.stdout.flush()
+                    last = now
+                if now >= deadline:
+                    if show:
+                        self._clear_line()
+                    return None
+                time.sleep(poll)
+        finally:
+            if show:
+                self._mute_echo = prev_mute
 
     def refute_event(self, needle, window=2.0, regex=False, poll=0.02):
-        """Return a matching Event if one appears within ``window`` (refute
-        FAILS), else None (refute passes)."""
         start = time.monotonic()
         deadline = start + window
         while time.monotonic() < deadline:
@@ -236,8 +268,9 @@ class HilBoard:
             time.sleep(poll)
         return None
 
-    def expect(self, needle, timeout=5.0, regex=False, since=0.0):
-        ev = self.wait_event(needle, timeout=timeout, regex=regex, since=since)
+    def expect(self, needle, timeout=5.0, regex=False, since=0.0, progress=False):
+        ev = self.wait_event(needle, timeout=timeout, regex=regex, since=since,
+                             progress=progress)
         if ev is None:
             raise AssertionError(f"expected event '{needle}' within {timeout}s, none seen")
         return ev
@@ -247,10 +280,104 @@ class HilBoard:
         if ev is not None:
             raise AssertionError(f"unexpected event '{needle}' (payload: {ev.payload})")
 
-    # -- operator + helpers ---------------------------------------------------
+    # -- operator interaction -------------------------------------------------
+
+    @staticmethod
+    def _clear_line():
+        sys.stdout.write("\r" + " " * 64 + "\r")
+        sys.stdout.flush()
+
+    @staticmethod
+    def _in_range(pos, lo, hi):
+        """True if pos is within the (optional) [lo, hi] window.
+
+        >>> HilBoard._in_range(0.95, 0.9, None)
+        True
+        >>> HilBoard._in_range(-0.95, None, -0.9)
+        True
+        >>> HilBoard._in_range(0.3, 0.9, None)
+        False
+        """
+        return (lo is None or pos >= lo) and (hi is None or pos <= hi)
+
+    @staticmethod
+    def _target_str(lo, hi):
+        """Human-readable target window.
+
+        >>> HilBoard._target_str(0.9, None)
+        '(want >= +0.90)'
+        >>> HilBoard._target_str(None, -0.9)
+        '(want <= -0.90)'
+        """
+        if lo is not None and hi is not None:
+            return f"(want {lo:+.2f}..{hi:+.2f})"
+        if lo is not None:
+            return f"(want >= {lo:+.2f})"
+        if hi is not None:
+            return f"(want <= {hi:+.2f})"
+        return ""
+
+    def _enter_pressed(self):
+        try:
+            if sys.stdin is None or not sys.stdin.isatty():
+                return False
+            r, _, _ = select.select([sys.stdin], [], [], 0)
+            if r:
+                sys.stdin.readline()
+                return True
+        except Exception:
+            pass
+        return False
 
     def prompt(self, msg):
-        self._prompt_fn(f"\n   [OPERATOR] {msg}\n   ...press ENTER when ready ")
+        """Operator acknowledgement (no buffer target). Mutes echo while open."""
+        self._mute_echo = True
+        try:
+            self._prompt_fn(f"\n   [OPERATOR] {msg}\n   ...press ENTER when ready ")
+        finally:
+            self._mute_echo = False
+
+    def ask(self, msg):
+        """Prompt for a short string answer (echo muted)."""
+        self._mute_echo = True
+        try:
+            return (self._prompt_fn(msg) or "").strip().lower()
+        finally:
+            self._mute_echo = False
+
+    def await_buffer(self, msg, lo=None, hi=None, timeout=120.0, poll=0.25):
+        """Prompt, then poll /status with a live ``g_buf_pos`` readout, returning
+        when the buffer enters the [lo, hi] window (auto-detect), the operator
+        presses ENTER (force), or ``timeout`` elapses. Echo muted while waiting.
+        """
+        target = self._target_str(lo, hi)
+        print(f"\n   [OPERATOR] {msg}")
+        print(f"   staging buffer {target}  —  live position below ([ENTER] to force):")
+        self._mute_echo = True
+        deadline = time.monotonic() + timeout
+        try:
+            while True:
+                pos, zone = self.buf_pos()
+                shown = f"{pos:+.2f}" if isinstance(pos, (int, float)) else "  ?  "
+                sys.stdout.write(f"\r   buffer {shown}  {str(zone or '').ljust(11)} {target}  ")
+                sys.stdout.flush()
+                if isinstance(pos, (int, float)) and self._in_range(pos, lo, hi):
+                    self._clear_line()
+                    print(f"   buffer {pos:+.2f} {zone}  -> staged")
+                    return True
+                if self._enter_pressed():
+                    self._clear_line()
+                    print("   (forced by operator)")
+                    return False
+                if time.monotonic() >= deadline:
+                    self._clear_line()
+                    print("   (await timeout; proceeding)")
+                    return False
+                time.sleep(poll)
+        finally:
+            self._mute_echo = False
+
+    # -- setup helpers --------------------------------------------------------
 
     def set_sensor_type(self, buf_type):
         """'p' -> analog (BUF_SENSOR:1); 'd' -> digital (BUF_SENSOR:0)."""

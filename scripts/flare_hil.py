@@ -10,10 +10,10 @@ asserts the emitted ``EV:`` events for each buffer flow:
     load     FL flow-load completion + guards (buffer-relevant load only)
     unload   UL over-tension guard (type-P D22) + type-D parity
 
-Each case prompts the operator to move the buffer / stage filament, sends the
-driving command, and asserts (or refutes) the resulting events. Type-P is the
-focus; a few type-D parity cases are included and only run with ``--type d`` on
-type-D hardware.
+Cases that stage a *buffer position* use ``await_buffer`` (live g_buf_pos
+readout, auto-proceeds at the target, ENTER to force). Cases that stage a
+*sensor/filament* condition use ``prompt`` (operator ack). Type-P is the focus;
+type-D parity cases are tagged and only run with ``--type d``.
 
 Prereqs: a powered board, a running ``flare_daemon`` (owns the serial port), and
 an operator at the bench. NOT a CI suite — the harness parsing logic is
@@ -33,8 +33,7 @@ from collections import namedtuple
 
 from flare_hil_harness import HilBoard, HilError
 
-# A test case. run(board) raises AssertionError/HilError on failure.
-#   buf_types: sensor types the case applies to, e.g. ("p",) or ("p", "d").
+# run(board) raises AssertionError/HilError on failure.
 Case = namedtuple("Case", "id flow title buf_types run")
 
 FLOWS = ("sync", "stab", "buflock", "load", "unload")
@@ -63,11 +62,12 @@ def _reset(board):
 
 @case("unload", "ul_tug_of_war_p", "P: pinned at tension during unload -> UNLOAD_BLOCKED")
 def _ul_tug(board):
-    board.prompt("Load filament past the OUT sensor. During unload, HOLD the buffer "
-                 "arm pinned at the TENSION/home rail (+1.0) the whole time.")
+    board.await_buffer("Load filament past the OUT sensor, then push and HOLD the buffer "
+                       "arm at the TENSION/home rail and keep holding through the unload.",
+                       lo=0.9)
     resp = board.send("UL")
     assert resp and "ER" not in resp, f"UL rejected: {resp!r} (is OUT sensor active?)"
-    board.expect("UNLOAD_BLOCKED", timeout=8.0)   # > UNLOAD_TENSION_BLOCK_MS (5 s)
+    board.expect("UNLOAD_BLOCKED", timeout=8.0, progress=True)   # > UNLOAD_TENSION_BLOCK_MS (5 s)
 
 
 @case("unload", "ul_no_false_block_p", "P: healthy unload (off-rail) -> no UNLOAD_BLOCKED")
@@ -85,7 +85,7 @@ def _ul_blocked_d(board):
     board.prompt("Load filament past OUT. Hold the buffer at the TENSION switch during unload.")
     resp = board.send("UL")
     assert resp and "ER" not in resp, f"UL rejected: {resp!r}"
-    board.expect("UNLOAD_BLOCKED", timeout=8.0)
+    board.expect("UNLOAD_BLOCKED", timeout=8.0, progress=True)
 
 
 # ---------------------------------------------------------------------------
@@ -95,23 +95,23 @@ def _ul_blocked_d(board):
 @case("sync", "sync_relief_pause_p", "P: compression pin during sync -> SYNC:RELIEF_PAUSE")
 def _sync_relief(board):
     board.send("SM:1")
-    board.prompt("Push and HOLD the buffer to full COMPRESSION (-1.0).")
-    board.expect("SYNC:RELIEF_PAUSE", timeout=6.0)
+    board.await_buffer("Push and HOLD the buffer to full COMPRESSION.", hi=-0.9)
+    board.expect("SYNC:RELIEF_PAUSE", timeout=6.0, progress=True)
 
 
 @case("sync", "sync_fault_hold_tension_p", "P: tension pin during sync -> SYNC:FAULT_HOLD")
 def _sync_fault(board):
     board.send("SM:1")
-    board.prompt("Push and HOLD the buffer to full TENSION/home (+1.0).")
-    board.expect("SYNC:FAULT_HOLD", timeout=6.0)
+    board.await_buffer("Push and HOLD the buffer to full TENSION/home.", lo=0.9)
+    board.expect("SYNC:FAULT_HOLD", timeout=6.0, progress=True)
 
 
 @case("sync", "sync_auto_start_p", "P: AUTO_MODE + tension transition -> SYNC:AUTO_START")
 def _sync_auto_start(board):
     board.send("SET:AUTO_MODE:1")
-    board.prompt("With filament loaded, set the buffer below +0.6, then push it UP "
-                 "across +0.6 toward TENSION (a real transition, not resting at home).")
-    board.expect("SYNC:AUTO_START", timeout=6.0)
+    board.await_buffer("With filament loaded, start BELOW +0.6, then push UP across +0.6 "
+                       "toward TENSION (a real transition, not resting at home).", lo=0.6)
+    board.expect("SYNC:AUTO_START", timeout=6.0, progress=True)
 
 
 @case("sync", "sync_auto_start_gated_p", "P: AUTO_MODE + resting at home -> no spurious AUTO_START (D18)")
@@ -125,16 +125,14 @@ def _sync_auto_gate(board):
 @case("sync", "sync_auto_stop_p", "P: tail-assist auto-sync idle at compression -> SYNC:AUTO_STOP")
 def _sync_auto_stop(board):
     # AUTO_STOP only fires for an auto-started, tail-assist sync (filament past
-    # OUT but absent at IN) once the buffer sits at COMPRESSION for
+    # OUT but absent at IN) once the buffer holds COMPRESSION for
     # SYNC_AUTO_STOP_MS (5 s) with no further demand.
     board.send("SET:AUTO_MODE:1")
-    board.prompt("Tail-assist setup: filament PRESENT at the OUT sensor but NOT at the "
-                 "IN/gate sensor. Set the buffer below +0.6, then push UP across +0.6 "
-                 "toward TENSION to auto-start sync.")
-    board.expect("SYNC:AUTO_START", timeout=6.0)
-    board.prompt("Now push and HOLD the buffer at COMPRESSION (-1.0) with no demand "
-                 "for ~6 s (tail consumed).")
-    board.expect("SYNC:AUTO_STOP", timeout=8.0)    # > SYNC_AUTO_STOP_MS (5 s)
+    board.await_buffer("Tail-assist setup: filament PRESENT at OUT but NOT at the IN/gate "
+                       "sensor. Start below +0.6, then push UP across +0.6 to auto-start.", lo=0.6)
+    board.expect("SYNC:AUTO_START", timeout=6.0, progress=True)
+    board.await_buffer("Now push and HOLD the buffer at COMPRESSION (tail consumed).", hi=-0.9)
+    board.expect("SYNC:AUTO_STOP", timeout=8.0, progress=True)   # > SYNC_AUTO_STOP_MS (5 s)
 
 
 # ---------------------------------------------------------------------------
@@ -143,12 +141,12 @@ def _sync_auto_stop(board):
 
 @case("stab", "stab_loaded_to_goal_p", "P: loaded + off-goal -> BUF_STAB normalizes to goal")
 def _stab_loaded(board):
-    board.prompt("Ensure filament is present (OUT/IN active). Set the buffer OFF goal "
-                 "(toward COMPRESSION).")
+    board.await_buffer("Ensure filament is present (OUT/IN active), then set the buffer OFF "
+                       "goal toward COMPRESSION.", hi=-0.55)
     resp = board.send("BS")
     assert resp and "ER" not in resp, f"BS rejected: {resp!r}"
     board.expect("BUF_STAB:START", timeout=2.0)
-    board.expect("BUF_STAB:DONE", timeout=12.0)
+    board.expect("BUF_STAB:DONE", timeout=12.0, progress=True)
 
 
 @case("stab", "stab_unloaded_noop_p", "P: unloaded at home -> BUF_STAB no-op (no START) (D23)")
@@ -165,7 +163,7 @@ def _stab_d(board):
     resp = board.send("BS")
     assert resp and "ER" not in resp, f"BS rejected: {resp!r}"
     board.expect("BUF_STAB:START", timeout=2.0)
-    board.expect("BUF_STAB:DONE", timeout=12.0)
+    board.expect("BUF_STAB:DONE", timeout=12.0, progress=True)
 
 
 # ---------------------------------------------------------------------------
@@ -177,27 +175,30 @@ def _bl_lock(board):
     resp = board.send("BL:T")
     assert resp and "ER" not in resp, f"BL rejected: {resp!r}"
     board.expect("BL:PRIME", timeout=3.0)
-    board.prompt("Let the buffer arm reach the TENSION extreme (>=+0.9).")
-    board.expect("BL:LOCKED", timeout=8.0)
+    board.await_buffer("Let the buffer arm reach the TENSION extreme.", lo=0.9)
+    board.expect("BL:LOCKED", timeout=8.0, progress=True)
 
 
 @case("buflock", "bl_break_follow_p", "P: locked, arm pulled off extreme -> BL:FOLLOW -> FOLLOW_DONE (D20)")
 def _bl_follow(board):
     resp = board.send("BL:T:20:300")               # arm tension + follow 20mm @ 300 mm/min
     assert resp and "ER" not in resp, f"BL rejected: {resp!r}"
-    board.prompt("Let the arm reach the TENSION extreme and lock.")
-    board.expect("BL:LOCKED", timeout=8.0)
-    board.prompt("Now pull the arm OFF the tension extreme (<+0.9) to simulate the extruder filling.")
-    board.expect("BL:FOLLOW", timeout=6.0)
-    board.expect("BL:FOLLOW_DONE", timeout=10.0)
+    board.expect("BL:PRIME", timeout=3.0)
+    board.await_buffer("Let the arm reach the TENSION extreme and lock.", lo=0.9)
+    board.expect("BL:LOCKED", timeout=8.0, progress=True)
+    board.await_buffer("Now pull the arm OFF the tension extreme to simulate the extruder filling.",
+                       hi=0.85)
+    board.expect("BL:FOLLOW", timeout=6.0, progress=True)
+    board.expect("BL:FOLLOW_DONE", timeout=10.0, progress=True)
 
 
 @case("buflock", "bl_timeout_p", "P: BL with no arm motion -> BL:TIMEOUT")
 def _bl_timeout(board):
     resp = board.send("BL:C")
     assert resp and "ER" not in resp, f"BL rejected: {resp!r}"
+    board.expect("BL:PRIME", timeout=3.0)
     board.prompt("Do NOT move the buffer; wait for the lock-acquire timeout.")
-    board.expect("BL:TIMEOUT", timeout=15.0)
+    board.expect("BL:TIMEOUT", timeout=15.0, progress=True)
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +210,7 @@ def _load_fl(board):
     board.prompt("Stage filament at the lane IN sensor (gate) with the path clear to load.")
     resp = board.send("FL")
     assert resp and "ER" not in resp, f"FL rejected: {resp!r} (is IN sensor active?)"
-    board.expect("LOADED", timeout=40.0)            # bowden-length dependent
+    board.expect("LOADED", timeout=40.0, progress=True)   # bowden-length dependent
 
 
 @case("load", "load_fl_no_filament", "FL with no filament at gate -> ER:NO_FILAMENT (guard)",
@@ -224,7 +225,7 @@ def _load_fl_guard(board):
 # runner
 # ---------------------------------------------------------------------------
 
-def select(flow, buf_type):
+def select_cases(flow, buf_type):
     for c in _REGISTRY:
         if flow != "all" and c.flow != flow:
             continue
@@ -233,21 +234,36 @@ def select(flow, buf_type):
         yield c
 
 
-def run(board, cases):
-    results = []
-    for c in cases:
+def run_one(board, c):
+    """Run a case with operator retry/skip on failure. Returns (status, detail)."""
+    while True:
         print(f"\n=== [{c.flow}] {c.id} ===\n    {c.title}")
         try:
             _reset(board)
             c.run(board)
-            print(f"    PASS")
-            results.append((c, True, ""))
+            print("    PASS")
+            return "pass", ""
+        except KeyboardInterrupt:
+            board.stop_motion()
+            print("    ABORT (interrupted)")
+            return "abort", "interrupted"
         except (AssertionError, HilError) as e:
             print(f"    FAIL: {e}")
-            results.append((c, False, str(e)))
-        except KeyboardInterrupt:
-            print("    SKIP (interrupted)")
             board.stop_motion()
+            ans = board.ask("    [r]etry / [s]kip / ENTER=record fail: ")
+            if ans == "r":
+                continue
+            if ans == "s":
+                return "skip", str(e)
+            return "fail", str(e)
+
+
+def run(board, cases):
+    results = []
+    for c in cases:
+        status, detail = run_one(board, c)
+        results.append((c, status, detail))
+        if status == "abort":
             break
     return results
 
@@ -262,7 +278,7 @@ def main(argv=None):
     ap.add_argument("--quiet", action="store_true", help="suppress raw event echo")
     args = ap.parse_args(argv)
 
-    cases = list(select(args.flow, args.type))
+    cases = list(select_cases(args.flow, args.type))
     if not cases:
         print(f"no cases for flow={args.flow} type={args.type}")
         return 1
@@ -289,9 +305,14 @@ def main(argv=None):
         board.send("SM:0")
         board.close()
 
-    passed = sum(1 for _, ok, _ in results if ok)
-    failed = [(c, why) for c, ok, why in results if not ok]
-    print(f"\n==== {passed}/{len(results)} passed ====")
+    passed = sum(1 for _, s, _ in results if s == "pass")
+    skipped = [(c, why) for c, s, why in results if s == "skip"]
+    failed = [(c, why) for c, s, why in results if s == "fail"]
+    print(f"\n==== {passed}/{len(results)} passed"
+          + (f", {len(skipped)} skipped" if skipped else "")
+          + (f", {len(failed)} failed" if failed else "") + " ====")
+    for c, why in skipped:
+        print(f"  SKIP [{c.flow}] {c.id}")
     for c, why in failed:
         print(f"  FAIL [{c.flow}] {c.id}: {why}")
     return 1 if failed else 0

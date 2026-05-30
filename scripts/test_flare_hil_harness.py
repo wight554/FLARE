@@ -95,5 +95,27 @@ class WaitRefuteTests(unittest.TestCase):
             b.refute("BLOCKED", window=0.5)
 
 
+class HelperTests(unittest.TestCase):
+    def test_in_range(self):
+        self.assertTrue(HilBoard._in_range(0.95, 0.9, None))     # >= lo
+        self.assertTrue(HilBoard._in_range(-0.95, None, -0.9))   # <= hi
+        self.assertTrue(HilBoard._in_range(0.3, None, None))     # no bounds
+        self.assertFalse(HilBoard._in_range(0.3, 0.9, None))
+        self.assertFalse(HilBoard._in_range(-0.3, None, -0.9))
+        self.assertTrue(HilBoard._in_range(-0.4, -0.5, -0.3))    # within window
+
+    def test_target_str(self):
+        self.assertEqual(HilBoard._target_str(0.9, None), "(want >= +0.90)")
+        self.assertEqual(HilBoard._target_str(None, -0.9), "(want <= -0.90)")
+        self.assertEqual(HilBoard._target_str(-0.5, -0.3), "(want -0.50..-0.30)")
+        self.assertEqual(HilBoard._target_str(None, None), "")
+
+    def test_muted_echo_still_captures(self):
+        b = HilBoard(verbose=True)
+        b._mute_echo = True
+        b._ingest({"event_type": "UNLOAD_BLOCKED", "event_data": ""})
+        self.assertEqual(len(b.events()), 1)     # captured even with echo muted
+
+
 if __name__ == "__main__":
     unittest.main()
