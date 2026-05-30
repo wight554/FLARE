@@ -1854,7 +1854,7 @@ void sync_tick(uint32_t now_ms) {
     bool any_lane_loaded = l1_out || l2_out;
     bool both_loaded = l1_out && l2_out;
     bool is_tension_active = (BUF_SENSOR_TYPE == 1)
-        ? ((g_buf_pos > 0.6f) && (BUF_HOME_STATE != 1 || g_sync_tension_transitioned))
+        ? ((g_buf_pos > 0.6f) && g_sync_tension_transitioned)
         : (s == BUF_TENSION);
     if (AUTO_MODE && !sync_enabled && auto_start_allowed && is_tension_active &&
             !g_bl_autostart_suppressed &&
