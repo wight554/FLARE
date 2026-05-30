@@ -1394,39 +1394,9 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         if (dt_s < 0.0001f) dt_s = 0.0001f;
         if (dt_s > 0.1f) dt_s = 0.001f;
 
-        float traveled = 0.0f;
-        if (BUF_SENSOR_TYPE == 1) {
-            /* Closed-loop hold at NEUTRAL (0), bidirectional, ignores the macro's
-               len/rate (type-D open-loop params). During a retract the buffer must
-               stay off the compression side — holding at goal (compression-side)
-               overfeeds the buffer toward the compression rail, which bulges the
-               filament. Target 0: feed to relieve when the retract pulls the buffer
-               toward tension, retract to remove slack if it drifts compression.
-               Speed ∝ distance from neutral, capped at SYNC_MAX_SPS, ->0 at neutral.
-               No distance cap: hold until BS or the watchdog releases. */
-            (void)dt_s;
-            float err = g_buf_pos;   /* target = 0 (neutral) */
-            int follow_sps = 0;
-            bool forward = true;
-            if (fabsf(err) > 0.05f) {
-                forward = (err > 0.0f);   /* tension side -> feed; compression -> retract */
-                float factor = fabsf(err); /* span 0..1 (neutral to either rail) */
-                if (factor > 1.0f) factor = 1.0f;
-                follow_sps = (int)(factor * (float)sync_clamp_max_sps(SYNC_MAX_SPS));
-                if (follow_sps < 1) follow_sps = 1;
-            }
-            motor_set_dir(&A->m, forward);
-            motor_set_rate_sps(&A->m, follow_sps);
-            if (g_bl_watchdog_ms != 0 && (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
-                handle_bl_watchdog_timeout(now_ms);
-            }
-            g_bl_last_tick_ms = now_ms;
-            return;
-        } else {
-            traveled = (g_bl_follow_mm_per_s > 0.0f)
+        float traveled = (g_bl_follow_mm_per_s > 0.0f)
                 ? ((float)(now_ms - g_bl_follow_start_ms) / 1000.0f * g_bl_follow_mm_per_s)
                 : g_bl_follow_mm;
-        }
 
         if (traveled >= g_bl_follow_mm) {
             motor_set_rate_sps(&A->m, 0);
