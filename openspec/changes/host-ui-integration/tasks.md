@@ -584,6 +584,8 @@ hardware. Run it, then drive `MMU_LOAD` / `MMU_UNLOAD` / a cut.
 - Aligned Type-D digital buffer sync feedback polarity with the Happy Hare / Fluidd convention by negating the positive `g_buf_pos` output (which internally represents Tension in the firmware) so both Type-P and Type-D exhibit consistent UI behavior (Tension as negative, Compression as positive).
 - Confirmed that all 26 unit tests continue to pass seamlessly.
 - Verified that both the Python sources compile correctly and the RP2040 firmware targets build cleanly using Ninja.
+- Aligned all firmware-internal buffer position computations and host-side daemon telemetry with standard polarity convention (Tension is negative, Compression is positive) without requiring artificial inversion at the host/UI boundary.
+- Successfully verified both Python syntax checks and C/C++ firmware builds. (Commit: `cf63cc1`)
 
 
 

@@ -15,8 +15,9 @@ Mainsail and Fluidd look for specific fields in the `printer.mmu` Klipper state 
 
 ### Rescaling Formula for Buffer Position
 ```python
-# Convert raw mm to the -1.0 to 1.0 float expected by Mainsail (Type-P analog only, inverted to match Happy Hare convention)
-# Type-P: sync_feedback = clamp(-g_buf_pos, -1.0, 1.0)
+# Convert raw mm to the -1.0 to 1.0 float expected by Mainsail
+# Both C-firmware and host-side daemon share the standard polarity convention where Tension is negative and Compression is positive.
+# Type-P: sync_feedback = clamp(g_buf_pos, -1.0, 1.0)
 # Type-D: sync_feedback = clamp(g_buf_pos / max_travel, -1.0, 1.0)
 ```
 
