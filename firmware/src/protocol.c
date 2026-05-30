@@ -250,7 +250,7 @@ static bool parse_optional_lane_payload(const char *p, int *lane_out, bool *expl
 
 static void start_manual_unload_lane(lane_t *A, bool suppress_event, uint32_t now_ms) {
     A->unload_to_in = false;
-    A->unload_buf_recover_done = true;
+    A->unload_buf_recover_done = false;
     lane_start(A, TASK_UNLOAD, REV_SPS, false, now_ms, (float)UNLOAD_MAX_MM);
     A->suppress_unloaded_event = suppress_event;
 }
