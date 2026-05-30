@@ -412,11 +412,18 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
         if (L->unload_sensor_latch) {
             float dist_since_out = L->task_dist_mm - L->dist_at_out_mm;
             float threshold = (float)DIST_OUT_Y + (float)DIST_Y_BUF + (float)BUF_MAX_TRAVEL_MM / 2.0f;
-            if (dist_since_out < threshold * 0.8f) {
+            bool distance_passed = (dist_since_out >= threshold * 0.8f);
+            /* For Type-P, we do not require the distance bypass gate because we have continuous
+               analog tracking and the buffer won't deviate from home (1.0) until filament hits the gears. */
+            if (BUF_SENSOR_TYPE == 1) {
+                distance_passed = true;
+            }
+
+            if (!distance_passed) {
                 buf_tension_sane = false;
             } else {
                 if (BUF_SENSOR_TYPE == 1) {
-                    if (g_buf_pos < PSF_HOME_DEVIATION_THRESHOLD_NORM) {
+                    if (g_buf_pos < PSF_LOAD_CONTACT_THRESHOLD_NORM) {
                         buf_compression_sane = true;
                     }
                 } else if (g_buf.state == BUF_COMPRESSION) {

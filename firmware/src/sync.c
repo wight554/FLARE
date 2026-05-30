@@ -1707,7 +1707,7 @@ void buf_sensor_tick(uint32_t now_ms) {
             g_sync_mmu_total_mm += delta_mm;
             g_relay_flip_travel_since_mm += fabsf(delta_mm);
 
-            if (BUF_SENSOR_TYPE == 1) {
+            if (BUF_SENSOR_TYPE == 1 && sync_enabled) {
                 float mmu_mm_s = (float)lane_motion_sps(A) * MM_PER_STEP[idx];
                 float arm_vel = g_vel_norm * buf_physical_half_travel_mm();
                 float extruder_mm_s = mmu_mm_s + arm_vel;
