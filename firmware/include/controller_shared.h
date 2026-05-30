@@ -218,6 +218,8 @@ extern int SYNC_MIN_SPS;
 extern int SYNC_RAMP_UP_SPS;
 extern int SYNC_RAMP_DN_SPS;
 extern int SYNC_TICK_MS;
+extern float SYNC_PSF_SLEW_PER_MM;
+extern float SYNC_PSF_FILTER_MM;
 extern int PRE_RAMP_SPS;
 extern int BUF_HYST_MS;
 extern int BUF_PREDICT_THR_MS;

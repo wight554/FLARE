@@ -112,6 +112,10 @@ int SYNC_MIN_SPS = CONF_SYNC_MIN_SPS;
 int SYNC_RAMP_UP_SPS = CONF_SYNC_RAMP_UP_SPS;
 int SYNC_RAMP_DN_SPS = CONF_SYNC_RAMP_DN_SPS;
 int SYNC_TICK_MS = CONF_SYNC_TICK_MS;
+/* Type-P output smoothing — runtime-tunable, not persisted (re-init from CONF
+   each boot, matching BUF_STAB_SPS). Tune live via SET; reflash changes the default. */
+float SYNC_PSF_SLEW_PER_MM = CONF_SYNC_PSF_SLEW_PER_MM;
+float SYNC_PSF_FILTER_MM = CONF_SYNC_PSF_FILTER_MM;
 int PRE_RAMP_SPS = CONF_PRE_RAMP_SPS;
 int BUF_HYST_MS = FLARE_INT_BUF_HYST_MS;
 int BUF_PREDICT_THR_MS = FLARE_INT_BUF_PREDICT_THR_MS;

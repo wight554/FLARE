@@ -233,6 +233,29 @@ target = sync_apply_scaling(...)
 target = clamp(target, SYNC_MIN_RATE, SYNC_MAX_RATE)
 ```
 
+#### Type-P output smoothing (distance-based)
+
+For type-P (`BUF_SENSOR_TYPE == 1`) the PD/feedforward target above is **not**
+applied to the motor directly. The extruder rate is *estimated* from the buffer
+arm (`extruder_mm_s = mmu_mm_s + arm_vel`), so the raw target is noisy and would
+snap the feed every tick if applied as-is. Two distance-based stages smooth it,
+both keyed to filament distance moved this tick (`move = |extruder_est| · dt`),
+not wall-clock — mirroring Happy-Hare's `rd_filter_len_mm` / `rd_rate_per_mm`:
+
+1. **Target EMA over distance** — `alpha = 1 - exp(-move / SYNC_PSF_FILTER_MM)`;
+   larger `SYNC_PSF_FILTER_MM` (default 25 mm) = slower, smoother target.
+2. **Slew limit over distance** — the applied `sync_current_sps` moves toward the
+   filtered target by at most `SYNC_PSF_SLEW_PER_MM · move` per tick (default
+   1500 sps/mm), **clamped so it never overshoots** the target (overshoot is what
+   made the old fixed time-ramp 2-tick bang-bang).
+
+Because both stages scale with flow, feed changes are gentle at low flow and go
+to ~0 when the printer is idle. `fast_brake` still forces an instant stop (and
+resets the filter). The old time-ramp (`SYNC_RAMP_UP/DN_SPS`) and the brief
+direct-apply both applied only to non-type-P or were replaced by this path. Both
+knobs are live-tunable (`SET:SYNC_PSF_SLEW_PER_MM` / `SET:SYNC_PSF_FILTER_MM`),
+runtime-only (not persisted; re-seeded from defaults each boot).
+
 #### Type-D Standalone Relay Control Law
 
 For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`), FLARE overrides the continuous PI/EKF estimator-driven target with a two-level hysteretic relay control law matched directly to the physical microswitches:

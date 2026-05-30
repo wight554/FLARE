@@ -152,6 +152,8 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `BUF_PSF_NEUTRAL` | `buf_psf_neutral` | Raw ADC fraction at neutral calibration point | 0.5 |
 | `BUF_GOAL` | `buf_psf_goal` | Raw ADC goal bias used by type-P zone control | 0.3 |
 | `KD_PSF` | _(runtime only)_ | Type-P derivative gain: velocity damping applied to sync output (units: sps per normalised vel). Not persisted; resets to `0.0` on boot. | 0.0 |
+| `SYNC_PSF_SLEW_PER_MM` | _(runtime only)_ | Type-P feed slew limit: max sps change per mm of filament moved. Lower = gentler feed accel. Not persisted. | 1500 |
+| `SYNC_PSF_FILTER_MM` | _(runtime only)_ | Type-P feed target EMA length in mm (distance-based smoothing). Bigger = smoother. Not persisted. | 25.0 |
 
 ### Speeds & Rates (mm/min)
 | Parameter | `config.ini` Key | Description | Default |

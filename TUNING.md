@@ -230,6 +230,27 @@ gate the type-P (analog) behavior — both compile-time in `controller_shared.h`
 Type-D (switch) is bang-bang and uses neither knob — it primes at `SYNC_MAX_SPS`
 and follows purely on the elapsed-distance budget.
 
+## Type-P Sync Feed Smoothness
+
+Type-P does **not** push the PD/feedforward target straight to the motor — the
+extruder rate is estimated from the buffer arm, so the raw target is noisy. Two
+distance-based stages smooth the feed (both keyed to filament mm moved, not
+wall-clock), and both are **live-tunable** (no reflash):
+
+- **`SYNC_PSF_FILTER_MM`** (default `25.0`) — target EMA length in mm. Bigger =
+  smoother/slower feed response. `SET:SYNC_PSF_FILTER_MM:40` to calm a jumpy
+  feed; lower toward `10` if it feels sluggish to track flow changes.
+- **`SYNC_PSF_SLEW_PER_MM`** (default `1500`) — max sps change per mm of filament.
+  This is the hard "how fast can the feed speed change" cap. Lower it (e.g. `800`)
+  for gentler accel/decel; raise it if the feed can't keep up with fast flow steps.
+
+Tuning order for "too aggressive": drop `SYNC_PSF_SLEW_PER_MM` first (kills the
+snap), then raise `SYNC_PSF_FILTER_MM` (smooths residual jitter). Only then
+touch the gains — `SYNC_KP_RATE` (proportional) and `KD_PSF` (derivative damping).
+A too-high `SYNC_KP_RATE` makes the *target* large; the slew/EMA bound how fast
+the motor chases it, but a smaller `SYNC_KP_RATE` reduces the magnitude to chase.
+`fast_brake` (compression-slam stop) bypasses all of this — instant stop is preserved.
+
 ## If Behavior Is Scary (Do This First)
 
 Scary means: repeated `FAULT_HOLD`, repeated `cannot_refill` or

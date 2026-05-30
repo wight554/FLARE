@@ -103,6 +103,8 @@ DEFAULTS = {
     "sync_ramp_accel": "150",     # mm/s² — sync loop UP slew (closed-loop bandwidth).
     "sync_ramp_decel": "300",     # mm/s² — sync loop DN slew (typically 2× accel for safety).
     "sync_tick_ms": "20",
+    "sync_psf_slew_per_mm": "1500",   # type-P feed slew: max sps change per mm filament moved (lower = gentler)
+    "sync_psf_filter_mm": "25.0",     # type-P feed target EMA length in mm (bigger = smoother)
     "baseline_rate": "1600",
     "baseline_settle_count": "3",
     "baseline_variance_reject_frac": "0.15",
@@ -488,6 +490,8 @@ def main():
         f"#define CONF_SYNC_RAMP_UP_SPS   {accel_to_step_sps(get('sync_ramp_accel'), get('sync_tick_ms'), l1)}",
         f"#define CONF_SYNC_RAMP_DN_SPS   {accel_to_step_sps(get('sync_ramp_decel'), get('sync_tick_ms'), l1)}",
         f"#define CONF_SYNC_TICK_MS       {get('sync_tick_ms')}",
+        f"#define CONF_SYNC_PSF_SLEW_PER_MM  {get_float('sync_psf_slew_per_mm')}f",
+        f"#define CONF_SYNC_PSF_FILTER_MM {get_float('sync_psf_filter_mm')}f",
         f"#define CONF_BASELINE_SPS       {mm_min_to_sps(get('baseline_rate'), l1)}",
         f"#define CONF_BASELINE_SETTLE_COUNT {get('baseline_settle_count')}",
         f"#define CONF_BASELINE_VARIANCE_REJECT_FRAC {get_float('baseline_variance_reject_frac')}f",

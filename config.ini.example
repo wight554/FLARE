@@ -41,6 +41,8 @@ run_current:
 #  sync_ramp_decel, sync_tick_ms are internal/compile-only — see tune_internal.h)
 
 # ─── Buffer Sync ─────────────────────────────────────────────────────────────
+# sync_psf_slew_per_mm: 1500   # type-P feed slew: max sps change per mm filament (lower = gentler; live-tunable via SET)
+# sync_psf_filter_mm: 25.0     # type-P feed target EMA length in mm (bigger = smoother; live-tunable via SET)
 # baseline_rate: 1600        # starting sync speed (mm/min); set to your print feed rate
 # baseline_settle_count: 3
 # baseline_variance_reject_frac: 0.15

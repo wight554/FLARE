@@ -68,6 +68,8 @@ bool sync_auto_started = false;
 bool sync_tail_assist_active = false;
 uint32_t sync_idle_since_ms = 0;
 int sync_current_sps = 0;
+/* Type-P distance-EMA filter state for the smoothed feed target (see sync_tick). */
+static float g_psf_target_filt = 0.0f;
 int g_baseline_target_sps = CONF_BASELINE_SPS;
 int g_baseline_sps = CONF_BASELINE_SPS;
 float g_baseline_alpha = FLARE_INT_BASELINE_ALPHA;
@@ -1131,6 +1133,9 @@ int sync_clamp_max_sps(int requested_sps) {
 
 void sync_set_state(sync_state_t new_state) {
     if (g_sync_state == new_state) return;
+    /* Seed the type-P smoothing filter to the current feed on (re)entering active
+       sync so it doesn't slew from a stale value left by a prior session. */
+    if (new_state == SYNC_ACTIVE) g_psf_target_filt = (float)sync_current_sps;
     g_sync_state = new_state;
     g_sync_tension_transitioned = false;
     g_sync_refill_effort_mm = 0.0f;
@@ -2228,8 +2233,34 @@ void sync_tick(uint32_t now_ms) {
         }
     }
 
-    if (fast_brake_active) sync_current_sps = 0;
-    else if (BUF_SENSOR_TYPE == 1) sync_current_sps = target_sps; /* PD law tracks directly; ramp fights it */
+    if (fast_brake_active) { sync_current_sps = 0; g_psf_target_filt = 0.0f; }
+    else if (BUF_SENSOR_TYPE == 1) {
+        /* Type-P distance-based smoothing (Happy-Hare-style). Both the target
+           EMA and the slew limit are keyed to filament distance moved this tick,
+           not wall-clock — so feed changes scale with flow and go to zero when
+           the printer is idle, instead of the old time-ramp (flow-blind, 2-tick
+           bang-bang) or the direct apply (snaps to the noisy PD target instantly).
+           "move" = extruder flow demand this tick (the system's distance clock). */
+        uint8_t idx = (active_lane == 2) ? 1 : 0;
+        float dt_s = (float)SYNC_TICK_MS / 1000.0f;
+        float move = fabsf(extruder_est_sps) * MM_PER_STEP[idx] * dt_s;
+
+        /* 1. EMA the target over distance: alpha = 1 - exp(-move/L). */
+        float L = (SYNC_PSF_FILTER_MM > 0.01f) ? SYNC_PSF_FILTER_MM : 0.01f;
+        float alpha = 1.0f - expf(-move / L);
+        g_psf_target_filt += alpha * ((float)target_sps - g_psf_target_filt);
+
+        /* 2. Slew-limit the applied rate, clamped so it never overshoots the
+              filtered target (overshoot is what made the old ramp oscillate).
+              Floor the step so a tiny creep is always allowed off idle. */
+        float max_step = SYNC_PSF_SLEW_PER_MM * move;
+        if (max_step < 1.0f) max_step = 1.0f;
+        float cur = (float)sync_current_sps;
+        if (g_psf_target_filt > cur + max_step)      cur += max_step;
+        else if (g_psf_target_filt < cur - max_step) cur -= max_step;
+        else                                          cur = g_psf_target_filt;
+        sync_current_sps = (int)(cur + 0.5f);
+    }
     else if (sync_current_sps > target_sps) sync_current_sps -= ramp_dn_sps;
     else if (sync_current_sps < target_sps) sync_current_sps += SYNC_RAMP_UP_SPS;
 
