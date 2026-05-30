@@ -581,6 +581,7 @@ hardware. Run it, then drive `MMU_LOAD` / `MMU_UNLOAD` / a cut.
 ### Validation Notes — 2026-05-31 (Unify Buffer Telemetry Labels)
 - Unified buffer status line output format in the firmware. For Type-P (analog/proportional) buffers, the firmware now returns `TENSION`, `COMPRESSION`, or `NEUTRAL` (via `buf_state_name`) on the status line instead of the compact position signs (`+`, `-`, `0`), which eliminates the inverted sign confusion in emusync screenshots.
 - Hardened the daemon's Klipper mapping in `scripts/flare_daemon.py` to handle both the new unified string zone names and retain backward-compatibility with older firmware versions that emit raw position symbols.
+- Aligned Type-D digital buffer sync feedback polarity with the Happy Hare / Fluidd convention by negating the positive `g_buf_pos` output (which internally represents Tension in the firmware) so both Type-P and Type-D exhibit consistent UI behavior (Tension as negative, Compression as positive).
 - Confirmed that all 26 unit tests continue to pass seamlessly.
 - Verified that both the Python sources compile correctly and the RP2040 firmware targets build cleanly using Ninja.
 
