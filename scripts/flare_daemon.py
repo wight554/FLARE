@@ -514,7 +514,7 @@ def parse_status_line(line):
                 if stype == 1:
                     new_data["sync_feedback"] = max(-1.0, min(1.0, bp_val))
                 else:
-                    new_data["sync_feedback"] = max(-1.0, min(1.0, bp_val / 15.0))
+                    new_data["sync_feedback"] = max(-1.0, min(1.0, -bp_val / 15.0))
             elif key == "BST":
                 val_int = int(val)
                 new_data["buf_sensor_type"] = val_int
@@ -1001,7 +1001,7 @@ def klipper_syncer(moonraker_url):
         if stype == 1:
             sync_feedback = max(-1.0, min(1.0, g_buf_pos))
         else:
-            sync_feedback = max(-1.0, min(1.0, g_buf_pos / 15.0))
+            sync_feedback = max(-1.0, min(1.0, -g_buf_pos / 15.0))
         sync_feedback_enabled = 1 if stype == 1 else 0
         buf_state = state.get("buf_state", "NEUTRAL").lower()
         if buf_state in ["+", "tension"]:
