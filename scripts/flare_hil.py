@@ -57,31 +57,21 @@ def _reset(board):
 
 
 # ---------------------------------------------------------------------------
-# UNLOAD  (D22 — type-P unload over-tension guard)
+# UNLOAD  (type-P: no position-based guard; type-D: UNLOAD_TENSION_BLOCK)
 # ---------------------------------------------------------------------------
 
-@case("unload", "ul_tug_of_war_p", "P: pinned at tension during unload -> UNLOAD_BLOCKED")
-def _ul_tug(board):
-    # Type-P homes at the tension rail, so the tug-of-war can't be pre-staged:
-    # it is a *dynamic* condition during the retract. Load filament (deflects the
-    # arm off home), start the unload, then hold the arm pinned at tension while
-    # OUT is still active so the retract cannot relieve it (simulates the extruder
-    # gripping / pulling forward faster than the MMU retracts).
-    board.prompt("Load filament past the OUT sensor (arm now deflected off home; UL accepted).")
+@case("unload", "ul_healthy_completes_p", "P: UL retracts to completion, no spurious block")
+def _ul_healthy(board):
+    # Type-P has no position-based unload over-tension guard: the buffer rests at
+    # the tension rail through any normal retract, indistinguishable from a jam by
+    # position. A normal UL must just retract until OUT clears -> UNLOADED, with no
+    # UNLOAD_BLOCKED. (A genuine stuck unload falls through to UNLOAD_TIMEOUT at the
+    # UNLOAD_MAX limit — not exercised here, it grinds to the limit.)
+    board.prompt("Load filament past the OUT sensor (mid-tube is fine).")
     resp = board.send("UL")
     assert resp and "ER" not in resp, f"UL rejected: {resp!r} (is OUT sensor active?)"
-    board.await_buffer("DURING the retract, hold the filament/arm so the buffer stays PINNED "
-                       "at TENSION while OUT is still active. Keep holding.", lo=0.9)
-    board.expect("UNLOAD_BLOCKED", timeout=8.0, progress=True)   # > UNLOAD_TENSION_BLOCK_MS (5 s)
-
-
-@case("unload", "ul_no_false_block_p", "P: healthy unload (off-rail) -> no UNLOAD_BLOCKED")
-def _ul_healthy(board):
-    board.prompt("Load filament past OUT. During unload let the MMU retract freely and "
-                 "keep the buffer OFF the tension rail (deflected / relaxed below +0.9).")
-    resp = board.send("UL")
-    assert resp and "ER" not in resp, f"UL rejected: {resp!r}"
-    board.refute("UNLOAD_BLOCKED", window=6.0)     # healthy must not block
+    board.refute("UNLOAD_BLOCKED", window=4.0)              # type-P never position-blocks
+    board.expect("UNLOADED", timeout=40.0, progress=True)
 
 
 @case("unload", "ul_blocked_d", "D: buffer TENSION sustained during unload -> UNLOAD_BLOCKED",

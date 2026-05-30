@@ -65,7 +65,6 @@ typedef struct lane_s {
     tmc_t *tmc;
     bool unload_sensor_latch;
     bool unload_buf_recover_done;
-    bool unload_buf_left_rail;   /* type-P: buffer left the tension rail this unload (arms over-tension guard) */
     fault_t fault;
     int lane_id;
     uint32_t runout_block_until_ms;

@@ -34,7 +34,6 @@ const char *sync_buffer_lock_arm_str(void);
 bool sync_buffer_lock_motor_moving(void);
 void sync_relief_pause(void);
 void sync_fault_hold(void);
-bool sync_buf_tension_slam(void);
 void flow_schedule_reset_runtime(void);
 void flow_schedule_refresh_scalar(void);
 flow_param_t flow_param(int flow_sps);

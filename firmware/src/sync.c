@@ -1461,13 +1461,6 @@ void sync_fault_hold(void) {
     g_sync_fault_hold_entry_ms = g_now_ms;
 }
 
-/* D22: true when the analog buffer is moving toward the tension rail fast enough
-   to count as a slam. Lets the motion.c unload guard short-circuit its dwell for
-   fast over-tension prevention. Threshold single-sourced in tune.h. */
-bool sync_buf_tension_slam(void) {
-    return g_vel_norm > CONF_PSF_JUMP_NORM_PER_S;
-}
-
 void sync_disable(bool reset_estimator) {
     sync_set_state(SYNC_OFF);
     sync_auto_started = false;

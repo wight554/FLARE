@@ -421,14 +421,22 @@ keeps type-D parity: `tc_start_unload_lane` pre-sets `unload_buf_recover_done =
 true` (`toolchange.c:153`) so tier C is skipped during a toolchange, while tier
 D (not gated by the recover flag) stays active.
 
-*Rig-gated open items*:
-- `PSF_TENSION_PIN_NORM`: measure how high a healthy unload rides; threshold
-  must sit above the healthy-unload buffer floor (starting guess reuse
-  `PSF_HOME_THRESHOLD_NORM` 0.90, likely too low).
-- Brake vs jog sufficiency against a gripping extruder.
-- `g_vel_norm` sign on rig (+ = toward tension).
-- Verify klipper toolhead-clear reliably precedes the bowden retract, so a
-  from-start hotend stick is caught upstream rather than as a silent pass.
+**RIG OUTCOME (first PSF session) — D22 position guard REMOVED for type-P.**
+On hardware the position-based guard false-fired: type-P homes at the tension
+rail and relaxes back to it throughout *every* normal retract (mid-tube, deep,
+or starting from compression), so the buffer position is indistinguishable from
+a real extruder-gripping jam — only whether OUT eventually clears differs. The
+relief jog stalled normal unloads at ~0 mm (it stops/reverses the MMU), and the
+dwell block raised spurious `UNLOAD_BLOCKED`. Resolution: type-P uses **no
+position-based unload guard**; it relies on the existing `UNLOAD_MAX` distance
+limit (`UNLOAD_TIMEOUT`) for the stuck case. The relief jog, dwell block,
+`unload_buf_left_rail` arming, and `sync_buf_tension_slam()` were deleted; the
+type-D recover + `UNLOAD_TENSION_BLOCK` are unchanged (gated `BUF_SENSOR_TYPE ==
+0`). Early jam detection for type-P, if wanted later, needs a load signal
+(TMC StallGuard / current), not buffer position. Also fixed same session: the
+post-load `AUTO_MODE` auto-start was forcing `SYNC_ACTIVE` into the compressed
+post-load buffer (overfeeding the gears) — now type-D only; type-P waits for the
+D18 tension-transition auto-start.
 
 ### D23 — Type-P tension safety: klipper-agnostic idle stabilize + sync starvation guard
 

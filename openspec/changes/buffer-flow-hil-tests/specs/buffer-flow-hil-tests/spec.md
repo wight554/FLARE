@@ -44,10 +44,9 @@ only under the digital sensor type. Load coverage SHALL exercise the `FL`
 flow-load (buffer-relevant) and SHALL NOT treat preload/autoload as buffer
 flows.
 
-#### Scenario: Type-P unload over-tension
-- **WHEN** filament is present and the buffer is held pinned at the tension rail during `UL`
-- **THEN** the suite asserts `UNLOAD_BLOCKED`
-- **AND** a healthy off-rail unload asserts that `UNLOAD_BLOCKED` does NOT fire
+#### Scenario: Type-P unload completes without a position block
+- **WHEN** a type-P `UL` retracts filament past the OUT sensor
+- **THEN** the suite asserts `UNLOADED` and refutes `UNLOAD_BLOCKED` (type-P has no position-based unload guard; a genuine jam falls through to `UNLOAD_TIMEOUT`)
 
 #### Scenario: Type-P idle stabilize gating
 - **WHEN** filament is present and the buffer is off goal and `BS` is sent
