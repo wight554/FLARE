@@ -171,6 +171,8 @@ uint32_t g_boot_stabilize_deadline_ms = 0;
 lane_t *g_boot_stabilize_lane = NULL;
 bool g_boot_stabilize_forward = false;
 static bool g_buffer_stabilize_emit_events = false;
+static uint32_t g_boot_stabilize_started_ms = 0;
+static float g_boot_stabilize_start_pos = 0.0f;
 
 typedef enum {
     BUFFER_SERVICE_STABILIZE = 0,
@@ -744,6 +746,13 @@ static bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events, b
     }
     if (mode == BUFFER_SERVICE_NEG_SYNC && sync_guard_active) return true;
 
+    if (BUF_SENSOR_TYPE == 1 && mode == BUFFER_SERVICE_STABILIZE) {
+        /* Gated for Type-P: do not start boot/idle stabilize if already at home state */
+        if (buf_state_raw() == (buf_state_t)BUF_HOME_STATE) {
+            return true;
+        }
+    }
+
     buf_state_t buf_state = buf_state_raw();
     lane_t *stab_lane = NULL;
     bool forward = false;
@@ -766,6 +775,8 @@ static bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events, b
     g_buffer_stabilize_emit_events = emit_events;
     g_buffer_service_mode = mode;
     g_idle_compression_since_ms = 0;
+    g_boot_stabilize_started_ms = now_ms;
+    g_boot_stabilize_start_pos = g_buf_pos;
 
     motor_enable(&stab_lane->m, true);
     motor_set_dir(&stab_lane->m, forward);
@@ -820,6 +831,17 @@ void buffer_stabilize_tick(uint32_t now_ms) {
     if (!buffer_stabilize_controller_idle()) {
         boot_stabilize_stop();
         return;
+    }
+
+    if (BUF_SENSOR_TYPE == 1 && g_boot_stabilizing) {
+        if ((int32_t)(now_ms - g_boot_stabilize_started_ms) >= 500) {
+            float change = fabsf(g_buf_pos - g_boot_stabilize_start_pos);
+            if (change < 0.05f) {
+                if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "STAGNANT_TIMEOUT");
+                boot_stabilize_stop();
+                return;
+            }
+        }
     }
 
     buf_state_t raw_state = buf_state_raw();
