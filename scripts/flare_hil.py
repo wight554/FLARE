@@ -170,38 +170,34 @@ def _stab_d(board):
 
 
 # ---------------------------------------------------------------------------
-# BUF LOCK  (BL: — D19 prime/lock/break, D20 follow)
+# BUF LOCK  (BL: — type-P: closed-loop hold-at-goal, len/rate ignored, no prime;
+#                  type-D: prime/lock/follow, D19/D20)
 # ---------------------------------------------------------------------------
 
-@case("buflock", "bl_prime_lock_p", "P: BL:T primes to tension extreme -> BL:LOCKED (D19)")
-def _bl_lock(board):
+@case("buflock", "bl_hold_at_goal_p", "P: BL:T -> immediate closed-loop hold at goal (no prime), BS releases")
+def _bl_hold(board):
+    # Type-P ignores the macro's len/rate and skips prime: BL:T goes straight to a
+    # closed-loop hold that keeps the buffer at goal until BS. Used by tip forming
+    # (_FLARE_BL_MOVE) to mass-balance the big extruder retract.
+    resp = board.send("BL:T:20:300")               # len/rate present (from macro) but ignored
+    assert resp and "ER" not in resp, f"BL rejected: {resp!r}"
+    board.expect("BL:FOLLOW", timeout=3.0)          # straight to hold — no PRIME/LOCKED
+    assert board.wait_event("BL:PRIME", timeout=0.3) is None, "type-P must not PRIME"
+    board.prompt("With filament LOADED, pull the buffer toward TENSION (simulate the extruder "
+                 "retract); the MMU should feed to hold it near goal and must NOT stop on its own.")
+    board.refute("BL:FOLLOW_DONE", window=3.0)      # hold has no distance cap; only BS/watchdog ends it
+    board.send("BS")                                 # release + park at goal
+
+
+@case("buflock", "bl_prime_lock_d", "D: BL:T primes to tension extreme -> BL:LOCKED (D19)",
+      buf_types=("d",))
+def _bl_lock_d(board):
     resp = board.send("BL:T")
     assert resp and "ER" not in resp, f"BL rejected: {resp!r}"
     board.expect("BL:PRIME", timeout=3.0)
-    board.await_buffer("Let the buffer arm reach the TENSION extreme.", lo=0.9)
+    board.prompt("Let the buffer arm reach the TENSION switch.")
     board.expect("BL:LOCKED", timeout=8.0, progress=True)
-
-
-@case("buflock", "bl_break_follow_p", "P: locked, arm pulled off extreme -> BL:FOLLOW -> FOLLOW_DONE (D20)")
-def _bl_follow(board):
-    resp = board.send("BL:T:20:300")               # arm tension + follow 20mm @ 300 mm/min
-    assert resp and "ER" not in resp, f"BL rejected: {resp!r}"
-    board.expect("BL:PRIME", timeout=3.0)
-    board.await_buffer("Let the arm reach the TENSION extreme and lock.", lo=0.9)
-    board.expect("BL:LOCKED", timeout=8.0, progress=True)
-    board.await_buffer("With filament LOADED, pull the arm OFF the tension extreme (<0.90 breaks "
-                       "the lock) to simulate the extruder filling the buffer.", hi=0.85)
-    board.expect("BL:FOLLOW", timeout=6.0, progress=True)
-    board.expect("BL:FOLLOW_DONE", timeout=10.0, progress=True)
-
-
-@case("buflock", "bl_timeout_p", "P: BL with no arm motion -> BL:TIMEOUT")
-def _bl_timeout(board):
-    resp = board.send("BL:C")
-    assert resp and "ER" not in resp, f"BL rejected: {resp!r}"
-    board.expect("BL:PRIME", timeout=3.0)
-    board.prompt("Do NOT move the buffer; wait for the lock-acquire timeout.")
-    board.expect("BL:TIMEOUT", timeout=15.0, progress=True)
+    board.send("BS")
 
 
 # ---------------------------------------------------------------------------

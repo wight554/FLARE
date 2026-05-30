@@ -1264,6 +1264,20 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm,
     g_bl_follow_mm_per_s     = 0.0f;
     g_bl_follow_traveled_mm  = 0.0f;
     g_bl_last_tick_ms        = now_ms;
+
+    if (BUF_SENSOR_TYPE == 1) {
+        /* Type-P: continuous sensing needs no prime/lock-break. Go straight to a
+           closed-loop hold-at-goal — the macro's follow len/rate are type-D
+           open-loop params and are ignored. The closed-loop self-limits (feeds
+           only as the extruder pulls the buffer off goal); BS or the watchdog
+           releases. No prime = no startup latency and no parking at a rail. */
+        g_bl_watchdog_ms = now_ms + BL_WATCHDOG_DEFAULT_MS;
+        g_bl_sub_state   = BL_FOLLOW;
+        motor_enable(&A->m, true);    /* dir/rate set each tick by the closed loop */
+        cmd_event("BL", "FOLLOW");
+        return;
+    }
+
     g_bl_watchdog_ms = 0;
     g_bl_sub_state = BL_PRIME;
 
@@ -1395,36 +1409,31 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
 
         float traveled = 0.0f;
         if (BUF_SENSOR_TYPE == 1) {
-            /* Closed-loop dynamic speed adjustment to keep buffer neutral */
+            /* Closed-loop hold at goal: bidirectional, ignores the macro's
+               len/rate (type-D open-loop params). Feed when the buffer is above
+               goal (toward tension), retract when below — speed proportional to
+               the distance from goal, capped at SYNC_MAX_SPS, self-limiting (->0
+               at goal). No distance cap: hold until BS or the watchdog releases. */
+            (void)dt_s;
             float err = g_buf_pos - psf_goal_norm();
             int follow_sps = 0;
-            if (g_bl_target_state == BUF_TENSION && err < 0.0f) {
-                float den = 1.0f + psf_goal_norm();
-                if (den < 0.001f) den = 0.001f;
-                float factor = -err / den;
+            bool forward = true;
+            if (fabsf(err) > 0.05f) {
+                forward = (err > 0.0f);
+                float span = forward ? (1.0f - psf_goal_norm()) : (1.0f + psf_goal_norm());
+                if (span < 0.001f) span = 0.001f;
+                float factor = fabsf(err) / span;
                 if (factor > 1.0f) factor = 1.0f;
-                int max_follow_sps = (int)(g_bl_follow_rate_mmpm / 60.0f / MM_PER_STEP[idx] + 0.5f);
-                max_follow_sps = sync_clamp_max_sps(max_follow_sps);
-                follow_sps = (int)(factor * (float)max_follow_sps);
-            } else if (g_bl_target_state == BUF_COMPRESSION && err > 0.0f) {
-                float den = 1.0f - psf_goal_norm();
-                if (den < 0.001f) den = 0.001f;
-                float factor = err / den;
-                if (factor > 1.0f) factor = 1.0f;
-                int max_follow_sps = (int)(g_bl_follow_rate_mmpm / 60.0f / MM_PER_STEP[idx] + 0.5f);
-                max_follow_sps = sync_clamp_max_sps(max_follow_sps);
-                follow_sps = (int)(factor * (float)max_follow_sps);
+                follow_sps = (int)(factor * (float)sync_clamp_max_sps(SYNC_MAX_SPS));
+                if (follow_sps < 1) follow_sps = 1;
             }
-            if (follow_sps < 1 && (g_bl_target_state == BUF_TENSION ? err < 0.0f : err > 0.0f)) {
-                follow_sps = 1;
-            }
-
-            bool forward = (g_bl_target_state == BUF_COMPRESSION);
             motor_set_dir(&A->m, forward);
             motor_set_rate_sps(&A->m, follow_sps);
-
-            g_bl_follow_traveled_mm += (float)follow_sps * MM_PER_STEP[idx] * dt_s;
-            traveled = g_bl_follow_traveled_mm;
+            if (g_bl_watchdog_ms != 0 && (int32_t)(now_ms - g_bl_watchdog_ms) >= 0) {
+                handle_bl_watchdog_timeout(now_ms);
+            }
+            g_bl_last_tick_ms = now_ms;
+            return;
         } else {
             traveled = (g_bl_follow_mm_per_s > 0.0f)
                 ? ((float)(now_ms - g_bl_follow_start_ms) / 1000.0f * g_bl_follow_mm_per_s)
