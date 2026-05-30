@@ -414,8 +414,14 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
             float threshold = (float)DIST_OUT_Y + (float)DIST_Y_BUF + (float)BUF_MAX_TRAVEL_MM / 2.0f;
             if (dist_since_out < threshold * 0.8f) {
                 buf_tension_sane = false;
-            } else if (g_buf.state == BUF_COMPRESSION) {
-                buf_compression_sane = true;
+            } else {
+                if (BUF_SENSOR_TYPE == 1) {
+                    if (g_buf_pos < PSF_HOME_DEVIATION_THRESHOLD_NORM) {
+                        buf_compression_sane = true;
+                    }
+                } else if (g_buf.state == BUF_COMPRESSION) {
+                    buf_compression_sane = true;
+                }
             }
         } else {
             buf_tension_sane = false;
