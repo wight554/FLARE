@@ -586,7 +586,7 @@ hardware. Run it, then drive `MMU_LOAD` / `MMU_UNLOAD` / a cut.
 - Verified that both the Python sources compile correctly and the RP2040 firmware targets build cleanly using Ninja.
 - Aligned all firmware-internal buffer position computations and host-side daemon telemetry with standard polarity convention (Tension is negative, Compression is positive) without requiring artificial inversion at the host/UI boundary.
 - Successfully verified both Python syntax checks and C/C++ firmware builds. (Commit: `cf63cc1`)
-- Reverted Type-D digital buffer changes back to original state as visual progress values are not shown for Type-D (only discrete states neutral, tension, and compression are displayed). (Commit: `edaa2bb`)
+- Unified both Type-D (digital) and Type-P (analog) buffers under the exact same polarity convention where Tension is negative and Compression is positive inside both the C-firmware and the host-side daemon, permanently eliminating all host-side telemetry negations. (Commit: `a95ccd6`)
 
 
 
