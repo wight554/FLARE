@@ -930,25 +930,25 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     g_buf.arm_vel_mm_s = 0.0f;
 
     if (old == BUF_NEUTRAL) {
-        if (new_state == BUF_TENSION) travel_mm = threshold - g_buf_physical_entry_pos_mm;
-        else if (new_state == BUF_COMPRESSION) travel_mm = -threshold - g_buf_physical_entry_pos_mm;
+        if (new_state == BUF_TENSION) travel_mm = -threshold - g_buf_physical_entry_pos_mm;
+        else if (new_state == BUF_COMPRESSION) travel_mm = threshold - g_buf_physical_entry_pos_mm;
     } else if (old == BUF_TENSION) {
         if (new_state == BUF_NEUTRAL) travel_mm = 0.0f;
-        else if (new_state == BUF_COMPRESSION) travel_mm = -max_transition_mm;
+        else if (new_state == BUF_COMPRESSION) travel_mm = max_transition_mm;
     } else if (old == BUF_COMPRESSION) {
         if (new_state == BUF_NEUTRAL) travel_mm = 0.0f;
-        else if (new_state == BUF_TENSION) travel_mm = max_transition_mm;
+        else if (new_state == BUF_TENSION) travel_mm = -max_transition_mm;
     }
 
     travel_mm = clamp_f(travel_mm, -max_transition_mm, max_transition_mm);
 
     if (new_state == BUF_TENSION) {
-        g_buf_physical_entry_pos_mm = threshold;
-    } else if (new_state == BUF_COMPRESSION) {
         g_buf_physical_entry_pos_mm = -threshold;
+    } else if (new_state == BUF_COMPRESSION) {
+        g_buf_physical_entry_pos_mm = threshold;
     } else if (new_state == BUF_NEUTRAL) {
-        if (old == BUF_TENSION) g_buf_physical_entry_pos_mm = threshold;
-        else if (old == BUF_COMPRESSION) g_buf_physical_entry_pos_mm = -threshold;
+        if (old == BUF_TENSION) g_buf_physical_entry_pos_mm = -threshold;
+        else if (old == BUF_COMPRESSION) g_buf_physical_entry_pos_mm = threshold;
     }
 
     if (BUF_SENSOR_TYPE == 0 && fabsf(travel_mm) > 0.001f && prev_dwell > (uint32_t)BUF_HYST_MS) {
