@@ -11,10 +11,10 @@
 /* Type-P Analog home / physical extreme thresholds */
 #define PSF_HOME_THRESHOLD_NORM             0.90f   /* reached/locked extreme boundary */
 #define PSF_HOME_DEVIATION_THRESHOLD_NORM   0.85f   /* non-home / contact detection boundary */
-#define PSF_LOAD_CONTACT_THRESHOLD_NORM     0.70f   /* load contact detection boundary (0.3F deviation) */
+#define PSF_LOAD_CONTACT_THRESHOLD_NORM     -0.50f  /* load contact detection boundary (compression zone) */
 /* Type-P unload over-tension guard (D22). Type-P homes at the tension rail, so
    a pin there is a fault only while filament is still present during retract. */
-#define PSF_TENSION_PIN_NORM                0.90f   /* unload: pinned-at-tension fault boundary (rig-tune) */
+#define PSF_TENSION_PIN_NORM                0.98f   /* unload: pinned-at-tension fault boundary (rig-tune) */
 #define PSF_UNLOAD_RELIEF_ARM_MS            300u    /* unload: pinned dwell before one-shot relief jog */
 
 typedef struct {
