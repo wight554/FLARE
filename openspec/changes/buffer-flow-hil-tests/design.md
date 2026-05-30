@@ -75,3 +75,10 @@ on close/abort, `SM:0` + `ST:` reset between cases.
   those are asserted only via their terminal events (`UNLOAD_BLOCKED`,
   `FAULT_HOLD`); finer observation would need the `BS` telemetry or a future
   firmware sim seam.
+- **Type-P homes at the tension rail** → tension cannot be pre-staged statically
+  (unloaded the arm never leaves home; loaded it sits off the rail). Tension-side
+  cases stage dynamically: the unload tug-of-war holds the arm pinned *during*
+  the retract (with OUT still active), and auto-start uses a two-step
+  compression→tension cross to produce a real D18 transition. Cases that need the
+  arm off home require filament loaded; `await_buffer(lo=…)` would otherwise be
+  trivially satisfied at home.

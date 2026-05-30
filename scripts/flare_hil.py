@@ -62,11 +62,16 @@ def _reset(board):
 
 @case("unload", "ul_tug_of_war_p", "P: pinned at tension during unload -> UNLOAD_BLOCKED")
 def _ul_tug(board):
-    board.await_buffer("Load filament past the OUT sensor, then push and HOLD the buffer "
-                       "arm at the TENSION/home rail and keep holding through the unload.",
-                       lo=0.9)
+    # Type-P homes at the tension rail, so the tug-of-war can't be pre-staged:
+    # it is a *dynamic* condition during the retract. Load filament (deflects the
+    # arm off home), start the unload, then hold the arm pinned at tension while
+    # OUT is still active so the retract cannot relieve it (simulates the extruder
+    # gripping / pulling forward faster than the MMU retracts).
+    board.prompt("Load filament past the OUT sensor (arm now deflected off home; UL accepted).")
     resp = board.send("UL")
     assert resp and "ER" not in resp, f"UL rejected: {resp!r} (is OUT sensor active?)"
+    board.await_buffer("DURING the retract, hold the filament/arm so the buffer stays PINNED "
+                       "at TENSION while OUT is still active. Keep holding.", lo=0.9)
     board.expect("UNLOAD_BLOCKED", timeout=8.0, progress=True)   # > UNLOAD_TENSION_BLOCK_MS (5 s)
 
 
@@ -95,22 +100,29 @@ def _ul_blocked_d(board):
 @case("sync", "sync_relief_pause_p", "P: compression pin during sync -> SYNC:RELIEF_PAUSE")
 def _sync_relief(board):
     board.send("SM:1")
-    board.await_buffer("Push and HOLD the buffer to full COMPRESSION.", hi=-0.9)
+    board.await_buffer("With filament LOADED, push and HOLD the buffer to full COMPRESSION.", hi=-0.9)
     board.expect("SYNC:RELIEF_PAUSE", timeout=6.0, progress=True)
 
 
 @case("sync", "sync_fault_hold_tension_p", "P: tension pin during sync -> SYNC:FAULT_HOLD")
 def _sync_fault(board):
     board.send("SM:1")
-    board.await_buffer("Push and HOLD the buffer to full TENSION/home.", lo=0.9)
+    board.await_buffer("With filament LOADED, pull and HOLD the buffer to full TENSION "
+                       "(starve it — pull the filament taut). Unloaded resting at home does "
+                       "not exercise this.", lo=0.9)
     board.expect("SYNC:FAULT_HOLD", timeout=6.0, progress=True)
 
 
 @case("sync", "sync_auto_start_p", "P: AUTO_MODE + tension transition -> SYNC:AUTO_START")
 def _sync_auto_start(board):
     board.send("SET:AUTO_MODE:1")
-    board.await_buffer("With filament loaded, start BELOW +0.6, then push UP across +0.6 "
-                       "toward TENSION (a real transition, not resting at home).", lo=0.6)
+    # D18 needs a real transition INTO tension, and type-P rests at the tension
+    # rail, so stage it in two steps (load off the rail toward compression, then
+    # cross up to tension). A single lo=0.6 target is trivially true at home and
+    # provides no transition -> the gate would suppress AUTO_START.
+    board.await_buffer("With filament LOADED, set the buffer to COMPRESSION (off the home rail).",
+                       hi=-0.5)
+    board.await_buffer("Now push the buffer UP to TENSION (a real transition into tension).", lo=0.7)
     board.expect("SYNC:AUTO_START", timeout=6.0, progress=True)
 
 
@@ -129,7 +141,8 @@ def _sync_auto_stop(board):
     # SYNC_AUTO_STOP_MS (5 s) with no further demand.
     board.send("SET:AUTO_MODE:1")
     board.await_buffer("Tail-assist setup: filament PRESENT at OUT but NOT at the IN/gate "
-                       "sensor. Start below +0.6, then push UP across +0.6 to auto-start.", lo=0.6)
+                       "sensor. Set the buffer to COMPRESSION (off the home rail).", hi=-0.5)
+    board.await_buffer("Now push the buffer UP to TENSION to auto-start (real transition).", lo=0.7)
     board.expect("SYNC:AUTO_START", timeout=6.0, progress=True)
     board.await_buffer("Now push and HOLD the buffer at COMPRESSION (tail consumed).", hi=-0.9)
     board.expect("SYNC:AUTO_STOP", timeout=8.0, progress=True)   # > SYNC_AUTO_STOP_MS (5 s)
@@ -186,8 +199,8 @@ def _bl_follow(board):
     board.expect("BL:PRIME", timeout=3.0)
     board.await_buffer("Let the arm reach the TENSION extreme and lock.", lo=0.9)
     board.expect("BL:LOCKED", timeout=8.0, progress=True)
-    board.await_buffer("Now pull the arm OFF the tension extreme to simulate the extruder filling.",
-                       hi=0.85)
+    board.await_buffer("With filament LOADED, pull the arm OFF the tension extreme (<0.90 breaks "
+                       "the lock) to simulate the extruder filling the buffer.", hi=0.85)
     board.expect("BL:FOLLOW", timeout=6.0, progress=True)
     board.expect("BL:FOLLOW_DONE", timeout=10.0, progress=True)
 
