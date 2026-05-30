@@ -90,7 +90,7 @@ def _ul_blocked_d(board):
 @case("sync", "sync_relief_pause_p", "P: compression pin during sync -> SYNC:RELIEF_PAUSE")
 def _sync_relief(board):
     board.send("SM:1")
-    board.await_buffer("With filament LOADED, push and HOLD the buffer to full COMPRESSION.", hi=-0.9)
+    board.await_buffer("With filament LOADED, push and HOLD the buffer to full COMPRESSION.", lo=0.9)
     board.expect("SYNC:RELIEF_PAUSE", timeout=6.0, progress=True)
 
 
@@ -99,7 +99,7 @@ def _sync_fault(board):
     board.send("SM:1")
     board.await_buffer("With filament LOADED, pull and HOLD the buffer to full TENSION "
                        "(starve it — pull the filament taut). Unloaded resting at home does "
-                       "not exercise this.", lo=0.9)
+                       "not exercise this.", hi=-0.9)
     board.expect("SYNC:FAULT_HOLD", timeout=6.0, progress=True)
 
 
@@ -108,18 +108,19 @@ def _sync_auto_start(board):
     board.send("SET:AUTO_MODE:1")
     # D18 needs a real transition INTO tension, and type-P rests at the tension
     # rail, so stage it in two steps (load off the rail toward compression, then
-    # cross up to tension). A single lo=0.6 target is trivially true at home and
-    # provides no transition -> the gate would suppress AUTO_START.
+    # cross to tension). A single hi=-0.6 target is trivially true at home (the
+    # -1.0 tension rail) and provides no transition -> the gate would suppress
+    # AUTO_START.
     board.await_buffer("With filament LOADED, set the buffer to COMPRESSION (off the home rail).",
-                       hi=-0.5)
-    board.await_buffer("Now push the buffer UP to TENSION (a real transition into tension).", lo=0.7)
+                       lo=0.5)
+    board.await_buffer("Now move the buffer to TENSION (a real transition into tension).", hi=-0.7)
     board.expect("SYNC:AUTO_START", timeout=6.0, progress=True)
 
 
 @case("sync", "sync_auto_start_gated_p", "P: AUTO_MODE + resting at home -> no spurious AUTO_START (D18)")
 def _sync_auto_gate(board):
     board.send("SET:AUTO_MODE:1")
-    board.prompt("Leave the buffer RESTING at the TENSION/home rail (+1.0) without any "
+    board.prompt("Leave the buffer RESTING at the TENSION/home rail (-1.0) without any "
                  "fresh transition (simulate boot/home).")
     board.refute("SYNC:AUTO_START", window=4.0)
 
@@ -131,10 +132,10 @@ def _sync_auto_stop(board):
     # SYNC_AUTO_STOP_MS (5 s) with no further demand.
     board.send("SET:AUTO_MODE:1")
     board.await_buffer("Tail-assist setup: filament PRESENT at OUT but NOT at the IN/gate "
-                       "sensor. Set the buffer to COMPRESSION (off the home rail).", hi=-0.5)
-    board.await_buffer("Now push the buffer UP to TENSION to auto-start (real transition).", lo=0.7)
+                       "sensor. Set the buffer to COMPRESSION (off the home rail).", lo=0.5)
+    board.await_buffer("Now move the buffer to TENSION to auto-start (real transition).", hi=-0.7)
     board.expect("SYNC:AUTO_START", timeout=6.0, progress=True)
-    board.await_buffer("Now push and HOLD the buffer at COMPRESSION (tail consumed).", hi=-0.9)
+    board.await_buffer("Now push and HOLD the buffer at COMPRESSION (tail consumed).", lo=0.9)
     board.expect("SYNC:AUTO_STOP", timeout=8.0, progress=True)   # > SYNC_AUTO_STOP_MS (5 s)
 
 
@@ -164,7 +165,7 @@ def _sync_polarity_d(board):
 @case("stab", "stab_loaded_to_goal_p", "P: loaded + off-goal -> BUF_STAB normalizes to goal")
 def _stab_loaded(board):
     board.await_buffer("Ensure filament is present (OUT/IN active), then set the buffer OFF "
-                       "goal toward COMPRESSION.", hi=-0.55)
+                       "goal toward COMPRESSION.", lo=0.55)
     resp = board.send("BS")
     assert resp and "ER" not in resp, f"BS rejected: {resp!r}"
     board.expect("BUF_STAB:START", timeout=2.0)
