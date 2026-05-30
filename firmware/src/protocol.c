@@ -164,15 +164,6 @@ void cmd_event(const char *type, const char *data) {
 }
 
 static const char *buf_status_label(void) {
-    /* Type-P: the goal-relative zone names (TENSION/COMPRESSION/NEUTRAL) mislead
-       on the status line — home sits at +1.0 and goal is compression-side, so a
-       near-goal buffer reads "TENSION". Report the signed position instead; the
-       magnitude is in BP. Type-D keeps its switch-state name. */
-    if (BUF_SENSOR_TYPE != 0) {
-        if (g_buf_pos >  0.1f) return "+";
-        if (g_buf_pos < -0.1f) return "-";
-        return "0";
-    }
     return buf_state_name(g_buf.state);
 }
 

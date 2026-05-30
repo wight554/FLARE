@@ -1004,15 +1004,12 @@ def klipper_syncer(moonraker_url):
             sync_feedback = max(-1.0, min(1.0, g_buf_pos / 15.0))
         sync_feedback_enabled = 1 if stype == 1 else 0
         buf_state = state.get("buf_state", "NEUTRAL").lower()
-        if stype == 1:
-            if buf_state == "+":
-                buf_state = "tension"
-            elif buf_state == "-":
-                buf_state = "compressed"
-            else:
-                buf_state = "neutral"
-        elif buf_state == "compression":
+        if buf_state in ["+", "tension"]:
+            buf_state = "tension"
+        elif buf_state in ["-", "compression", "compressed"]:
             buf_state = "compressed"
+        else:
+            buf_state = "neutral"
         tc_state = state.get("tc_state", "UNKNOWN")
         board_online = 1 if state.get("board_online", False) else 0
         sps = state.get("sps", 0.0)

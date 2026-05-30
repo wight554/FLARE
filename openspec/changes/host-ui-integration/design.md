@@ -584,3 +584,14 @@ When a Type-P (analog/proportional) buffer sensor is configured (`stype == 1`), 
   - Problem: The firmware compacts status line updates using signed position labels: `"+"` for positive `g_buf_pos` (tension), `"-"` for negative `g_buf_pos` (compression), and `"0"` for neutral. The daemon was passing these raw values to `SET_MMU`'s `SYNC_FEEDBACK_STATE` directly, which Fluidd didn't recognize.
   - Fix: The daemon's `klipper_syncer` thread now maps the Type-P buffer states: `"+"` maps to `"tension"`, `"-"` maps to `"compressed"`, and `"0"` (or anything else) maps to `"neutral"`. This allows Fluidd's UI to parse and display the correct states and arrows for analog sensors.
 
+## 36. Unify Buffer Telemetry Labels (Sync Telemetry State Names) (2026-05-31)
+
+To remove confusion between firmware-level signed position symbols (`+`/`-`/`0`) and the Happy Hare/Fluidd standard zone names, and to unify the host CLI telemetry:
+
+- **Firmware Status Line:** In `firmware/src/protocol.c`, the `buf_status_label()` function previously returned `"+"` or `"-"` for Type-P (analog/proportional) buffer sensors. This was opposite to the Happy Hare/Fluidd convention (where `+` is compression and `-` is tension, while the raw firmware `g_buf_pos` is positive on tension and negative on compression). It has been changed to unconditionally return the actual uppercase zone string (`TENSION`, `COMPRESSION`, `NEUTRAL`) from `buf_state_name(g_buf.state)` for both sensor types.
+- **Daemon Adaptor:** The daemon parser in `scripts/flare_daemon.py` maps these unified states cleanly. For backward-compatibility with older firmware versions that might still emit `+` or `-`, the mapping now checks both formats:
+  - `"tension"` or `"+"` maps to `"tension"`.
+  - `"compressed"`, `"compression"`, or `"-"` maps to `"compressed"`.
+  - Any other value defaults to `"neutral"`.
+
+

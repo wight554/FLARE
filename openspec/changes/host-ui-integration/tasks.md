@@ -570,6 +570,23 @@ hardware. Run it, then drive `MMU_LOAD` / `MMU_UNLOAD` / a cut.
 - Verified all 26 unit tests pass, python syntax compiles cleanly, and local C firmware compiles without any warnings or regressions.
 
 
+## Phase 40: Unify Buffer Telemetry Labels (Sync Telemetry state names)
+- [x] 40.1 In `firmware/src/protocol.c`, modify `buf_status_label()` to return the actual uppercase zone name (`TENSION`, `COMPRESSION`, `NEUTRAL`) for Type-P analog buffer sensors unconditionally, matching Type-D digital buffer sensors.
+- [x] 40.2 In `scripts/flare_daemon.py`, simplify and make robust the `buf_state` mapping to be backward-compatible with `+` / `-` while supporting the full zone names `tension`, `compression` (mapped to `compressed`), and `neutral`.
+- [x] 40.3 Update unit tests in `scripts/test_flare_mmu_status.py` to reflect the updated telemetry labels.
+- [x] 40.4 Validate Python syntax, execute unit tests, and verify that the firmware target compiles cleanly.
+
+---
+
+### Validation Notes — 2026-05-31 (Unify Buffer Telemetry Labels)
+- Unified buffer status line output format in the firmware. For Type-P (analog/proportional) buffers, the firmware now returns `TENSION`, `COMPRESSION`, or `NEUTRAL` (via `buf_state_name`) on the status line instead of the compact position signs (`+`, `-`, `0`), which eliminates the inverted sign confusion in emusync screenshots.
+- Hardened the daemon's Klipper mapping in `scripts/flare_daemon.py` to handle both the new unified string zone names and retain backward-compatibility with older firmware versions that emit raw position symbols.
+- Confirmed that all 26 unit tests continue to pass seamlessly.
+- Verified that both the Python sources compile correctly and the RP2040 firmware targets build cleanly using Ninja.
+
+
+
+
 
 
 
