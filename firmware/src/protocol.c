@@ -923,6 +923,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "KD_PSF")) KD_PSF = clamp_f(fv, 0.0f, 100.0f);
         else if (!strcmp(base_param, "SYNC_PSF_SLEW_PER_MM")) SYNC_PSF_SLEW_PER_MM = clamp_f(fv, 1.0f, 50000.0f);
         else if (!strcmp(base_param, "SYNC_PSF_FILTER_MM")) SYNC_PSF_FILTER_MM = clamp_f(fv, 0.1f, 500.0f);
+        else if (!strcmp(base_param, "SYNC_PSF_DECAY_SPS_PER_S")) SYNC_PSF_DECAY_SPS_PER_S = clamp_f(fv, 0.0f, 200000.0f);
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "SYNC_OVERSHOOT_PCT")) SYNC_OVERSHOOT_PCT = clamp_i(iv, 0, 200);
 #endif
@@ -1108,6 +1109,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "KD_PSF")) snprintf(out, sizeof(out), "KD_PSF:%.3f", (double)KD_PSF);
         else if (!strcmp(param, "SYNC_PSF_SLEW_PER_MM")) snprintf(out, sizeof(out), "SYNC_PSF_SLEW_PER_MM:%.1f", (double)SYNC_PSF_SLEW_PER_MM);
         else if (!strcmp(param, "SYNC_PSF_FILTER_MM")) snprintf(out, sizeof(out), "SYNC_PSF_FILTER_MM:%.2f", (double)SYNC_PSF_FILTER_MM);
+        else if (!strcmp(param, "SYNC_PSF_DECAY_SPS_PER_S")) snprintf(out, sizeof(out), "SYNC_PSF_DECAY_SPS_PER_S:%.1f", (double)SYNC_PSF_DECAY_SPS_PER_S);
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "SYNC_OVERSHOOT_PCT")) snprintf(out, sizeof(out), "SYNC_OVERSHOOT_PCT:%d", SYNC_OVERSHOOT_PCT);
 #endif

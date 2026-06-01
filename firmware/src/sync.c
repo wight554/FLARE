@@ -2301,6 +2301,23 @@ void sync_tick(uint32_t now_ms) {
         if (g_psf_target_filt > cur + max_step)      cur += max_step;
         else if (g_psf_target_filt < cur - max_step) cur -= max_step;
         else                                          cur = g_psf_target_filt;
+
+        /* Overfeed guard: the distance clock (move) freezes the filter when the
+           extruder stops (move -> 0 => alpha, max_step -> 0), holding the feed at
+           the pre-stop rate so the MMU keeps pushing into a stopped extruder and
+           slams COMPRESSION. Feed *drops* are always safe (worst case is a brief
+           tension excursion, which has room), so additionally let the feed fall
+           toward the raw target on wall-clock, independent of flow. Take whichever
+           path is lower and pin the filtered target so it can't re-drive the feed
+           back up while demand stays low. UP is untouched (purely flow-keyed). */
+        if (SYNC_PSF_DECAY_SPS_PER_S > 0.0f) {
+            float wall_cur = cur - SYNC_PSF_DECAY_SPS_PER_S * dt_s;
+            if (wall_cur < (float)target_sps) wall_cur = (float)target_sps;
+            if (wall_cur < cur) {
+                cur = wall_cur;
+                if (g_psf_target_filt > cur) g_psf_target_filt = cur;
+            }
+        }
         sync_current_sps = (int)(cur + 0.5f);
     }
     else if (sync_current_sps > target_sps) sync_current_sps -= ramp_dn_sps;

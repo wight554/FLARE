@@ -91,5 +91,6 @@
 // ----- Misc internal timing -----
 #define FLARE_INT_MOTION_STARTUP_MS          1000   // lane motion startup window
 #define FLARE_INT_POST_PRINT_STAB_DELAY_MS   0      // idle-compression negative-sync delay
+#define FLARE_INT_SYNC_PSF_DECAY_SPS_PER_S   25000.0f // type-P feed wall-clock decay on demand-drop (anti-overfeed)
 #define FLARE_INT_TS_BUF_FALLBACK_MS         2000   // toolhead-sensor buffer fallback window
 #define FLARE_INT_RELOAD_LEAN_FACTOR         1.15f  // RELOAD follow over-feed factor
