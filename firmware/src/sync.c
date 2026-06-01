@@ -168,6 +168,9 @@ static float          g_bl_follow_mm_per_s  = 0.0f;    /* FOLLOW commanded speed
 static uint32_t       g_bl_watchdog_ms = 0;
 static float          g_bl_follow_traveled_mm = 0.0f;
 static uint32_t       g_bl_last_tick_ms = 0;
+static int            g_bl_follow_cur_sps = 0;       /* FOLLOW current ramped rate */
+static int            g_bl_follow_target_sps = 0;    /* FOLLOW target rate (clamped) */
+static uint32_t       g_bl_follow_ramp_tick_ms = 0;  /* last FOLLOW ramp step */
 #define BL_WATCHDOG_DEFAULT_MS 30000u
 /* Suppress sync auto-start on BUF_TENSION after a BL abort (ST path).
  * The buffer is at tension because BL put it there, not because the
@@ -1429,10 +1432,21 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
                 follow_sps = sync_clamp_max_sps(follow_sps);
                 bool forward = (g_bl_target_state == BUF_COMPRESSION);
                 motor_set_dir(&A->m, forward);
-                motor_set_rate_sps(&A->m, follow_sps);
+                /* Ramp the follow like the normal motion path. An instant 0->target
+                 * rate jump exceeds the stepper's pull-in torque and stalls (it can
+                 * spin fast but can't *start* fast), so a fast retract gets no follow
+                 * at all and the buffer fills to COMPRESSION. Start at the pull-in-
+                 * safe RAMP_STEP_SPS and accelerate toward follow_sps in BL_FOLLOW. */
+                int start_sps = RAMP_STEP_SPS;
+                if (start_sps > follow_sps) start_sps = follow_sps;
+                if (start_sps < 1) start_sps = 1;
+                motor_set_rate_sps(&A->m, start_sps);
 
                 g_bl_follow_start_ms = now_ms;
-                g_bl_follow_mm_per_s = (float)follow_sps * MM_PER_STEP[idx];
+                g_bl_follow_cur_sps = start_sps;
+                g_bl_follow_target_sps = follow_sps;
+                g_bl_follow_ramp_tick_ms = now_ms;
+                g_bl_follow_mm_per_s = (float)start_sps * MM_PER_STEP[idx];
                 g_bl_follow_traveled_mm = 0.0f;
                 g_bl_last_tick_ms = now_ms;
                 g_bl_sub_state = BL_FOLLOW;
@@ -1472,9 +1486,20 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
             }
         }
 
-        float traveled = (g_bl_follow_mm_per_s > 0.0f)
-                ? ((float)(now_ms - g_bl_follow_start_ms) / 1000.0f * g_bl_follow_mm_per_s)
-                : g_bl_follow_mm;
+        /* Accelerate toward the target follow rate (pull-in-safe ramp). */
+        if (g_bl_follow_cur_sps < g_bl_follow_target_sps &&
+            (int32_t)(now_ms - g_bl_follow_ramp_tick_ms) >= RAMP_TICK_MS) {
+            g_bl_follow_ramp_tick_ms = now_ms;
+            g_bl_follow_cur_sps += RAMP_STEP_SPS;
+            if (g_bl_follow_cur_sps > g_bl_follow_target_sps)
+                g_bl_follow_cur_sps = g_bl_follow_target_sps;
+            motor_set_rate_sps(&A->m, g_bl_follow_cur_sps);
+            g_bl_follow_mm_per_s = (float)g_bl_follow_cur_sps * MM_PER_STEP[idx];
+        }
+
+        /* Integrate distance at the current (ramping) rate, not a fixed one. */
+        g_bl_follow_traveled_mm += g_bl_follow_mm_per_s * dt_s;
+        float traveled = g_bl_follow_traveled_mm;
 
         if (traveled >= g_bl_follow_mm) {
             motor_set_rate_sps(&A->m, 0);
