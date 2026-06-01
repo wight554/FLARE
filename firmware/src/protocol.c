@@ -164,6 +164,17 @@ void cmd_event(const char *type, const char *data) {
 }
 
 static const char *buf_status_label(void) {
+    /* Type-P: report the PHYSICAL buffer state (fixed thresholds about the
+       mechanical centre), not the control classification — the latter is
+       centred on the active goal (which the BL override can park at a rail),
+       so it would otherwise mislabel a physically-tensioned buffer. Type-D
+       uses switches, already physical. */
+    if (BUF_SENSOR_TYPE == 1) {
+        buf_state_t phys = (g_buf_pos < -0.1f) ? BUF_TENSION
+                         : (g_buf_pos >  0.1f) ? BUF_COMPRESSION
+                                               : BUF_NEUTRAL;
+        return buf_state_name(phys);
+    }
     return buf_state_name(g_buf.state);
 }
 
