@@ -22,6 +22,14 @@
 #define SYNC_COMPRESSION_COLLAPSE_RAMP_MULT RELAY_COLLAPSE_RAMP_MULT
 #define SYNC_COMPRESSION_COLLAPSE_CAP_MS ((uint32_t)RELAY_COLLAPSE_CAP_MS)
 #define SYNC_EST_FRESH_MS 20000u
+/* Type-P buffer-stabilize lag horizon. g_buf_pos is an EWMA (BUF_ANALOG_ALPHA)
+ * so it trails the true buffer by ~the filter group delay (~80ms at the default
+ * alpha/tick). Stopping the stabilize drive only when raw reads NEUTRAL lets
+ * BUF_STAB_SPS shove filament a lag-horizon past goal — a forward recovery from
+ * the saturated TENSION rail overshoots into COMPRESSION and rams the extruder
+ * gears during tip forming. Predict one horizon ahead with the filtered PSF
+ * velocity and stop early; erring tension-side is the safe direction. */
+#define SYNC_STAB_PREDICT_LEAD_S 0.10f
 #define SYNC_NEUTRAL_COMPRESSION_TAPER_FRAC 0.5f
 #define SYNC_NEUTRAL_COMPRESSION_FLOOR_FRAC 0.45f
 #define SYNC_NEUTRAL_ANTI_TENSION_STALE_MS 1500u
@@ -863,6 +871,26 @@ void buffer_stabilize_tick(uint32_t now_ms) {
     }
 
     buf_state_t raw_state = buf_state_raw();
+
+    /* Type-P lag compensation: predict the buffer one EWMA group-delay ahead
+     * with the filtered PSF velocity and stop as soon as the prediction reaches
+     * goal in the drive direction. Without this the lagged g_buf_pos reads
+     * NEUTRAL only after BUF_STAB_SPS has already pushed past it, overshooting
+     * the opposite rail (forward stabilize from TENSION -> COMPRESSION into the
+     * gears). Stopping a hair early parks tension-side, which is safe. */
+    if (BUF_SENSOR_TYPE == 1 && g_boot_stabilize_lane) {
+        float goal = psf_goal_norm();
+        float predicted = g_buf_pos + SYNC_STAB_PREDICT_LEAD_S * g_vel_norm_f;
+        bool reached = g_boot_stabilize_forward ? (predicted >= goal)
+                                                : (predicted <= goal);
+        if (reached) {
+            buf_force_stable_state(BUF_NEUTRAL, now_ms);
+            if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "DONE");
+            boot_stabilize_stop();
+            return;
+        }
+    }
+
     if (g_buffer_service_mode == BUFFER_SERVICE_NEG_SYNC) {
         if (raw_state == BUF_NEUTRAL) {
             buf_force_stable_state(BUF_NEUTRAL, now_ms);
