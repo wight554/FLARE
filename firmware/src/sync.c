@@ -149,6 +149,12 @@ typedef enum {
 
 static bl_sub_state_t g_bl_sub_state = BL_IDLE;
 static buf_state_t    g_bl_target_state = BUF_TENSION;
+/* BL-implied goal override (type-P): a BL:T arm parks the buffer goal at max
+ * tension (room for a retract's backflow), BL:C at max compression (feed
+ * reserve). Persists past the BL move's mechanical completion until a BS or BL
+ * timeout resets it (both route through buffer_stabilize_request). BUF_NEUTRAL
+ * = no override (use the configured BUF_GOAL). */
+static buf_state_t    g_bl_goal_override = BUF_NEUTRAL;
 static uint32_t       g_bl_prime_start_ms = 0;   /* when prime search began */
 static float          g_bl_prime_mm_per_s = 0.0f; /* stab speed in mm/s */
 static float          g_bl_prime_cap_mm   = 0.0f; /* abs 1: outer safety cap = BUF_MAX_TRAVEL_MM */
@@ -596,6 +602,12 @@ void buf_analog_update(void) {
 }
 
 static float psf_goal_norm(void) {
+    /* BL-implied override: while a buffer-lock is in effect (until BS/timeout),
+       park the goal at the armed rail so the idle stabilize and PD both pull the
+       buffer to the side that leaves room for the locked operation. */
+    if (g_bl_goal_override == BUF_TENSION) return -1.0f;
+    if (g_bl_goal_override == BUF_COMPRESSION) return 1.0f;
+
     float goal_norm = 0.0f;
     bool reversed = (BUF_PSF_MAX_COMP < BUF_PSF_MAX_TENS);
     float goal_raw = BUF_GOAL;
@@ -815,6 +827,9 @@ static bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events, b
 
 bool buffer_stabilize_request(uint32_t now_ms) {
     g_idle_compression_since_ms = 0;
+    /* BS (and BL timeout, which routes here) ends the buffer-lock context: drop
+       the BL-implied goal override back to the configured BUF_GOAL. */
+    g_bl_goal_override = BUF_NEUTRAL;
     return buffer_stabilize_start_internal(now_ms, true, BUFFER_SERVICE_STABILIZE);
 }
 
@@ -1268,6 +1283,8 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm,
     if (A->task == TASK_FEED) lane_stop(A);
 
     g_bl_target_state = target;
+    /* Park the buffer goal at the armed rail until BS/timeout clears it. */
+    g_bl_goal_override = target;
 
     /* Prime runs at SYNC_MAX_SPS. Overtravel is controlled by the two-phase
      * gates:
