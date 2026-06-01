@@ -524,6 +524,10 @@ def parse_status_line(line):
             elif key == "SM":
                 new_data["sync_enabled"] = int(val)
                 new_data["sync_drive"] = (int(val) == 1)
+            elif key == "ST":
+                new_data["sync_state"] = int(val)
+            elif key == "BL":
+                new_data["bl_arm"] = val
             elif key == "MM":
                 new_data["sps"] = float(val)
             elif key == "BF":

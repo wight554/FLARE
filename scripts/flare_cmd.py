@@ -408,6 +408,8 @@ def run_poll_daemon(args):
                 line_parts.append(f"BP:{status.get('g_buf_pos', 0.0):.3f}")
                 line_parts.append(f"BUF:{status.get('buf_state', 'NEUTRAL')}")
                 line_parts.append(f"SM:{status.get('sync_enabled', 0)}")
+                line_parts.append(f"ST:{status.get('sync_state', '?')}")
+                line_parts.append(f"BL:{status.get('bl_arm', '?')}")
                 line_parts.append(f"MM:{status.get('sps', 0.0):.3f}")
                 line_parts.append(f"BF:{status.get('baseline_sps', 0.0):.3f}")
                 line_parts.append(f"EST:{status.get('extruder_est_sps', 0.0):.3f}")
