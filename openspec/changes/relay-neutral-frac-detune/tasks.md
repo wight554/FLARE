@@ -631,23 +631,38 @@ and force a re-ramp from zero (the "drops too hard" turning point).
 
 ## 17. Asymmetric relay cycle analyzer + tuning guide
 
-- [ ] 17.1 `scripts/`: read-only poll analyzer (parse `OK:` status lines from
+- [x] 17.1 `scripts/`: read-only poll analyzer (parse `OK:` status lines from
   `flare_cmd.py --poll`, or a saved capture). Compute over a window:
   `tension_touches` (BUF→TENSION count), `comp_pin_ms` (consecutive COMPRESSION
   with `MM ≈ 0`), `mean(EST − MM)` during NEUTRAL, `bp_min` / `bp_mean`, relay
   `cycle_period`. No new firmware telemetry — existing fields only.
-- [ ] 17.2 Emit the asymmetric-objective verdict: PASS **iff**
+  - 2026-06-03: Added `flare_sync_check.py --mode asymmetric`, reusing existing
+    log/live/daemon parser and OK fields `BP`, `BUF`, `MM`, `EST`. Added
+    `--branch-label` for guarded branch A/B captures.
+- [x] 17.2 Emit the asymmetric-objective verdict: PASS **iff**
   `tension_touches == 0`; otherwise FAIL with remediation naming
   `relay_neutral_frac` / `SYNC_COMPRESSION_DRAIN_FRAC` / trim — never
   `sync_kp_rate` for type-D.
-- [ ] 17.3 Unit tests for the analyzer (parsing + metric math + verdict), in the
+  - 2026-06-03: Verdict fails on sampled or event-only TENSION touches, and
+    remediation explicitly excludes `sync_kp_rate` for type-D.
+- [x] 17.3 Unit tests for the analyzer (parsing + metric math + verdict), in the
   style of `test_flare_sync_check.py`.
-- [ ] 17.4 `TUNING.md`: add the type-D asymmetric tuning sequence (constraint =
+  - 2026-06-03: Added `AsymmetricTests` for PASS metrics, sampled TENSION FAIL,
+    event-only TENSION FAIL, and empty-capture INCONCLUSIVE.
+- [x] 17.4 `TUNING.md`: add the type-D asymmetric tuning sequence (constraint =
   TENSION touches → 0, then lower `SYNC_COMPRESSION_DRAIN_FRAC` for comfort) and
   document `SYNC_COMPRESSION_DRAIN_FRAC` + the one-sided trim in
   `MANUAL.md` / `BEHAVIOR.md`.
-- [ ] 17.5 `python3 -m py_compile scripts/*.py` + analyzer tests green; OpenSpec
+  - 2026-06-03: Added branch A/B commands to `TUNING.md`, analyzer command to
+    `MANUAL.md`, and asymmetric objective/metrics to `BEHAVIOR.md`.
+- [x] 17.5 `python3 -m py_compile scripts/*.py` + analyzer tests green; OpenSpec
   strict validation.
+  - 2026-06-03: `ninja -C build_local` passed.
+  - 2026-06-03: `bash scripts/validate_regression.sh` passed.
+  - 2026-06-03: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-03: `python3 scripts/test_*.py` passed.
+  - 2026-06-03: `python3 scripts/test_flare_sync_check.py` passed (37 tests).
+  - 2026-06-03: `openspec validate relay-neutral-frac-detune --strict` passed.
 
 ## 18. Hardware validation (dynamic-flow phase)
 

@@ -246,6 +246,25 @@ Tune only from real print behavior:
 - Leave `relay_min_flip_mm` at `0.0` unless deliberately testing the deadlock
   caveat above.
 
+Branch A/B capture sequence:
+
+```bash
+# Legacy drain branch
+python3 scripts/flare_cmd.py SET:SYNC_COMPRESSION_DRAIN_FRAC:0.0
+python3 scripts/flare_sync_check.py --live --poll 100 --mode asymmetric --branch-label hard-stop --capture-log hard-stop.txt
+
+# Partial-drain branch
+python3 scripts/flare_cmd.py SET:SYNC_COMPRESSION_DRAIN_FRAC:0.40
+python3 scripts/flare_sync_check.py --live --poll 100 --mode asymmetric --branch-label partial-drain --capture-log partial-drain.txt
+
+# Trim branch guard (optional): 0 disables anti-starvation trim for comparison
+python3 scripts/flare_cmd.py SET:SYNC_RELAY_TRIM_STEP_SPS:0
+```
+
+`--mode asymmetric` reports `BP`, `BUF`, `MM`, and `EST` metrics only. PASS means
+zero TENSION touches. COMPRESSION dwell/pin time is comfort/tuning data, not a
+FAIL by itself.
+
 ## Type-P Buffer Lock (Tip Forming)
 
 Tip forming uses `BL:<T|C>:<follow_mm>:<rate>` (via `_FLARE_BL_MOVE`) to hold the

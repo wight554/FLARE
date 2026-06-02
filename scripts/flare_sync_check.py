@@ -38,6 +38,7 @@ USAGE
     python3 scripts/flare_sync_check.py --log resume.txt  --mode rearm
     python3 scripts/flare_sync_check.py --log resume.txt  --mode rearm --allow-terminal-idle-relief
     python3 scripts/flare_sync_check.py --log spike.txt   --mode estimator
+    python3 scripts/flare_sync_check.py --log print.txt   --mode asymmetric --branch-label partial-drain
     python3 scripts/flare_sync_check.py --log run.txt     --mode all
 
   Live (capture while you run the macro / print, Ctrl+C to stop and analyze):
@@ -671,6 +672,107 @@ def analyze_drift(samples: List[Sample],
 
 
 # ---------------------------------------------------------------------------
+# ASYMMETRIC type-D relay analysis (§17)
+# ---------------------------------------------------------------------------
+def analyze_asymmetric(samples: List[Sample], events,
+                       poll_ms: int = 100,
+                       stop_eps_sps: float = STOP_EPS_SPS,
+                       branch_label: Optional[str] = None
+                       ) -> Tuple[str, List[str]]:
+    """Type-D asymmetric objective: TENSION is the hard failure rail, while
+    COMPRESSION is the tolerated/self-calibrating rail. Uses only existing
+    poll fields BP, BUF, MM, EST. PASS iff the capture contains zero
+    TENSION touches."""
+    report: List[str] = []
+    if not samples:
+        return "INCONCLUSIVE", report + ["  No samples captured."]
+
+    if branch_label:
+        report.append(f"  branch: {branch_label}")
+
+    tension_touches = 0
+    compression_touches = 0
+    touch_indices: List[int] = []
+    prev_buf: Optional[str] = None
+    for i, smp in enumerate(samples):
+        cur = smp.s("BUF")
+        if cur is None:
+            continue
+        if cur != prev_buf:
+            if cur == "TENSION":
+                tension_touches += 1
+                touch_indices.append(i)
+            elif cur == "COMPRESSION":
+                compression_touches += 1
+                touch_indices.append(i)
+        prev_buf = cur
+
+    event_tension_touches = sum(1 for (_, e) in events if "BS:TENSION" in e)
+
+    comp_pin_total_ms = 0.0
+    comp_pin_max_ms = 0.0
+    for a, b in state_runs(samples, "COMPRESSION"):
+        pin_samples = [samples[i] for i in range(a, b + 1)
+                       if (samples[i].f("MM") or 0.0) <= stop_eps_sps]
+        pin_ms = len(pin_samples) * poll_ms
+        comp_pin_total_ms += pin_ms
+        if pin_ms > comp_pin_max_ms:
+            comp_pin_max_ms = pin_ms
+
+    neutral_deltas: List[float] = []
+    for smp in samples:
+        if smp.s("BUF") != "NEUTRAL":
+            continue
+        est = smp.f("EST")
+        mm = smp.f("MM")
+        if est is not None and mm is not None:
+            neutral_deltas.append(est - mm)
+
+    bp_vals = [smp.f("BP") for smp in samples if smp.f("BP") is not None]
+    bp_min = min(bp_vals) if bp_vals else 0.0
+    bp_max = max(bp_vals) if bp_vals else 0.0
+    bp_mean = sum(bp_vals) / len(bp_vals) if bp_vals else 0.0
+    bp_amp = bp_max - bp_min if bp_vals else 0.0
+    neutral_mean_delta = (sum(neutral_deltas) / len(neutral_deltas)
+                          if neutral_deltas else 0.0)
+
+    periods_ms: List[float] = []
+    if len(touch_indices) >= 2:
+        periods_ms = [(touch_indices[i] - touch_indices[i - 1]) * poll_ms
+                      for i in range(1, len(touch_indices))]
+    mean_period_ms = sum(periods_ms) / len(periods_ms) if periods_ms else 0.0
+
+    duration_s = len(samples) * poll_ms / 1000.0
+    report.append(f"  capture: {len(samples)} samples ({duration_s:.1f}s @ {poll_ms}ms)")
+    report.append(f"  TENSION touches: {tension_touches} sampled, "
+                  f"{event_tension_touches} event")
+    report.append(f"  COMPRESSION touches: {compression_touches} sampled")
+    report.append(f"  COMPRESSION pin: total {comp_pin_total_ms:.0f} ms, "
+                  f"max {comp_pin_max_ms:.0f} ms (MM <= {stop_eps_sps:.0f} sps)")
+    report.append(f"  NEUTRAL mean(EST-MM): {neutral_mean_delta:+.1f} sps "
+                  f"from {len(neutral_deltas)} samples")
+    report.append(f"  BP: min {bp_min:+.2f}, mean {bp_mean:+.2f}, "
+                  f"max {bp_max:+.2f}, amp {bp_amp:.2f} mm")
+    if periods_ms:
+        report.append(f"  relay touch period: mean {mean_period_ms:.0f} ms "
+                      f"over {len(periods_ms)} intervals")
+    else:
+        report.append("  relay touch period: n/a (<2 touches)")
+
+    total_tension = tension_touches + event_tension_touches
+    if total_tension > 0:
+        return "FAIL", report + [
+            "  asymmetric objective failed: TENSION touched. Raise "
+            "relay_neutral_frac, reduce underfeed/trim-off branch risk, or "
+            "compare SYNC_COMPRESSION_DRAIN_FRAC branches; do not tune "
+            "sync_kp_rate for type D."]
+    return "PASS", report + [
+        "  asymmetric objective passed: zero TENSION touches. Tune "
+        "SYNC_COMPRESSION_DRAIN_FRAC for COMPRESSION comfort while keeping "
+        "TENSION at zero."]
+
+
+# ---------------------------------------------------------------------------
 # ESTIMATOR analysis (D2 — maneuver M4)
 # ---------------------------------------------------------------------------
 def analyze_estimator(samples: List[Sample], events, factor: float,
@@ -1002,7 +1104,7 @@ def main() -> int:
     ap.add_argument("--mode",
                     choices=("purge", "regression", "rearm", "estimator",
                              "stabilize", "stability", "buffer-lock",
-                             "tune", "both", "all"),
+                             "asymmetric", "tune", "both", "all"),
                     default="both",
                     help="Which check(s) to run ('both'=purge+regression, "
                          "'all'=every analyzer). 'stabilize'=M1 Recipe A "
@@ -1010,8 +1112,13 @@ def main() -> int:
                          "'stability'=sync-loop ringing during print soak "
                          "(task 9.10). 'buffer-lock'=BL lifecycle "
                          "(prime/locked/catch/settle and no MV faults). "
+                         "'asymmetric'=type-D branch A/B verdict: PASS iff "
+                         "TENSION touches are zero. "
                          "'tune'=autotune SYNC_KP_RATE during a live print "
                          "(requires --daemon).")
+    ap.add_argument("--branch-label", default=None,
+                    help="asymmetric mode: label this capture branch "
+                         "(e.g. hard-stop, partial-drain, trim-off)")
     ap.add_argument("--stability-cycle-hz", type=float, default=1.0,
                     help="stability mode: max allowed BUF cycles/sec over the "
                          "sliding window before FAIL (default 1.0). A sustained "
@@ -1122,6 +1229,13 @@ def main() -> int:
                                    args.stability_cycle_hz,
                                    args.stability_window_sec)
         print(f"\nSTABILITY (task 9.10): {v}")
+        for line in rep:
+            print(line)
+        verdicts.append(v)
+    if args.mode in ("asymmetric", "all"):
+        v, rep = analyze_asymmetric(samples, events, args.poll,
+                                    branch_label=args.branch_label)
+        print(f"\nASYMMETRIC (§17): {v}")
         for line in rep:
             print(line)
         verdicts.append(v)

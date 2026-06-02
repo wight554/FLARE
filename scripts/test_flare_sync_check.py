@@ -344,5 +344,53 @@ class EstimatorTests(unittest.TestCase):
         self.assertEqual(verdict, "INCONCLUSIVE")
 
 
+class AsymmetricTests(unittest.TestCase):
+    def test_zero_tension_passes_and_reports_metrics(self):
+        lines = [
+            status("NEUTRAL", 1.0, 600, 590),
+            status("NEUTRAL", 1.5, 620, 600),
+            status("COMPRESSION", 5.0, 620, 0),
+            status("COMPRESSION", 5.1, 620, 10),
+            status("NEUTRAL", 2.0, 620, 615),
+            status("COMPRESSION", 5.0, 620, 0),
+        ]
+        samples, events = fpc.parse_stream(lines)
+        verdict, rep = fpc.analyze_asymmetric(
+            samples, events, poll_ms=100, branch_label="partial-drain")
+        self.assertEqual(verdict, "PASS")
+        self.assertTrue(any("branch: partial-drain" in line for line in rep))
+        self.assertTrue(any("TENSION touches: 0" in line for line in rep))
+        self.assertTrue(any("COMPRESSION pin: total 300 ms" in line for line in rep))
+        self.assertTrue(any("NEUTRAL mean(EST-MM): +11.7" in line for line in rep))
+        self.assertTrue(any("relay touch period: mean 300 ms" in line for line in rep))
+
+    def test_sampled_tension_fails(self):
+        lines = [
+            status("NEUTRAL", 1.0, 600, 590),
+            status("TENSION", -5.0, 600, 900),
+            status("NEUTRAL", 0.0, 600, 610),
+        ]
+        samples, events = fpc.parse_stream(lines)
+        verdict, rep = fpc.analyze_asymmetric(samples, events, poll_ms=100)
+        self.assertEqual(verdict, "FAIL")
+        self.assertTrue(any("TENSION touches: 1" in line for line in rep))
+        self.assertTrue(any("do not tune sync_kp_rate" in line for line in rep))
+
+    def test_event_tension_fails_even_if_poll_misses_it(self):
+        lines = [
+            status("NEUTRAL", 1.0, 600, 590),
+            "EV:BS:TENSION,0.0,-5.0",
+            status("NEUTRAL", 0.0, 600, 610),
+        ]
+        samples, events = fpc.parse_stream(lines)
+        verdict, rep = fpc.analyze_asymmetric(samples, events, poll_ms=100)
+        self.assertEqual(verdict, "FAIL")
+        self.assertTrue(any("0 sampled, 1 event" in line for line in rep))
+
+    def test_empty_capture_inconclusive(self):
+        verdict, _ = fpc.analyze_asymmetric([], [], poll_ms=100)
+        self.assertEqual(verdict, "INCONCLUSIVE")
+
+
 if __name__ == "__main__":
     unittest.main()

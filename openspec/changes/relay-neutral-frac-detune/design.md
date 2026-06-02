@@ -863,3 +863,27 @@ Plan:
 
 Risk/invariant: purge/idle COMPRESSION must still true-stop at `0`; analog
 type-P (`BUF_SENSOR_TYPE == 1`) must remain untouched.
+
+### §17 implementation plan (2026-06-03)
+
+Research read: §17 tasks, analyzer/tuning-guide design, `scripts/flare_sync_check.py`,
+and `scripts/test_flare_sync_check.py`. Existing checker already parses `OK:`
+fields and supports log/live/daemon capture, so the lowest-risk path is adding
+an `asymmetric` mode there instead of duplicating capture/parsing code.
+
+Plan:
+- `scripts/flare_sync_check.py`: add `analyze_asymmetric()` that uses only
+  `BP`, `BUF`, `MM`, and `EST`. Metrics: sample/event TENSION touches,
+  COMPRESSION pin total/max, NEUTRAL `mean(EST-MM)`, BP min/mean/max, and
+  mean relay touch period. Verdict is asymmetric: FAIL if any TENSION touch,
+  PASS otherwise; no `sync_kp_rate` remediation.
+- Add `--branch-label` so A/B captures can be labeled (`hard-stop`,
+  `partial-drain`, `trim-off`, etc.) without changing telemetry. Firmware branch
+  guards remain runtime knobs: `SYNC_COMPRESSION_DRAIN_FRAC=0.0` disables the
+  drain branch, and `SYNC_RELAY_TRIM_STEP_SPS=0` disables the trim branch.
+- `scripts/test_flare_sync_check.py`: add parser/metric/verdict coverage.
+- `TUNING.md`, `MANUAL.md`, `BEHAVIOR.md`, OpenSpec task notes: document the
+  asymmetric analyzer and branch-test commands.
+
+Risk/invariant: analyzer is read-only and must not require new firmware fields;
+type-P control remains untouched.

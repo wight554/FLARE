@@ -184,6 +184,15 @@ dev-build-only — see the note at the top of this section.
 | `SYNC_COMPRESSION_DRAIN_FRAC` | `sync_compression_drain_frac` | Runtime-only type-D COMPRESSION active-draw drain fraction. `0.0` disables and restores legacy hard-stop; `>0` feeds this fraction of demand while `TASK_FEED` is active, clamped below demand. | 0.40 |
 | `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `SYNC_COMPRESSION_DRAIN_FRAC`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
 
+For type-D branch A/B tests, capture with:
+
+```bash
+python3 scripts/flare_sync_check.py --live --poll 100 --mode asymmetric --branch-label partial-drain
+```
+
+The asymmetric analyzer is read-only and uses existing `OK:` fields `BP`, `BUF`,
+`MM`, and `EST`. Verdict is PASS iff TENSION touches are zero.
+
 ### Safety & Timeouts
 | Parameter | `config.ini` Key | Description | Default |
 |-----------|------------------|-------------|---------|

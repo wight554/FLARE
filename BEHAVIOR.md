@@ -281,6 +281,13 @@ sync disables, and is not persisted.
 
 Zero feed in `BUF_COMPRESSION` does not deadlock the relay: the flip out keys on the physical `NEUTRAL` crossing (extruder draw), and `relay_min_flip_mm` defaults to `0` (time-based hysteresis).
 
+The type-D branch-test analyzer is `scripts/flare_sync_check.py --mode
+asymmetric`. It reads only `BP`, `BUF`, `MM`, and `EST`, reports TENSION touches,
+COMPRESSION pin time, NEUTRAL `EST-MM`, BP distribution, and relay touch period,
+and passes iff TENSION touches are zero. Use `--branch-label` to tag captures
+from guarded firmware branches such as `SYNC_COMPRESSION_DRAIN_FRAC=0.0`
+(legacy hard-stop) versus `0.40` (partial drain).
+
 #### Velocity estimator
 
 Whenever the buffer changes zone, firmware measures the dwell time in the old
