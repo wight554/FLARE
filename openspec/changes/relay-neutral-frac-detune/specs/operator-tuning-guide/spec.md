@@ -63,3 +63,24 @@ relay feed and SHALL NOT alter analog type-P feedforward.
 - **WHEN** the type-D buffer crosses from `BUF_NEUTRAL` to `BUF_TENSION`
 - **THEN** the learned neutral trim is increased by `SYNC_RELAY_TRIM_STEP_SPS`
 - **AND** the result is clamped to `+SYNC_RELAY_TRIM_CLAMP_SPS`
+
+### Requirement: Type-D estimator anchors on compression drain
+
+For `BUF_SENSOR_TYPE == 0`, the firmware SHALL treat the
+`BUF_COMPRESSION -> BUF_NEUTRAL` transition as an authoritative demand sample
+because the type-D relay commands zero feed while in `BUF_COMPRESSION`. The
+drain sample SHALL blend into `extruder_est_sps` and the residual neutral trim
+SHALL leak toward zero during `BUF_NEUTRAL` dwell. This estimator correction and
+trim leak SHALL NOT alter the analog type-P estimator/feedforward path.
+
+#### Scenario: COMPRESSION exit samples true-stop drain
+
+- **WHEN** the type-D buffer crosses from `BUF_COMPRESSION` to `BUF_NEUTRAL`
+- **THEN** firmware estimates demand from the compression drain rate without
+  adding a feed term
+- **AND** blends that sample into `extruder_est_sps`
+
+#### Scenario: Residual trim self-centers in neutral
+
+- **WHEN** the type-D buffer dwells in `BUF_NEUTRAL`
+- **THEN** the learned neutral trim moves toward zero over time

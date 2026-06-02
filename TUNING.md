@@ -198,13 +198,16 @@ the ramp-up / stop / ramp-up limit cycle you hear. `1.10` overfeeds 10 % and
 not affect the type-D relay** — it keys only on switch state, not a PI error.
 Those apply to analog type P (`BUF_SENSOR_TYPE == 1`) only.
 
-Type-D learns a volatile NEUTRAL trim from switch touches. A
+Type-D anchors `extruder_est_sps` from the cleanest available switch event:
+`BUF_COMPRESSION -> BUF_NEUTRAL`. While parked in `BUF_COMPRESSION`, the relay
+commands true stop, so the drain rate is the printer's demand directly. Firmware
+blends that drain sample into `EST` and treats the crossing trim as a small
+residual correction on top of the corrected estimator. A
 `BUF_NEUTRAL -> BUF_COMPRESSION` touch means overfeed, so firmware subtracts
 `SYNC_RELAY_TRIM_STEP_SPS`; a `BUF_NEUTRAL -> BUF_TENSION` touch means
-starvation, so firmware adds the same step. The learned trim is clamped by
-`SYNC_RELAY_TRIM_CLAMP_SPS` and resets when sync disables. Smaller step means
-slower convergence and rarer plateau clicks; larger step converges faster but can
-overshoot.
+starvation, so firmware adds the same step. The trim is clamped by
+`SYNC_RELAY_TRIM_CLAMP_SPS`, leaks toward zero while the arm dwells in NEUTRAL,
+and resets when sync disables.
 
 Firmware preserves the type-D `BUF_NEUTRAL` relay target as a lower bound only
 while reserve error is clearly tension-side. If reserve is already at/above
@@ -218,8 +221,8 @@ Tune only from real print behavior:
   much time on the COMPRESSION wall after the no-overshoot ramp fix.
 - Raise `relay_neutral_frac` above `1.00` only if the buffer drifts toward
   TENSION during steady demand.
-- Tune `SYNC_RELAY_TRIM_STEP_SPS` if touch rate converges poorly: lower for
-  fewer plateau clicks, raise for faster recovery after a demand change.
+- Tune `SYNC_RELAY_TRIM_STEP_SPS` only as a residual knob: lower for fewer
+  plateau clicks, raise for faster recovery after a demand change.
 - Do **not** touch `sync_kp_rate` for type D — it is inert (analog type-P only).
 - Leave `relay_min_flip_mm` at `0.0` unless deliberately testing the deadlock
   caveat above.

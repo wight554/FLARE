@@ -275,7 +275,9 @@ Each type-D `BUF_NEUTRAL -> BUF_COMPRESSION` crossing is treated as an overfeed
 measurement and subtracts `SYNC_RELAY_TRIM_STEP_SPS` from the volatile neutral
 trim. Each `BUF_NEUTRAL -> BUF_TENSION` crossing is treated as starvation and
 adds that step. The trim is anti-windup clamped by
-`SYNC_RELAY_TRIM_CLAMP_SPS`, resets when sync disables, and is not persisted.
+`SYNC_RELAY_TRIM_CLAMP_SPS`, leaks toward zero during NEUTRAL dwell, resets when
+sync disables, and is not persisted. The trim is a residual corrector; the
+primary demand estimate is `extruder_est_sps`.
 
 Zero feed in `BUF_COMPRESSION` does not deadlock the relay: the flip out keys on the physical `NEUTRAL` crossing (extruder draw), and `relay_min_flip_mm` defaults to `0` (time-based hysteresis).
 
@@ -283,8 +285,11 @@ Zero feed in `BUF_COMPRESSION` does not deadlock the relay: the flip out keys on
 
 Whenever the buffer changes zone, firmware measures the dwell time in the old
 zone and converts the switch-threshold travel into an estimated arm velocity.
-Combined with the MMU speed averaged during that dwell, this yields an
-instantaneous extruder-rate estimate.
+For type-D, positive velocity means the arm moved toward COMPRESSION, so the
+instantaneous demand estimate is `mmu_feed - arm_velocity`. The
+`BUF_COMPRESSION -> BUF_NEUTRAL` transition is the clean anchor: while the arm
+was in COMPRESSION the relay commanded true stop, so demand is the drain rate
+directly (`-arm_velocity`) with no MMU feed term to subtract.
 
 - `BUF_SWITCH_SPAN / 2` is the switch distance from `NEUTRAL`.
 - `BUF_MAX_TRAVEL / 2` is the physical half-travel used to clamp the virtual
@@ -297,16 +302,14 @@ instantaneous extruder-rate estimate.
 - The instantaneous estimate is clamped to `GLOBAL_MAX_RATE` and merged into
   `extruder_est_sps` with an adaptive EMA bounded by `EST_ALPHA_MIN` and
   `EST_ALPHA_MAX`.
-- On type-P sensors a fast `TENSION→COMPRESSION` transition overwrites the
-  estimator directly so a sudden demand collapse is reflected immediately. On
-  type-D (dual-endstop) this travel is *modeled* (`2×threshold ÷ dwell`), so a
-  short/partial transition could fabricate a huge value; there the update is
-  blended through the adaptive EMA instead of overwritten, so a single modeled
-  transition cannot spike the estimator (and over-feed the next `NEUTRAL`).
+- On type-P sensors the analog estimator remains continuous and separate. On
+  type-D (dual-endstop), all crossing samples are blended through the adaptive
+  EMA instead of overwriting `EST`, so a single modeled or transient catch-up
+  transition cannot spike the estimator and over-feed the next `NEUTRAL`.
 
-If the buffer stays in NEUTRAL for > 2 s, the estimator decays gently toward the
-current MMU speed. This keeps the feed-forward term sane during long steady
-sections where no new transitions arrive.
+If the buffer stays in NEUTRAL for a long dwell, the estimator is held until the
+next switch-derived sample; the residual trim leaks toward zero so stale trim
+bias does not become the primary actuator.
 
 The `EA:` field in the `?:` status response exposes the estimator age in
 milliseconds since the last meaningful update. `ES:` and `EC:` expose the current

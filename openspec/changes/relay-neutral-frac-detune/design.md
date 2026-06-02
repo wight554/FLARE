@@ -351,3 +351,78 @@ only (§9) before B's trim can pull feed down to demand. Build order: §9 → §
 
 Non-goal (moved to `proposal.md`): eliminating compression touches / perfect
 mid-band hold.
+
+## Hardware follow-up 9: trim alone can't win — fix EST at the root (2026-06-02)
+
+Two Fork-B soaks settled the architecture question:
+
+- **STEP 300:** the trim integrated `MM` down `1450 → 590` over the run (touch
+  rate visibly decaying — Fork B *works*), but **overshot past demand into
+  tension** and recovered slowly because tension crossings are sparse.
+- **STEP 120:** the trim from the prior run **persisted** (only resets on sync
+  re-arm, `sync.c:1595`), starting deeply negative; recovery was glacial
+  (`MM` neutral crawled `350 → 437` at `+17 mm/min` per −5 hit) with the buffer
+  **starved tension-side the whole time**.
+
+The crossing-trim is a pure event-integrator with three structural faults: **no
+leak** (ratchets unbounded), **asymmetric feedback** (compression crossings
+frequent → fast down; tension crossings sparse → slow up), and **cross-session
+persistence**. No `STEP` value fixes these — tuning is the wrong lever.
+
+### Root cause, restated
+
+Every failure traces to one thing: **`EST` is latched ~1200-1414 vs real demand
+~600 (≈2.3× high)**, so the trim must swing `±~800 mm/min` just to cancel a
+constant estimator error — and a swing that large, through sparse asymmetric
+feedback, cannot help but overshoot and stick.
+
+### The fix: anchor EST to the COMPRESSION drain (Fork D, `tasks.md` §10)
+
+The buffer motion measures real demand directly, and the **COMPRESSION true-stop
+is the clean anchor**: feed is `0` there, so the drain velocity *is* the demand,
+with no feed term to subtract. Sample the drain on `COMPRESSION → NEUTRAL` and
+correct `EST`. The existing crossing estimator (`sync.c:1010`) misses this — it
+samples the *fill* (overfeed) motion at compression *entry*, which is exactly why
+`EST` latches high.
+
+With `EST ≈ demand`, `feed = EST · 1.00` matches demand directly — the same
+stable regime as the 5 mm/s "perfect midline" case — the buffer holds, touches go
+sparse, and the trim collapses to a small residual (now leak-bounded). The
+operator already accepts the compression touch as the sensor; Fork D makes each
+touch **calibrate** `EST`, not merely bound the buffer. This ends the
+overshoot/starvation cycle instead of damping it.
+
+### Plan of record (final)
+
+1. §6 (done): no-overshoot ramp + EST true-stop + frac default.
+2. §9 (done): demand-scale the baseline NEUTRAL floors — frac now live.
+3. §10 (build): correct `EST` from the COMPRESSION drain (root fix); demote the
+   §7 trim to a leak-bounded residual.
+
+Fork B's trim stays — but as a small corrector on top of a now-correct `EST`,
+not the primary actuator.
+
+### §10 implementation plan
+
+#### `firmware/src/sync.c`
+
+- Repair the type-D crossing estimator so switch-travel velocity uses the same
+  sign convention as the type-P estimator: `extruder = mmu - arm_velocity`.
+- Give `COMPRESSION -> NEUTRAL` a threshold-distance drain sample instead of
+  zero travel, and special-case it as the authoritative true-stop sample:
+  commanded feed is zero, so demand is `-arm_velocity` with no MMU feed term.
+- Stop direct `TENSION -> COMPRESSION` overwrites from spiking `EST`; all type-D
+  crossing samples blend through the bounded EMA.
+- Add a neutral dwell leak for `g_relay_neutral_trim_sps` so the §7 trim becomes
+  a residual corrector instead of a stuck event-integrator. Reset or shrink the
+  trim on large compression-drain `EST` corrections.
+- Keep every edit gated to `BUF_SENSOR_TYPE == 0`; do not touch the analog
+  type-P estimator / `psf_control_law` feedforward path.
+
+#### Config and docs
+
+- Lower the default `sync_relay_trim_clamp_sps` to the residual range
+  (`~2000`) in `scripts/gen_config.py`, `config.ini.example`, `MANUAL.md`, and
+  `TUNING.md`.
+- Document that `COMPRESSION -> NEUTRAL` anchors type-D `EST` from true-stop
+  drain, and that the crossing trim now leaks toward zero while neutral.

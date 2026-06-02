@@ -275,3 +275,68 @@ this floor scales with demand.
 > Note: §6.1 (no-overshoot ramp) and §6.2 (EST true-stop) stay — both correct —
 > but are downstream of this floor and could not act while the floor pinned feed.
 > §7 (Fork B / adaptive frac) is gated behind §9: frac must be functional first.
+
+## 10. Fork D — correct type-D EST from the COMPRESSION-drain (ROOT FIX) — BUILD THIS
+
+HW §7.7 (300-step) and the STEP-120 retest proved the crossing-trim alone cannot
+win: it is a pure event-integrator with **no leak, asymmetric crossing rates
+(fast down / sparse up), and it persists across sessions**, so it overshoots
+deep negative and recovers glacially while the buffer starves. Every failure
+this session traces to the same root: **`EST` is latched ~1200-1414 vs real
+demand ~600 (≈2.3× high)**, forcing the trim to swing ±800 to cancel it.
+
+Fix the root: the buffer motion measures real demand directly. In particular the
+**COMPRESSION true-stop** is a clean anchor — feed is 0, so the buffer drains at
+*exactly* real demand with no feed term to subtract. Sample it and correct `EST`.
+With `EST ≈ demand`, `feed = EST · 1.00` matches demand (the 5 mm/s "perfect
+midline" regime), the buffer holds, touches go sparse, and the trim collapses to
+a small residual. The operator already accepts the touch as the sensor — this
+makes each touch *calibrate*, not just bound.
+
+- [x] 10.1 `firmware/src/sync.c` crossing handler (~`sync.c:1010-1033`): on
+  `COMPRESSION → NEUTRAL`, the dwell just spent at the true-stop had commanded
+  feed ≈ 0 (`relay_control_law` COMPRESSION = 0). Compute the drain velocity from
+  the compression dwell (`travel / dwell`, using `g_buf.entered_ms` and the known
+  buffer travel) and treat it as a **direct demand sample** `demand_sps ≈
+  drain_sps` (no `mmu_avg` term — feed was 0). Blend into `extruder_est_sps`
+  (alpha by dwell length / confidence). This is the ground-truth anchor the
+  current estimator misses because it samples the *fill* (overfeed) motion at
+  compression *entry*, not the *drain* at exit.
+  - 2026-06-02: `COMPRESSION -> NEUTRAL` now uses a threshold-distance drain
+    sample with feed forced to 0 and blends it into `extruder_est_sps` using
+    dwell-scaled alpha.
+- [x] 10.2 `firmware/src/sync.c`: verify/repair the existing crossing estimator
+  (`1010`) for the other transitions — it must not re-bias `EST` back up from the
+  overfeed fill motion. Prefer the feed-known transitions: COMPRESSION exit
+  (feed 0 → demand = drain) and steady NEUTRAL traverse (demand = feed − net
+  fill rate) over the TENSION→COMPRESSION direct-set (`1027-1028`), which samples
+  a transient catch-up. Keep it `BUF_SENSOR_TYPE == 0`; type-P estimator
+  (`sync.c:1822`) untouched.
+  - 2026-06-02: Type-D crossing math now uses `extruder = mmu - arm_velocity`,
+    matching the type-P sign convention, and the direct
+    `TENSION -> COMPRESSION` estimator overwrite is removed. Type-P estimator
+    code was not changed.
+- [x] 10.3 `firmware/src/sync.c`: demote the §7 trim to a **small residual**
+  corrector now that `EST` carries the demand: lower `CONF_SYNC_RELAY_TRIM_CLAMP_SPS`
+  (e.g. → ~2000) and add a **leak toward 0** while parked in NEUTRAL, so it
+  self-centers as `EST` converges and can no longer ratchet into a stuck corner
+  or persist a large bias across sessions. Optionally zero the trim on a large
+  `EST` correction.
+  - 2026-06-02: Default trim clamp lowered to `2000`; trim leaks toward zero
+    during type-D NEUTRAL dwell and shrinks on large compression-drain `EST`
+    corrections. Docs/config/OpenSpec updated.
+- [x] 10.4 Build + tests green; OpenSpec strict validation.
+  - 2026-06-02: `python3 scripts/gen_config.py` passed.
+  - 2026-06-02: `ninja -C build_local` passed.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+  - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
+  - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
+- [ ] 10.5 HW: 10 mm/s soak, `BASELINE_RATE:2400`, `frac 1.00`. Expect: `EST`
+  converges toward the real ~600 (not stuck at 1200/1414); `MM` settles near
+  demand without diving to tension or slamming compression; touches sparse and
+  self-correcting; **TENSION ≈ 0, no glacial starved recovery**. Then a speed
+  step (10→25 mm/s) should re-converge `EST` within a few touches.
+- [ ] 10.6 Persistence check: confirm a fresh sync arm starts sane (trim 0, `EST`
+  re-learned from the first touches) — no inherited bias from a prior session.

@@ -126,9 +126,9 @@ DEFAULTS = {
     "relay_neutral_frac": "1.00",
     # Type-D crossing trim: each COMPRESSION touch backs NEUTRAL feed off by
     # this many raw SPS, each TENSION touch adds it back. Smaller step =
-    # slower convergence and rarer plateau clicks.
+    # slower residual correction and rarer plateau clicks.
     "sync_relay_trim_step_sps": "300",
-    "sync_relay_trim_clamp_sps": "12000",
+    "sync_relay_trim_clamp_sps": "2000",
     # Drift Observer
 
     # Adaptive Sync

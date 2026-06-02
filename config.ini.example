@@ -75,9 +75,9 @@ run_current:
 # relay_neutral_frac: 1.00            # NEUTRAL fallback multiplier in type-D relay mode.
                                       # 1.0 = demand match; switches are guardrails.
                                       # Raise slightly only if it drifts to TENSION.
-# sync_relay_trim_step_sps: 300       # Type-D crossing trim step; lower = slower converge,
+# sync_relay_trim_step_sps: 300       # Type-D residual trim step; lower = slower correction,
                                       # rarer plateau clicks.
-# sync_relay_trim_clamp_sps: 12000    # Type-D crossing trim anti-windup clamp.
+# sync_relay_trim_clamp_sps: 2000     # Type-D residual trim anti-windup clamp.
 
 # ─── Trailing-Bias Setpoint Shift ────────────────────────────────────────────
 # sync_compression_bias_frac: 0.45  # additional setpoint shift toward compression.
