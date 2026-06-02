@@ -340,3 +340,59 @@ makes each touch *calibrate*, not just bound.
   step (10→25 mm/s) should re-converge `EST` within a few touches.
 - [ ] 10.6 Persistence check: confirm a fresh sync arm starts sane (trim 0, `EST`
   re-learned from the first touches) — no inherited bias from a prior session.
+
+## 10b. Fork D correction — measure demand from the NEUTRAL fill, not the COMPRESSION drain
+
+HW (§10.5, see `design.md` follow-up 10) confirmed §10.1 broke the EST latch —
+`EST` now *moves* — but it over-estimates ~2× and walks **up** to ~1300 instead
+of down to real demand (~600), so the buffer keeps overfeeding and ends pinned
+COMPRESSION. Root cause: the COMPRESSION-drain window is **not** feed≈0. The
+true-stop ramps down over ~100-200 ms (rig MM showed `1320→960→585→606→…→0.1`
+*while* `BUF:COMPRESSION`), and the dwell is short, so the sample picks up
+residual ramp-down feed **plus** an inflated `travel/dwell` arm velocity ≈
+`400 + 900 = ~1300`. The "feed=0 clean anchor" assumption is violated.
+
+Switch the demand measurement to the **NEUTRAL fill at known steady feed** — a
+long, feed-known, low-noise window:
+
+- [x] 10b.1 `firmware/src/sync.c`: on `NEUTRAL → COMPRESSION` (type-D), the
+  buffer just filled from its NEUTRAL entry to the COMPRESSION wall at a **known,
+  steady** commanded feed `F` (the relay NEUTRAL output, not ramping). Compute
+  the fill rate from the NEUTRAL dwell: `fill_sps = neutral_travel / neutral_dwell`
+  (use `g_buf.entered_ms` and the threshold travel). Then
+  `demand_sps = F_avg − fill_sps`, where `F_avg` is the average *commanded* feed
+  over that NEUTRAL dwell (track a running mean of `sync_current_sps` while in
+  NEUTRAL). Blend into `extruder_est_sps` (dwell-scaled alpha). Feed is steady and
+  known here, so unlike the drain there is no ramp-down contamination.
+  - 2026-06-02: Added a dedicated type-D NEUTRAL feed accumulator over actual
+    applied `sync_current_sps`, reset on `BUF_NEUTRAL` entry. `NEUTRAL ->
+    COMPRESSION` now estimates demand as averaged feed minus measured fill rate
+    and blends by dwell length.
+- [x] 10b.2 `firmware/src/sync.c`: remove / demote the §10.1 COMPRESSION-drain
+  sample — it is too short and feed-contaminated to estimate demand. Keep the
+  COMPRESSION true-stop itself (feed 0) unchanged; only stop *measuring demand*
+  from it. If a drain sample is retained at all, gate it to the post-ramp-down
+  portion (`sync_current_sps ≈ 0`) with a minimum dwell, and subtract actual
+  `lane_motion` — but 10b.1 is the primary estimator.
+  - 2026-06-02: Drain samples are no longer primary; they are accepted only after
+    minimum compression dwell and near-zero averaged feed, with the actual feed
+    term included.
+- [x] 10b.3 Sanity-bound the estimate: clamp `demand_sps` to `[SYNC_MIN,
+  baseline]` and ignore samples from degenerate windows (dwell below a floor, or
+  `fill_sps` ≥ `F_avg` which would imply negative demand). Prevents a single
+  noisy crossing from yanking `EST`.
+  - 2026-06-02: Rejects no-sample, short-dwell, invalid step-size,
+    non-positive-feed, and `fill_sps >= F_avg` windows. Accepted samples clamp
+    to `[SYNC_MIN_SPS, baseline_control_floor_sps()]`.
+- [x] 10b.4 Build + tests green; OpenSpec strict validation.
+  - 2026-06-02: `ninja -C build_local` passed.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+  - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
+  - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
+- [ ] 10b.5 HW: 10 mm/s soak, `BASELINE_RATE:2400`, `frac 1.00`, fresh sync arm.
+  Expect `EST` to converge **down** toward real demand (~600-700, not ~1300),
+  `MM` settle near demand, touches sparse + self-correcting, TENSION ≈ 0, no
+  COMPRESSION-stuck tail. Then a 10→25 mm/s step should re-converge `EST` up
+  within a few fills.

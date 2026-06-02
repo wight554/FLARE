@@ -426,3 +426,52 @@ not the primary actuator.
   `TUNING.md`.
 - Document that `COMPRESSION -> NEUTRAL` anchors type-D `EST` from true-stop
   drain, and that the crossing trim now leaks toward zero while neutral.
+
+## Hardware follow-up 10: EST latch broken, but the drain window is feed-contaminated (2026-06-02)
+
+§10 (anchor `EST` from the COMPRESSION drain) achieved its first goal: **`EST`
+now moves** — the latch is gone (`949 → 886 → 972 → 1036 → … `). But it converges
+the **wrong way**: monotonically *up* to ~1300 (≈2× real demand ~600), only ever
+stepping at COMPRESSION exits, so the buffer keeps overfeeding and ends pinned at
+the COMPRESSION wall.
+
+Root cause: the COMPRESSION-drain window is **not feed≈0**. The true-stop ramps
+down over ~100-200 ms — the rig MM read `1320 → 960 → 585 → 606 → 268 → … → 0.1`
+*while* `BUF:COMPRESSION` — and the dwell is short. So the §10.1 sample picks up
+(a) residual ramp-down feed (~400) it assumed was 0, plus (b) an inflated
+`travel/dwell` arm velocity over the brief noisy window (~900) → demand ≈ 1300.
+The "clean anchor" premise (feed = 0) is violated in practice. The first cycle
+read correctly (949→886, down) before the residual built up; later cycles inflate.
+
+### Fix: measure demand from the NEUTRAL fill, not the drain (tasks §10b)
+
+The NEUTRAL→COMPRESSION fill is the better truth signal: it happens at a
+**known, steady** commanded feed `F` (the relay NEUTRAL output, not ramping),
+over a **long** window. The buffer fills toward COMPRESSION at `(F − demand)`, so
+`demand = F_avg − fill_rate`, with `fill_rate = neutral_travel / neutral_dwell`
+and `F_avg` a running mean of commanded feed over the NEUTRAL dwell. No
+ramp-down contamination, low noise, feed known. Demote the drain sample (keep the
+feed-0 true-stop itself unchanged). Sanity-bound the estimate to `[SYNC_MIN,
+baseline]` and reject degenerate windows.
+
+This keeps the Fork D principle — each touch *calibrates* `EST` — but reads the
+calibration off the clean fill segment instead of the contaminated drain.
+
+### §10b implementation plan
+
+#### `firmware/src/sync.c`
+
+- Track a dedicated Type-D NEUTRAL dwell feed mean from the applied
+  `sync_current_sps`. Reset it on `BUF_NEUTRAL` entry and sample it while the
+  stable state remains `BUF_NEUTRAL`.
+- On `BUF_NEUTRAL -> BUF_COMPRESSION`, compute `fill_sps` from the known switch
+  travel and the neutral dwell, then estimate demand as
+  `demand_sps = neutral_feed_avg_sps - fill_sps`.
+- Reject degenerate samples: no feed samples, dwell below a minimum, invalid
+  lane step size, non-positive averaged feed, or `fill_sps >= F_avg` (negative
+  demand). Clamp accepted demand samples to `[SYNC_MIN_SPS, baseline_control_floor_sps()]`.
+- Demote `BUF_COMPRESSION -> BUF_NEUTRAL` drain sampling to a non-primary path by
+  only accepting it after a minimum compression dwell and near-zero applied feed;
+  subtract actual averaged feed if retained.
+- Preserve type-P code paths byte-stable; all new estimator behavior is gated to
+  `BUF_SENSOR_TYPE == 0`.

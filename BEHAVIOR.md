@@ -286,10 +286,11 @@ Zero feed in `BUF_COMPRESSION` does not deadlock the relay: the flip out keys on
 Whenever the buffer changes zone, firmware measures the dwell time in the old
 zone and converts the switch-threshold travel into an estimated arm velocity.
 For type-D, positive velocity means the arm moved toward COMPRESSION, so the
-instantaneous demand estimate is `mmu_feed - arm_velocity`. The
-`BUF_COMPRESSION -> BUF_NEUTRAL` transition is the clean anchor: while the arm
-was in COMPRESSION the relay commanded true stop, so demand is the drain rate
-directly (`-arm_velocity`) with no MMU feed term to subtract.
+instantaneous demand estimate is `mmu_feed - arm_velocity`. The primary demand
+anchor is the `BUF_NEUTRAL -> BUF_COMPRESSION` fill: firmware averages the
+actual applied `sync_current_sps` across the NEUTRAL dwell, subtracts the measured
+fill rate, and blends the result into `extruder_est_sps`. Degenerate short-dwell
+or negative-demand fills are ignored so one snap cannot yank the estimator.
 
 - `BUF_SWITCH_SPAN / 2` is the switch distance from `NEUTRAL`.
 - `BUF_MAX_TRAVEL / 2` is the physical half-travel used to clamp the virtual
@@ -303,9 +304,10 @@ directly (`-arm_velocity`) with no MMU feed term to subtract.
   `extruder_est_sps` with an adaptive EMA bounded by `EST_ALPHA_MIN` and
   `EST_ALPHA_MAX`.
 - On type-P sensors the analog estimator remains continuous and separate. On
-  type-D (dual-endstop), all crossing samples are blended through the adaptive
-  EMA instead of overwriting `EST`, so a single modeled or transient catch-up
-  transition cannot spike the estimator and over-feed the next `NEUTRAL`.
+  type-D (dual-endstop), all accepted crossing samples are blended through the
+  adaptive EMA instead of overwriting `EST`, and the COMPRESSION drain path is
+  only retained as a gated fallback after a long dwell with near-zero applied
+  feed.
 
 If the buffer stays in NEUTRAL for a long dwell, the estimator is held until the
 next switch-derived sample; the residual trim leaks toward zero so stale trim

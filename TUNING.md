@@ -198,11 +198,12 @@ the ramp-up / stop / ramp-up limit cycle you hear. `1.10` overfeeds 10 % and
 not affect the type-D relay** — it keys only on switch state, not a PI error.
 Those apply to analog type P (`BUF_SENSOR_TYPE == 1`) only.
 
-Type-D anchors `extruder_est_sps` from the cleanest available switch event:
-`BUF_COMPRESSION -> BUF_NEUTRAL`. While parked in `BUF_COMPRESSION`, the relay
-commands true stop, so the drain rate is the printer's demand directly. Firmware
-blends that drain sample into `EST` and treats the crossing trim as a small
-residual correction on top of the corrected estimator. A
+Type-D anchors `extruder_est_sps` from the cleanest stable switch segment:
+`BUF_NEUTRAL -> BUF_COMPRESSION`. Firmware averages the actual applied
+`sync_current_sps` over the NEUTRAL dwell, subtracts the measured fill rate, and
+blends that demand sample into `EST`. Very short or negative-demand fills are
+ignored. The crossing trim is now a small residual correction on top of that
+estimator. A
 `BUF_NEUTRAL -> BUF_COMPRESSION` touch means overfeed, so firmware subtracts
 `SYNC_RELAY_TRIM_STEP_SPS`; a `BUF_NEUTRAL -> BUF_TENSION` touch means
 starvation, so firmware adds the same step. The trim is clamped by

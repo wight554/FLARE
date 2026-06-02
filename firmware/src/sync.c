@@ -73,6 +73,9 @@
 #define SYNC_RELAY_TRIM_LEAK_DELAY_MS 500u
 #define SYNC_RELAY_TRIM_LEAK_RATE_FRAC 0.25f
 #define SYNC_DRAIN_EST_ALPHA_DWELL_MS 1000.0f
+#define SYNC_NEUTRAL_FILL_EST_ALPHA_DWELL_MS 2000.0f
+#define SYNC_NEUTRAL_FILL_MIN_DWELL_MS 250u
+#define SYNC_DRAIN_EST_MIN_DWELL_MS 300u
 sync_state_t g_sync_state = SYNC_OFF;
 bool sync_auto_started = false;
 bool sync_tail_assist_active = false;
@@ -122,6 +125,8 @@ static uint32_t g_tension_risk_emit_ms = 0;
 static float g_relay_flip_travel_since_mm = 0.0f;
 static float g_relay_neutral_trim_sps = 0.0f;
 static uint32_t g_relay_trim_last_leak_ms = 0;
+static uint32_t g_type_d_neutral_feed_sps_sum = 0;
+static uint16_t g_type_d_neutral_feed_samples = 0;
 
 /* buf_signal_t — canonical signal produced by the active sensor each tick. */
 buf_signal_t g_buf_signal = {0};
@@ -221,6 +226,7 @@ static uint32_t g_buf_pending_since_ms = 0;
 static float g_buf_physical_entry_pos_mm = 0.0f;
 
 static int lane_motion_sps(lane_t *L);
+static int baseline_control_floor_sps(void);
 static void buf_update(buf_state_t new_state, uint32_t now_ms);
 
 static void relay_on_transition(buf_state_t new_state, uint32_t now_ms) {
@@ -978,6 +984,38 @@ static void blend_extruder_est_sps(float sample_sps, float alpha, uint32_t now_m
     extruder_est_last_update_ms = now_ms;
 }
 
+static void type_d_neutral_feed_reset(void) {
+    g_type_d_neutral_feed_sps_sum = 0;
+    g_type_d_neutral_feed_samples = 0;
+}
+
+static void type_d_neutral_feed_sample(buf_state_t s) {
+    if (BUF_SENSOR_TYPE != 0 || s != BUF_NEUTRAL || g_sync_state != SYNC_ACTIVE) return;
+    if (sync_current_sps <= 0) return;
+    if (g_type_d_neutral_feed_samples >= 10000u) {
+        g_type_d_neutral_feed_sps_sum /= 2u;
+        g_type_d_neutral_feed_samples /= 2u;
+    }
+    g_type_d_neutral_feed_sps_sum += (uint32_t)sync_current_sps;
+    g_type_d_neutral_feed_samples++;
+}
+
+static bool type_d_neutral_feed_avg_sps(float *avg_sps) {
+    if (!avg_sps || g_type_d_neutral_feed_samples == 0) return false;
+    *avg_sps = (float)g_type_d_neutral_feed_sps_sum / (float)g_type_d_neutral_feed_samples;
+    return *avg_sps > 0.0f;
+}
+
+static bool type_d_sample_demand_bounds(float *demand_sps) {
+    if (!demand_sps) return false;
+    int floor_sps = SYNC_MIN_SPS;
+    int cap_sps = baseline_control_floor_sps();
+    if (cap_sps < floor_sps) cap_sps = floor_sps;
+    if (*demand_sps <= 0.0f) return false;
+    *demand_sps = clamp_f(*demand_sps, (float)floor_sps, (float)cap_sps);
+    return true;
+}
+
 static void relay_neutral_trim_clamp(void) {
     if (SYNC_RELAY_TRIM_CLAMP_SPS <= 0) {
         g_relay_neutral_trim_sps = 0.0f;
@@ -1069,29 +1107,56 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
         int idx = g_buf.lane_idx_at_entry;
         if (idx < 0 || idx >= NUM_LANES) idx = 0;
         float mm_per_step = MM_PER_STEP[idx];
+        if (mm_per_step <= 1e-6f) goto estimator_done;
+
+        bool neutral_fill_sample = (old == BUF_NEUTRAL && new_state == BUF_COMPRESSION);
         bool compression_drain_sample = (old == BUF_COMPRESSION && new_state == BUF_NEUTRAL);
-        float mmu_mm_s = compression_drain_sample ? 0.0f : (mmu_avg_sps * mm_per_step);
-        float extruder_mm_s = compression_drain_sample
-            ? -g_buf.arm_vel_mm_s
-            : (mmu_mm_s - g_buf.arm_vel_mm_s);
+
         float est_sps = 0.0f;
-        if (mm_per_step > 1e-6f) {
+        float alpha = 0.0f;
+        bool sample_valid = false;
+
+        if (neutral_fill_sample) {
+            float feed_avg_sps = 0.0f;
+            float fill_sps = fabsf(g_buf.arm_vel_mm_s) / mm_per_step;
+            if (prev_dwell >= SYNC_NEUTRAL_FILL_MIN_DWELL_MS &&
+                type_d_neutral_feed_avg_sps(&feed_avg_sps) &&
+                fill_sps < feed_avg_sps) {
+                est_sps = feed_avg_sps - fill_sps;
+                sample_valid = type_d_sample_demand_bounds(&est_sps);
+                alpha = clamp_f((float)prev_dwell / SYNC_NEUTRAL_FILL_EST_ALPHA_DWELL_MS,
+                                EST_ALPHA_MIN, EST_ALPHA_MAX);
+            }
+        } else if (compression_drain_sample) {
+            float drain_feed_sps = mmu_avg_sps;
+            if (prev_dwell >= SYNC_DRAIN_EST_MIN_DWELL_MS &&
+                drain_feed_sps <= (float)SYNC_MIN_SPS) {
+                float mmu_mm_s = drain_feed_sps * mm_per_step;
+                float extruder_mm_s = mmu_mm_s - g_buf.arm_vel_mm_s;
+                est_sps = extruder_mm_s / mm_per_step;
+                sample_valid = type_d_sample_demand_bounds(&est_sps);
+                alpha = clamp_f((float)effective_dwell / SYNC_DRAIN_EST_ALPHA_DWELL_MS,
+                                EST_ALPHA_MIN, EST_ALPHA_MAX);
+            }
+        } else {
+            float mmu_mm_s = mmu_avg_sps * mm_per_step;
+            float extruder_mm_s = mmu_mm_s - g_buf.arm_vel_mm_s;
             est_sps = extruder_mm_s / mm_per_step;
+
+            const float estimator_norm_mm_s = 30.0f;
+            alpha = clamp_f(fabsf(g_buf.arm_vel_mm_s) / estimator_norm_mm_s,
+                            EST_ALPHA_MIN, EST_ALPHA_MAX);
+
+            /* If the model was way off (e.g. at one end but hit the other), trust the new estimate more. */
+            if (fabsf(travel_mm) > threshold * 1.5f && alpha < 0.5f) {
+                alpha = 0.5f;
+            }
+            sample_valid = type_d_sample_demand_bounds(&est_sps);
         }
 
-        const float estimator_norm_mm_s = 30.0f;
-        float alpha = compression_drain_sample
-            ? clamp_f((float)effective_dwell / SYNC_DRAIN_EST_ALPHA_DWELL_MS, EST_ALPHA_MIN, EST_ALPHA_MAX)
-            : clamp_f(fabsf(g_buf.arm_vel_mm_s) / estimator_norm_mm_s, EST_ALPHA_MIN, EST_ALPHA_MAX);
-
-        /* If the model was way off (e.g. at one end but hit the other), trust the new estimate more. */
-        if (fabsf(travel_mm) > threshold * 1.5f && alpha < 0.5f) {
-            alpha = 0.5f;
-        }
-
-        float prev_est_sps = extruder_est_sps;
-        blend_extruder_est_sps(est_sps, alpha, now_ms);
-        if (compression_drain_sample) {
+        if (sample_valid) {
+            float prev_est_sps = extruder_est_sps;
+            blend_extruder_est_sps(est_sps, alpha, now_ms);
             float reset_threshold_sps = fmaxf((float)SYNC_RELAY_TRIM_STEP_SPS, 100.0f);
             if (fabsf(extruder_est_sps - prev_est_sps) >= reset_threshold_sps) {
                 g_relay_neutral_trim_sps *= 0.25f;
@@ -1099,6 +1164,8 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
                 relay_neutral_trim_clamp();
             }
         }
+estimator_done:
+        ;
     }
 
     /* Residual observer — measure pre-snap virtual/physical mismatch.
@@ -1135,6 +1202,7 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     history_push(g_buf.state, prev_dwell);
     g_buf.state = new_state;
     g_buf.entered_ms = now_ms;
+    if (BUF_SENSOR_TYPE == 0 && new_state == BUF_NEUTRAL) type_d_neutral_feed_reset();
     g_buf_confidence = 1.0f;
     g_buf_last_transition_ms = now_ms;
     g_buf_pos_sigma_accum_mm = 0.0f;
@@ -1657,6 +1725,7 @@ void sync_disable(bool reset_estimator) {
     g_relay_flip_travel_since_mm = 0.0f;
     g_relay_neutral_trim_sps = 0.0f;
     g_relay_trim_last_leak_ms = 0;
+    type_d_neutral_feed_reset();
 
     if (reset_estimator) {
         extruder_est_sps = 0.0f;
@@ -2140,6 +2209,7 @@ void sync_tick(uint32_t now_ms) {
         g_buf.mmu_sps_dwell_sum += (uint32_t)lane_motion_sps(A);
         g_buf.mmu_sps_dwell_samples++;
     }
+    type_d_neutral_feed_sample(s);
 
     float raw_target = buf_target_reserve_mm();
     float reserve_deadband_mm = buf_virtual_deadband_mm();
