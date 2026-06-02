@@ -541,3 +541,34 @@ true-stop dwells are mostly about `200 ms`, so those clean samples are skipped.
   accepts drained samples after the commanded feed has collapsed to zero.
 - Preserve the fill estimator as the first full-span anchor and keep Type-P
   untouched.
+
+## Hardware follow-up 13: same-side compression fill has zero known travel (2026-06-02)
+
+The §10d rerun still froze: `EST` stayed `896.6` for the whole log while the
+applied feed settled around `640-660`. The run had only two transitions:
+
+- `NEUTRAL -> COMPRESSION` after about `0.96 s` at `MM 652-661`
+- `COMPRESSION -> NEUTRAL`, then another long `NEUTRAL -> COMPRESSION` after
+  about `3.8 s` with late `MM 640-654`
+
+The important correction is that the later fill is a **same-side compression
+return**: after `COMPRESSION -> NEUTRAL`, the next `NEUTRAL -> COMPRESSION`
+does not have known switch-to-switch travel. Treating it as a geometric fill
+or drain sample either skips it or recomputes the stale plateau. But the dwell's
+pre-taper applied-feed mean is exactly the useful upper-bound demand signal:
+the controller found a calm feed that held the physical buffer in NEUTRAL for
+seconds before the next overfeed touch.
+
+### §10e implementation plan
+
+#### `firmware/src/sync.c`
+
+- Allow the estimator block to run for type-D `NEUTRAL -> COMPRESSION` even when
+  the computed switch travel is near zero.
+- If the `NEUTRAL -> COMPRESSION` sample has known travel, keep the existing
+  `demand = F_avg - fill_rate` path.
+- If the sample has no known travel, treat `F_avg` itself as an overfeed
+  upper-bound demand sample and blend it into `extruder_est_sps`.
+- Continue preferring the pre-taper feed average from §10c so compression-side
+  braking does not poison the sample.
+- Keep Type-P untouched.

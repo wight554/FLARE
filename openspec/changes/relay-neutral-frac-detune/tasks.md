@@ -466,3 +466,38 @@ COMPRESSION in about `200 ms`.
   below `895.9` toward the observed steady `MM 640-680`, virtual `BP` no longer
   drifting tension-side before physical COMPRESSION snaps, and COMPRESSION
   touches becoming sparse/self-correcting instead of a stuck-full tail.
+  - 2026-06-02: Rerun not accepted: `EST` stayed flat at `896.6`; `MM` stayed
+    calm near `650`, but virtual `BP` still snapped from about `-1.3/-1.6` to
+    `5.0 COMPRESSION`. Follow-up §10e added.
+
+## 10e. Fork D refinement — same-side fill uses applied-feed sample
+
+After §10d, the plant shows the useful signal is the long same-side NEUTRAL dwell
+itself: applied feed is calm near `640-660`, but the next
+`NEUTRAL -> COMPRESSION` touch has no known switch-to-switch travel because the
+prior NEUTRAL entry came from COMPRESSION. Use the pre-taper applied feed as an
+upper-bound demand sample instead of skipping the touch.
+
+- [x] 10e.1 `firmware/src/sync.c`: let type-D `NEUTRAL -> COMPRESSION`
+  estimator handling run even when computed travel is near zero.
+  - 2026-06-02: Estimator block now admits zero-travel neutral fill samples
+    while continuing to ignore other zero-travel transitions.
+- [x] 10e.2 `firmware/src/sync.c`: for known-travel fills, keep
+  `demand = F_avg - fill_rate`; for same-side / no-known-travel fills, blend
+  `F_avg` itself as an upper-bound demand sample.
+  - 2026-06-02: Reuses the §10c pre-taper feed average when available, so late
+    neutral dwell feed around real demand is preferred over compression-side
+    braking.
+- [x] 10e.3 Docs/spec/OpenSpec sync; build + tests green.
+  - 2026-06-02: `BEHAVIOR.md`, `TUNING.md`, OpenSpec design, spec, and tasks
+    updated.
+  - 2026-06-02: `ninja -C build_local` passed.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+  - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
+  - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
+- [ ] 10e.4 HW: rerun 20 s / 10 mm/s feed. Expect the second
+  `NEUTRAL -> COMPRESSION` touch to pull `EST` below `896` toward `640-660`,
+  with virtual `BP` no longer drifting deeply tension-side before compression
+  snaps.

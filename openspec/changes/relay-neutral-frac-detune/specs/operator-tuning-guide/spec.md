@@ -73,11 +73,12 @@ preferring the pre-taper portion before compression-side braking when available,
 and subtracting the measured fill rate. Degenerate fill samples SHALL be ignored,
 slow near-converged fills SHALL remain eligible, and accepted demand samples
 SHALL blend into `extruder_est_sps`. When later compression-side fill samples no
-longer have known switch-to-switch travel, a short `BUF_COMPRESSION ->
-BUF_NEUTRAL` true-stop drain with near-zero applied feed SHALL be eligible as a
-fallback demand sample. The residual neutral trim SHALL leak toward zero during
-`BUF_NEUTRAL` dwell. This estimator correction and trim leak SHALL NOT alter the
-analog type-P estimator/feedforward path.
+longer have known switch-to-switch travel, the pre-taper applied feed average
+SHALL be eligible as an upper-bound demand sample, and a short
+`BUF_COMPRESSION -> BUF_NEUTRAL` true-stop drain with near-zero applied feed
+SHALL be eligible as a fallback demand sample. The residual neutral trim SHALL
+leak toward zero during `BUF_NEUTRAL` dwell. This estimator correction and trim
+leak SHALL NOT alter the analog type-P estimator/feedforward path.
 
 #### Scenario: NEUTRAL fill samples known applied feed
 
@@ -92,6 +93,14 @@ analog type-P estimator/feedforward path.
 - **WHEN** the type-D buffer crosses from `BUF_NEUTRAL` to `BUF_COMPRESSION`
 - **AND** the NEUTRAL dwell is too short or the fill rate is far above averaged feed
 - **THEN** firmware does not update `extruder_est_sps` from that crossing
+
+#### Scenario: Same-side compression fill samples applied feed
+
+- **WHEN** the type-D buffer crosses from `BUF_NEUTRAL` to `BUF_COMPRESSION`
+- **AND** the crossing has no known switch-to-switch travel because the prior
+  entry came from `BUF_COMPRESSION`
+- **THEN** firmware blends the pre-taper applied-feed average as an upper-bound
+  demand sample
 
 #### Scenario: Short true-stop drain remains eligible
 

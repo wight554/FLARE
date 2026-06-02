@@ -1121,17 +1121,21 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
         else if (old == BUF_COMPRESSION) g_buf_physical_entry_pos_mm = threshold;
     }
 
-    if (BUF_SENSOR_TYPE == 0 && fabsf(travel_mm) > 0.001f && prev_dwell > (uint32_t)BUF_HYST_MS) {
+    bool neutral_fill_sample = (old == BUF_NEUTRAL && new_state == BUF_COMPRESSION);
+    bool has_known_travel = fabsf(travel_mm) > 0.001f;
+
+    if (BUF_SENSOR_TYPE == 0 && (has_known_travel || neutral_fill_sample) && prev_dwell > (uint32_t)BUF_HYST_MS) {
         uint32_t effective_dwell = prev_dwell - (uint32_t)(BUF_HYST_MS / 2);
         if (effective_dwell < 5) effective_dwell = 5;
-        g_buf.arm_vel_mm_s = travel_mm / ((float)effective_dwell / 1000.0f);
+        if (has_known_travel) {
+            g_buf.arm_vel_mm_s = travel_mm / ((float)effective_dwell / 1000.0f);
+        }
 
         int idx = g_buf.lane_idx_at_entry;
         if (idx < 0 || idx >= NUM_LANES) idx = 0;
         float mm_per_step = MM_PER_STEP[idx];
         if (mm_per_step <= 1e-6f) goto estimator_done;
 
-        bool neutral_fill_sample = (old == BUF_NEUTRAL && new_state == BUF_COMPRESSION);
         bool compression_drain_sample = (old == BUF_COMPRESSION && new_state == BUF_NEUTRAL);
 
         float est_sps = 0.0f;
@@ -1140,13 +1144,18 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
 
         if (neutral_fill_sample) {
             float feed_avg_sps = 0.0f;
-            float fill_sps = fabsf(g_buf.arm_vel_mm_s) / mm_per_step;
             if (prev_dwell >= SYNC_NEUTRAL_FILL_MIN_DWELL_MS &&
                 type_d_neutral_feed_avg_sps(&feed_avg_sps)) {
-                float max_fill_sps = feed_avg_sps * (1.0f + SYNC_NEUTRAL_FILL_OVERRUN_FRAC);
-                if (fill_sps <= max_fill_sps) {
-                    est_sps = feed_avg_sps - fill_sps;
-                    if (est_sps < (float)SYNC_MIN_SPS) est_sps = (float)SYNC_MIN_SPS;
+                if (has_known_travel) {
+                    float fill_sps = fabsf(g_buf.arm_vel_mm_s) / mm_per_step;
+                    float max_fill_sps = feed_avg_sps * (1.0f + SYNC_NEUTRAL_FILL_OVERRUN_FRAC);
+                    if (fill_sps <= max_fill_sps) {
+                        est_sps = feed_avg_sps - fill_sps;
+                        if (est_sps < (float)SYNC_MIN_SPS) est_sps = (float)SYNC_MIN_SPS;
+                        sample_valid = type_d_sample_demand_bounds(&est_sps);
+                    }
+                } else {
+                    est_sps = feed_avg_sps;
                     sample_valid = type_d_sample_demand_bounds(&est_sps);
                 }
                 alpha = clamp_f((float)prev_dwell / SYNC_NEUTRAL_FILL_EST_ALPHA_DWELL_MS,

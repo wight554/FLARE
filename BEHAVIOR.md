@@ -292,7 +292,10 @@ actual applied `sync_current_sps` across the NEUTRAL dwell, preferring the
 pre-taper portion before compression-side braking when enough samples exist,
 subtracts the measured fill rate, and blends the result into
 `extruder_est_sps`. Degenerate short-dwell or far-overrun fills are ignored so
-one snap cannot yank the estimator; slow near-converged fills stay eligible.
+one snap cannot yank the estimator; slow near-converged fills stay eligible. If
+the fill is a same-side return from COMPRESSION and has no known
+switch-to-switch travel, firmware blends the pre-taper applied feed itself as
+an upper-bound demand sample.
 
 - `BUF_SWITCH_SPAN / 2` is the switch distance from `NEUTRAL`.
 - `BUF_MAX_TRAVEL / 2` is the physical half-travel used to clamp the virtual
