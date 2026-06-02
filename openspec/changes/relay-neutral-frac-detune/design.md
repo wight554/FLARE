@@ -634,3 +634,11 @@ If `feed_avg_sps` was already around `770 sps` (above true demand `~650`), multi
 
 ### The Fix
 Soften the no-travel fallback multiplier in `neutral_drain_sample` from `1.5f` to `1.15f`. This provides a gentle overfeed correction on tension hits without yanking `EST` out of convergence.
+
+## Raise sync_ramp_accel to 500 mm/s² (2026-06-02)
+
+### The Issue
+During sudden print speed steps (e.g. infill speed jumps), the buffer leans heavily toward TENSION. The current `sync_ramp_accel` of `300 mm/s²` ramps up the MMU feed rate too slowly to keep pace with the extruder's acceleration, causing transient starvation.
+
+### The Fix
+Raise `sync_ramp_accel` to `500 mm/s²`. This increases the loop's closed-loop bandwidth and slew rate by 1.67x, allowing the MMU to match fast speed jumps immediately and prevent TENSION-side starvation.

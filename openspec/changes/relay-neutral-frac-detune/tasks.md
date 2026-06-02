@@ -543,3 +543,8 @@ buffer near TENSION before the reactive trim has time to help.
 
 - [x] 12.1 `firmware/src/sync.c`: soften the no-travel `neutral_drain_sample` fallback multiplier from `1.5f` to `1.15f` to prevent aggressive `EST` overshooting spikes when physical drift hits the TENSION switch.
 - [x] 12.2 Build + tests green; OpenSpec strict validation.
+
+## 13. Tune sync_ramp_accel to 500 mm/s²
+
+- [x] 13.1 `config.ini`: Raise `sync_ramp_accel` from `300` to `500` mm/s² to make speed-up transitions steeper and prevent TENSION-side starvation during print speed jumps.
+- [x] 13.2 Build + tests green; OpenSpec strict validation.
