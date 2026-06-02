@@ -202,7 +202,7 @@ demand-scaled (or tension-side-only). Do §9, then §7.
       (step 300 sps ≈ 44 mm/min/crossing is sane); (c) run one type-P sanity
       soak before shipping since the nudge removal was not `BUF_SENSOR_TYPE`-gated
       (low risk — type-P EST path independent).
-- [ ] 7.7 HW: 10 mm/s soak. Confirm acceptance above — touch rate decays to
+- [~] 7.7 (OBSOLETE — superseded by §10 chain + §15/§16; final HW = §18) HW: 10 mm/s soak. Confirm acceptance above — touch rate decays to
   sparse, feed steady (no wroom), TENSION ≈ 0. Then a feature-speed change
   (10→25 mm/s) should re-converge within a few crossings. Restore
   `BASELINE_RATE:2400` first.
@@ -271,7 +271,7 @@ this floor scales with demand.
   - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
   - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
   - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
-- [ ] 9.7 HW: 10 mm/s soak. Expect `MM` now tracks real demand (not 1680), frac
+- [~] 9.7 (OBSOLETE — superseded by §10 chain; final HW = §18) HW: 10 mm/s soak. Expect `MM` now tracks real demand (not 1680), frac
   becomes functional again, COMPRESSION cycle gone or greatly reduced. THEN
   re-run the §6.3 frac A/B and the §7.1 Fork-B gate with frac actually live.
 
@@ -336,12 +336,12 @@ makes each touch *calibrate*, not just bound.
   - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
   - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
   - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
-- [ ] 10.5 HW: 10 mm/s soak, `BASELINE_RATE:2400`, `frac 1.00`. Expect: `EST`
+- [~] 10.5 (OBSOLETE — superseded by §10b) HW: 10 mm/s soak, `BASELINE_RATE:2400`, `frac 1.00`. Expect: `EST`
   converges toward the real ~600 (not stuck at 1200/1414); `MM` settles near
   demand without diving to tension or slamming compression; touches sparse and
   self-correcting; **TENSION ≈ 0, no glacial starved recovery**. Then a speed
   step (10→25 mm/s) should re-converge `EST` within a few touches.
-- [ ] 10.6 Persistence check: confirm a fresh sync arm starts sane (trim 0, `EST`
+- [~] 10.6 (OBSOLETE — superseded by §10b) Persistence check: confirm a fresh sync arm starts sane (trim 0, `EST`
   re-learned from the first touches) — no inherited bias from a prior session.
 
 ## 10b. Fork D correction — measure demand from the NEUTRAL fill, not the COMPRESSION drain
@@ -394,7 +394,7 @@ long, feed-known, low-noise window:
   - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
   - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
   - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
-- [ ] 10b.5 HW: 10 mm/s soak, `BASELINE_RATE:2400`, `frac 1.00`, fresh sync arm.
+- [~] 10b.5 (OBSOLETE — superseded by §10c) HW: 10 mm/s soak, `BASELINE_RATE:2400`, `frac 1.00`, fresh sync arm.
   Expect `EST` to converge **down** toward real demand (~600-700, not ~1300),
   `MM` settle near demand, touches sparse + self-correcting, TENSION ≈ 0, no
   COMPRESSION-stuck tail. Then a 10→25 mm/s step should re-converge `EST` up
@@ -434,7 +434,7 @@ prefer the early flat part of the dwell and relax the near-zero fill gate.
   - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
   - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
   - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
-- [ ] 10c.4 HW: rerun 10 mm/s soak, `BASELINE_RATE:2400`, `frac 1.00`, fresh
+- [~] 10c.4 (OBSOLETE — superseded by §10d) HW: rerun 10 mm/s soak, `BASELINE_RATE:2400`, `frac 1.00`, fresh
   sync arm. Expect `EST` to continue below 901 toward real demand, no impossible
   virtual `BP` divergence snaps, and no stuck-full tail.
   - 2026-06-02: 20 s feed log after §10c: `EST` moved `1200 -> 1002 -> 895.9`,
@@ -465,7 +465,7 @@ COMPRESSION in about `200 ms`.
   - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
   - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
   - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
-- [ ] 10d.3 HW: rerun 20 s / 10 mm/s feed. Expect `EST` to keep correcting
+- [~] 10d.3 (OBSOLETE — superseded by §10e) HW: rerun 20 s / 10 mm/s feed. Expect `EST` to keep correcting
   below `895.9` toward the observed steady `MM 640-680`, virtual `BP` no longer
   drifting tension-side before physical COMPRESSION snaps, and COMPRESSION
   touches becoming sparse/self-correcting instead of a stuck-full tail.
@@ -500,7 +500,7 @@ upper-bound demand sample instead of skipping the touch.
   - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
   - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
   - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
-- [ ] 10e.4 HW: rerun 20 s / 10 mm/s feed. Expect the second
+- [~] 10e.4 (OBSOLETE — superseded by §10f / §15 / §16) HW: rerun 20 s / 10 mm/s feed. Expect the second
   `NEUTRAL -> COMPRESSION` touch to pull `EST` below `896` toward `640-660`,
   with virtual `BP` no longer drifting deeply tension-side before compression
   snaps.
@@ -531,7 +531,7 @@ buffer near TENSION before the reactive trim has time to help.
   - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
   - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
   - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
-- [ ] 10f.4 HW: rerun the real-print benchmark. Expect no TENSION or near-
+- [~] 10f.4 (OBSOLETE — superseded by current dynamic-flow HW §18) HW: rerun the real-print benchmark. Expect no TENSION or near-
   TENSION skipping on 300→1500 mm/min speed-ups. Rare compression touches are
   acceptable if they self-correct and do not form a fast fixed-rate click cycle.
 
