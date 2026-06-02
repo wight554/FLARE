@@ -151,6 +151,8 @@ demand-scaled (or tension-side-only). Do §9, then §7.
   clicks. Scope strictly `BUF_SENSOR_TYPE == 0`.
   - 2026-06-02: `BUF_NEUTRAL -> BUF_COMPRESSION` subtracts the step;
     `BUF_NEUTRAL -> BUF_TENSION` adds it; trim clamps to configured bounds.
+  - 2026-06-03: Historical note: §15 superseded the COMPRESSION down-step; the
+    shipped trim is now one-sided anti-starvation only.
 - [x] 7.3 `firmware/src/sync.c`: remove the ad-hoc, non-convergent type-D EST
   drags (`2142`, `2168`, `2189`) — the trim replaces them. **Leave type-P's EST
   feedforward (`psf_control_law:1840`) untouched**; gate the removal to
@@ -165,9 +167,10 @@ demand-scaled (or tension-side-only). Do §9, then §7.
   - 2026-06-02: Added defaults/config comments, runtime globals, `SET:`/`GET:`,
     `flare_cmd.py --dump`, `MANUAL.md`, `TUNING.md`, `BEHAVIOR.md`, and OpenSpec
     requirements. Learned trim is volatile, so no settings field/version bump.
-- [ ] 7.5 Optional v2 (only if v1 converges too slowly / clicks too long):
-  weight the step by dwell time — a *short* NEUTRAL→COMPRESSION dwell = large
-  overfeed = bigger step; long dwell = small step. Use `g_buf.entered_ms`.
+- [~] 7.5 OBSOLETE — superseded by §15 (one-sided trim removes the
+  `BUF_NEUTRAL -> BUF_COMPRESSION` down-step this would weight) and the deferred
+  time-since-crossing back-off in `design.md` ("Dynamic-flow TENSION drift").
+  Dwell-scaling now belongs to a positive safe-rail lean, not a trim down-step.
 - [x] 7.6 Build + tests green; OpenSpec strict validation.
   - 2026-06-02: `python3 scripts/gen_config.py` passed.
   - 2026-06-02: `ninja -C build_local` passed.

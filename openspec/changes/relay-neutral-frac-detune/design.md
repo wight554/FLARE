@@ -887,3 +887,17 @@ Plan:
 
 Risk/invariant: analyzer is read-only and must not require new firmware fields;
 type-P control remains untouched.
+
+### §7.5 obsolete decision (2026-06-03)
+
+§7.5 was written for the earlier two-sided crossing trim: short
+`BUF_NEUTRAL -> BUF_COMPRESSION` dwell meant severe overfeed, so the proposed v2
+would weight the COMPRESSION down-step. §15 supersedes that path by making trim
+one-sided: COMPRESSION touches must not subtract from trim because a negative
+trim can push NEUTRAL feed below demand and drift the buffer toward TENSION.
+
+The surviving idea is not a §7 trim tweak. Dwell/uncertainty-scaled lean now
+belongs to the deferred time-since-crossing back-off described in "Dynamic-flow
+TENSION drift", applied as a positive safe-rail lean rather than a COMPRESSION
+down-step. Keep §7.5 obsolete unless hardware proves the deferred fallback is
+needed.
