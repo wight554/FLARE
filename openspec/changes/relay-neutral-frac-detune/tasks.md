@@ -56,3 +56,70 @@
   of repeatedly bang-banging `BUF_COMPRESSION`.
   - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
   - 2026-06-02: `ninja -C build_local` passed.
+
+## 6. Fork A — stabilize the type-D feed (do first; type-P safe)
+
+Root cause found 2026-06-02: the type-D ramp overshoots its target every tick
+(50 Hz `MM:720↔1080` chatter), which the neutral-floor patches (§5) never
+touched. See `design.md` → "Hardware follow-up 3". Fork A removes the chatter
+and the overfeed lean so the buffer can rest in mid-band; the §5 floor patches
+become redundant once feed can settle and may be reverted if A makes them inert.
+
+- [ ] 6.1 `firmware/src/sync.c`: port the type-P no-overshoot clamp
+  (`2346-2354`) to the type-D ramp (`2374`) — when stepping toward `target_sps`,
+  clamp so `sync_current_sps` lands on the target instead of overshooting it
+  (`±360 mm/min`/tick straddle). Scoped to `BUF_SENSOR_TYPE == 0`; leave the
+  type-P distance-EMA path untouched.
+- [ ] 6.2 `firmware/src/sync.c`: fix the EST-decay drag — gate the neutral/
+  tension/compression EST nudges (`2142`, `2168`, `2189`) to
+  `BUF_SENSOR_TYPE == 0` and stop dragging `extruder_est_sps` below true demand
+  during COMPRESSION true-stop, so the relay target and integrator demand term
+  do not rot (`EST 1200 → 277` under constant feed in the rig log).
+- [ ] 6.3 `scripts/gen_config.py` + `config.ini.example` + `TUNING.md`: with the
+  ramp able to settle, drop the documented type-D default `relay_neutral_frac`
+  `1.10 → 1.00` (net fill ≈ 0; switches as guardrails, no deliberate lean).
+  Keep the value `SET:`/`GET:`-tunable for A/B.
+- [ ] 6.4 Build: `gen_config.py` regenerates `tune.h` clean; `ninja -C
+  build_local` passes; analyzer/gen_config test suites green.
+- [ ] 6.5 HW: 10 mm/s soak + `flare_sync_check.py --mode stability`. Expect the
+  50 Hz `MM` chatter gone (feed rests on target), peak `< 1.0` cycles/s, endstop
+  `< 30 %`, TENSION ≈ 0. A/B `frac` 1.00 ± 0.05 if it drifts.
+- [ ] 6.6 If 6.5 passes, evaluate whether the §5 neutral-floor patches are now
+  inert and revert them to keep the relay law minimal (record decision in
+  `design.md`).
+
+## 7. Fork B — adaptive neutral feed (only if A's residual drift unacceptable)
+
+Gate on the §6.5 outcome: only build B if, after A, the buffer still slow-drifts
+to a rail (EST DC-bias walk, no mid-band truth). B closes a slow integral loop on
+switch-crossing dwell time to auto-trim the neutral feed (adaptive `frac`),
+replacing the ad-hoc EST nudges. See `design.md` → "Fork B".
+
+- [ ] 7.1 Decision gate: confirm from 6.5 that residual drift (not chatter)
+  remains and is out of spec. If A alone passes, **do not build B** — close the
+  change. Record the call.
+- [ ] 7.2 `firmware/src/sync.c`: at each type-D state crossing, derive the
+  `(feed − demand)` error from dwell time / climb rate (use `g_buf.entered_ms`)
+  and accumulate a bounded neutral-feed trim. Scoped to `BUF_SENSOR_TYPE == 0`.
+- [ ] 7.3 `firmware/src/sync.c`: replace the ad-hoc EST nudges (`2142/2168/2189`)
+  with the §7.2 crossing-event loop for type-D; preserve a type-P path (or leave
+  type-P's EST feedforward untouched) — verify no change to `psf_control_law`
+  feedforward.
+- [ ] 7.4 Bound + anti-windup: clamp the trim, slow gain so it follows real
+  per-feature demand changes (EST tracks those at crossings) without chasing
+  noise. Optionally persist; no `SETTINGS_VERSION` bump unless a new stored field
+  is added.
+- [ ] 7.5 Build + tests green; OpenSpec strict validation.
+- [ ] 7.6 HW: long infill soak; expect the buffer to park (long NEUTRAL dwell),
+  no slow rail-walk, TENSION ≈ 0, and convergence within a few crossings after a
+  speed change.
+
+## 8. Docs + spec
+
+- [ ] 8.1 `BEHAVIOR.md`: document the type-D feed model after A — feed tracks
+  demand (no overfeed lean), the ramp settles on target (no overshoot chatter),
+  switches act as guardrails; and after B (if built) the neutral feed is
+  dwell-time-adaptive. Note type-P is unaffected (`BUF_SENSOR_TYPE == 0` scope).
+- [ ] 8.2 Update `proposal.md` "What Changes" / scope to reflect that the fix is
+  ramp-overshoot + EST-decay + `frac → 1.00` (A), with B as a gated follow-up —
+  superseding the original "default-only detune" framing.

@@ -116,3 +116,105 @@ trim must be allowed to reduce feed again.
 - Clarify that in type-D neutral, the relay target remains the minimum applied
   feed even after shared sync shapers. This documents the invariant exposed by
   the hardware test.
+
+## Hardware follow-up 3: ramp overshoot is the chatter root cause (2026-06-02)
+
+A second rig soak (10 mm/s steady feed, `flare_cmd.py --poll 100`) showed the
+neutral-floor patches above did **not** stop the bang-bang: the buffer estimate
+rides the compression-side half of NEUTRAL (`BP ≈ 3.2 .. 5.0`), never visits
+TENSION, and slams the COMPRESSION switch repeatedly. Two structural causes,
+neither addressed by the floor work:
+
+### Cause 1 — the type-D ramp overshoots its target every tick (primary)
+
+The type-D slew (`sync.c:2374`) has **no clamp-to-target**:
+
+```c
+else if (sync_current_sps > target_sps) sync_current_sps -= ramp_dn_sps;   // 2455 sps
+else if (sync_current_sps < target_sps) sync_current_sps += SYNC_RAMP_UP_SPS; // 2455 sps
+```
+
+With `SYNC_RAMP_UP/DN_SPS = 2455` (≈ 360 mm/min) and `SYNC_TICK_MS = 20`, the
+step is far larger than the residual to a neutral target of ≈ 807 mm/min
+(`EST 734 × 1.10`). From 720 it jumps to 1080 (overshoot), next tick back to
+720 (undershoot), forever — a **50 Hz feed-command chatter of 720↔1080 mm/min**.
+This is exactly the `MM:720/1080` alternation in the poll log, present *before*
+the relay law contributes anything. The 1080 bursts (≫ demand 734) are what
+drive the integrator into COMPRESSION; the chatter straddling the 1000 mm/min
+StealthChop threshold is the audible "wroom-wroom" (chopper-mode flip).
+
+**Type-P already solved this.** `sync.c:2346-2354` clamps the applied rate so it
+never overshoots the filtered target, with the comment: *"clamped so it never
+overshoots the filtered target (overshoot is what made the old ramp oscillate)."*
+Type-D never received the clamp. Porting type-P's no-overshoot behavior to the
+type-D ramp removes the chatter independent of the relay law — and is **zero risk
+to type-P** because it only mirrors type-P's own logic into the
+`BUF_SENSOR_TYPE == 0` branch.
+
+### Cause 2 — EST decays under sustained cycling
+
+The poll shows `EST` falling `1200 → 277` under *constant* 10 mm/s demand. Each
+COMPRESSION dwell drags `extruder_est_sps` toward `sync_current_sps` (which the
+true-stop pulls toward 0) via `sync.c:2189`; the tension/neutral stall nudges
+(`2142`, `2168`) are the same family of ad-hoc corrections. The result corrupts
+both the relay neutral target (`EST × frac`) and the integrator's demand term
+(`sync.c:411`), so the model diverges from the physical buffer the longer it runs.
+
+## Realistic plan: A (stabilize) then B (adapt)
+
+The plant is a pure integrator (`g_buf_pos += (feed − demand)·dt`, `sync.c:413`)
+with feedback only at the two switch crossings — no mid-band ground truth
+([[typed-buffer-no-midband-groundtruth]]). A relay with an overfeed lean
+(`frac > 1`) therefore *cannot* hold mid-band: it has no fixed point and must
+limit-cycle. The 5 mm/s "perfect midline" case is the proof — there the feed
+sits effectively constant ≈ demand, so the integrator nets ≈ 0 and never
+switches. The fix direction is "feed = demand, switches as guardrails," not a
+deliberate lean.
+
+### Fork A — stabilize (do first, low risk, type-P safe)
+
+1. Port the type-P no-overshoot ramp clamp to the type-D slew so feed can rest
+   *on* the target instead of chattering ±360 mm/min at 50 Hz.
+2. With the ramp able to settle, lower the overfeed to neutral (`frac → 1.00`)
+   so net fill ≈ 0 and the buffer dwells in the quiet mid-band.
+3. Fix the EST-decay drag (gate the `2142/2168/2189` nudges to
+   `BUF_SENSOR_TYPE == 0`, or stop dragging EST below true demand) so the target
+   does not rot under sustained operation.
+
+Expected outcome: quiet, but **marginally** stable — with no mid-band truth, any
+residual DC bias in `(feed − demand)` (EST estimation error) slowly walks the
+buffer to a rail and the switch catches it. That residual slow drift is fork B's
+job.
+
+### Fork B — adapt (only if A's residual drift is unacceptable)
+
+On a 2-switch integrator the **only** information is the *time between
+crossings*: the period / climb-rate is a direct measure of `(feed − demand)`.
+Close a slow integral loop on crossing events that trims the neutral feed toward
+a long dwell — i.e. an **adaptive `frac`** that auto-finds the per-print value
+the manual A/B (1.05/1.10/1.15) finds by hand.
+
+- **B requires A first.** B nulls a slow-drift signal; if the 50 Hz ramp chatter
+  is still present, B's error signal (climb time) is buried in it and will not
+  converge. A removes the chatter and exposes the clean drift B is built to kill.
+- **B is cleanup, not greenfield.** It replaces the uncoordinated, decay-causing
+  EST nudges (`2142/2168/2189`) with one principled crossing-event loop.
+- **Type-P safe** when scoped to the `BUF_SENSOR_TYPE == 0` crossing path. Type-P
+  has continuous analog position and its own PD loop (`psf_control_law`); it does
+  not need (and must not run) the dwell-time trim. The only leak point is the
+  shared EST nudges — keep a type-P path or gate the replacement by sensor type.
+
+A is the floor (quiet); B is the ceiling (self-correcting). They are
+complementary, not either/or.
+
+### Type-P regression map (applies to both forks)
+
+```
+SAFE  (separate branches — type-P untouched):
+  relay_control_law (sync.c:1812)   BUF_SENSOR_TYPE == 0 only
+  type-D ramp (sync.c:2374)         clamp ported IS type-P's own logic → 0 change to P
+
+EXPOSED (shared code — must gate by sensor type or type-P shifts):
+  EST nudges (sync.c:2139-2193)     type-P uses EST as feedforward (psf_control_law:1840)
+  reserve integral / compression-recovery shaping
+```
