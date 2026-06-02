@@ -262,14 +262,20 @@ For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`), FLARE overrides the co
 
 - **`BUF_TENSION` (empty/starved)**: Commands a strong fixed catch-up rate based on the configured baseline rate (`baseline_control_floor_sps() * RELAY_CATCHUP_FRAC`) to ensure rapid buffer refill, completely independent of the velocity estimator.
 - **`BUF_COMPRESSION` (full reserve)**: Commands a **true zero feed** (0 SPS) instead of `SYNC_MIN_SPS`, so feed stops rather than pushing filament forward into a full buffer (feeding `SYNC_MIN` forward deepened the buffer past the switch for ~5 s at end of feed). The extruder's draw pulls the buffer back off the compression wall; recovery uses the existing relieve / `SYNC_AUTO_STOP_MS` path.
-- **`BUF_NEUTRAL` (neutral zone)**: Dynamically tracks estimated extruder demand (`extruder_est_sps * RELAY_NEUTRAL_FRAC`, default `1.00` demand match), clamped to the range `[SYNC_MIN_SPS, baseline_control_floor_sps()]`. The type-D ramp clamps each tick to the target instead of overshooting it; switches act as guardrails during steady consumption.
+- **`BUF_NEUTRAL` (neutral zone)**: Dynamically tracks estimated extruder demand (`extruder_est_sps * RELAY_NEUTRAL_FRAC`, default `1.00` demand match) plus a volatile crossing-learned trim, clamped to the range `[SYNC_MIN_SPS, baseline_control_floor_sps()]`. The type-D ramp clamps each tick to the target instead of overshooting it; switches act as guardrails during steady consumption.
 
 In type-D `BUF_NEUTRAL`, the relay target is also the minimum applied neutral
-feed while reserve error is tension-side, after shared reserve scaling and
-compression-recovery shaping. Those shared shapers may reduce analog type-P
+feed while reserve error is clearly tension-side, after shared reserve scaling
+and compression-recovery shaping. Those shared shapers may reduce analog type-P
 output, and they may also reduce type-D neutral output once the reserve is
 at/above target so the controller can brake before `BUF_COMPRESSION`. Fast-brake
 and `BUF_COMPRESSION` true-stop remain allowed to command zero.
+
+Each type-D `BUF_NEUTRAL -> BUF_COMPRESSION` crossing is treated as an overfeed
+measurement and subtracts `SYNC_RELAY_TRIM_STEP_SPS` from the volatile neutral
+trim. Each `BUF_NEUTRAL -> BUF_TENSION` crossing is treated as starvation and
+adds that step. The trim is anti-windup clamped by
+`SYNC_RELAY_TRIM_CLAMP_SPS`, resets when sync disables, and is not persisted.
 
 Zero feed in `BUF_COMPRESSION` does not deadlock the relay: the flip out keys on the physical `NEUTRAL` crossing (extruder draw), and `relay_min_flip_mm` defaults to `0` (time-based hysteresis).
 

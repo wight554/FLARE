@@ -120,6 +120,8 @@ DUMP_PARAMS = [
     # (tune_internal.h); not dumped — release GET: is dev-build-only.
     ("RELAY_CATCHUP_FRAC", "relay_catchup_frac",       False),
     ("RELAY_NEUTRAL_FRAC", "relay_neutral_frac",       False),
+    ("SYNC_RELAY_TRIM_STEP_SPS", "sync_relay_trim_step_sps", False),
+    ("SYNC_RELAY_TRIM_CLAMP_SPS", "sync_relay_trim_clamp_sps", False),
     ("RELAY_MIN_FLIP_MM", "relay_min_flip_mm",         False),
     ("RELAY_COLLAPSE_DELAY_MS", "relay_collapse_delay_ms", False),
     ("RELAY_COLLAPSE_RAMP_MULT", "relay_collapse_ramp_mult", False),

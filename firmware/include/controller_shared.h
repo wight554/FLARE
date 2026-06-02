@@ -244,6 +244,8 @@ extern float EST_LOW_CF_WARN_THRESHOLD;
 extern float EST_FALLBACK_CF_THRESHOLD;
 extern float RELAY_CATCHUP_FRAC;
 extern float RELAY_NEUTRAL_FRAC;
+extern int   SYNC_RELAY_TRIM_STEP_SPS;
+extern int   SYNC_RELAY_TRIM_CLAMP_SPS;
 extern float RELAY_MIN_FLIP_MM;
 extern int   RELAY_COLLAPSE_DELAY_MS;
 extern int   RELAY_COLLAPSE_RAMP_MULT;

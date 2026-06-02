@@ -117,6 +117,7 @@ static uint32_t g_tension_pin_ts[TENSION_PIN_WINDOW_LEN] = {0};
 static int g_tension_pin_ts_idx = 0;
 static uint32_t g_tension_risk_emit_ms = 0;
 static float g_relay_flip_travel_since_mm = 0.0f;
+static float g_relay_neutral_trim_sps = 0.0f;
 
 /* buf_signal_t — canonical signal produced by the active sensor each tick. */
 buf_signal_t g_buf_signal = {0};
@@ -1058,6 +1059,16 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
         if (g_bp_drift_samples < 65535u) g_bp_drift_samples++;
     }
 
+    if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL &&
+        (new_state == BUF_TENSION || new_state == BUF_COMPRESSION) &&
+        SYNC_RELAY_TRIM_STEP_SPS > 0 && SYNC_RELAY_TRIM_CLAMP_SPS > 0) {
+        float step = (float)SYNC_RELAY_TRIM_STEP_SPS;
+        if (new_state == BUF_COMPRESSION) g_relay_neutral_trim_sps -= step;
+        else g_relay_neutral_trim_sps += step;
+        g_relay_neutral_trim_sps = clamp_f(g_relay_neutral_trim_sps,
+            -(float)SYNC_RELAY_TRIM_CLAMP_SPS, (float)SYNC_RELAY_TRIM_CLAMP_SPS);
+    }
+
     history_push(g_buf.state, prev_dwell);
     g_buf.state = new_state;
     g_buf.entered_ms = now_ms;
@@ -1581,6 +1592,7 @@ void sync_disable(bool reset_estimator) {
     g_tension_pin_ts_idx = 0;
     g_tension_risk_emit_ms = 0;
     g_relay_flip_travel_since_mm = 0.0f;
+    g_relay_neutral_trim_sps = 0.0f;
 
     if (reset_estimator) {
         extruder_est_sps = 0.0f;
@@ -1838,7 +1850,7 @@ static int relay_control_law(buf_state_t s) {
         return 0;
     } else {
         int demand_sps = (int)extruder_est_sps;
-        int neutral = (int)((float)demand_sps * RELAY_NEUTRAL_FRAC);
+        int neutral = (int)((float)demand_sps * RELAY_NEUTRAL_FRAC + g_relay_neutral_trim_sps);
         if (neutral < SYNC_MIN_SPS) neutral = SYNC_MIN_SPS;
         if (neutral > relay_base) neutral = relay_base;
         return neutral;
@@ -2155,57 +2167,6 @@ void sync_tick(uint32_t now_ms) {
     float target_norm = (BUF_SENSOR_TYPE == 1) ? psf_goal_norm() : (effective_target / thr);
     float error_norm = pos_norm - target_norm;
     float deadband_norm = (BUF_SENSOR_TYPE == 1) ? 0.1f : (reserve_deadband_mm / thr);
-
-    bool buf_near_target = fabsf(bp_eff - effective_target) < (reserve_deadband_mm * 2.0f);
-    if (BUF_SENSOR_TYPE == 0) {
-        if (s == BUF_TENSION && (now_ms - g_buf.entered_ms) > SYNC_COMPRESSION_COLLAPSE_DELAY_MS) {
-            // If the arm stays pinned at the tension wall, a conservative bootstrap estimate is too low.
-            if (extruder_est_sps < (float)sync_current_sps) {
-                extruder_est_sps += 0.05f * ((float)sync_current_sps - extruder_est_sps);
-                extruder_est_last_update_ms = now_ms;
-            }
-        } else if (s == BUF_NEUTRAL && (now_ms - g_buf.entered_ms) > 2000u &&
-            A->task == TASK_FEED && A->fault == FAULT_NONE &&
-            sync_current_sps > 0) {
-
-            float thr = buf_threshold_mm();
-            /* Use raw g_buf_pos to detect model stalls, ignoring any drift correction. */
-            bool model_stalled_compression = (g_buf_pos >= thr - 0.01f);
-            bool model_stalled_tension  = (g_buf_pos <= -thr + 0.01f);
-
-            if (model_stalled_compression) {
-                /* Model thinks we are full, but we are physically in NEUTRAL.
-                 * Extruder MUST be faster than current MMU rate.
-                 * Bleed EST up aggressively to "pull" the model out of the wall. */
-                /* G2: lane_motion while pinned ≈ the collapsed rate, so the
-                 * old feed+6 target self-cancels the feedforward and leaves
-                 * only ~150mm/min headroom — too weak to climb the reserve
-                 * deficit before the next disturbance re-pins the wall.
-                 * Target at least the learned baseline floor: the historically
-                 * healthy feed. This branch only runs while pinned, so it
-                 * self-terminates the instant the buffer leaves the compression
-                 * wall — no TENSION overshoot. */
-                float margin = 6.0f; // ~150mm/min optimism
-                float target_rate = (float)lane_motion_sps(A) + margin;
-                float baseline_floor = (float)baseline_control_floor_sps();
-                if (target_rate < baseline_floor) target_rate = baseline_floor;
-                if (extruder_est_sps < target_rate) {
-                    extruder_est_sps += 0.05f * (target_rate - extruder_est_sps);
-                    extruder_est_last_update_ms = now_ms;
-                }
-            } else if (model_stalled_tension) {
-                /* Model thinks we are empty, but we are physically in NEUTRAL.
-                 * Extruder MUST be slower than current MMU rate. */
-                float margin = 4.0f;
-                float target_rate = (float)lane_motion_sps(A) - margin;
-                if (target_rate < 0.0f) target_rate = 0.0f;
-                if (extruder_est_sps > target_rate) {
-                    extruder_est_sps += 0.05f * (target_rate - extruder_est_sps);
-                    extruder_est_last_update_ms = now_ms;
-                }
-            }
-        }
-    }
 
     int target_sps;
     if (BUF_SENSOR_TYPE == 0) {

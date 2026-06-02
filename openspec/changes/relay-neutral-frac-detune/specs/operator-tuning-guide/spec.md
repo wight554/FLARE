@@ -43,3 +43,23 @@ shows steady TENSION drift.
 - **WHEN** the `flare_sync_check.py` stability ringing threshold is read
 - **THEN** it is `1.0` cycles/s (not raised to absorb the relay limit cycle),
   so a genuine sustained cycle is reported rather than silenced
+
+### Requirement: Type-D relay trim learns from switch crossings
+
+For `BUF_SENSOR_TYPE == 0`, the firmware SHALL treat `BUF_NEUTRAL` crossings to
+real switches as the available feedback signal: COMPRESSION touches SHALL reduce
+the volatile neutral feed trim, TENSION touches SHALL increase it, and the trim
+SHALL be anti-windup clamped. The trim SHALL apply only to the type-D NEUTRAL
+relay feed and SHALL NOT alter analog type-P feedforward.
+
+#### Scenario: COMPRESSION touch backs off neutral feed
+
+- **WHEN** the type-D buffer crosses from `BUF_NEUTRAL` to `BUF_COMPRESSION`
+- **THEN** the learned neutral trim is reduced by `SYNC_RELAY_TRIM_STEP_SPS`
+- **AND** the result is clamped to `-SYNC_RELAY_TRIM_CLAMP_SPS`
+
+#### Scenario: TENSION touch restores neutral feed
+
+- **WHEN** the type-D buffer crosses from `BUF_NEUTRAL` to `BUF_TENSION`
+- **THEN** the learned neutral trim is increased by `SYNC_RELAY_TRIM_STEP_SPS`
+- **AND** the result is clamped to `+SYNC_RELAY_TRIM_CLAMP_SPS`

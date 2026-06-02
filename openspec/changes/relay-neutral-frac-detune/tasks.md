@@ -128,12 +128,15 @@ pin feed at ~baseline and will **clamp B's downward trim right back up**, exactl
 as they defeat `frac`. B cannot lower feed to demand until §9 makes those floors
 demand-scaled (or tension-side-only). Do §9, then §7.
 
-- [ ] 7.1 `firmware/src/sync.c`: add a learned, persisted-optional type-D
+- [x] 7.1 `firmware/src/sync.c`: add a learned, persisted-optional type-D
   NEUTRAL feed trim, e.g. `static float g_relay_neutral_trim_sps = 0.0f;`.
   Applied only in the `BUF_SENSOR_TYPE == 0` NEUTRAL relay path:
   `neutral = clamp(EST*RELAY_NEUTRAL_FRAC + g_relay_neutral_trim_sps,
   SYNC_MIN_SPS, relay_base)` (in/after `relay_control_law`, `sync.c:1812`).
-- [ ] 7.2 `firmware/src/sync.c`: update the trim at each type-D state crossing
+  - 2026-06-02: Added volatile `g_relay_neutral_trim_sps`, applied only in the
+    type-D NEUTRAL relay path and reset when sync disables. Not persisted; no
+    `SETTINGS_VERSION` bump.
+- [x] 7.2 `firmware/src/sync.c`: update the trim at each type-D state crossing
   (the transition handler near `sync.c:1027`, where `old`/`new_state` are known):
   - `new_state == BUF_COMPRESSION` → overfed → `trim -= SYNC_RELAY_TRIM_STEP_SPS`.
   - `new_state == BUF_TENSION` → starved → `trim += SYNC_RELAY_TRIM_STEP_SPS`.
@@ -141,19 +144,33 @@ demand-scaled (or tension-side-only). Do §9, then §7.
   Clamp `trim` to `±SYNC_RELAY_TRIM_CLAMP_SPS` (anti-windup). Step size sets the
   residual steady-state click rate — small step = slower converge, rarer plateau
   clicks. Scope strictly `BUF_SENSOR_TYPE == 0`.
-- [ ] 7.3 `firmware/src/sync.c`: remove the ad-hoc, non-convergent type-D EST
+  - 2026-06-02: `BUF_NEUTRAL -> BUF_COMPRESSION` subtracts the step;
+    `BUF_NEUTRAL -> BUF_TENSION` adds it; trim clamps to configured bounds.
+- [x] 7.3 `firmware/src/sync.c`: remove the ad-hoc, non-convergent type-D EST
   drags (`2142`, `2168`, `2189`) — the trim replaces them. **Leave type-P's EST
   feedforward (`psf_control_law:1840`) untouched**; gate the removal to
   `BUF_SENSOR_TYPE == 0` so analog type-P is byte-identical.
-- [ ] 7.4 `scripts/gen_config.py` + `config.ini.example` + `TUNING.md`: add
+  - 2026-06-02: Removed the type-D pinned-wall/model-stall EST nudge block;
+    type-P estimator and `psf_control_law` were not changed.
+- [x] 7.4 `scripts/gen_config.py` + `config.ini.example` + `TUNING.md`: add
   `SYNC_RELAY_TRIM_STEP_SPS` and `SYNC_RELAY_TRIM_CLAMP_SPS` as `SET:`/`GET:`
   tunables (mirror the `relay_neutral_frac` plumbing in `protocol.c`). Document
   the convergence intuition. No `SETTINGS_VERSION` bump unless the learned trim
   is persisted (a new stored field) — if persisted, bump and note it.
+  - 2026-06-02: Added defaults/config comments, runtime globals, `SET:`/`GET:`,
+    `flare_cmd.py --dump`, `MANUAL.md`, `TUNING.md`, `BEHAVIOR.md`, and OpenSpec
+    requirements. Learned trim is volatile, so no settings field/version bump.
 - [ ] 7.5 Optional v2 (only if v1 converges too slowly / clicks too long):
   weight the step by dwell time — a *short* NEUTRAL→COMPRESSION dwell = large
   overfeed = bigger step; long dwell = small step. Use `g_buf.entered_ms`.
-- [ ] 7.6 Build + tests green; OpenSpec strict validation.
+- [x] 7.6 Build + tests green; OpenSpec strict validation.
+  - 2026-06-02: `python3 scripts/gen_config.py` passed.
+  - 2026-06-02: `ninja -C build_local` passed.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+  - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
+  - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
 - [ ] 7.7 HW: 10 mm/s soak. Confirm acceptance above — touch rate decays to
   sparse, feed steady (no wroom), TENSION ≈ 0. Then a feature-speed change
   (10→25 mm/s) should re-converge within a few crossings. Restore
@@ -167,6 +184,8 @@ demand-scaled (or tension-side-only). Do §9, then §7.
   dwell-time-adaptive. Note type-P is unaffected (`BUF_SENSOR_TYPE == 0` scope).
   - 2026-06-02: documented demand-match default and no-overshoot type-D ramp;
     B remains gated and not documented as built.
+  - 2026-06-02: updated for built crossing trim: switch touches adjust volatile
+    type-D neutral feed; type-P remains out of scope.
 - [x] 8.2 Update `proposal.md` "What Changes" / scope to reflect that the fix is
   ramp-overshoot + EST-decay + `frac → 1.00` (A), with B as a gated follow-up —
   superseding the original "default-only detune" framing.

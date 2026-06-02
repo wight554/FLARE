@@ -179,6 +179,8 @@ dev-build-only — see the note at the top of this section.
 | `COMPRESSION_BIAS_FRAC` | `sync_compression_bias_frac` | Scalar fallback compression-side setpoint shift when no flow schedule is configured (0.0 to 0.7) | 0.45 |
 | `RELAY_CATCHUP_FRAC` | `relay_catchup_frac` | Type-D relay TENSION refill multiplier | 1.30 |
 | `RELAY_NEUTRAL_FRAC` | `relay_neutral_frac` | Type-D relay NEUTRAL fallback multiplier (demand match) | 1.00 |
+| `SYNC_RELAY_TRIM_STEP_SPS` | `sync_relay_trim_step_sps` | Runtime-only type-D crossing-trim step in raw SPS. COMPRESSION touches subtract this; TENSION touches add it. | 300 |
+| `SYNC_RELAY_TRIM_CLAMP_SPS` | `sync_relay_trim_clamp_sps` | Runtime-only type-D crossing-trim anti-windup clamp in raw SPS. | 12000 |
 | `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
 
 ### Safety & Timeouts
