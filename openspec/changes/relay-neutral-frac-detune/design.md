@@ -80,3 +80,31 @@ report PASS, which is how the prior session was fooled. A future change should
 have the tool read `BUF_SENSOR_TYPE` (via `GET:`) and refuse/redirect kp
 autotune on type-D (point at `relay_neutral_frac` instead). Documented here
 rather than implemented to keep this change value-only.
+
+## Hardware follow-up: downstream clamp defeats relay neutral
+
+2026-06-02 rig testing showed `RELAY_NEUTRAL_FRAC` is active (`EST:1200` with
+`frac=1.30` produced `MM:1560`), but downstream target shaping can later reduce
+type-D `BUF_NEUTRAL` output below the relay target after real `BUF_TENSION`
+hits. Example: `EST:533` and `frac=1.30` imply a neutral relay target near
+`693 mm/min`, yet the applied `MM` dropped to `480` or `120`, letting the
+printer pull the buffer back to real `BUF_TENSION`. This changes the scope from
+"default-only detune" to "preserve the relay target as a type-D neutral floor."
+
+### firmware/src/sync.c
+
+- Capture the raw type-D relay neutral target before shared reserve scaling and
+  compression-recovery shaping.
+- After those shared shapers run, re-apply that raw relay target as a lower
+  bound only for `BUF_SENSOR_TYPE == 0 && BUF_NEUTRAL`.
+- Keep `BUF_COMPRESSION` true-stop, fast-brake, max-rate clamping, and analog
+  type-P behavior unchanged.
+- Risk: a relay floor will allow more deliberate compression-side lean; validate
+  that steady feeds no longer revisit `BUF_TENSION` and that compression still
+  drains through the true-stop branch.
+
+### BEHAVIOR.md
+
+- Clarify that in type-D neutral, the relay target remains the minimum applied
+  feed even after shared sync shapers. This documents the invariant exposed by
+  the hardware test.

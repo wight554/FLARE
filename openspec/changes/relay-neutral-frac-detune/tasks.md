@@ -38,3 +38,16 @@
   endstop `< 30 %`, TENSION ≈ 0 (no starvation). A/B 1.05–1.15 if needed.
 - [ ] 4.3 If the on-hw optimum differs from 1.10, update the default to match
   and re-confirm.
+
+## 5. Hardware-discovered relay floor fix
+
+- [x] 5.1 `firmware/src/sync.c`: preserve the raw type-D `BUF_NEUTRAL` relay
+  target as a floor after shared reserve scaling and compression-recovery
+  shaping, so `RELAY_NEUTRAL_FRAC` cannot be defeated by downstream trims.
+- [x] 5.2 `BEHAVIOR.md` and `TUNING.md`: document that type-D neutral relay
+  output remains the minimum applied neutral feed after shared shapers.
+- [x] 5.3 Validate build and OpenSpec strict validation.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+  - 2026-06-02: `ninja -C build_local` passed.
+- [ ] 5.4 HW: retest the reproduced 1.30 case; expected result is no post-tension
+  `MM` collapse below `EST * RELAY_NEUTRAL_FRAC` while in `BUF_NEUTRAL`.

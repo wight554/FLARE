@@ -198,6 +198,11 @@ and bang-bangs the COMPRESSION wall. **`sync_kp_rate` and the `sync_ramp_accel`
 autotune do not affect the type-D relay** — it keys only on switch state, not a
 PI error. Those apply to analog type P (`BUF_SENSOR_TYPE == 1`) only.
 
+Firmware preserves the type-D `BUF_NEUTRAL` relay target as a lower bound after
+shared reserve/recovery shaping. If live status shows neutral `MM` below
+`EST * RELAY_NEUTRAL_FRAC`, treat that as a firmware regression rather than a
+reason to raise the fraction.
+
 Tune only from real print behavior:
 
 - Increase `relay_catchup_frac` if TENSION dwell repeats or the printer starves.
