@@ -31,13 +31,16 @@
 - [x] 3.3 `scripts/test_flare_sync_check.py` + analyzer/gen_config suites green;
   `py_compile` clean.
 
-## 4. On-hardware validation (operator) — OPEN, blocked on rig
+## 4. On-hardware validation (operator) — OBSOLETE, superseded by §7.7/§9.7
 
-- [ ] 4.1 `GET:RELAY_NEUTRAL_FRAC`; `SET:RELAY_NEUTRAL_FRAC:1.00`; infill soak.
-- [ ] 4.2 `flare_sync_check.py --mode stability`: peak `< 1.0` cycles/s,
-  endstop `< 30 %`, TENSION ≈ 0 (no starvation). A/B 0.95–1.05 if needed.
-- [ ] 4.3 If the on-hw optimum differs from 1.00, update the default to match
-  and re-confirm.
+> 2026-06-02: HW follow-ups 5-8 proved frac alone is inert (baseline pin) — a
+> frac-only soak is meaningless. Superseded by the Fork B + §9 acceptance soak
+> (§7.7, §9.7). Left for history; do not run.
+
+- [~] 4.1 ~~`SET:RELAY_NEUTRAL_FRAC:1.00`; infill soak.~~ → §7.7/§9.7.
+- [~] 4.2 ~~`flare_sync_check.py --mode stability` frac A/B.~~ → §7.7/§9.7.
+- [~] 4.3 ~~If on-hw optimum differs from 1.00, update default.~~ → trim
+  (`SYNC_RELAY_TRIM_STEP_SPS`) now does the converging, not frac.
 
 ## 5. Hardware-discovered relay floor fix
 
@@ -49,8 +52,10 @@
 - [x] 5.3 Validate build and OpenSpec strict validation.
   - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
   - 2026-06-02: `ninja -C build_local` passed.
-- [ ] 5.4 HW: retest the reproduced 1.30 case; expected result is no post-tension
-  `MM` collapse below `EST * RELAY_NEUTRAL_FRAC` while in `BUF_NEUTRAL`.
+- [~] 5.4 OBSOLETE (superseded by §9 + §7.7). ~~HW: retest the reproduced 1.30
+  case; no post-tension `MM` collapse below `EST * RELAY_NEUTRAL_FRAC`.~~ The §5
+  floor was tightened to tension-side under §9.3; its behavior is now covered by
+  the §7.7/§9.7 acceptance soak.
 - [x] 5.5 `firmware/src/sync.c`: narrow the relay neutral floor to the
   tension-side half of `BUF_NEUTRAL` so compression-side trim can brake instead
   of repeatedly bang-banging `BUF_COMPRESSION`.
@@ -171,6 +176,29 @@ demand-scaled (or tension-side-only). Do §9, then §7.
   - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
   - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
   - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
+  - 2026-06-02: Code review (explore-mode audit, Opus) — §7 + §9 verified against
+    spec, all correct:
+    - §7.1 trim `g_relay_neutral_trim_sps` applied `EST*frac + trim` clamped
+      `[SYNC_MIN, relay_base]` (`sync.c:120, 1853`).
+    - §7.2 crossing update gated `old==NEUTRAL && new∈{TENSION,COMPRESSION}`
+      (`sync.c:1062-1070`) — NEUTRAL entry does NOT pump trim; COMP −step / TENS
+      +step; clamped ±CLAMP.
+    - §7.3 nudges `2142/2168/2189` removed; type-P EST is self-sufficient via its
+      own continuous estimator (`sync.c:1822`), so wholesale removal does not
+      starve type-P feedforward (psf_control_law untouched).
+    - §9.2 anti-tension floor now `min(baseline·0.70, EST·1.05, neutral_target)`
+      (`sync.c:1187-1195`); §9.3 fires only `error_norm < −deadband`
+      (`1185`/`2177`); §9.4 type-D `buf_target_reserve_mm → 0.0` (`350-352`);
+      §9.5 relay_base is upper cap, does not block downward trim. **The baseline
+      feed-pin is eliminated; frac + trim are live.**
+    - `ninja -C build_local` clean.
+    - Caveats (non-blocking, verify on HW): (a) trim resets to 0 on sync
+      (re)start (`sync.c:1595`) — not persisted → brief click burst at each feed
+      start until re-converge; (b) `CONF_SYNC_RELAY_TRIM_CLAMP_SPS=12000`
+      (~1760 mm/min) is wide → mild converge overshoot risk, tune down if needed
+      (step 300 sps ≈ 44 mm/min/crossing is sane); (c) run one type-P sanity
+      soak before shipping since the nudge removal was not `BUF_SENSOR_TYPE`-gated
+      (low risk — type-P EST path independent).
 - [ ] 7.7 HW: 10 mm/s soak. Confirm acceptance above — touch rate decays to
   sparse, feed steady (no wroom), TENSION ≈ 0. Then a feature-speed change
   (10→25 mm/s) should re-converge within a few crossings. Restore
