@@ -625,3 +625,12 @@ Instead of relying purely on the transient `buf_update()` transition event, proa
 If `s == BUF_TENSION` (extruder pulling filament), or `s == BUF_NEUTRAL` and a print is active (`A->task == TASK_FEED`), recover and auto-start sync immediately.
 
 This guarantees recovery even if a transition event is raced or skipped, while protecting end-of-print idle from spurious auto-starts.
+
+## Soften type-D tension-fallback multiplier (2026-06-02)
+
+### The Issue
+Under slow prints with long steady NEUTRAL dwells, physical drift eventually touches the TENSION switch. Because the entry was from TENSION, there is zero switch-to-switch travel. The no-travel fallback estimated `est_sps = feed_avg_sps * 1.5f`.
+If `feed_avg_sps` was already around `770 sps` (above true demand `~650`), multiplying by `1.5f` immediately yanked `EST` up to `1085 sps`. This created a positive feedback loop of aggressive overfeeding, slamming the buffer back to COMPRESSION.
+
+### The Fix
+Soften the no-travel fallback multiplier in `neutral_drain_sample` from `1.5f` to `1.15f`. This provides a gentle overfeed correction on tension hits without yanking `EST` out of convergence.

@@ -539,3 +539,7 @@ buffer near TENSION before the reactive trim has time to help.
 - [x] 11.2 Build + tests green; OpenSpec strict validation.
   - 2026-06-02: `ninja -C build_local` and `bash scripts/validate_regression.sh` passed successfully.
 
+## 12. Soften type-D tension-fallback multiplier
+
+- [x] 12.1 `firmware/src/sync.c`: soften the no-travel `neutral_drain_sample` fallback multiplier from `1.5f` to `1.15f` to prevent aggressive `EST` overshooting spikes when physical drift hits the TENSION switch.
+- [x] 12.2 Build + tests green; OpenSpec strict validation.

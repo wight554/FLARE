@@ -1170,7 +1170,7 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
                     est_sps = feed_avg_sps + drain_sps;
                     sample_valid = type_d_sample_demand_bounds(&est_sps);
                 } else {
-                    est_sps = feed_avg_sps * 1.5f;
+                    est_sps = feed_avg_sps * 1.15f; // softened from 1.5f to prevent EST overshooting spikes during physical drift
                     sample_valid = type_d_sample_demand_bounds(&est_sps);
                 }
                 alpha = clamp_f((float)prev_dwell / SYNC_NEUTRAL_FILL_EST_ALPHA_DWELL_MS,
