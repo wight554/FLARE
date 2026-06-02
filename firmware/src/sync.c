@@ -1163,7 +1163,7 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
         } else if (compression_drain_sample) {
             float drain_feed_sps = mmu_avg_sps;
             if (prev_dwell >= SYNC_DRAIN_EST_MIN_DWELL_MS &&
-                drain_feed_sps <= (float)SYNC_MIN_SPS) {
+                (drain_feed_sps <= (float)SYNC_MIN_SPS || sync_current_sps <= SYNC_MIN_SPS)) {
                 float mmu_mm_s = drain_feed_sps * mm_per_step;
                 float extruder_mm_s = mmu_mm_s - g_buf.arm_vel_mm_s;
                 est_sps = extruder_mm_s / mm_per_step;
