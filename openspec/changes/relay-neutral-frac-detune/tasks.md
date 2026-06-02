@@ -95,12 +95,16 @@ become redundant once feed can settle and may be reverted if A makes them inert.
   - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
   - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
   - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
-- [ ] 6.5 HW: 10 mm/s soak + `flare_sync_check.py --mode stability`. Expect the
+- [x] 6.5 HW: 10 mm/s soak + `flare_sync_check.py --mode stability`. Expect the
   50 Hz `MM` chatter gone (feed rests on target), peak `< 1.0` cycles/s, endstop
   `< 30 %`, TENSION ≈ 0. A/B `frac` 1.00 ± 0.05 if it drifts.
-- [ ] 6.6 If 6.5 passes, evaluate whether the §5 neutral-floor patches are now
+  - 2026-06-02: Opus rig follow-up showed 6.5 did not pass: `relay_neutral_frac`
+    1.10/1.00/0.50 all pinned around `MM≈1680`, proving the baseline-derived
+    anti-tension floor defeated frac. Follow-up §9 added.
+- [x] 6.6 If 6.5 passes, evaluate whether the §5 neutral-floor patches are now
   inert and revert them to keep the relay law minimal (record decision in
   `design.md`).
+  - 2026-06-02: Not inert. §5 floor condition was tightened in §9; no revert.
 
 ## 7. Fork B — convergent crossing-trim (REQUIRED; the actual fix) — BUILD THIS
 
@@ -180,27 +184,43 @@ is 2.5-5× demand ⇒ mandatory overfeed ⇒ COMPRESSION bang-bang, at any frac.
 This supersedes the "frac is the lever" framing; §6.3 frac change is inert until
 this floor scales with demand.
 
-- [ ] 9.1 Diagnostic confirm (no code): at the rig, lower `BASELINE_RATE` (e.g.
+- [x] 9.1 Diagnostic confirm (no code): at the rig, lower `BASELINE_RATE` (e.g.
   `SET:BASELINE_RATE:800`) and re-poll at 10 mm/s. Expect `MM` floor to drop to
   ~`new_baseline × 0.70`. Confirms the anti-tension floor is the pin. Restore
   baseline after.
-- [ ] 9.2 `firmware/src/sync.c` `sync_neutral_anti_tension_floor_sps`: make the
+  - 2026-06-02: Opus rig baseline scan 2400→800→600 confirmed feed tracked the
+    baseline-derived floor; user explicitly reported notes from that run.
+- [x] 9.2 `firmware/src/sync.c` `sync_neutral_anti_tension_floor_sps`: make the
   floor demand-scaled, not a fixed fraction of baseline — e.g.
   `min(baseline·0.70, extruder_est_sps·k)` or EST-derived — so at low demand the
   floor falls to ~demand instead of pinning to baseline·0.70. Preserve tension
   protection when demand is genuinely high. Scope to `BUF_SENSOR_TYPE == 0`;
   verify type-P (analog) path unaffected.
-- [ ] 9.3 `firmware/src/sync.c`: tighten the fire condition so the floor engages
+  - 2026-06-02: Type-D anti-tension floor is `min(baseline·0.70, EST·1.05,
+    neutral_target)`; type-P keeps the old baseline floor path.
+- [x] 9.3 `firmware/src/sync.c`: tighten the fire condition so the floor engages
   only when genuinely tension-side (`error_norm < −deadband_norm`), not the
   broad `<= +deadband` that fires across the compression-biased target band.
-- [ ] 9.4 Re-evaluate the `+2.5` compression-biased reserve target
+  - 2026-06-02: Type-D floor now fires only at `error_norm < -deadband_norm`;
+    §5 relay floor uses the same stricter tension-side condition.
+- [x] 9.4 Re-evaluate the `+2.5` compression-biased reserve target
   (`buf_target_reserve_mm`) for type-D: a near-zero target lets the buffer rest
   mid-band instead of riding the compression edge where the floor keeps firing.
-- [ ] 9.5 Audit the rest of the baseline-derived floor stack for the same
+  - 2026-06-02: Type-D reserve target now returns 0.0 mm; type-P target/bias path
+    remains unchanged.
+- [x] 9.5 Audit the rest of the baseline-derived floor stack for the same
   low-demand defect: `baseline_control_floor_sps` use in `relay_control_law`
   (`relay_base` clamp), the model-stall EST bleed (`sync.c:2168`, bleeds EST up
   to `baseline_floor`), the §5 relay floor. Demand-scale or gate each.
-- [ ] 9.6 Build + tests green; OpenSpec strict validation.
+  - 2026-06-02: `relay_base` remains only a max cap; §5 relay floor now
+    tension-side-only; model-stall EST bleed remains for §7 removal.
+- [x] 9.6 Build + tests green; OpenSpec strict validation.
+  - 2026-06-02: `ninja -C build_local` passed.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+  - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
+  - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
 - [ ] 9.7 HW: 10 mm/s soak. Expect `MM` now tracks real demand (not 1680), frac
   becomes functional again, COMPRESSION cycle gone or greatly reduced. THEN
   re-run the §6.3 frac A/B and the §7.1 Fork-B gate with frac actually live.

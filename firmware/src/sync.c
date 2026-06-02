@@ -346,6 +346,10 @@ static float buf_threshold_mm(void) {
 
 static float buf_target_reserve_mm(void) {
     float threshold = buf_threshold_mm();
+    if (BUF_SENSOR_TYPE == 0) {
+        return 0.0f;
+    }
+
     float physical_half = buf_physical_half_travel_mm();
     float pct = (float)SYNC_RESERVE_PCT / 100.0f;
     flow_param_t fp = flow_param((int)extruder_est_sps);
@@ -1160,14 +1164,32 @@ static int baseline_control_floor_sps(void) {
 static int sync_neutral_anti_tension_floor_sps(buf_state_t s, lane_t *A,
                                            float error_norm,
                                            float deadband_norm,
+                                           int neutral_target_sps,
                                            uint32_t now_ms) {
     if (g_sync_state != SYNC_ACTIVE || s != BUF_NEUTRAL || !A) return 0;
     if (A->task != TASK_FEED || A->fault != FAULT_NONE) return 0;
-    if (error_norm > deadband_norm) return 0;
     (void)now_ms;
 
-    /* F1a: unconditional refill floor. The floor is baseline-derived so it can
-     * never itself drive the buffer toward TENSION. */
+    if (BUF_SENSOR_TYPE == 0) {
+        if (error_norm >= -deadband_norm) return 0;
+
+        int demand_floor_sps = (int)(extruder_est_sps * 1.05f);
+        if (demand_floor_sps < SYNC_MIN_SPS) demand_floor_sps = SYNC_MIN_SPS;
+        if (neutral_target_sps > 0 && demand_floor_sps > neutral_target_sps) {
+            demand_floor_sps = neutral_target_sps;
+        }
+
+        int baseline_floor_sps = baseline_control_floor_sps();
+        int assist_floor_sps = (int)((float)baseline_floor_sps * SYNC_NEUTRAL_ANTI_TENSION_FLOOR_FRAC);
+        if (assist_floor_sps > demand_floor_sps) assist_floor_sps = demand_floor_sps;
+        if (assist_floor_sps <= SYNC_MIN_SPS) return 0;
+        return assist_floor_sps;
+    }
+
+    if (error_norm > deadband_norm) return 0;
+
+    /* Type-P legacy path: unconditional refill floor. The floor is baseline-
+     * derived so it can never itself drive the buffer toward TENSION. */
     int baseline_floor_sps = baseline_control_floor_sps();
     int assist_floor_sps = (int)((float)baseline_floor_sps * SYNC_NEUTRAL_ANTI_TENSION_FLOOR_FRAC);
     if (assist_floor_sps <= SYNC_MIN_SPS) return 0;
@@ -2191,7 +2213,7 @@ void sync_tick(uint32_t now_ms) {
     } else {
         target_sps = psf_control_law(error_norm);
     }
-    int type_d_neutral_relay_floor_sps = (BUF_SENSOR_TYPE == 0 && s == BUF_NEUTRAL && error_norm < 0.0f)
+    int type_d_neutral_relay_floor_sps = (BUF_SENSOR_TYPE == 0 && s == BUF_NEUTRAL && error_norm < -deadband_norm)
         ? target_sps : 0;
 
     /* RAMPING BIAS: If we don't know where we are, raise speed a little bit
@@ -2242,7 +2264,7 @@ void sync_tick(uint32_t now_ms) {
     }
 
     int neutral_anti_tension_floor_sps = sync_neutral_anti_tension_floor_sps(
-        s, A, error_norm, deadband_norm, now_ms);
+        s, A, error_norm, deadband_norm, type_d_neutral_relay_floor_sps, now_ms);
     if (neutral_anti_tension_floor_sps > 0 && target_sps < neutral_anti_tension_floor_sps) {
         target_sps = neutral_anti_tension_floor_sps;
     }
