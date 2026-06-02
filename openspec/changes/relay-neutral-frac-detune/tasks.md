@@ -501,3 +501,33 @@ upper-bound demand sample instead of skipping the touch.
   `NEUTRAL -> COMPRESSION` touch to pull `EST` below `896` toward `640-660`,
   with virtual `BP` no longer drifting deeply tension-side before compression
   snaps.
+  - 2026-06-02: Estimator accepted as directionally useful, but the real-print
+    benchmark exposed a separate speed-step reserve failure: after slow phases,
+    the centered Type-D target left too little headroom for 300→1500 mm/min
+    jumps. Follow-up §10f added.
+
+## 10f. Type-D reserve headroom for real-print speed steps
+
+The real-print benchmark (300 mm/min outer walls, 1500 mm/min everything else)
+showed that a centered Type-D neutral target leaves too little physical reserve:
+after slow/compression-heavy phases lower `EST`, the next speed-up can pull the
+buffer near TENSION before the reactive trim has time to help.
+
+- [x] 10f.1 `firmware/src/sync.c`: restore a compression-side Type-D reserve
+  target using existing `SYNC_RESERVE_PCT` instead of hard-centering Type-D at
+  `0.0 mm`. Keep Type-P behavior unchanged.
+- [x] 10f.2 Docs/spec/OpenSpec sync: document that Type-D now parks slightly
+  compression-side for speed-step headroom, while switch touches remain the
+  calibration truth.
+  - 2026-06-02: Updated `BEHAVIOR.md`, `TUNING.md`, `design.md`, and the
+    OpenSpec operator-tuning delta.
+- [x] 10f.3 Build + tests green; OpenSpec strict validation.
+  - 2026-06-02: `ninja -C build_local` passed.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+  - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
+  - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
+- [ ] 10f.4 HW: rerun the real-print benchmark. Expect no TENSION or near-
+  TENSION skipping on 300→1500 mm/min speed-ups. Rare compression touches are
+  acceptable if they self-correct and do not form a fast fixed-rate click cycle.

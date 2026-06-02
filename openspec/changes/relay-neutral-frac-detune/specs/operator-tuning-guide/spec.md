@@ -113,3 +113,19 @@ leak SHALL NOT alter the analog type-P estimator/feedforward path.
 
 - **WHEN** the type-D buffer dwells in `BUF_NEUTRAL`
 - **THEN** the learned neutral trim moves toward zero over time
+
+### Requirement: Type-D reserve target provides speed-step headroom
+
+For `BUF_SENSOR_TYPE == 0`, the firmware SHALL park the virtual neutral target
+slightly toward the compression side using the existing `SYNC_RESERVE_PCT`
+reserve percentage. This reserve SHALL give sharp real-print speed-ups physical
+headroom before the buffer reaches TENSION. This SHALL NOT change analog type-P
+control behavior, and it SHALL NOT require increasing `relay_neutral_frac` above
+the demand-match default.
+
+#### Scenario: Real-print speed-up consumes reserve before TENSION
+
+- **WHEN** Type-D sync is active during a slow-to-fast print segment change
+- **THEN** the reserve target is compression-side by `SYNC_RESERVE_PCT`
+- **AND** the controller refills toward that reserve while still using switch
+  crossings as calibration truth

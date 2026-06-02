@@ -572,3 +572,42 @@ seconds before the next overfeed touch.
 - Continue preferring the pre-taper feed average from §10c so compression-side
   braking does not poison the sample.
 - Keep Type-P untouched.
+
+## Hardware follow-up 14: real-print speed steps need reserve headroom (2026-06-02)
+
+The 300 mm/min outer-wall / 1500 mm/min infill benchmark exposed a different
+failure class from the earlier estimator latch. With `SYNC_RELAY_TRIM_STEP_SPS`
+raised to `1500` and clamp to `9000`, the buffer still reached near-TENSION and
+the operator observed skipping. The log shows why:
+
+- Type-D now parks around virtual `BP:0` during long steady phases.
+- Slow/compression-heavy phases can pull `EST` down (`1422 -> 673`, later
+  `963 -> 794`), which is reasonable for the current flow but leaves little
+  reserve when the slicer jumps to fast infill.
+- The next speed-up can consume the remaining neutral travel before a switch
+  event has time to teach the controller. More trim authority cannot predict an
+  upcoming speed step; it only reacts after the buffer has already moved.
+
+This is a reserve-headroom problem, not a neutral-frac or trim-step problem.
+Now that §10e gives the Type-D estimator a usable demand anchor, restore a
+compression-side reserve target for Type-D using the existing
+`SYNC_RESERVE_PCT` knob. Type-P already uses that reserve target; Type-D had
+been temporarily pinned to center during the de-pinning work so downward trim
+could become live. The anti-tension floor and relay-base cap are now
+demand-scaled, so the old baseline pin should not return.
+
+### §10f implementation plan
+
+#### `firmware/src/sync.c`
+
+- Change `buf_target_reserve_mm()` for `BUF_SENSOR_TYPE == 0` from a hard
+  `0.0f` center target to `threshold * SYNC_RESERVE_PCT / 100`.
+- Keep the Type-D target clamped to the same physical threshold guard as Type-P.
+- Do not change Type-P control law or estimator paths.
+
+#### Docs / validation
+
+- Update operator docs to explain that Type-D now parks slightly
+  compression-side for print speed-step headroom.
+- Validate firmware build, OpenSpec strict validation, Python compile, and the
+  existing script suites.

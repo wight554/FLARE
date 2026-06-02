@@ -262,7 +262,7 @@ For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`), FLARE overrides the co
 
 - **`BUF_TENSION` (empty/starved)**: Commands a strong fixed catch-up rate based on the configured baseline rate (`baseline_control_floor_sps() * RELAY_CATCHUP_FRAC`) to ensure rapid buffer refill, completely independent of the velocity estimator.
 - **`BUF_COMPRESSION` (full reserve)**: Commands a **true zero feed** (0 SPS) instead of `SYNC_MIN_SPS`, so feed stops rather than pushing filament forward into a full buffer (feeding `SYNC_MIN` forward deepened the buffer past the switch for ~5 s at end of feed). The extruder's draw pulls the buffer back off the compression wall; recovery uses the existing relieve / `SYNC_AUTO_STOP_MS` path.
-- **`BUF_NEUTRAL` (neutral zone)**: Dynamically tracks estimated extruder demand (`extruder_est_sps * RELAY_NEUTRAL_FRAC`, default `1.00` demand match) plus a volatile crossing-learned trim, clamped to the range `[SYNC_MIN_SPS, baseline_control_floor_sps()]`. The type-D ramp clamps each tick to the target instead of overshooting it; switches act as guardrails during steady consumption.
+- **`BUF_NEUTRAL` (neutral zone)**: Dynamically tracks estimated extruder demand (`extruder_est_sps * RELAY_NEUTRAL_FRAC`, default `1.00` demand match) plus a volatile crossing-learned trim, clamped to the range `[SYNC_MIN_SPS, baseline_control_floor_sps()]`. The type-D ramp clamps each tick to the target instead of overshooting it; switches act as guardrails during steady consumption. The virtual reserve target is slightly compression-side (`SYNC_RESERVE_PCT` of the switch half-span) so real prints have headroom before fast infill speed-ups pull the buffer toward TENSION.
 
 In type-D `BUF_NEUTRAL`, the relay target is also the minimum applied neutral
 feed while reserve error is clearly tension-side, after shared reserve scaling
@@ -363,12 +363,14 @@ draw and commanded MMU feed inside the physical travel envelope.
 
 The normal sync target is not `NEUTRAL`. It is a buffered-reserve target on the
 compression side set by `SYNC_RESERVE_PCT`, expressed as a percentage of
-half of `BUF_SWITCH_SPAN`. The effective flow-schedule bias is
-`max(SYNC_COMPRESSION_BIAS_FRAC, schedule_bias)`, so a schedule can deepen reserve
-but cannot reduce it below the scalar safety cushion. Firmware also keeps a
-small built-in center guard on top of that percentage target so steady sync
-stays slightly farther away from the tension-side switch. This keeps reserve in
-the buffer without hard-coding a deep hidden-margin target into firmware.
+half of `BUF_SWITCH_SPAN`. Type-D uses that percentage directly as speed-step
+headroom. Type-P additionally applies the effective flow-schedule bias
+`max(SYNC_COMPRESSION_BIAS_FRAC, schedule_bias)`, so a schedule can deepen
+analog reserve but cannot reduce it below the scalar safety cushion. Firmware
+also keeps a small built-in center guard on top of that percentage target for
+Type-P so steady sync stays slightly farther away from the tension-side switch.
+This keeps reserve in the buffer without hard-coding a deep hidden-margin target
+into firmware.
 
 `ZONE_BIAS_BASE` and `ZONE_BIAS_RAMP` provide a bounded reserve-recovery pull:
 

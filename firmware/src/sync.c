@@ -361,12 +361,12 @@ static float buf_threshold_mm(void) {
 
 static float buf_target_reserve_mm(void) {
     float threshold = buf_threshold_mm();
+    float pct = (float)SYNC_RESERVE_PCT / 100.0f;
     if (BUF_SENSOR_TYPE == 0) {
-        return 0.0f;
+        return clamp_f(threshold * pct, 0.0f, threshold * 0.7f);
     }
 
     float physical_half = buf_physical_half_travel_mm();
-    float pct = (float)SYNC_RESERVE_PCT / 100.0f;
     flow_param_t fp = flow_param((int)extruder_est_sps);
     float schedule_bias = (float)fp.bias_milli / 1000.0f;
     float bias = clamp_f(fmaxf(SYNC_COMPRESSION_BIAS_FRAC, schedule_bias), 0.0f, 0.7f);

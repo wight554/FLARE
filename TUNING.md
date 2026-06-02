@@ -151,14 +151,12 @@ two-level relay law:
 - `BUF_NEUTRAL`: use `extruder_est_sps * relay_neutral_frac`, clamped to the
   normal `[SYNC_MIN_RATE, baseline_rate]` fallback range.
 
-NEUTRAL is **always** driven by the extruder-speed fallback — there is no
-confidence gate or duty estimator. The estimator path was removed after
-on-hardware validation showed it causes the buffer to ride the physical empty
-wall on bimodal (fast/slow alternating) prints: the estimator collapses under
-flip-heavy traffic → NEUTRAL chronically underfeeds → 26–43 % of rows in
-`BUF_TENSION`, `BP` pegged at the +12.5 mm wall. The fallback keeps `BP` off
-the wall (`BPmax` ≈ 5 mm, shallow within the ±5 mm switch span) on both slow
-and bimodal loads.
+NEUTRAL is driven by the live demand estimate plus a small crossing-learned
+trim. The relay still uses the physical switches as guardrails, but it parks
+the virtual reserve slightly on the compression side using `sync_reserve_pct`.
+That reserve is important on real prints with sharp speed changes: a centered
+buffer can be pulled near TENSION before reactive trim learns the new fast
+segment.
 
 The knobs live in `config.ini`, not in `sync.c` defines:
 
@@ -191,7 +189,9 @@ unless a specific machine shows an abrupt stop.
 `relay_neutral_frac` is the type-D quiet-cycle lever. NEUTRAL feed is
 `extruder_est_sps * relay_neutral_frac`, and `extruder_est_sps` already tracks
 real demand, so the default `1.00` commands demand match and lets the switches
-act as guardrails. Any fraction above `1.0` is deliberate overfeed: it drives
+act as guardrails. `sync_reserve_pct` supplies speed-step headroom separately,
+so do not use `relay_neutral_frac` as the first fix for near-TENSION speed-up
+skips. Any fraction above `1.0` is deliberate overfeed: it drives
 the buffer into COMPRESSION, where the relay true-stops, drains, and re-feeds —
 the ramp-up / stop / ramp-up limit cycle you hear. `1.10` overfeeds 10 % and
 `1.25` overfeeds 25 %. **`sync_kp_rate` and the `sync_ramp_accel` autotune do
@@ -223,6 +223,9 @@ target, shared reserve/recovery shaping may reduce `MM` below
 Tune only from real print behavior:
 
 - Increase `relay_catchup_frac` if TENSION dwell repeats or the printer starves.
+- Increase `sync_reserve_pct` if speed-ups pull the arm near TENSION or cause
+  visible skipping before any actual TENSION dwell. Expect more compression-side
+  reserve and occasional self-correcting COMPRESSION touches.
 - Lower `relay_neutral_frac` below `1.00` only if the buffer still spends too
   much time on the COMPRESSION wall after the no-overshoot ramp fix.
 - Raise `relay_neutral_frac` above `1.00` only if the buffer drifts toward
