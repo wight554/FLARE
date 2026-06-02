@@ -68,22 +68,26 @@ relay feed and SHALL NOT alter analog type-P feedforward.
 
 For `BUF_SENSOR_TYPE == 0`, the firmware SHALL treat the
 `BUF_NEUTRAL -> BUF_COMPRESSION` transition as the primary demand sample by
-averaging the actual applied `sync_current_sps` over the NEUTRAL dwell and
-subtracting the measured fill rate. Degenerate fill samples SHALL be ignored, and
-accepted demand samples SHALL blend into `extruder_est_sps`. The residual neutral
-trim SHALL leak toward zero during `BUF_NEUTRAL` dwell. This estimator correction
-and trim leak SHALL NOT alter the analog type-P estimator/feedforward path.
+averaging the actual applied `sync_current_sps` over the NEUTRAL dwell,
+preferring the pre-taper portion before compression-side braking when available,
+and subtracting the measured fill rate. Degenerate fill samples SHALL be ignored,
+slow near-converged fills SHALL remain eligible, and accepted demand samples
+SHALL blend into `extruder_est_sps`. The residual neutral trim SHALL leak toward
+zero during `BUF_NEUTRAL` dwell. This estimator correction and trim leak SHALL
+NOT alter the analog type-P estimator/feedforward path.
 
 #### Scenario: NEUTRAL fill samples known applied feed
 
 - **WHEN** the type-D buffer crosses from `BUF_NEUTRAL` to `BUF_COMPRESSION`
 - **THEN** firmware estimates demand from averaged NEUTRAL feed minus fill rate
+- **AND** prefers the pre-taper applied-feed average when that window has enough
+  samples
 - **AND** blends that sample into `extruder_est_sps`
 
 #### Scenario: Degenerate fill sample is rejected
 
 - **WHEN** the type-D buffer crosses from `BUF_NEUTRAL` to `BUF_COMPRESSION`
-- **AND** the NEUTRAL dwell is too short or the fill rate implies negative demand
+- **AND** the NEUTRAL dwell is too short or the fill rate is far above averaged feed
 - **THEN** firmware does not update `extruder_est_sps` from that crossing
 
 #### Scenario: Residual trim self-centers in neutral

@@ -475,3 +475,39 @@ calibration off the clean fill segment instead of the contaminated drain.
   subtract actual averaged feed if retained.
 - Preserve type-P code paths byte-stable; all new estimator behavior is gated to
   `BUF_SENSOR_TYPE == 0`.
+
+## Hardware follow-up 11: fill estimator helps, but taper/reject gate stalls EST (2026-06-02)
+
+§10b improved the plant: motion became calmer, with long mid-band sweeps
+(`BP -2.5 -> 0` over about a second at steady `MM~1008`) and smoother
+compression-side braking (`MM 596` at `BP 4.1`, `MM 706` at `BP 2.9`). Touch
+rate was down and `EST` converged from the old high latch toward `901`.
+
+Two failures remain:
+
+- `EST` froze around `901`, still roughly `200-250` above real demand
+  (`~650`). It did not move despite later compression crossings.
+- Virtual `BP` still diverged from the physical arm. The clear symptom was
+  `BP:-2.0 -> BP:5.0 COMPRESSION` in one snap: the model thought the buffer was
+  tension-side while the physical buffer was filling to the compression wall.
+
+Likely cause: the `NEUTRAL -> COMPRESSION` fill window is not as steady as the
+first §10b model assumed. The compression-side taper modulates applied feed
+down as `BP` approaches the wall (`865 -> 685 -> 596`), and slow/near-converged
+fills can trip the reject gate. This is the same measurement-window class of bug
+as the contaminated COMPRESSION drain: the math is right, but the window/filter
+needs to match the actual feed profile.
+
+### §10c implementation plan
+
+#### `firmware/src/sync.c`
+
+- Keep tracking the whole-NEUTRAL applied-feed mean, but also track an early /
+  pre-taper applied-feed mean while `pos_norm <= target_norm + deadband_norm`.
+- Prefer the pre-taper mean for `NEUTRAL -> COMPRESSION` demand samples when it
+  has enough samples; otherwise fall back to the whole-dwell mean.
+- Relax the reject gate so slow or near-converged fills are not all dropped:
+  accept `fill_sps` near `F_avg` by clamping the demand sample to `SYNC_MIN_SPS`;
+  reject only true garbage (`dwell` too short, no feed samples, invalid step
+  size, non-positive feed, or `fill_sps` far above `F_avg`).
+- Keep Type-P untouched.

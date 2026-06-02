@@ -288,9 +288,11 @@ zone and converts the switch-threshold travel into an estimated arm velocity.
 For type-D, positive velocity means the arm moved toward COMPRESSION, so the
 instantaneous demand estimate is `mmu_feed - arm_velocity`. The primary demand
 anchor is the `BUF_NEUTRAL -> BUF_COMPRESSION` fill: firmware averages the
-actual applied `sync_current_sps` across the NEUTRAL dwell, subtracts the measured
-fill rate, and blends the result into `extruder_est_sps`. Degenerate short-dwell
-or negative-demand fills are ignored so one snap cannot yank the estimator.
+actual applied `sync_current_sps` across the NEUTRAL dwell, preferring the
+pre-taper portion before compression-side braking when enough samples exist,
+subtracts the measured fill rate, and blends the result into
+`extruder_est_sps`. Degenerate short-dwell or far-overrun fills are ignored so
+one snap cannot yank the estimator; slow near-converged fills stay eligible.
 
 - `BUF_SWITCH_SPAN / 2` is the switch distance from `NEUTRAL`.
 - `BUF_MAX_TRAVEL / 2` is the physical half-travel used to clamp the virtual

@@ -75,6 +75,8 @@
 #define SYNC_DRAIN_EST_ALPHA_DWELL_MS 1000.0f
 #define SYNC_NEUTRAL_FILL_EST_ALPHA_DWELL_MS 2000.0f
 #define SYNC_NEUTRAL_FILL_MIN_DWELL_MS 250u
+#define SYNC_NEUTRAL_FILL_MIN_FEED_SAMPLES 2u
+#define SYNC_NEUTRAL_FILL_OVERRUN_FRAC 0.25f
 #define SYNC_DRAIN_EST_MIN_DWELL_MS 300u
 sync_state_t g_sync_state = SYNC_OFF;
 bool sync_auto_started = false;
@@ -127,6 +129,8 @@ static float g_relay_neutral_trim_sps = 0.0f;
 static uint32_t g_relay_trim_last_leak_ms = 0;
 static uint32_t g_type_d_neutral_feed_sps_sum = 0;
 static uint16_t g_type_d_neutral_feed_samples = 0;
+static uint32_t g_type_d_neutral_flat_feed_sps_sum = 0;
+static uint16_t g_type_d_neutral_flat_feed_samples = 0;
 
 /* buf_signal_t — canonical signal produced by the active sensor each tick. */
 buf_signal_t g_buf_signal = {0};
@@ -987,9 +991,12 @@ static void blend_extruder_est_sps(float sample_sps, float alpha, uint32_t now_m
 static void type_d_neutral_feed_reset(void) {
     g_type_d_neutral_feed_sps_sum = 0;
     g_type_d_neutral_feed_samples = 0;
+    g_type_d_neutral_flat_feed_sps_sum = 0;
+    g_type_d_neutral_flat_feed_samples = 0;
 }
 
-static void type_d_neutral_feed_sample(buf_state_t s) {
+static void type_d_neutral_feed_sample(buf_state_t s, float pos_norm,
+                                       float target_norm, float deadband_norm) {
     if (BUF_SENSOR_TYPE != 0 || s != BUF_NEUTRAL || g_sync_state != SYNC_ACTIVE) return;
     if (sync_current_sps <= 0) return;
     if (g_type_d_neutral_feed_samples >= 10000u) {
@@ -998,11 +1005,26 @@ static void type_d_neutral_feed_sample(buf_state_t s) {
     }
     g_type_d_neutral_feed_sps_sum += (uint32_t)sync_current_sps;
     g_type_d_neutral_feed_samples++;
+
+    if (pos_norm <= (target_norm + deadband_norm)) {
+        if (g_type_d_neutral_flat_feed_samples >= 10000u) {
+            g_type_d_neutral_flat_feed_sps_sum /= 2u;
+            g_type_d_neutral_flat_feed_samples /= 2u;
+        }
+        g_type_d_neutral_flat_feed_sps_sum += (uint32_t)sync_current_sps;
+        g_type_d_neutral_flat_feed_samples++;
+    }
 }
 
 static bool type_d_neutral_feed_avg_sps(float *avg_sps) {
     if (!avg_sps || g_type_d_neutral_feed_samples == 0) return false;
-    *avg_sps = (float)g_type_d_neutral_feed_sps_sum / (float)g_type_d_neutral_feed_samples;
+    if (g_type_d_neutral_flat_feed_samples >= SYNC_NEUTRAL_FILL_MIN_FEED_SAMPLES) {
+        *avg_sps = (float)g_type_d_neutral_flat_feed_sps_sum /
+                   (float)g_type_d_neutral_flat_feed_samples;
+    } else {
+        *avg_sps = (float)g_type_d_neutral_feed_sps_sum /
+                   (float)g_type_d_neutral_feed_samples;
+    }
     return *avg_sps > 0.0f;
 }
 
@@ -1120,10 +1142,13 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
             float feed_avg_sps = 0.0f;
             float fill_sps = fabsf(g_buf.arm_vel_mm_s) / mm_per_step;
             if (prev_dwell >= SYNC_NEUTRAL_FILL_MIN_DWELL_MS &&
-                type_d_neutral_feed_avg_sps(&feed_avg_sps) &&
-                fill_sps < feed_avg_sps) {
-                est_sps = feed_avg_sps - fill_sps;
-                sample_valid = type_d_sample_demand_bounds(&est_sps);
+                type_d_neutral_feed_avg_sps(&feed_avg_sps)) {
+                float max_fill_sps = feed_avg_sps * (1.0f + SYNC_NEUTRAL_FILL_OVERRUN_FRAC);
+                if (fill_sps <= max_fill_sps) {
+                    est_sps = feed_avg_sps - fill_sps;
+                    if (est_sps < (float)SYNC_MIN_SPS) est_sps = (float)SYNC_MIN_SPS;
+                    sample_valid = type_d_sample_demand_bounds(&est_sps);
+                }
                 alpha = clamp_f((float)prev_dwell / SYNC_NEUTRAL_FILL_EST_ALPHA_DWELL_MS,
                                 EST_ALPHA_MIN, EST_ALPHA_MAX);
             }
@@ -2209,8 +2234,6 @@ void sync_tick(uint32_t now_ms) {
         g_buf.mmu_sps_dwell_sum += (uint32_t)lane_motion_sps(A);
         g_buf.mmu_sps_dwell_samples++;
     }
-    type_d_neutral_feed_sample(s);
-
     float raw_target = buf_target_reserve_mm();
     float reserve_deadband_mm = buf_virtual_deadband_mm();
 
@@ -2303,6 +2326,7 @@ void sync_tick(uint32_t now_ms) {
     float deadband_norm = (BUF_SENSOR_TYPE == 1) ? 0.1f : (reserve_deadband_mm / thr);
 
     if (BUF_SENSOR_TYPE == 0) {
+        type_d_neutral_feed_sample(s, pos_norm, target_norm, deadband_norm);
         relay_neutral_trim_leak(s, now_ms);
     }
 

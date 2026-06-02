@@ -396,3 +396,41 @@ long, feed-known, low-noise window:
   `MM` settle near demand, touches sparse + self-correcting, TENSION ≈ 0, no
   COMPRESSION-stuck tail. Then a 10→25 mm/s step should re-converge `EST` up
   within a few fills.
+  - 2026-06-02: Opus rig verdict: motion calmer, long mid-band sweeps, smoother
+    compression-side braking, and touch rate down. Not accepted: `EST` stalled at
+    `901` (about 200-250 high), virtual `BP` still diverged from physical, and
+    the run ended with impossible `BP:-2.0 -> BP:5.0 COMPRESSION` snaps / stuck
+    full tail. Follow-up §10c added.
+
+## 10c. Fork D refinement — pre-taper feed mean + relaxed fill gate
+
+HW §10b.5 showed the fill estimator works but stops short: compression-side
+taper modulates `MM` during the measured fill window, and slow/near-converged
+fills can be rejected as degenerate. Keep `F_avg` as actual applied feed, but
+prefer the early flat part of the dwell and relax the near-zero fill gate.
+
+- [x] 10c.1 `firmware/src/sync.c`: track a second type-D NEUTRAL feed mean for
+  the pre-taper region (`pos_norm <= target_norm + deadband_norm`) while also
+  keeping the whole-dwell mean. Prefer the pre-taper mean for
+  `NEUTRAL -> COMPRESSION` samples when enough samples exist; fall back to the
+  whole-dwell mean otherwise.
+  - 2026-06-02: Added pre-taper feed accumulator over actual `sync_current_sps`,
+    sampled before compression-side taper begins.
+- [x] 10c.2 `firmware/src/sync.c`: relax the §10b.3 reject gate so converged
+  slow fills remain usable. Reject truly bad samples (short dwell, no feed,
+  invalid step size, non-positive feed, or fill rate far above feed), but allow
+  near-zero / slightly overrun fills to clamp to `SYNC_MIN_SPS`.
+  - 2026-06-02: `fill_sps <= F_avg * 1.25` is accepted and bounded; far-overrun
+    windows still reject.
+- [x] 10c.3 Docs/spec/OpenSpec sync; build + tests green.
+  - 2026-06-02: `BEHAVIOR.md`, `TUNING.md`, OpenSpec design, spec, and tasks
+    updated.
+  - 2026-06-02: `ninja -C build_local` passed.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+  - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
+  - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
+- [ ] 10c.4 HW: rerun 10 mm/s soak, `BASELINE_RATE:2400`, `frac 1.00`, fresh
+  sync arm. Expect `EST` to continue below 901 toward real demand, no impossible
+  virtual `BP` divergence snaps, and no stuck-full tail.
