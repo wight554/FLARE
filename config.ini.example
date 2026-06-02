@@ -73,6 +73,7 @@ run_current:
 # ─── Type-D Relay Fallback Law ──────────────────────────────────────────────
 # relay_catchup_frac: 1.30            # TENSION refill multiplier in type-D relay mode.
 # relay_neutral_frac: 1.00            # NEUTRAL fallback multiplier in type-D relay mode.
+# sync_compression_drain_frac: 0.40   # Type-D COMPRESSION active-draw drain; 0.0 = legacy hard-stop.
                                       # 1.0 = demand match; switches are guardrails.
                                       # Raise slightly only if it drifts to TENSION.
 # sync_relay_trim_step_sps: 300       # Type-D residual trim step; lower = slower correction,

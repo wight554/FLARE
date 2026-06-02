@@ -122,6 +122,7 @@ DUMP_PARAMS = [
     ("RELAY_NEUTRAL_FRAC", "relay_neutral_frac",       False),
     ("SYNC_RELAY_TRIM_STEP_SPS", "sync_relay_trim_step_sps", False),
     ("SYNC_RELAY_TRIM_CLAMP_SPS", "sync_relay_trim_clamp_sps", False),
+    ("SYNC_COMPRESSION_DRAIN_FRAC", "sync_compression_drain_frac", False),
     ("RELAY_MIN_FLIP_MM", "relay_min_flip_mm",         False),
     ("RELAY_COLLAPSE_DELAY_MS", "relay_collapse_delay_ms", False),
     ("RELAY_COLLAPSE_RAMP_MULT", "relay_collapse_ramp_mult", False),

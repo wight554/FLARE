@@ -593,24 +593,41 @@ clamp `−2000 sps`), dragging NEUTRAL feed below demand → drift to TENSION.
 Bound the cycle amplitude so brief COMPRESSION touches don't dump the full span
 and force a re-ramp from zero (the "drops too hard" turning point).
 
-- [ ] 16.1 New runtime knob `SYNC_COMPRESSION_DRAIN_FRAC` (default ≈ `0.4`,
+- [x] 16.1 New runtime knob `SYNC_COMPRESSION_DRAIN_FRAC` (default ≈ `0.4`,
   clamp `[0.0, 0.9]`): add to `controller_shared.h`, `settings_store.c`
-  (defaults/save/load), `protocol.c` (SET/GET + validate list), `gen_config.py`
-  / `config.ini.example` / `tune.h`. Bump `SETTINGS_VERSION` (supersedes the
-  earlier no-bump non-goal for this added field; defaulted-load preserves
-  existing TMC/calibration fields).
-- [ ] 16.2 `firmware/src/sync.c` (~`sync.c:2499`): replace the unconditional
+  (defaults/load reset only; **not persisted**), `protocol.c` (SET/GET +
+  validate list), `gen_config.py`, `config.ini`, `config.ini.example`,
+  `flare_cmd.py --dump`, and `tune.h`. Do **not** bump `SETTINGS_VERSION`:
+  load-path audit shows a version mismatch would wipe saved TMC/calibration
+  values. The guard is the fraction itself: `0.0` = legacy hard-stop, `>0.0` =
+  gated partial drain.
+  - 2026-06-02: Added config-backed runtime `SET:`/`GET:` knob and dump entry.
+    It is intentionally non-persisted; `settings_load()` resets it to
+    `CONF_SYNC_COMPRESSION_DRAIN_FRAC`.
+- [x] 16.2 `firmware/src/sync.c` (~`sync.c:2499`): replace the unconditional
   type-D COMPRESSION `target_sps = 0` with — while the extruder actively draws
   (estimated demand above an idle threshold) — `target_sps =
   SYNC_COMPRESSION_DRAIN_FRAC × extruder_est_sps`, clamped strictly below demand
   (no net-fill while pinned). Keep `target_sps = 0` when demand ≈ 0 /
   `TASK_IDLE` to preserve the purge/idle no-grind true-stop
   (purge-grind / compression-overfeed-stop).
-- [ ] 16.3 Ensure `fast_brake` / relief-pause / collapse paths still force `0`
+  - 2026-06-02: Type-D COMPRESSION now feeds a guarded demand fraction only
+    when `A->task == TASK_FEED`, demand is above `SYNC_MIN_SPS`, and the drain
+    fraction is nonzero; otherwise it stays `0`.
+- [x] 16.3 Ensure `fast_brake` / relief-pause / collapse paths still force `0`
   where required (drain frac applies only to the normal active-draw COMPRESSION
   feed, not to the brake/fault stops).
-- [ ] 16.4 `BUF_SENSOR_TYPE == 0` only; type-P untouched.
-- [ ] 16.5 Build + tests green; OpenSpec strict validation.
+  - 2026-06-02: `fast_brake_active` remains the prior branch and forces `0`;
+    partial drain remains in its own branch above the `SYNC_MIN_SPS` clamp.
+- [x] 16.4 `BUF_SENSOR_TYPE == 0` only; type-P untouched.
+  - 2026-06-02: Branch is gated by `BUF_SENSOR_TYPE == 0`; type-P
+    `psf_control_law` and smoothing path unchanged.
+- [x] 16.5 Build + tests green; OpenSpec strict validation.
+  - 2026-06-02: `ninja -C build_local` passed.
+  - 2026-06-02: `bash scripts/validate_regression.sh` passed.
+  - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-02: `python3 scripts/test_*.py` passed.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
 
 ## 17. Asymmetric relay cycle analyzer + tuning guide
 

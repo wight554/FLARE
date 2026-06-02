@@ -261,7 +261,7 @@ runtime-only (not persisted; re-seeded from defaults each boot).
 For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`), FLARE overrides the continuous PI/EKF estimator-driven target with a two-level hysteretic relay control law matched directly to the physical microswitches:
 
 - **`BUF_TENSION` (empty/starved)**: Commands a strong fixed catch-up rate based on the configured baseline rate (`baseline_control_floor_sps() * RELAY_CATCHUP_FRAC`) to ensure rapid buffer refill, completely independent of the velocity estimator.
-- **`BUF_COMPRESSION` (full reserve)**: Commands a **true zero feed** (0 SPS) instead of `SYNC_MIN_SPS`, so feed stops rather than pushing filament forward into a full buffer (feeding `SYNC_MIN` forward deepened the buffer past the switch for ~5 s at end of feed). The extruder's draw pulls the buffer back off the compression wall; recovery uses the existing relieve / `SYNC_AUTO_STOP_MS` path.
+- **`BUF_COMPRESSION` (full reserve)**: In type-D, fast-brake and idle/end-of-feed still command a **true zero feed** (0 SPS) instead of `SYNC_MIN_SPS`, so purge/idle cannot push filament into a full buffer. During normal active draw (`TASK_FEED`) the guarded drain path may command `SYNC_COMPRESSION_DRAIN_FRAC * extruder_est_sps`, clamped strictly below demand, so the extruder still drains the buffer off the compression rail without dumping the full span from a hard stop. Set `SYNC_COMPRESSION_DRAIN_FRAC` to `0.0` to restore the legacy hard-stop for A/B tests.
 - **`BUF_NEUTRAL` (neutral zone)**: Dynamically tracks estimated extruder demand (`extruder_est_sps * RELAY_NEUTRAL_FRAC`, default `1.00` demand match) plus a volatile crossing-learned trim, clamped to the range `[SYNC_MIN_SPS, baseline_control_floor_sps()]`. The type-D ramp clamps each tick to the target instead of overshooting it; switches act as guardrails during steady consumption. The virtual reserve target is slightly compression-side (`SYNC_RESERVE_PCT` of the switch half-span) so real prints have headroom before fast infill speed-ups pull the buffer toward TENSION.
 
 In type-D `BUF_NEUTRAL`, the relay target is also the minimum applied neutral
@@ -271,13 +271,13 @@ output, and they may also reduce type-D neutral output once the reserve is
 at/above target so the controller can brake before `BUF_COMPRESSION`. Fast-brake
 and `BUF_COMPRESSION` true-stop remain allowed to command zero.
 
-Each type-D `BUF_NEUTRAL -> BUF_COMPRESSION` crossing is treated as an overfeed
-measurement and subtracts `SYNC_RELAY_TRIM_STEP_SPS` from the volatile neutral
-trim. Each `BUF_NEUTRAL -> BUF_TENSION` crossing is treated as starvation and
-adds that step. The trim is anti-windup clamped by
+Each type-D `BUF_NEUTRAL -> BUF_TENSION` crossing is treated as starvation and
+adds `SYNC_RELAY_TRIM_STEP_SPS` to the volatile neutral trim. `BUF_NEUTRAL ->
+BUF_COMPRESSION` crossings do not subtract from the trim; compression-side
+overfeed is corrected through the switch-crossing demand estimator instead of a
+negative feed bias. The trim is anti-windup clamped by
 `SYNC_RELAY_TRIM_CLAMP_SPS`, leaks toward zero during NEUTRAL dwell, resets when
-sync disables, and is not persisted. The trim is a residual corrector; the
-primary demand estimate is `extruder_est_sps`.
+sync disables, and is not persisted.
 
 Zero feed in `BUF_COMPRESSION` does not deadlock the relay: the flip out keys on the physical `NEUTRAL` crossing (extruder draw), and `relay_min_flip_mm` defaults to `0` (time-based hysteresis).
 

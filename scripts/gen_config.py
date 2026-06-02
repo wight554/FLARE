@@ -124,11 +124,13 @@ DEFAULTS = {
     # NEUTRAL->COMPRESSION->stop chatter once the type-D ramp could overshoot.
     # Raise slightly only if hardware soak shows steady TENSION drift.
     "relay_neutral_frac": "1.00",
-    # Type-D crossing trim: each COMPRESSION touch backs NEUTRAL feed off by
-    # this many raw SPS, each TENSION touch adds it back. Smaller step =
-    # slower residual correction and rarer plateau clicks.
+    # Type-D crossing trim: TENSION touches add this many raw SPS; COMPRESSION
+    # touches do not subtract. Smaller step = slower anti-starvation correction.
     "sync_relay_trim_step_sps": "300",
     "sync_relay_trim_clamp_sps": "2000",
+    # Type-D COMPRESSION partial-drain guard. 0.0 = legacy hard-stop; >0 feeds
+    # this demand fraction while TASK_FEED is active, clamped strictly below demand.
+    "sync_compression_drain_frac": "0.40",
     # Drift Observer
 
     # Adaptive Sync
@@ -517,6 +519,7 @@ def main():
         f"#define CONF_RELAY_NEUTRAL_FRAC {get_float('relay_neutral_frac')}f",
         f"#define CONF_SYNC_RELAY_TRIM_STEP_SPS {get('sync_relay_trim_step_sps')}",
         f"#define CONF_SYNC_RELAY_TRIM_CLAMP_SPS {get('sync_relay_trim_clamp_sps')}",
+        f"#define CONF_SYNC_COMPRESSION_DRAIN_FRAC {get_float('sync_compression_drain_frac')}f",
         f"#define CONF_ZONE_BIAS_BASE_SPS   {mm_min_to_sps(get('zone_bias_base_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_RAMP_SPS_S {mm_min_to_sps(get('zone_bias_ramp_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_MAX_SPS    {mm_min_to_sps(get('zone_bias_max_rate'), l1)}",

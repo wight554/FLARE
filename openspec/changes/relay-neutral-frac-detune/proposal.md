@@ -134,11 +134,13 @@ recorded as **deferred fallbacks** only if the pair under-leans on HW.
 
 ### Addendum decisions / scope deltas
 
-- **`SETTINGS_VERSION` bump (supersedes the no-bump non-goal for this phase).**
-  `SYNC_COMPRESSION_DRAIN_FRAC` is a new persisted runtime knob (SET/GET) so the
-  analyzer/guide can sweep it live; adding a settings field requires a version
-  bump. Migration is safe — the new field loads its default; existing
-  TMC/calibration fields are preserved by the normal defaulted-load path.
+- **No `SETTINGS_VERSION` bump for `SYNC_COMPRESSION_DRAIN_FRAC`.** Load-path
+  audit showed the current version-mismatch path still falls back to
+  `settings_defaults()` and returns, which would wipe persisted TMC/calibration
+  values. The drain fraction is therefore config-backed and live `SET:`/`GET:`
+  tunable, but not stored in flash settings; reboot or `SL` restores the
+  `config.ini` default. The fraction itself is the A/B guard: `0.0` = legacy
+  hard-stop, `>0.0` = gated partial drain.
 - The one-sided trim **supersedes** the two-sided trim shipped earlier in this
   same change (§"Type-D relay trim learns from switch crossings" → "one-sided
   anti-starvation integrator"). The change is still active/unarchived, so this is

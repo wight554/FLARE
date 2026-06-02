@@ -177,8 +177,8 @@ would *start* motion never accumulates the distance — sync freezes. It
 remains a config/`SET:` knob only for experiments that accept this
 caveat; the time-based `BUF_HYST_MS` is the supported chatter guard.
 
-`RELAY_CATCHUP_FRAC`, `RELAY_NEUTRAL_FRAC`, `RELAY_MIN_FLIP_MM`, and the three
-`RELAY_COLLAPSE_{DELAY_MS,RAMP_MULT,CAP_MS}` are runtime-safe
+`RELAY_CATCHUP_FRAC`, `RELAY_NEUTRAL_FRAC`, `SYNC_COMPRESSION_DRAIN_FRAC`,
+`RELAY_MIN_FLIP_MM`, and the three `RELAY_COLLAPSE_{DELAY_MS,RAMP_MULT,CAP_MS}` are runtime-safe
 `SET:`/`GET:` parameters (and appear in `flare_cmd.py --dump`) for field
 experiments without a reflash. The collapse-ramp keys shape the
 deep-COMPRESSION / print-end stop; defaults (250 / 3 / 600) already give
@@ -207,13 +207,20 @@ ignored; slow near-converged fills still count. After the controller reaches
 COMPRESSION, same-side `BUF_NEUTRAL -> BUF_COMPRESSION` returns no longer have
 known switch-to-switch travel, so firmware blends the pre-taper applied feed
 itself as an upper-bound demand sample. A short feed-zero true-stop exit can
-also correct `EST`. The crossing trim is now a small residual correction on top
-of that estimator. A
-`BUF_NEUTRAL -> BUF_COMPRESSION` touch means overfeed, so firmware subtracts
-`SYNC_RELAY_TRIM_STEP_SPS`; a `BUF_NEUTRAL -> BUF_TENSION` touch means
-starvation, so firmware adds the same step. The trim is clamped by
+also correct `EST`. The crossing trim is now a one-sided anti-starvation
+correction on top of that estimator. A `BUF_NEUTRAL -> BUF_TENSION` touch means
+starvation, so firmware adds `SYNC_RELAY_TRIM_STEP_SPS`; `BUF_NEUTRAL ->
+BUF_COMPRESSION` does not subtract from the trim. The trim is clamped by
 `SYNC_RELAY_TRIM_CLAMP_SPS`, leaks toward zero while the arm dwells in NEUTRAL,
 and resets when sync disables.
+
+`SYNC_COMPRESSION_DRAIN_FRAC` gates the type-D COMPRESSION partial-drain path.
+Set it to `0.0` for the legacy hard-stop A/B. Values above zero feed that
+fraction of estimated demand only while the active lane is in `TASK_FEED`, and
+the firmware clamps the result strictly below demand so the buffer still drains.
+When demand is idle/end-of-feed, COMPRESSION remains a true zero feed for
+purge/idle no-grind behavior. This knob is runtime/config-backed but not saved
+in flash settings; reboot or `SL` restores the `config.ini` default.
 
 Firmware preserves the type-D `BUF_NEUTRAL` relay target as a lower bound only
 while reserve error is clearly tension-side. If reserve is already at/above
@@ -232,6 +239,9 @@ Tune only from real print behavior:
   TENSION during steady demand.
 - Tune `SYNC_RELAY_TRIM_STEP_SPS` only as a residual knob: lower for fewer
   plateau clicks, raise for faster recovery after a demand change.
+- Toggle `SYNC_COMPRESSION_DRAIN_FRAC` between `0.0` and the configured default
+  to compare legacy hard-stop against partial drain. Lower it if COMPRESSION
+  dwell feels too pushy; keep TENSION touches at zero.
 - Do **not** touch `sync_kp_rate` for type D — it is inert (analog type-P only).
 - Leave `relay_min_flip_mm` at `0.0` unless deliberately testing the deadlock
   caveat above.

@@ -811,11 +811,12 @@ type-D.
 
 ### Settings / migration
 
-`SYNC_COMPRESSION_DRAIN_FRAC` is a new persisted runtime knob (SET/GET, clamped
-e.g. `[0.0, 0.9]`) so the guide can sweep it live → requires a `SETTINGS_VERSION`
-bump (supersedes this change's earlier no-bump non-goal *for this added field*).
-Defaulted-load preserves existing TMC/calibration fields. One-sided trim and
-gated drain are `BUF_SENSOR_TYPE == 0` only; type-P paths untouched.
+`SYNC_COMPRESSION_DRAIN_FRAC` is a new config-backed runtime knob (SET/GET,
+clamped e.g. `[0.0, 0.9]`) so the guide can sweep it live. It is not persisted
+and does not bump `SETTINGS_VERSION`, because the current version-mismatch path
+would reset saved TMC/calibration fields. `0.0` disables the new drain path for
+legacy hard-stop A/B testing. One-sided trim and gated drain are
+`BUF_SENSOR_TYPE == 0` only; type-P paths untouched.
 
 ### §15 implementation plan (2026-06-02)
 
@@ -834,3 +835,31 @@ Plan:
 
 Risk/invariant: trim must never become a negative feed bias from crossing
 updates, and analog type-P (`BUF_SENSOR_TYPE == 1`) must remain untouched.
+
+### §16 implementation plan / flag decision (2026-06-02)
+
+Research read: `settings_store.c` version/load path, `protocol.c` SET/GET
+surface, `controller_shared.h`, `gen_config.py`, `config.ini*`, `flare_cmd.py
+--dump`, and `sync_tick()` around the type-D COMPRESSION true-stop. The
+settings load path still calls `settings_defaults()` and returns on any
+`SETTINGS_VERSION` mismatch, so bumping the version would wipe persisted
+TMC/calibration values instead of preserving old fields plus defaulting the new
+field.
+
+Plan:
+- Add `SYNC_COMPRESSION_DRAIN_FRAC` as a config-backed runtime global and
+  `SET:`/`GET:` knob, but do not add it to `settings_t` and do not bump
+  `SETTINGS_VERSION`. This makes it reboot-defaulted from `config.ini` and live
+  testable without risking saved settings.
+- Use the fraction itself as the A/B guard: `0.0` means legacy hard-zero
+  COMPRESSION stop; `>0.0` enables the gated partial-drain path.
+- In `firmware/src/sync.c`, keep the existing `fast_brake` branch first and keep
+  the type-D COMPRESSION branch separate from the later `SYNC_MIN_SPS` clamp.
+  Only normal active-draw COMPRESSION (`A->task == TASK_FEED` and demand above
+  idle threshold) gets `frac * demand`, clamped strictly below demand; idle or
+  disabled stays `0`.
+- Update docs/OpenSpec to call the knob runtime-only (not persisted) until a
+  non-wiping settings migration exists.
+
+Risk/invariant: purge/idle COMPRESSION must still true-stop at `0`; analog
+type-P (`BUF_SENSOR_TYPE == 1`) must remain untouched.

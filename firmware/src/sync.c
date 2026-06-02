@@ -2490,10 +2490,26 @@ void sync_tick(uint32_t now_ms) {
 
     int max_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
     if (fast_brake_active) target_sps = 0;
-    /* Type-D COMPRESSION true-stop: don't let the SYNC_MIN clamp re-floor the 0,
-     * so feed actually stops instead of pushing SYNC_MIN forward into a full
-     * buffer (which deepened BP past the switch for ~5s at end of feed). */
-    else if (BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION) target_sps = 0;
+    /* Type-D COMPRESSION drain: keep this branch above the SYNC_MIN clamp.
+     * A zero drain fraction is the legacy hard-stop A/B guard; active draw may
+     * feed a bounded fraction of demand, strictly below demand, so the buffer
+     * still drains off the compression rail. Idle/end-of-feed remains a true
+     * zero to preserve purge no-grind behavior. */
+    else if (BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION) {
+        int demand_sps = (int)extruder_est_sps;
+        int idle_threshold_sps = SYNC_MIN_SPS;
+        if (idle_threshold_sps < 1) idle_threshold_sps = 1;
+        if (A && A->task == TASK_FEED && demand_sps > idle_threshold_sps &&
+            SYNC_COMPRESSION_DRAIN_FRAC > 0.0f) {
+            int drain_sps = (int)((float)demand_sps * SYNC_COMPRESSION_DRAIN_FRAC);
+            if (drain_sps < 0) drain_sps = 0;
+            if (drain_sps > max_sps) drain_sps = max_sps;
+            if (drain_sps >= demand_sps) drain_sps = demand_sps - 1;
+            target_sps = drain_sps;
+        } else {
+            target_sps = 0;
+        }
+    }
     else target_sps = clamp_i(target_sps, SYNC_MIN_SPS, max_sps);
 
     int ramp_dn_sps = SYNC_RAMP_DN_SPS;
