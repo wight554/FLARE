@@ -1122,9 +1122,10 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     }
 
     bool neutral_fill_sample = (old == BUF_NEUTRAL && new_state == BUF_COMPRESSION);
+    bool compression_drain_sample = (old == BUF_COMPRESSION && new_state == BUF_NEUTRAL);
     bool has_known_travel = fabsf(travel_mm) > 0.001f;
 
-    if (BUF_SENSOR_TYPE == 0 && (has_known_travel || neutral_fill_sample) && prev_dwell > (uint32_t)BUF_HYST_MS) {
+    if (BUF_SENSOR_TYPE == 0 && (neutral_fill_sample || compression_drain_sample) && prev_dwell > (uint32_t)BUF_HYST_MS) {
         uint32_t effective_dwell = prev_dwell - (uint32_t)(BUF_HYST_MS / 2);
         if (effective_dwell < 5) effective_dwell = 5;
         if (has_known_travel) {
@@ -1135,8 +1136,6 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
         if (idx < 0 || idx >= NUM_LANES) idx = 0;
         float mm_per_step = MM_PER_STEP[idx];
         if (mm_per_step <= 1e-6f) goto estimator_done;
-
-        bool compression_drain_sample = (old == BUF_COMPRESSION && new_state == BUF_NEUTRAL);
 
         float est_sps = 0.0f;
         float alpha = 0.0f;
@@ -2235,7 +2234,7 @@ void sync_tick(uint32_t now_ms) {
         return;
     }
 
-    if (A && A->task == TASK_FEED && A->fault == FAULT_NONE && sync_current_sps > 0) {
+    if (A && A->task == TASK_FEED && A->fault == FAULT_NONE && (sync_current_sps > 0 || (g_sync_state == SYNC_ACTIVE && s == BUF_COMPRESSION))) {
         if (g_buf.mmu_sps_dwell_samples >= 10000) {
             g_buf.mmu_sps_dwell_sum /= 2;
             g_buf.mmu_sps_dwell_samples /= 2;
