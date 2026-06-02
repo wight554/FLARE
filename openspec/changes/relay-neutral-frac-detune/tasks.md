@@ -548,3 +548,8 @@ buffer near TENSION before the reactive trim has time to help.
 
 - [x] 13.1 `config.ini`: Raise `sync_ramp_accel` from `300` to `500` mm/s² to make speed-up transitions steeper and prevent TENSION-side starvation during print speed jumps.
 - [x] 13.2 Build + tests green; OpenSpec strict validation.
+
+## 14. Tune sync_ramp_decel to 150 mm/s²
+
+- [x] 14.1 `config.ini`: Add/lower `sync_ramp_decel` to `150` mm/s² to slow down deceleration, preventing sudden feed drops and subsequent tension starvation on transitioning into NEUTRAL.
+- [x] 14.2 Build + tests green; OpenSpec strict validation.

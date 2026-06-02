@@ -642,3 +642,11 @@ During sudden print speed steps (e.g. infill speed jumps), the buffer leans heav
 
 ### The Fix
 Raise `sync_ramp_accel` to `500 mm/s²`. This increases the loop's closed-loop bandwidth and slew rate by 1.67x, allowing the MMU to match fast speed jumps immediately and prevent TENSION-side starvation.
+
+## Lower sync_ramp_decel to 150 mm/s² (2026-06-02)
+
+### The Issue
+On exiting TENSION catch-up, the MMU feed rate drops instantly from `3000 mm/min` back to the neutral target (`~800 mm/min`) because the default `sync_ramp_decel` of `300 mm/s²` is too steep. This sudden collapse in feed rate immediately starves the buffer again, causing it to bounce right back into a TENSION starvation pin.
+
+### The Fix
+Add and lower `sync_ramp_decel` to `150 mm/s²`. This makes the deceleration ramp gentle, preventing sudden speed collapses and allowing the buffer to settle smoothly in NEUTRAL.
