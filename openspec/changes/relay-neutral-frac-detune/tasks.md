@@ -531,3 +531,11 @@ buffer near TENSION before the reactive trim has time to help.
 - [ ] 10f.4 HW: rerun the real-print benchmark. Expect no TENSION or near-
   TENSION skipping on 300→1500 mm/min speed-ups. Rare compression touches are
   acceptable if they self-correct and do not form a fast fixed-rate click cycle.
+
+## 11. Fix SYNC_RELIEF_PAUSE deadlock
+
+- [x] 11.1 `firmware/src/sync.c` `sync_tick()`: check and auto-start sync from `SYNC_RELIEF_PAUSE` if the debounced buffer state `s` is `BUF_TENSION`, or `BUF_NEUTRAL` while the feed task is active (`A->task == TASK_FEED`), resolving the negative-stabilization race deadlock.
+  - 2026-06-02: Added proactive recovery block to `sync_tick()` that bypasses the early return and re-arms sync if the debounced state is ready and active print is verified.
+- [x] 11.2 Build + tests green; OpenSpec strict validation.
+  - 2026-06-02: `ninja -C build_local` and `bash scripts/validate_regression.sh` passed successfully.
+

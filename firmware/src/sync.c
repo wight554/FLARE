@@ -1122,10 +1122,11 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
     }
 
     bool neutral_fill_sample = (old == BUF_NEUTRAL && new_state == BUF_COMPRESSION);
+    bool neutral_drain_sample = (old == BUF_NEUTRAL && new_state == BUF_TENSION);
     bool compression_drain_sample = (old == BUF_COMPRESSION && new_state == BUF_NEUTRAL);
     bool has_known_travel = fabsf(travel_mm) > 0.001f;
 
-    if (BUF_SENSOR_TYPE == 0 && (neutral_fill_sample || compression_drain_sample) && prev_dwell > (uint32_t)BUF_HYST_MS) {
+    if (BUF_SENSOR_TYPE == 0 && (neutral_fill_sample || neutral_drain_sample || compression_drain_sample) && prev_dwell > (uint32_t)BUF_HYST_MS) {
         uint32_t effective_dwell = prev_dwell - (uint32_t)(BUF_HYST_MS / 2);
         if (effective_dwell < 5) effective_dwell = 5;
         if (has_known_travel) {
@@ -1155,6 +1156,21 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
                     }
                 } else {
                     est_sps = feed_avg_sps;
+                    sample_valid = type_d_sample_demand_bounds(&est_sps);
+                }
+                alpha = clamp_f((float)prev_dwell / SYNC_NEUTRAL_FILL_EST_ALPHA_DWELL_MS,
+                                EST_ALPHA_MIN, EST_ALPHA_MAX);
+            }
+        } else if (neutral_drain_sample) {
+            float feed_avg_sps = 0.0f;
+            if (prev_dwell >= SYNC_NEUTRAL_FILL_MIN_DWELL_MS &&
+                type_d_neutral_feed_avg_sps(&feed_avg_sps)) {
+                if (has_known_travel) {
+                    float drain_sps = fabsf(g_buf.arm_vel_mm_s) / mm_per_step;
+                    est_sps = feed_avg_sps + drain_sps;
+                    sample_valid = type_d_sample_demand_bounds(&est_sps);
+                } else {
+                    est_sps = feed_avg_sps * 1.5f;
                     sample_valid = type_d_sample_demand_bounds(&est_sps);
                 }
                 alpha = clamp_f((float)prev_dwell / SYNC_NEUTRAL_FILL_EST_ALPHA_DWELL_MS,
@@ -2138,10 +2154,29 @@ void sync_tick(uint32_t now_ms) {
             return;
         }
     } else if (g_sync_state == SYNC_RETRACT_ASSIST || g_sync_state == SYNC_RELIEF_PAUSE) {
-        if (g_sync_state == SYNC_RETRACT_ASSIST && g_bl_sub_state != BL_IDLE) {
-            sync_buffer_lock_tick(A, now_ms);
+        if (g_sync_state == SYNC_RETRACT_ASSIST) {
+            if (g_bl_sub_state != BL_IDLE) {
+                sync_buffer_lock_tick(A, now_ms);
+            }
+            return;
+        } else {
+            /* 11.1 Proactive recovery from RELIEF_PAUSE: if debouncing was bypassed or raced,
+             * re-arm sync immediately once debounced state is NEUTRAL during active print
+             * or TENSION during feed. */
+            buf_state_t s = g_buf.state;
+            if (BUF_SENSOR_TYPE == 0 &&
+                (s == BUF_TENSION || (s == BUF_NEUTRAL && A->task == TASK_FEED))) {
+                g_buf_pos = buf_target_reserve_mm();
+                sync_current_sps = sync_bootstrap_sps();
+                sync_set_state(SYNC_ACTIVE);
+                sync_auto_started = true;
+                sync_tail_assist_active = !lane_in_present(A) && lane_out_present(A);
+                sync_idle_since_ms = 0;
+                cmd_event("SYNC", "AUTO_START");
+            } else {
+                return;
+            }
         }
-        return;
     }
 
     buf_state_t s = g_buf.state;

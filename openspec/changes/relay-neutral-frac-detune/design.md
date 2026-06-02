@@ -611,3 +611,17 @@ demand-scaled, so the old baseline pin should not return.
   compression-side for print speed-step headroom.
 - Validate firmware build, OpenSpec strict validation, Python compile, and the
   existing script suites.
+
+## SYNC_RELIEF_PAUSE deadlock root cause and fix (2026-06-02)
+
+### Root Cause
+During a print pause, the buffer stays at `BUF_COMPRESSION` and eventually auto-stops, setting the state to `SYNC_RELIEF_PAUSE` (`ST:3`). In this state, `sync_tick()` returns early, so physical switch debouncing is ignored during the tick.
+Negative stabilization (`buffer_stabilize_tick`) starts backing off the motor to `BUF_NEUTRAL`.
+The raw switch opens and immediately sets `raw_state == BUF_NEUTRAL`, which makes `buffer_stabilize_tick` stop stabilization and clear `g_boot_stabilizing = false`.
+However, because `buf_read_stable` has a debounce delay (`BUF_HYST_MS`), the physical transition is debounced and calls `buf_update(BUF_NEUTRAL)` *while* `g_boot_stabilizing` is still true (during the backward movement). This skips the re-arm recovery. Once stabilization completes and `g_boot_stabilizing` is false, no new transition occurs, leaving the buffer physically at `BUF_NEUTRAL` and stuck in `SYNC_RELIEF_PAUSE` (`ST:3`) forever. Hitting `BUF_TENSION` later does not trigger the normal `sync_tick()` auto-start because `sync_tick()` returns early.
+
+### Fix
+Instead of relying purely on the transient `buf_update()` transition event, proactively check for exit conditions at the start of `sync_tick()` when `g_sync_state == SYNC_RELIEF_PAUSE`:
+If `s == BUF_TENSION` (extruder pulling filament), or `s == BUF_NEUTRAL` and a print is active (`A->task == TASK_FEED`), recover and auto-start sync immediately.
+
+This guarantees recovery even if a transition event is raced or skipped, while protecting end-of-print idle from spurious auto-starts.
