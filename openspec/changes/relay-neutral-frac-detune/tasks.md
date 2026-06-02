@@ -65,16 +65,21 @@ touched. See `design.md` → "Hardware follow-up 3". Fork A removes the chatter
 and the overfeed lean so the buffer can rest in mid-band; the §5 floor patches
 become redundant once feed can settle and may be reverted if A makes them inert.
 
-- [ ] 6.1 `firmware/src/sync.c`: port the type-P no-overshoot clamp
+- [x] 6.1 `firmware/src/sync.c`: port the type-P no-overshoot clamp
   (`2346-2354`) to the type-D ramp (`2374`) — when stepping toward `target_sps`,
   clamp so `sync_current_sps` lands on the target instead of overshooting it
   (`±360 mm/min`/tick straddle). Scoped to `BUF_SENSOR_TYPE == 0`; leave the
   type-P distance-EMA path untouched.
-- [ ] 6.2 `firmware/src/sync.c`: fix the EST-decay drag — gate the neutral/
+  - 2026-06-02: type-D ramp now clamps each slew step to `target_sps`; `ninja -C
+    build_local` passed.
+- [x] 6.2 `firmware/src/sync.c`: fix the EST-decay drag — gate the neutral/
   tension/compression EST nudges (`2142`, `2168`, `2189`) to
   `BUF_SENSOR_TYPE == 0` and stop dragging `extruder_est_sps` below true demand
   during COMPRESSION true-stop, so the relay target and integrator demand term
   do not rot (`EST 1200 → 277` under constant feed in the rig log).
+  - 2026-06-02: type-D bootstrap nudges are gated to `BUF_SENSOR_TYPE == 0`;
+    pinned-COMPRESSION true-stop no longer drags `extruder_est_sps` toward
+    `sync_current_sps`; `ninja -C build_local` passed.
 - [ ] 6.3 `scripts/gen_config.py` + `config.ini.example` + `TUNING.md`: with the
   ramp able to settle, drop the documented type-D default `relay_neutral_frac`
   `1.10 → 1.00` (net fill ≈ 0; switches as guardrails, no deliberate lean).

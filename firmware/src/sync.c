@@ -2136,59 +2136,53 @@ void sync_tick(uint32_t now_ms) {
     float deadband_norm = (BUF_SENSOR_TYPE == 1) ? 0.1f : (reserve_deadband_mm / thr);
 
     bool buf_near_target = fabsf(bp_eff - effective_target) < (reserve_deadband_mm * 2.0f);
-    if (s == BUF_TENSION && (now_ms - g_buf.entered_ms) > SYNC_COMPRESSION_COLLAPSE_DELAY_MS) {
-        // Mirror the compression bleed-down logic: if the arm stays pinned at the
-        // tension wall, a conservative bootstrap estimate is now too low.
-        if (extruder_est_sps < (float)sync_current_sps) {
-            extruder_est_sps += 0.05f * ((float)sync_current_sps - extruder_est_sps);
-            extruder_est_last_update_ms = now_ms;
-        }
-    } else if (s == BUF_NEUTRAL && (now_ms - g_buf.entered_ms) > 2000u &&
-        A->task == TASK_FEED && A->fault == FAULT_NONE &&
-        sync_current_sps > 0) {
-
-        float thr = buf_threshold_mm();
-        /* Use raw g_buf_pos to detect model stalls, ignoring any drift correction. */
-        bool model_stalled_compression = (g_buf_pos >= thr - 0.01f);
-        bool model_stalled_tension  = (g_buf_pos <= -thr + 0.01f);
-
-        if (model_stalled_compression) {
-            /* Model thinks we are full, but we are physically in NEUTRAL.
-             * Extruder MUST be faster than current MMU rate.
-             * Bleed EST up aggressively to "pull" the model out of the wall. */
-            /* G2: lane_motion while pinned ≈ the collapsed rate, so the
-             * old feed+6 target self-cancels the feedforward and leaves
-             * only ~150mm/min headroom — too weak to climb the reserve
-             * deficit before the next disturbance re-pins the wall.
-             * Target at least the learned baseline floor: the historically
-             * healthy feed. This branch only runs while pinned, so it
-             * self-terminates the instant the buffer leaves the compression
-             * wall — no TENSION overshoot. */
-            float margin = 6.0f; // ~150mm/min optimism
-            float target_rate = (float)lane_motion_sps(A) + margin;
-            float baseline_floor = (float)baseline_control_floor_sps();
-            if (target_rate < baseline_floor) target_rate = baseline_floor;
-            if (extruder_est_sps < target_rate) {
-                extruder_est_sps += 0.05f * (target_rate - extruder_est_sps);
+    if (BUF_SENSOR_TYPE == 0) {
+        if (s == BUF_TENSION && (now_ms - g_buf.entered_ms) > SYNC_COMPRESSION_COLLAPSE_DELAY_MS) {
+            // If the arm stays pinned at the tension wall, a conservative bootstrap estimate is too low.
+            if (extruder_est_sps < (float)sync_current_sps) {
+                extruder_est_sps += 0.05f * ((float)sync_current_sps - extruder_est_sps);
                 extruder_est_last_update_ms = now_ms;
             }
-        } else if (model_stalled_tension) {
-            /* Model thinks we are empty, but we are physically in NEUTRAL.
-             * Extruder MUST be slower than current MMU rate. */
-            float margin = 4.0f;
-            float target_rate = (float)lane_motion_sps(A) - margin;
-            if (target_rate < 0.0f) target_rate = 0.0f;
-            if (extruder_est_sps > target_rate) {
-                extruder_est_sps += 0.05f * (target_rate - extruder_est_sps);
-                extruder_est_last_update_ms = now_ms;
+        } else if (s == BUF_NEUTRAL && (now_ms - g_buf.entered_ms) > 2000u &&
+            A->task == TASK_FEED && A->fault == FAULT_NONE &&
+            sync_current_sps > 0) {
+
+            float thr = buf_threshold_mm();
+            /* Use raw g_buf_pos to detect model stalls, ignoring any drift correction. */
+            bool model_stalled_compression = (g_buf_pos >= thr - 0.01f);
+            bool model_stalled_tension  = (g_buf_pos <= -thr + 0.01f);
+
+            if (model_stalled_compression) {
+                /* Model thinks we are full, but we are physically in NEUTRAL.
+                 * Extruder MUST be faster than current MMU rate.
+                 * Bleed EST up aggressively to "pull" the model out of the wall. */
+                /* G2: lane_motion while pinned ≈ the collapsed rate, so the
+                 * old feed+6 target self-cancels the feedforward and leaves
+                 * only ~150mm/min headroom — too weak to climb the reserve
+                 * deficit before the next disturbance re-pins the wall.
+                 * Target at least the learned baseline floor: the historically
+                 * healthy feed. This branch only runs while pinned, so it
+                 * self-terminates the instant the buffer leaves the compression
+                 * wall — no TENSION overshoot. */
+                float margin = 6.0f; // ~150mm/min optimism
+                float target_rate = (float)lane_motion_sps(A) + margin;
+                float baseline_floor = (float)baseline_control_floor_sps();
+                if (target_rate < baseline_floor) target_rate = baseline_floor;
+                if (extruder_est_sps < target_rate) {
+                    extruder_est_sps += 0.05f * (target_rate - extruder_est_sps);
+                    extruder_est_last_update_ms = now_ms;
+                }
+            } else if (model_stalled_tension) {
+                /* Model thinks we are empty, but we are physically in NEUTRAL.
+                 * Extruder MUST be slower than current MMU rate. */
+                float margin = 4.0f;
+                float target_rate = (float)lane_motion_sps(A) - margin;
+                if (target_rate < 0.0f) target_rate = 0.0f;
+                if (extruder_est_sps > target_rate) {
+                    extruder_est_sps += 0.05f * (target_rate - extruder_est_sps);
+                    extruder_est_last_update_ms = now_ms;
+                }
             }
-        }
-    } else if (s == BUF_COMPRESSION && (now_ms - g_buf.entered_ms) > SYNC_COMPRESSION_COLLAPSE_DELAY_MS) {
-        // If pinned against the physical wall, the MMU is definitively out-pacing the extruder.
-        // If the estimator thinks the extruder is still pulling fast, it is blind. Drag it down.
-        if (extruder_est_sps > (float)sync_current_sps) {
-            extruder_est_sps += 0.05f * ((float)sync_current_sps - extruder_est_sps);
-            extruder_est_last_update_ms = now_ms;
         }
     }
 
@@ -2371,8 +2365,13 @@ void sync_tick(uint32_t now_ms) {
         }
         sync_current_sps = (int)(cur + 0.5f);
     }
-    else if (sync_current_sps > target_sps) sync_current_sps -= ramp_dn_sps;
-    else if (sync_current_sps < target_sps) sync_current_sps += SYNC_RAMP_UP_SPS;
+    else if (sync_current_sps > target_sps) {
+        sync_current_sps -= ramp_dn_sps;
+        if (sync_current_sps < target_sps) sync_current_sps = target_sps;
+    } else if (sync_current_sps < target_sps) {
+        sync_current_sps += SYNC_RAMP_UP_SPS;
+        if (sync_current_sps > target_sps) sync_current_sps = target_sps;
+    }
 
 
 
