@@ -18,12 +18,12 @@ that is `0.25·D` — the arm climbs into COMPRESSION quickly, the relay stops t
 feed (`SYNC_RAMP_UP/DN`) ramps back up. The audible "ramp → stop → ramp" is
 this cycle; its frequency ∝ `(neutral_frac − 1)`.
 
-Lowering `neutral_frac` to `1.10` cuts the overfeed to `0.10·D`, ~2.5× longer
-climb time, ~2.5× lower cycle frequency, and a longer dwell parked in the
-quiet NEUTRAL mid-band — i.e. "neutral, slightly compressed," which is the
-goal. It stays `> 1.0`, so the lean is still toward COMPRESSION and the buffer
-does not starve to TENSION; if a machine *does* drift to TENSION under steady
-demand, `TUNING.md` already prescribes nudging `neutral_frac` back up.
+The first pass lowered `neutral_frac` to `1.10`, cutting overfeed to `0.10·D`.
+Hardware follow-up 3 then showed the ramp itself was overshooting its target; a
+no-overshoot ramp makes `1.00` viable and preferred: NEUTRAL matches demand,
+with switches acting as guardrails. If a machine *does* drift to TENSION under
+steady demand, `TUNING.md` prescribes nudging `neutral_frac` slightly above
+`1.00`.
 
 ## Why not other levers
 
@@ -41,23 +41,23 @@ demand, `TUNING.md` already prescribes nudging `neutral_frac` back up.
 - **`sync_compression_bias_frac`** — a position-setpoint bias, inert for the
   type-D relay (it only sees switch state); irrelevant here.
 
-## Why 1.10
+## Why 1.00 after Fork A
 
-`1.10` is the "gentle full lean" documented in both the `sync.c` architecture
-comment (`~1.0 = match demand, >1 = gentle lean`) and the
-`sync-observer-root-cause` design history (`MID_FRAC ~ 1.10`). It is the
-defensible code-grounded default; the exact on-hardware optimum is expected in
-`1.05–1.15` and is confirmed via the runtime A/B below. `relay_neutral_frac`
-is `SET:`/`GET:`-tunable and clamped `[0.5, 3.0]` (`protocol.c:978`), so this
-needs no reflash to validate.
+`1.00` is demand match. Before Fork A, the type-D ramp could not rest on the
+target, so a "gentle lean" still expressed as 50 Hz feed-command chatter. After
+porting the type-P no-overshoot clamp into the type-D branch, the relay target
+can settle, so deliberate NEUTRAL overfeed is no longer the default. The exact
+on-hardware optimum is expected near `0.95–1.05` and is confirmed via the
+runtime A/B below. `relay_neutral_frac` is `SET:`/`GET:`-tunable and clamped
+`[0.5, 3.0]` (`protocol.c:978`), so this needs no reflash to validate.
 
 ## On-hardware validation (A/B, no reflash)
 
 ```
 GET:RELAY_NEUTRAL_FRAC            # confirm the live value (persisted; may not be 1.25)
-SET:RELAY_NEUTRAL_FRAC:1.10       # print infill; listen + watch BS compression%
-SET:RELAY_NEUTRAL_FRAC:1.05       # if still cycling audibly
-# if it drifts to TENSION / starves under steady demand, raise toward 1.15
+SET:RELAY_NEUTRAL_FRAC:1.00       # print infill; listen + watch BS compression%
+SET:RELAY_NEUTRAL_FRAC:0.95       # if still cycling audibly
+# if it drifts to TENSION / starves under steady demand, raise toward 1.05
 ```
 
 Pass bar after the new default + threshold revert: `flare_sync_check.py
@@ -70,7 +70,7 @@ No `SETTINGS_VERSION` bump: this is a value-only default change and a bump
 would reset every persisted setting (TMC currents, PSF/baseline calibration).
 Already-flashed units therefore keep their stored `relay_neutral_frac` until
 the operator `SET:`s the new value or factory-resets; fresh flashes pick up
-`1.10`. The A/B step above is the migration path for existing units.
+`1.00`. The A/B step above is the migration path for existing units.
 
 ## Open follow-up (not in this change)
 
@@ -192,7 +192,7 @@ On a 2-switch integrator the **only** information is the *time between
 crossings*: the period / climb-rate is a direct measure of `(feed − demand)`.
 Close a slow integral loop on crossing events that trims the neutral feed toward
 a long dwell — i.e. an **adaptive `frac`** that auto-finds the per-print value
-the manual A/B (1.05/1.10/1.15) finds by hand.
+the manual A/B (0.95/1.00/1.05) finds by hand.
 
 - **B requires A first.** B nulls a slow-drift signal; if the 50 Hz ramp chatter
   is still present, B's error signal (climb time) is buried in it and will not

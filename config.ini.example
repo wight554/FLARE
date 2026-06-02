@@ -72,9 +72,9 @@ run_current:
 
 # ─── Type-D Relay Fallback Law ──────────────────────────────────────────────
 # relay_catchup_frac: 1.30            # TENSION refill multiplier in type-D relay mode.
-# relay_neutral_frac: 1.10            # NEUTRAL fallback/lean multiplier in type-D relay mode.
-                                      # >1.0 = gentle compression lean; lower if it dwells on the
-                                      # COMPRESSION wall, raise toward 1.15 if it drifts to TENSION.
+# relay_neutral_frac: 1.00            # NEUTRAL fallback multiplier in type-D relay mode.
+                                      # 1.0 = demand match; switches are guardrails.
+                                      # Raise slightly only if it drifts to TENSION.
 
 # ─── Trailing-Bias Setpoint Shift ────────────────────────────────────────────
 # sync_compression_bias_frac: 0.45  # additional setpoint shift toward compression.

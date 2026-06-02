@@ -24,18 +24,19 @@ guidance MAY appear only for analog type P (`BUF_SENSOR_TYPE == 1`), whose
   type-D relay (those apply to analog type-P) and that the quiet-cycle lever
   is `relay_neutral_frac`
 
-### Requirement: Default relay_neutral_frac is a gentle compression lean
+### Requirement: Default relay_neutral_frac tracks demand without deliberate overfeed
 
-The shipped default `relay_neutral_frac` SHALL be a gentle compression lean
-(`> 1.0` but near demand, i.e. `1.10`), not a heavy overfeed. `TUNING.md` and
+The shipped default `relay_neutral_frac` SHALL match demand (`1.00`) for type-D
+after the no-overshoot ramp fix, not deliberately overfeed. `TUNING.md` and
 `config.ini.example` SHALL show this default, and it SHALL match the
-`gen_config.py` default.
+`gen_config.py` default. Operators MAY raise it slightly only if hardware soak
+shows steady TENSION drift.
 
 #### Scenario: Documented default matches the generator
 
 - **WHEN** the `relay_neutral_frac` default is read from `TUNING.md`,
   `config.ini.example`, and `gen_config.py`
-- **THEN** all three agree on `1.10`
+- **THEN** all three agree on `1.00`
 
 #### Scenario: Stability detector threshold is not masking the cycle
 

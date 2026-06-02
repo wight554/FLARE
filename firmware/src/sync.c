@@ -56,13 +56,12 @@
  * FLARE polarity (per the rest of the system: RT is negative/compression,
  * REFILL effort fires in TENSION, RELIEVE in COMPRESSION): TENSION = buffer
  * EMPTY (starved) -> feed fast to refill; COMPRESSION = buffer FULL (reserve)
- * -> feed slow so the extruder draws it down; NEUTRAL -> gently overfeed so
- * the buffer leans to the full/COMPRESSION reserve side and never reaches
- * TENSION (never starve). These three fracs (x baseline control floor)
- * are the primary on-hardware type-D relay-law tuning knobs.
+ * -> feed slow so the extruder draws it down; NEUTRAL -> match estimated
+ * demand so the buffer rests in-band, with switches as guardrails. These
+ * fracs are the primary on-hardware type-D relay-law tuning knobs.
  * RELAY_CATCHUP_FRAC scales the fixed baseline-anchored refill (TENSION/empty).
- * RELAY_NEUTRAL_FRAC scales the demand-tracking (EST) NEUTRAL feed: ~1.0 = match extruder
- * (long dwell), >1 = gentle full/COMPRESSION-reserve lean. COMPRESSION/full
+ * RELAY_NEUTRAL_FRAC scales the demand-tracking (EST) NEUTRAL feed:
+ * 1.0 = match extruder (long dwell), >1 = full/COMPRESSION-reserve lean. COMPRESSION/full
  * feed is fixed at SYNC_MIN (stop) so the buffer drains off the wall. */
 #define ENDSTOP_PER_UNIT_SIGMA_MM 0.025f
 #define SYNC_HIGH_FLOW_NEG_ASSIST_START_MM_MIN 1000.0f

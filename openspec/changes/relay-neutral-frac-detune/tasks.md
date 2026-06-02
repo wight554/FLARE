@@ -33,10 +33,10 @@
 
 ## 4. On-hardware validation (operator) — OPEN, blocked on rig
 
-- [ ] 4.1 `GET:RELAY_NEUTRAL_FRAC`; `SET:RELAY_NEUTRAL_FRAC:1.10`; infill soak.
+- [ ] 4.1 `GET:RELAY_NEUTRAL_FRAC`; `SET:RELAY_NEUTRAL_FRAC:1.00`; infill soak.
 - [ ] 4.2 `flare_sync_check.py --mode stability`: peak `< 1.0` cycles/s,
-  endstop `< 30 %`, TENSION ≈ 0 (no starvation). A/B 1.05–1.15 if needed.
-- [ ] 4.3 If the on-hw optimum differs from 1.10, update the default to match
+  endstop `< 30 %`, TENSION ≈ 0 (no starvation). A/B 0.95–1.05 if needed.
+- [ ] 4.3 If the on-hw optimum differs from 1.00, update the default to match
   and re-confirm.
 
 ## 5. Hardware-discovered relay floor fix
@@ -80,12 +80,21 @@ become redundant once feed can settle and may be reverted if A makes them inert.
   - 2026-06-02: type-D bootstrap nudges are gated to `BUF_SENSOR_TYPE == 0`;
     pinned-COMPRESSION true-stop no longer drags `extruder_est_sps` toward
     `sync_current_sps`; `ninja -C build_local` passed.
-- [ ] 6.3 `scripts/gen_config.py` + `config.ini.example` + `TUNING.md`: with the
+- [x] 6.3 `scripts/gen_config.py` + `config.ini.example` + `TUNING.md`: with the
   ramp able to settle, drop the documented type-D default `relay_neutral_frac`
   `1.10 → 1.00` (net fill ≈ 0; switches as guardrails, no deliberate lean).
   Keep the value `SET:`/`GET:`-tunable for A/B.
-- [ ] 6.4 Build: `gen_config.py` regenerates `tune.h` clean; `ninja -C
+  - 2026-06-02: updated generator default, config comments, operator docs,
+    OpenSpec delta/proposal/design, and regenerated ignored `tune.h`.
+- [x] 6.4 Build: `gen_config.py` regenerates `tune.h` clean; `ninja -C
   build_local` passes; analyzer/gen_config test suites green.
+  - 2026-06-02: `python3 scripts/gen_config.py` passed.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+  - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-02: `ninja -C build_local` passed.
+  - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
+  - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
 - [ ] 6.5 HW: 10 mm/s soak + `flare_sync_check.py --mode stability`. Expect the
   50 Hz `MM` chatter gone (feed rests on target), peak `< 1.0` cycles/s, endstop
   `< 30 %`, TENSION ≈ 0. A/B `frac` 1.00 ± 0.05 if it drifts.
@@ -121,10 +130,14 @@ replacing the ad-hoc EST nudges. See `design.md` → "Fork B".
 
 ## 8. Docs + spec
 
-- [ ] 8.1 `BEHAVIOR.md`: document the type-D feed model after A — feed tracks
+- [x] 8.1 `BEHAVIOR.md`: document the type-D feed model after A — feed tracks
   demand (no overfeed lean), the ramp settles on target (no overshoot chatter),
   switches act as guardrails; and after B (if built) the neutral feed is
   dwell-time-adaptive. Note type-P is unaffected (`BUF_SENSOR_TYPE == 0` scope).
-- [ ] 8.2 Update `proposal.md` "What Changes" / scope to reflect that the fix is
+  - 2026-06-02: documented demand-match default and no-overshoot type-D ramp;
+    B remains gated and not documented as built.
+- [x] 8.2 Update `proposal.md` "What Changes" / scope to reflect that the fix is
   ramp-overshoot + EST-decay + `frac → 1.00` (A), with B as a gated follow-up —
   superseding the original "default-only detune" framing.
+  - 2026-06-02: proposal and OpenSpec tuning delta now frame Fork A as
+    no-overshoot ramp + EST true-stop fix + `relay_neutral_frac` `1.00`.

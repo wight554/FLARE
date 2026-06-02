@@ -119,12 +119,11 @@ DEFAULTS = {
     "sync_auto_stop_ms": "5000",
     # Type-D Relay Fallback Law
     "relay_catchup_frac": "1.30",
-    # NEUTRAL feed = extruder_est_sps * this. >1.0 = gentle compression lean.
-    # 1.10 = ~10% overfeed (documented gentle lean). Was 1.25 (25% overfeed):
-    # a stale relay-confidence-gate-harden palliative that, post relay-fallback-
-    # only, drove a loud NEUTRAL->COMPRESSION->stop limit cycle. Lower = less time
-    # on the COMPRESSION wall; raise toward 1.15 if the buffer drifts to TENSION.
-    "relay_neutral_frac": "1.10",
+    # NEUTRAL feed = extruder_est_sps * this. 1.00 = demand match; switches act
+    # as guardrails. Earlier 1.10/1.25 overfed NEUTRAL and produced
+    # NEUTRAL->COMPRESSION->stop chatter once the type-D ramp could overshoot.
+    # Raise slightly only if hardware soak shows steady TENSION drift.
+    "relay_neutral_frac": "1.00",
     # Drift Observer
 
     # Adaptive Sync

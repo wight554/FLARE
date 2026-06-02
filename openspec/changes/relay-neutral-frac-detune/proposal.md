@@ -33,12 +33,15 @@ controller that ignores it.
 
 ## What Changes
 
-- Lower the `relay_neutral_frac` default `1.25 → 1.10` (the documented
-  "gentle compression lean"; overfeed `0.25 → 0.10`). Stretches the
-  climb-to-COMPRESSION ~2.5×, lengthening the quiet NEUTRAL dwell and cutting
-  cycle frequency, while staying `> 1.0` so the buffer never starves to
-  TENSION. `relay_catchup_frac` (1.30) is unchanged — it only fires in
-  TENSION, which is no longer reached.
+- Port the type-P no-overshoot ramp clamp to the type-D relay slew so
+  `sync_current_sps` lands on `target_sps` instead of straddling it every 20 ms
+  (`MM:720↔1080` at 10 mm/s).
+- Stop the pinned-COMPRESSION true-stop path from dragging `extruder_est_sps`
+  toward a stopped motor; switch-crossing estimates remain the demand authority.
+- Lower the `relay_neutral_frac` default `1.25 → 1.00` (via the intermediate
+  `1.10` test path) so NEUTRAL feed matches estimated demand and switches act as
+  guardrails instead of adding deliberate overfeed. `relay_catchup_frac` (1.30)
+  is unchanged — it only fires in TENSION refill.
 - Revert the `bfb29e8` detector masking: `analyze_stability` 2.0 → 1.0 Hz,
   `--tune-drift-pct` 38 → 30 %, so the ringing/drift metrics are meaningful
   again once the overfeed is reduced.
@@ -47,17 +50,16 @@ controller that ignores it.
   for type-D, ringing/compression-drift is tuned via `relay_neutral_frac`
   (down = less compression, up = less tension), not `sync_kp_rate`; the kp
   guidance applies only to analog type-P.
-- Update `TUNING.md` and `config.ini.example` to the new default.
+- Update `TUNING.md`, `BEHAVIOR.md`, `MANUAL.md`, `config.ini`,
+  `config.ini.example`, and the OpenSpec delta to the new default/model.
 
 ## Non-Goals
 
-- No control-law / behavior change. The relay law (`NEUTRAL = clamp(est) ·
-  neutral_frac`, TENSION catch-up, COMPRESSION true-stop) is byte-identical;
-  only a tunable's default value moves. The `relay-fallback-only` contract is
-  untouched.
+- No type-P control-law change. Type-P keeps the existing distance-EMA ramp and
+  analog PD/feedforward path.
 - No `SETTINGS_VERSION` bump (a value-only default change must not wipe an
   operator's persisted TMC/calibration settings). Already-flashed units keep
   their persisted `relay_neutral_frac` until the operator runs
-  `SET:RELAY_NEUTRAL_FRAC:1.10` or factory-resets; fresh flashes get 1.10.
+  `SET:RELAY_NEUTRAL_FRAC:1.00` or factory-resets; fresh flashes get 1.00.
 - No firmware guard yet for "`tune` mode kp-autotunes a relay that ignores
   kp" — recorded as an open follow-up in `design.md`.

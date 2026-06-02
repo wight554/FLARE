@@ -262,7 +262,7 @@ For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`), FLARE overrides the co
 
 - **`BUF_TENSION` (empty/starved)**: Commands a strong fixed catch-up rate based on the configured baseline rate (`baseline_control_floor_sps() * RELAY_CATCHUP_FRAC`) to ensure rapid buffer refill, completely independent of the velocity estimator.
 - **`BUF_COMPRESSION` (full reserve)**: Commands a **true zero feed** (0 SPS) instead of `SYNC_MIN_SPS`, so feed stops rather than pushing filament forward into a full buffer (feeding `SYNC_MIN` forward deepened the buffer past the switch for ~5 s at end of feed). The extruder's draw pulls the buffer back off the compression wall; recovery uses the existing relieve / `SYNC_AUTO_STOP_MS` path.
-- **`BUF_NEUTRAL` (neutral zone)**: Dynamically tracks estimated extruder demand (`extruder_est_sps * RELAY_NEUTRAL_FRAC`), clamped to the range `[SYNC_MIN_SPS, baseline_control_floor_sps()]`. This prevents the buffer from slamming either wall during steady consumption.
+- **`BUF_NEUTRAL` (neutral zone)**: Dynamically tracks estimated extruder demand (`extruder_est_sps * RELAY_NEUTRAL_FRAC`, default `1.00` demand match), clamped to the range `[SYNC_MIN_SPS, baseline_control_floor_sps()]`. The type-D ramp clamps each tick to the target instead of overshooting it; switches act as guardrails during steady consumption.
 
 In type-D `BUF_NEUTRAL`, the relay target is also the minimum applied neutral
 feed while reserve error is tension-side, after shared reserve scaling and

@@ -164,7 +164,7 @@ The knobs live in `config.ini`, not in `sync.c` defines:
 
 ```ini
 relay_catchup_frac: 1.30
-relay_neutral_frac: 1.10
+relay_neutral_frac: 1.00
 relay_min_flip_mm: 0.0
 relay_collapse_delay_ms: 250
 relay_collapse_ramp_mult: 3
@@ -190,13 +190,13 @@ unless a specific machine shows an abrupt stop.
 
 `relay_neutral_frac` is the type-D quiet-cycle lever. NEUTRAL feed is
 `extruder_est_sps * relay_neutral_frac`, and `extruder_est_sps` already tracks
-real demand, so the fraction above `1.0` is pure overfeed: it drives the buffer
-into COMPRESSION, where the relay true-stops, drains, and re-feeds — the
-ramp-up / stop / ramp-up limit cycle you hear. `1.10` (~10 % overfeed) is a
-gentle compression lean with a long, quiet NEUTRAL dwell; `1.25` overfeeds 25 %
-and bang-bangs the COMPRESSION wall. **`sync_kp_rate` and the `sync_ramp_accel`
-autotune do not affect the type-D relay** — it keys only on switch state, not a
-PI error. Those apply to analog type P (`BUF_SENSOR_TYPE == 1`) only.
+real demand, so the default `1.00` commands demand match and lets the switches
+act as guardrails. Any fraction above `1.0` is deliberate overfeed: it drives
+the buffer into COMPRESSION, where the relay true-stops, drains, and re-feeds —
+the ramp-up / stop / ramp-up limit cycle you hear. `1.10` overfeeds 10 % and
+`1.25` overfeeds 25 %. **`sync_kp_rate` and the `sync_ramp_accel` autotune do
+not affect the type-D relay** — it keys only on switch state, not a PI error.
+Those apply to analog type P (`BUF_SENSOR_TYPE == 1`) only.
 
 Firmware preserves the type-D `BUF_NEUTRAL` relay target as a lower bound only
 while reserve error is tension-side. If reserve is already at/above target,
@@ -206,10 +206,10 @@ to avoid repeated `BUF_COMPRESSION` bang-bang.
 Tune only from real print behavior:
 
 - Increase `relay_catchup_frac` if TENSION dwell repeats or the printer starves.
-- Lower `relay_neutral_frac` if the buffer spends too much time on the
-  COMPRESSION wall (the audible bang-bang).
-- Raise `relay_neutral_frac` if the buffer drifts toward TENSION during steady
-  demand.
+- Lower `relay_neutral_frac` below `1.00` only if the buffer still spends too
+  much time on the COMPRESSION wall after the no-overshoot ramp fix.
+- Raise `relay_neutral_frac` above `1.00` only if the buffer drifts toward
+  TENSION during steady demand.
 - Do **not** touch `sync_kp_rate` for type D — it is inert (analog type-P only).
 - Leave `relay_min_flip_mm` at `0.0` unless deliberately testing the deadlock
   caveat above.
