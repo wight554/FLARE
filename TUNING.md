@@ -203,8 +203,10 @@ Type-D anchors `extruder_est_sps` from the cleanest stable switch segment:
 `sync_current_sps` over the NEUTRAL dwell, preferring the pre-taper portion before
 compression-side braking when available, subtracts the measured fill rate, and
 blends that demand sample into `EST`. Very short or far-overrun fills are
-ignored; slow near-converged fills still count. The crossing trim is now a small
-residual correction on top of that estimator. A
+ignored; slow near-converged fills still count. After the controller reaches
+COMPRESSION, a short feed-zero true-stop exit can also correct `EST` because
+later compression-side fills no longer have known switch-to-switch travel. The
+crossing trim is now a small residual correction on top of that estimator. A
 `BUF_NEUTRAL -> BUF_COMPRESSION` touch means overfeed, so firmware subtracts
 `SYNC_RELAY_TRIM_STEP_SPS`; a `BUF_NEUTRAL -> BUF_TENSION` touch means
 starvation, so firmware adds the same step. The trim is clamped by

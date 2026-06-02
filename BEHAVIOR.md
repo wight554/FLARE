@@ -308,8 +308,9 @@ one snap cannot yank the estimator; slow near-converged fills stay eligible.
 - On type-P sensors the analog estimator remains continuous and separate. On
   type-D (dual-endstop), all accepted crossing samples are blended through the
   adaptive EMA instead of overwriting `EST`, and the COMPRESSION drain path is
-  only retained as a gated fallback after a long dwell with near-zero applied
-  feed.
+  retained as a gated fallback once the true-stop dwell has near-zero applied
+  feed. This lets short feed-zero exits correct `EST` when later
+  compression-side fills no longer have known switch-to-switch travel.
 
 If the buffer stays in NEUTRAL for a long dwell, the estimator is held until the
 next switch-derived sample; the residual trim leaks toward zero so stale trim

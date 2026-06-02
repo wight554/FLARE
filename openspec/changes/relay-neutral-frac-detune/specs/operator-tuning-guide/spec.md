@@ -72,9 +72,12 @@ averaging the actual applied `sync_current_sps` over the NEUTRAL dwell,
 preferring the pre-taper portion before compression-side braking when available,
 and subtracting the measured fill rate. Degenerate fill samples SHALL be ignored,
 slow near-converged fills SHALL remain eligible, and accepted demand samples
-SHALL blend into `extruder_est_sps`. The residual neutral trim SHALL leak toward
-zero during `BUF_NEUTRAL` dwell. This estimator correction and trim leak SHALL
-NOT alter the analog type-P estimator/feedforward path.
+SHALL blend into `extruder_est_sps`. When later compression-side fill samples no
+longer have known switch-to-switch travel, a short `BUF_COMPRESSION ->
+BUF_NEUTRAL` true-stop drain with near-zero applied feed SHALL be eligible as a
+fallback demand sample. The residual neutral trim SHALL leak toward zero during
+`BUF_NEUTRAL` dwell. This estimator correction and trim leak SHALL NOT alter the
+analog type-P estimator/feedforward path.
 
 #### Scenario: NEUTRAL fill samples known applied feed
 
@@ -89,6 +92,13 @@ NOT alter the analog type-P estimator/feedforward path.
 - **WHEN** the type-D buffer crosses from `BUF_NEUTRAL` to `BUF_COMPRESSION`
 - **AND** the NEUTRAL dwell is too short or the fill rate is far above averaged feed
 - **THEN** firmware does not update `extruder_est_sps` from that crossing
+
+#### Scenario: Short true-stop drain remains eligible
+
+- **WHEN** the type-D buffer crosses from `BUF_COMPRESSION` to `BUF_NEUTRAL`
+- **AND** the COMPRESSION dwell is long enough to reject bounce
+- **AND** the averaged applied feed is near zero
+- **THEN** firmware may blend the drain-derived demand sample into `extruder_est_sps`
 
 #### Scenario: Residual trim self-centers in neutral
 

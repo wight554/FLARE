@@ -77,7 +77,7 @@
 #define SYNC_NEUTRAL_FILL_MIN_DWELL_MS 250u
 #define SYNC_NEUTRAL_FILL_MIN_FEED_SAMPLES 2u
 #define SYNC_NEUTRAL_FILL_OVERRUN_FRAC 0.25f
-#define SYNC_DRAIN_EST_MIN_DWELL_MS 300u
+#define SYNC_DRAIN_EST_MIN_DWELL_MS 150u
 sync_state_t g_sync_state = SYNC_OFF;
 bool sync_auto_started = false;
 bool sync_tail_assist_active = false;

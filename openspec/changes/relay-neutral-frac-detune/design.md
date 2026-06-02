@@ -511,3 +511,33 @@ needs to match the actual feed profile.
   reject only true garbage (`dwell` too short, no feed samples, invalid step
   size, non-positive feed, or `fill_sps` far above `F_avg`).
 - Keep Type-P untouched.
+
+## Hardware follow-up 12: 20 s feed still sticks full; drain gate too strict (2026-06-02)
+
+The 20 s feed log after §10c shows one successful downward fill sample, then no
+fresh estimator movement:
+
+- `EST` moved `1200 -> 1002 -> 895.9`, then froze at `895.9`.
+- After the first `BUF_NEUTRAL -> BUF_COMPRESSION`, the plant cycles between a
+  short `BUF_COMPRESSION` true-stop (`MM 0.1`) and long `BUF_NEUTRAL` recovery
+  sweeps around `MM 640-680`.
+- The physical arm still snaps back to COMPRESSION while virtual `BP` drifts as
+  far as about `-2`, proving the estimator is still high versus real demand.
+
+Root cause: once a cycle comes from `BUF_COMPRESSION -> BUF_NEUTRAL`, the next
+`BUF_NEUTRAL -> BUF_COMPRESSION` fill has no known switch-to-switch travel. The
+firmware correctly treats that fill as near-zero physical travel, so the fill
+estimator cannot produce later corrections. The now-clean COMPRESSION drain is
+the available anchor, but the current drain gate requires `300 ms`; the observed
+true-stop dwells are mostly about `200 ms`, so those clean samples are skipped.
+
+### §10d implementation plan
+
+#### `firmware/src/sync.c`
+
+- Lower the type-D COMPRESSION drain estimator dwell floor enough to accept the
+  observed feed-zero true-stop exits while still rejecting instant bounce.
+- Keep the existing feed gate (`mmu_avg_sps <= SYNC_MIN_SPS`) so this only
+  accepts drained samples after the commanded feed has collapsed to zero.
+- Preserve the fill estimator as the first full-span anchor and keep Type-P
+  untouched.

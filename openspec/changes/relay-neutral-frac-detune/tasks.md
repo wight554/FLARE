@@ -434,3 +434,35 @@ prefer the early flat part of the dwell and relax the near-zero fill gate.
 - [ ] 10c.4 HW: rerun 10 mm/s soak, `BASELINE_RATE:2400`, `frac 1.00`, fresh
   sync arm. Expect `EST` to continue below 901 toward real demand, no impossible
   virtual `BP` divergence snaps, and no stuck-full tail.
+  - 2026-06-02: 20 s feed log after §10c: `EST` moved `1200 -> 1002 -> 895.9`,
+    then froze. Later cycles show short feed-zero `BUF_COMPRESSION` dwells
+    (`MM 0.1`) and long `BUF_NEUTRAL` sweeps around `MM 640-680`, but virtual
+    `BP` still drifts to about `-2` before physical COMPRESSION snaps. Follow-up
+    §10d added; do not accept yet.
+
+## 10d. Fork D refinement — accept short feed-zero drain exits
+
+After §10c, the fill estimator updates once but cannot keep correcting after
+cycles that originate from `COMPRESSION -> NEUTRAL`: the next compression-side
+fill has no known switch-to-switch travel. The COMPRESSION true-stop is now
+clean (`MM 0.1`), but the drain fallback requires `300 ms` while the rig exits
+COMPRESSION in about `200 ms`.
+
+- [x] 10d.1 `firmware/src/sync.c`: lower the type-D COMPRESSION drain estimator
+  dwell floor enough to accept short feed-zero exits while still rejecting
+  instant bounce.
+  - 2026-06-02: Set `SYNC_DRAIN_EST_MIN_DWELL_MS` from `300` to `150`; the
+    existing near-zero feed gate remains in place.
+- [x] 10d.2 Docs/spec/OpenSpec sync; build + tests green.
+  - 2026-06-02: `BEHAVIOR.md`, `TUNING.md`, OpenSpec design, spec, and tasks
+    updated.
+  - 2026-06-02: `ninja -C build_local` passed.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+  - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_sync_check.py` passed (33 tests).
+  - 2026-06-02: `python3 scripts/test_gen_config.py` passed.
+  - 2026-06-02: `python3 scripts/test_flare_analyze.py` passed.
+- [ ] 10d.3 HW: rerun 20 s / 10 mm/s feed. Expect `EST` to keep correcting
+  below `895.9` toward the observed steady `MM 640-680`, virtual `BP` no longer
+  drifting tension-side before physical COMPRESSION snaps, and COMPRESSION
+  touches becoming sparse/self-correcting instead of a stuck-full tail.
