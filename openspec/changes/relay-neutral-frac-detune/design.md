@@ -218,3 +218,136 @@ EXPOSED (shared code — must gate by sensor type or type-P shifts):
   EST nudges (sync.c:2139-2193)     type-P uses EST as feedforward (psf_control_law:1840)
   reserve integral / compression-recovery shaping
 ```
+
+## Hardware follow-up 5: `relay_neutral_frac` is non-functional — the baseline anti-tension floor is the true root (2026-06-02)
+
+After Fork A (6.1-6.3) the rig still bang-bangs COMPRESSION, and a `frac` sweep
+proved **`relay_neutral_frac` has no effect on the applied feed**:
+
+| frac (`GET` confirmed) | relay law NEUTRAL = `EST·frac` | observed `MM` |
+|------------------------|--------------------------------|---------------|
+| 1.10 | 1857 | ~1730 |
+| 1.00 | 1688 | ~1680 |
+| 0.50 | **844** | **1680** (unchanged) |
+
+frac = 0.50 should halve the feed to 844; `MM` did not move off ~1680. The relay
+law output is overridden downstream. **All frac tuning (tasks §1, §4, §6.3) is
+moot until that override is removed.**
+
+### The override, identified
+
+Rig config: `BASELINE_RATE = 2400 mm/min`, `SYNC_MAX = 3000`, threshold ⇒ the
+reserve target is compression-biased to ~`+2.5 mm` (`RE` in status ≈ `BP − 2.5`).
+The pin is `sync_neutral_anti_tension_floor_sps` (`sync.c:1160`):
+
+```
+assist_floor = baseline_control_floor_sps() · SYNC_NEUTRAL_ANTI_TENSION_FLOOR_FRAC
+             = 2400 · 0.70  = 1680 mm/min          ← exactly the observed MM
+```
+
+It fires whenever `error_norm <= deadband_norm`, i.e. whenever the buffer sits
+at or below `target + deadband`. With the target biased to `+2.5` and the buffer
+riding `BP ≈ 3.2 .. 4.4`, the error straddles the deadband edge: at the low end
+the floor fires and slams feed to 1680; at the high end it releases (`MM` drops
+to 360/720). That edge-oscillation **is** the COMPRESSION limit cycle now.
+
+`baseline_control_floor_sps` (`sync.c:1155`) = `max(flow_param(EST).baseline,
+g_baseline_target)` — **baseline-derived, not demand-derived.**
+
+### Why this is THE root (supersedes the frac / ramp / EST framing)
+
+At 10 mm/s the real demand is ~300-700 mm/min (the COMPRESSION-drain rate). The
+anti-tension floor pins NEUTRAL feed at **1680 mm/min ≈ 2.5-5× demand.** The
+buffer physically cannot feed slow enough → mandatory overfeed → COMPRESSION →
+drain → repeat, at *any* frac, with the ramp clamped, regardless of EST.
+
+This explains the original speed sweep exactly:
+
+```
+25 mm/s  demand ≈ baseline·0.7 (1680)  → floor ≈ demand   → fine
+20-15    demand < floor                → floored overfeed → bang-bang
+10       demand << floor               → heavy overfeed   → bang-bang
+ 5       demand < SYNC_MIN             → constant SYNC_MIN ≈ demand → perfect midline
+```
+
+The floor stack (`sync_neutral_anti_tension_floor_sps`, `baseline_control_floor`,
+the model-stall EST bleed `sync.c:2168`, the §5 relay floor) was all built
+assuming demand ≈ baseline (a fast print). At low feed it forces gross overfeed.
+EST latching ~2.8× high (follow-up 4) is real but **secondary** — even a correct
+EST cannot lower the feed below the baseline·0.70 floor.
+
+### Fix direction (reframes §6/§7)
+
+The anti-tension refill floor must not be a fixed fraction of *baseline*. Options:
+
+1. **Demand-scale the floor:** floor = `min(baseline·0.70, EST·k)` (or purely
+   EST-derived) so at low demand the floor drops to ~demand instead of pinning
+   to baseline. Keeps tension protection when demand is genuinely high.
+2. **Tighten the fire condition:** fire only when *genuinely* tension-side
+   (`error_norm < −deadband`, buffer actually draining toward empty), not the
+   broad `<= +deadband` that fires across the compression-biased target band.
+3. **Revisit the `+2.5` compression-biased reserve target** — it keeps `error`
+   small so the floor fires across most of the band; a near-zero target would
+   let the buffer rest mid-band.
+
+frac, the no-overshoot ramp (6.1), and the EST-decay fix (6.2) are all real and
+should stay, but they are **downstream of this floor** and cannot act until the
+floor scales with demand. This is the lever, not `relay_neutral_frac`.
+
+## Hardware follow-up 7-8: open-loop exhausted; the relay touch is the truth signal (2026-06-02)
+
+A baseline scan (`SET:BASELINE_RATE` 2400→800→600, frac=1.00) settled it:
+
+- **Feed tracks baseline** (MM 1680→800→600). Confirms the baseline pin.
+- **Lower baseline → longer stable hold.** At 600 the buffer asymptoted to
+  `BP ≈ 2.0` and held ~15 s — the longest equilibrium of any run — proving
+  feed≈demand parks the buffer.
+- **But virtual BP diverges from physical.** During the 600 hold, status read
+  `BP:+2.0` (compression-side, at target) while the operator observed the arm
+  toward *tension* — model and reality disagreed. With no mid-band sensor, the
+  virtual position is pure dead-reckoning on a biased `EST`; it drifts off truth
+  and eventually the physical buffer hits a real switch and snaps.
+
+**Conclusion: open-loop tuning (baseline/frac/ramp) is exhausted.** No fixed feed
+holds, because there is no mid-band feedback to correct the drift. Lower baseline
+only delays the snap. The clicking is *fixed-rate* because the current code never
+learns from the touch (EST latched/biased; the `2142/2168/2189` nudges are
+reactive and non-convergent).
+
+### Operator acceptance bar (decisive)
+
+Zero compression / perfect mid-band is **not** the goal and is physically
+unreachable here. The bar is: **rare, self-correcting compression touches are
+fine; fixed-rate constant clicking (and the wroom-wroom chopper flip) is not.**
+
+### This reframes the COMPRESSION touch as the sensor, and makes Fork B the fix
+
+The COMPRESSION switch is the only mid-band truth type-D gets. Each touch is a
+measurement: "overfed — back off." The fix is to *learn* from it:
+
+```
+NEUTRAL→COMPRESSION crossing → feed trim −= step   (overfed)
+NEUTRAL→TENSION    crossing → feed trim += step   (starved)
+```
+
+This integrates the crossing *sign* into a bounded, accumulating trim — so the
+net correction converges and the touch rate **decays to sparse**, vs the current
+reactive nudges that re-overfeed identically every cycle (no convergence →
+constant clicking). Convergent vs non-convergent learning is the whole
+difference. Steady converged feed also stops crossing the StealthChop threshold →
+no wroom. See `tasks.md` §7 for the build plan.
+
+**Coupling: §9 is a prerequisite for §7.** The baseline-derived NEUTRAL floors
+(anti-tension = baseline·0.70, `relay_base` cap) clamp any downward trim back up,
+exactly as they defeat `frac`. The floors must be demand-scaled / tension-side-
+only (§9) before B's trim can pull feed down to demand. Build order: §9 → §7.
+
+### Final plan of record
+
+1. §6 (done): no-overshoot ramp + EST true-stop + frac default — keep.
+2. §9: demand-scale the baseline NEUTRAL floors so feed *can* reach demand.
+3. §7 (Fork B): convergent crossing-trim that *finds* demand and converges touch
+   rate to sparse. This is the actual fix; build it.
+
+Non-goal (moved to `proposal.md`): eliminating compression touches / perfect
+mid-band hold.

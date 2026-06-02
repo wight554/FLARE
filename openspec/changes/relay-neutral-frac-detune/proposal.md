@@ -53,10 +53,26 @@ controller that ignores it.
 - Update `TUNING.md`, `BEHAVIOR.md`, `MANUAL.md`, `config.ini`,
   `config.ini.example`, and the OpenSpec delta to the new default/model.
 
+## Success criteria (type-D, from HW follow-ups 5-8)
+
+- Compression touches **decay to sparse** over a soak and plateau low, with long
+  quiet NEUTRAL dwell between them; each touch is a learning event that trims
+  feed toward demand.
+- Applied feed (`MM`) is **steady** — no 50 Hz ramp chatter, no oscillation
+  across the StealthChop threshold (→ no "wroom-wroom" chopper flip).
+- TENSION ≈ 0 (no starvation).
+- **FAIL:** fixed-rate "constant clicking" (touch rate does not decay) or
+  starvation.
+
 ## Non-Goals
 
+- **Eliminating compression touches / holding perfect mid-band.** Impossible on a
+  2-switch dead-reckoning buffer (no mid-band position sensor → the virtual
+  position always drifts and must touch a switch to recalibrate). The COMPRESSION
+  switch is the mid-band truth signal; rare self-correcting touches are the
+  target, not a defect.
 - No type-P control-law change. Type-P keeps the existing distance-EMA ramp and
-  analog PD/feedforward path.
+  analog PD/feedforward path. All type-D work is scoped `BUF_SENSOR_TYPE == 0`.
 - No `SETTINGS_VERSION` bump (a value-only default change must not wipe an
   operator's persisted TMC/calibration settings). Already-flashed units keep
   their persisted `relay_neutral_frac` until the operator runs

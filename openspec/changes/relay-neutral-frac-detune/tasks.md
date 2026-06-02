@@ -102,31 +102,58 @@ become redundant once feed can settle and may be reverted if A makes them inert.
   inert and revert them to keep the relay law minimal (record decision in
   `design.md`).
 
-## 7. Fork B — adaptive neutral feed (only if A's residual drift unacceptable)
+## 7. Fork B — convergent crossing-trim (REQUIRED; the actual fix) — BUILD THIS
 
-Gate on the §6.5 outcome: only build B if, after A, the buffer still slow-drifts
-to a rail (EST DC-bias walk, no mid-band truth). B closes a slow integral loop on
-switch-crossing dwell time to auto-trim the neutral feed (adaptive `frac`),
-replacing the ad-hoc EST nudges. See `design.md` → "Fork B".
+Decision (HW follow-ups 5-8, see `design.md`): open-loop is exhausted. Baseline
+pins feed; lowering it gives longer stable holds but the dead-reckoning virtual
+BP always diverges from physical (no mid-band sensor) and eventually snaps — at a
+**fixed click rate**, because nothing learns from the touch. The COMPRESSION
+switch *is* the only mid-band truth signal; B turns each touch into a learning
+event so the click rate decays to sparse.
 
-- [ ] 7.1 Decision gate: confirm from 6.5 that residual drift (not chatter)
-  remains and is out of spec. If A alone passes, **do not build B** — close the
-  change. Record the call.
-- [ ] 7.2 `firmware/src/sync.c`: at each type-D state crossing, derive the
-  `(feed − demand)` error from dwell time / climb rate (use `g_buf.entered_ms`)
-  and accumulate a bounded neutral-feed trim. Scoped to `BUF_SENSOR_TYPE == 0`.
-- [ ] 7.3 `firmware/src/sync.c`: replace the ad-hoc EST nudges (`2142/2168/2189`)
-  with the §7.2 crossing-event loop for type-D; preserve a type-P path (or leave
-  type-P's EST feedforward untouched) — verify no change to `psf_control_law`
-  feedforward.
-- [ ] 7.4 Bound + anti-windup: clamp the trim, slow gain so it follows real
-  per-feature demand changes (EST tracks those at crossings) without chasing
-  noise. Optionally persist; no `SETTINGS_VERSION` bump unless a new stored field
-  is added.
-- [ ] 7.5 Build + tests green; OpenSpec strict validation.
-- [ ] 7.6 HW: long infill soak; expect the buffer to park (long NEUTRAL dwell),
-  no slow rail-walk, TENSION ≈ 0, and convergence within a few crossings after a
-  speed change.
+**Acceptance:** compression touches start, then get *sparser* over a soak and
+plateau low (long quiet NEUTRAL dwell between them); MM steady (no 50 Hz chatter,
+no StealthChop-threshold crossing → no wroom); TENSION ≈ 0. **FAIL** = fixed-rate
+clicking (no decay) or starvation. "Zero compression / perfect mid-band" is a
+**non-goal** — impossible on 2-switch dead-reckoning; rare self-correcting touch
+is the target.
+
+**Prereq — §9 first (coupled):** the baseline-derived NEUTRAL floors
+(`sync_neutral_anti_tension_floor_sps` = baseline·0.70, and the `relay_base` cap)
+pin feed at ~baseline and will **clamp B's downward trim right back up**, exactly
+as they defeat `frac`. B cannot lower feed to demand until §9 makes those floors
+demand-scaled (or tension-side-only). Do §9, then §7.
+
+- [ ] 7.1 `firmware/src/sync.c`: add a learned, persisted-optional type-D
+  NEUTRAL feed trim, e.g. `static float g_relay_neutral_trim_sps = 0.0f;`.
+  Applied only in the `BUF_SENSOR_TYPE == 0` NEUTRAL relay path:
+  `neutral = clamp(EST*RELAY_NEUTRAL_FRAC + g_relay_neutral_trim_sps,
+  SYNC_MIN_SPS, relay_base)` (in/after `relay_control_law`, `sync.c:1812`).
+- [ ] 7.2 `firmware/src/sync.c`: update the trim at each type-D state crossing
+  (the transition handler near `sync.c:1027`, where `old`/`new_state` are known):
+  - `new_state == BUF_COMPRESSION` → overfed → `trim -= SYNC_RELAY_TRIM_STEP_SPS`.
+  - `new_state == BUF_TENSION` → starved → `trim += SYNC_RELAY_TRIM_STEP_SPS`.
+  - `new_state == BUF_NEUTRAL` → no change (v1).
+  Clamp `trim` to `±SYNC_RELAY_TRIM_CLAMP_SPS` (anti-windup). Step size sets the
+  residual steady-state click rate — small step = slower converge, rarer plateau
+  clicks. Scope strictly `BUF_SENSOR_TYPE == 0`.
+- [ ] 7.3 `firmware/src/sync.c`: remove the ad-hoc, non-convergent type-D EST
+  drags (`2142`, `2168`, `2189`) — the trim replaces them. **Leave type-P's EST
+  feedforward (`psf_control_law:1840`) untouched**; gate the removal to
+  `BUF_SENSOR_TYPE == 0` so analog type-P is byte-identical.
+- [ ] 7.4 `scripts/gen_config.py` + `config.ini.example` + `TUNING.md`: add
+  `SYNC_RELAY_TRIM_STEP_SPS` and `SYNC_RELAY_TRIM_CLAMP_SPS` as `SET:`/`GET:`
+  tunables (mirror the `relay_neutral_frac` plumbing in `protocol.c`). Document
+  the convergence intuition. No `SETTINGS_VERSION` bump unless the learned trim
+  is persisted (a new stored field) — if persisted, bump and note it.
+- [ ] 7.5 Optional v2 (only if v1 converges too slowly / clicks too long):
+  weight the step by dwell time — a *short* NEUTRAL→COMPRESSION dwell = large
+  overfeed = bigger step; long dwell = small step. Use `g_buf.entered_ms`.
+- [ ] 7.6 Build + tests green; OpenSpec strict validation.
+- [ ] 7.7 HW: 10 mm/s soak. Confirm acceptance above — touch rate decays to
+  sparse, feed steady (no wroom), TENSION ≈ 0. Then a feature-speed change
+  (10→25 mm/s) should re-converge within a few crossings. Restore
+  `BASELINE_RATE:2400` first.
 
 ## 8. Docs + spec
 
@@ -141,3 +168,43 @@ replacing the ad-hoc EST nudges. See `design.md` → "Fork B".
   superseding the original "default-only detune" framing.
   - 2026-06-02: proposal and OpenSpec tuning delta now frame Fork A as
     no-overshoot ramp + EST true-stop fix + `relay_neutral_frac` `1.00`.
+
+## 9. Fork C — demand-scale the baseline anti-tension floor (NEW ROOT, do before §7)
+
+HW follow-up 5 (see `design.md`): a `frac` sweep proved `relay_neutral_frac` is
+**non-functional** — frac 1.10/1.00/0.50 all produce `MM ≈ 1680`. The pin is
+`sync_neutral_anti_tension_floor_sps` = `BASELINE_RATE(2400) × 0.70 = 1680`, a
+baseline-derived NEUTRAL refill floor that fires whenever the buffer is at/below
+the compression-biased reserve target. At 10 mm/s (demand ~300-700) this floor
+is 2.5-5× demand ⇒ mandatory overfeed ⇒ COMPRESSION bang-bang, at any frac.
+This supersedes the "frac is the lever" framing; §6.3 frac change is inert until
+this floor scales with demand.
+
+- [ ] 9.1 Diagnostic confirm (no code): at the rig, lower `BASELINE_RATE` (e.g.
+  `SET:BASELINE_RATE:800`) and re-poll at 10 mm/s. Expect `MM` floor to drop to
+  ~`new_baseline × 0.70`. Confirms the anti-tension floor is the pin. Restore
+  baseline after.
+- [ ] 9.2 `firmware/src/sync.c` `sync_neutral_anti_tension_floor_sps`: make the
+  floor demand-scaled, not a fixed fraction of baseline — e.g.
+  `min(baseline·0.70, extruder_est_sps·k)` or EST-derived — so at low demand the
+  floor falls to ~demand instead of pinning to baseline·0.70. Preserve tension
+  protection when demand is genuinely high. Scope to `BUF_SENSOR_TYPE == 0`;
+  verify type-P (analog) path unaffected.
+- [ ] 9.3 `firmware/src/sync.c`: tighten the fire condition so the floor engages
+  only when genuinely tension-side (`error_norm < −deadband_norm`), not the
+  broad `<= +deadband` that fires across the compression-biased target band.
+- [ ] 9.4 Re-evaluate the `+2.5` compression-biased reserve target
+  (`buf_target_reserve_mm`) for type-D: a near-zero target lets the buffer rest
+  mid-band instead of riding the compression edge where the floor keeps firing.
+- [ ] 9.5 Audit the rest of the baseline-derived floor stack for the same
+  low-demand defect: `baseline_control_floor_sps` use in `relay_control_law`
+  (`relay_base` clamp), the model-stall EST bleed (`sync.c:2168`, bleeds EST up
+  to `baseline_floor`), the §5 relay floor. Demand-scale or gate each.
+- [ ] 9.6 Build + tests green; OpenSpec strict validation.
+- [ ] 9.7 HW: 10 mm/s soak. Expect `MM` now tracks real demand (not 1680), frac
+  becomes functional again, COMPRESSION cycle gone or greatly reduced. THEN
+  re-run the §6.3 frac A/B and the §7.1 Fork-B gate with frac actually live.
+
+> Note: §6.1 (no-overshoot ramp) and §6.2 (EST true-stop) stay — both correct —
+> but are downstream of this floor and could not act while the floor pinned feed.
+> §7 (Fork B / adaptive frac) is gated behind §9: frac must be functional first.
