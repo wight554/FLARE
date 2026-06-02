@@ -265,11 +265,11 @@ For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`), FLARE overrides the co
 - **`BUF_NEUTRAL` (neutral zone)**: Dynamically tracks estimated extruder demand (`extruder_est_sps * RELAY_NEUTRAL_FRAC`), clamped to the range `[SYNC_MIN_SPS, baseline_control_floor_sps()]`. This prevents the buffer from slamming either wall during steady consumption.
 
 In type-D `BUF_NEUTRAL`, the relay target is also the minimum applied neutral
-feed after shared reserve scaling and compression-recovery shaping. Those
-shared shapers may reduce analog type-P output, but they must not clip the
-type-D neutral relay below `extruder_est_sps * RELAY_NEUTRAL_FRAC` after a real
-`BUF_TENSION` hit. Fast-brake and `BUF_COMPRESSION` true-stop remain allowed to
-command zero.
+feed while reserve error is tension-side, after shared reserve scaling and
+compression-recovery shaping. Those shared shapers may reduce analog type-P
+output, and they may also reduce type-D neutral output once the reserve is
+at/above target so the controller can brake before `BUF_COMPRESSION`. Fast-brake
+and `BUF_COMPRESSION` true-stop remain allowed to command zero.
 
 Zero feed in `BUF_COMPRESSION` does not deadlock the relay: the flip out keys on the physical `NEUTRAL` crossing (extruder draw), and `relay_min_flip_mm` defaults to `0` (time-based hysteresis).
 
@@ -450,8 +450,10 @@ for tuning and regression monitoring.
   the requested target down toward `COMPRESSION_RATE` across the remaining
   full-side virtual travel instead of dropping there in one step.
 - Type-D `BUF_NEUTRAL` re-applies the relay neutral target as a lower bound
-  after this shared shaping, so virtual reserve trim cannot create a neutral
-  underfeed that repeatedly falls back to real `BUF_TENSION`.
+  after this shared shaping only while the reserve is tension-side, so virtual
+  reserve trim cannot create a neutral underfeed that repeatedly falls back to
+  real `BUF_TENSION`, but compression-side trim can still brake before the
+  compression switch.
 - The controller also computes a dynamic compression-wall time from remaining
   physical margin and current relative push. If time-to-wall collapses while
   sync is still driving toward `COMPRESSION`, firmware adds urgency trim and can

@@ -103,6 +103,14 @@ printer pull the buffer back to real `BUF_TENSION`. This changes the scope from
   that steady feeds no longer revisit `BUF_TENSION` and that compression still
   drains through the true-stop branch.
 
+2026-06-02 follow-up testing confirmed that risk: the broad floor eliminated
+the TENSION return, but kept feeding hard even after the neutral reserve was
+already compression-side. That turned the type-D neutral band into repeated
+COMPRESSION bang-bang. Narrow the relay floor so it only applies while the
+reserve error is tension-side (`bp_eff < effective_target`). Once neutral is at
+or above the reserve target, shared reserve scaling and compression-recovery
+trim must be allowed to reduce feed again.
+
 ### BEHAVIOR.md
 
 - Clarify that in type-D neutral, the relay target remains the minimum applied

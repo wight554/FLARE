@@ -2198,7 +2198,7 @@ void sync_tick(uint32_t now_ms) {
     } else {
         target_sps = psf_control_law(error_norm);
     }
-    int type_d_neutral_relay_floor_sps = (BUF_SENSOR_TYPE == 0 && s == BUF_NEUTRAL)
+    int type_d_neutral_relay_floor_sps = (BUF_SENSOR_TYPE == 0 && s == BUF_NEUTRAL && error_norm < 0.0f)
         ? target_sps : 0;
 
     /* RAMPING BIAS: If we don't know where we are, raise speed a little bit
@@ -2278,9 +2278,8 @@ void sync_tick(uint32_t now_ms) {
     }
 
     /* Type-D NEUTRAL relay output is the demand estimate plus the configured
-     * lean. Shared reserve/recovery shapers may slow analog control, but they
-     * must not turn the discrete relay's neutral refill into an underfeed after
-     * a real TENSION hit. COMPRESSION true-stop and fast-brake still win below. */
+     * lean. Preserve it only while reserve is tension-side; once at/above target,
+     * shared shapers must be able to brake before the COMPRESSION switch. */
     if (type_d_neutral_relay_floor_sps > 0 && target_sps < type_d_neutral_relay_floor_sps) {
         target_sps = type_d_neutral_relay_floor_sps;
     }

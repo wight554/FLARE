@@ -51,3 +51,8 @@
   - 2026-06-02: `ninja -C build_local` passed.
 - [ ] 5.4 HW: retest the reproduced 1.30 case; expected result is no post-tension
   `MM` collapse below `EST * RELAY_NEUTRAL_FRAC` while in `BUF_NEUTRAL`.
+- [x] 5.5 `firmware/src/sync.c`: narrow the relay neutral floor to the
+  tension-side half of `BUF_NEUTRAL` so compression-side trim can brake instead
+  of repeatedly bang-banging `BUF_COMPRESSION`.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+  - 2026-06-02: `ninja -C build_local` passed.
