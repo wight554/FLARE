@@ -2234,7 +2234,7 @@ void sync_tick(uint32_t now_ms) {
         return;
     }
 
-    if (A && A->task == TASK_FEED && A->fault == FAULT_NONE && (sync_current_sps > 0 || (g_sync_state == SYNC_ACTIVE && s == BUF_COMPRESSION))) {
+    if (A && (A->task == TASK_FEED || A->task == TASK_IDLE) && A->fault == FAULT_NONE && g_sync_state == SYNC_ACTIVE) {
         if (g_buf.mmu_sps_dwell_samples >= 10000) {
             g_buf.mmu_sps_dwell_sum /= 2;
             g_buf.mmu_sps_dwell_samples /= 2;
