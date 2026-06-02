@@ -44,25 +44,90 @@ shows steady TENSION drift.
 - **THEN** it is `1.0` cycles/s (not raised to absorb the relay limit cycle),
   so a genuine sustained cycle is reported rather than silenced
 
-### Requirement: Type-D relay trim learns from switch crossings
+### Requirement: Type-D relay trim is a one-sided anti-starvation integrator
 
-For `BUF_SENSOR_TYPE == 0`, the firmware SHALL treat `BUF_NEUTRAL` crossings to
-real switches as the available feedback signal: COMPRESSION touches SHALL reduce
-the volatile neutral feed trim, TENSION touches SHALL increase it, and the trim
-SHALL be anti-windup clamped. The trim SHALL apply only to the type-D NEUTRAL
-relay feed and SHALL NOT alter analog type-P feedforward.
+For `BUF_SENSOR_TYPE == 0`, the volatile neutral feed trim SHALL only ever
+*raise* NEUTRAL feed. A TENSION touch (starvation, the dangerous rail) SHALL
+increase the trim by `SYNC_RELAY_TRIM_STEP_SPS`, clamped to
+`+SYNC_RELAY_TRIM_CLAMP_SPS`, and the trim SHALL leak toward zero during
+`BUF_NEUTRAL` dwell. A COMPRESSION touch SHALL NOT reduce the trim: COMPRESSION
+is the tolerated/safe rail, and steady overfeed is corrected by the
+switch-crossing demand estimator (`extruder_est_sps`), not by cutting feed.
+Consequently the trim SHALL remain non-negative, so it can never drive NEUTRAL
+feed below `demand × relay_neutral_frac` (the prior two-sided trim ratcheted
+negative under compression-dominated dynamic flow and dragged the buffer toward
+TENSION). The trim SHALL apply only to the type-D NEUTRAL relay feed and SHALL
+NOT alter analog type-P feedforward.
 
-#### Scenario: COMPRESSION touch backs off neutral feed
+#### Scenario: COMPRESSION touch does not cut neutral feed
 
 - **WHEN** the type-D buffer crosses from `BUF_NEUTRAL` to `BUF_COMPRESSION`
-- **THEN** the learned neutral trim is reduced by `SYNC_RELAY_TRIM_STEP_SPS`
-- **AND** the result is clamped to `-SYNC_RELAY_TRIM_CLAMP_SPS`
+- **THEN** the learned neutral trim is left unchanged (no down-step)
+- **AND** any standing overfeed is corrected through `extruder_est_sps`
+  crossing samples instead
 
-#### Scenario: TENSION touch restores neutral feed
+#### Scenario: TENSION touch raises neutral feed
 
 - **WHEN** the type-D buffer crosses from `BUF_NEUTRAL` to `BUF_TENSION`
 - **THEN** the learned neutral trim is increased by `SYNC_RELAY_TRIM_STEP_SPS`
 - **AND** the result is clamped to `+SYNC_RELAY_TRIM_CLAMP_SPS`
+
+#### Scenario: Trim cannot push the buffer toward TENSION
+
+- **WHEN** the type-D buffer dwells in `BUF_NEUTRAL`
+- **THEN** the effective trim is non-negative
+- **AND** the commanded NEUTRAL feed is never below `demand × relay_neutral_frac`
+
+### Requirement: Type-D COMPRESSION feed drains gently while the extruder draws
+
+For `BUF_SENSOR_TYPE == 0`, COMPRESSION feed SHALL be a bounded fraction of
+estimated demand (`SYNC_COMPRESSION_DRAIN_FRAC × extruder_est_sps`) — not a hard
+zero — while sync is active and the extruder is actively drawing filament
+(estimated demand above a small threshold), so
+the buffer drains a small bounded amount off the COMPRESSION rail instead of
+dumping the full span toward TENSION and forcing a re-ramp from zero. The drain
+fraction SHALL be clamped strictly below demand so the buffer cannot net-fill
+while pinned. When estimated demand is ≈ 0 (end-of-feed / `TASK_IDLE`),
+COMPRESSION feed SHALL remain a true zero to preserve the purge/idle no-grind
+behavior. Applies only to type-D; SHALL NOT alter analog type-P.
+
+#### Scenario: Active-draw COMPRESSION drains gently
+
+- **WHEN** the type-D buffer is in `BUF_COMPRESSION` and the extruder is
+  actively drawing (estimated demand above the idle threshold)
+- **THEN** the commanded feed is `SYNC_COMPRESSION_DRAIN_FRAC × demand`,
+  clamped strictly below demand
+
+#### Scenario: Idle COMPRESSION true-stops
+
+- **WHEN** the type-D buffer is in `BUF_COMPRESSION` and estimated demand is
+  ≈ 0 (`TASK_IDLE` / end-of-feed)
+- **THEN** the commanded feed is `0` (true-stop preserved)
+
+### Requirement: Asymmetric relay cycle analyzer reports tuning metrics
+
+A host analyzer SHALL parse the status poll stream and report, over a window:
+TENSION touch count (the hard constraint; target `0`), COMPRESSION pin
+duration, mean `EST − MM` during `BUF_NEUTRAL` (the underfeed / tension-drift
+signature), the `BP` distribution and minimum, and the relay cycle period. The
+analyzer SHALL emit an asymmetric-objective verdict: PASS only when TENSION
+touches are zero; otherwise it SHALL recommend the controller-correct lever
+(raise `relay_neutral_frac` or adjust the COMPRESSION drain / trim settings) and
+SHALL NOT recommend `sync_kp_rate` for type-D. The analyzer SHALL operate
+read-only from existing poll fields (`BP`, `BUF`, `MM`, `EST`) and SHALL NOT
+require new firmware telemetry.
+
+#### Scenario: A TENSION touch fails the asymmetric objective
+
+- **WHEN** the analyzed window contains at least one TENSION touch
+- **THEN** the verdict is FAIL with remediation naming `relay_neutral_frac` /
+  COMPRESSION-drain / trim, not `sync_kp_rate`
+
+#### Scenario: Underfeed drift is surfaced from existing fields
+
+- **WHEN** mean `EST − MM` during `BUF_NEUTRAL` is positive over the window
+- **THEN** the analyzer reports a tension-ward underfeed drift without requiring
+  any new firmware telemetry
 
 ### Requirement: Type-D estimator anchors on neutral fill
 

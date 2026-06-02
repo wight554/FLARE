@@ -553,3 +553,92 @@ buffer near TENSION before the reactive trim has time to help.
 
 - [x] 14.1 `config.ini`: Add/lower `sync_ramp_decel` to `150` mm/s² to slow down deceleration, preventing sudden feed drops and subsequent tension starvation on transitioning into NEUTRAL.
 - [x] 14.2 Build + tests green; OpenSpec strict validation.
+
+## 15. Dynamic-flow: one-sided anti-starvation trim
+
+Root cause of the dynamic-flow TENSION drift (see design.md "Dynamic-flow
+TENSION drift — the trim ratchet"): the two-sided neutral trim ratchets negative
+under compression-dominated demand-stepped flow (`−300 sps`/COMPRESSION touch,
+clamp `−2000 sps`), dragging NEUTRAL feed below demand → drift to TENSION.
+
+- [x] 15.1 `firmware/src/sync.c` (`buf_update`, ~`sync.c:1242-1249`): remove the
+  `NEUTRAL → COMPRESSION` trim down-step. Keep the `NEUTRAL → TENSION` up-step
+  (`+SYNC_RELAY_TRIM_STEP_SPS`, clamp `+SYNC_RELAY_TRIM_CLAMP_SPS`) and the
+  in-NEUTRAL leak. Trim becomes a non-negative anti-starvation integrator that
+  can never drive NEUTRAL feed below `demand × relay_neutral_frac`.
+  - 2026-06-02: Removed the COMPRESSION down-step; only
+    `BUF_NEUTRAL -> BUF_TENSION` adds `SYNC_RELAY_TRIM_STEP_SPS`.
+- [x] 15.2 Confirm `relay_neutral_trim_clamp` / leak still floor the trim at `0`
+  (no negative excursion); adjust the clamp call site if it assumed a symmetric
+  range. Steady overfeed remains corrected by the `extruder_est_sps` crossing
+  estimator, not by trim.
+  - 2026-06-02: Clamp remains symmetric, EST-jump reset remains untouched, and
+    neutral leak still floors positive trim to `0`; crossing updates no longer
+    create negative trim.
+- [x] 15.3 `BUF_SENSOR_TYPE == 0` only; verify analog type-P feedforward path
+  untouched.
+  - 2026-06-02: The crossing update remains under `BUF_SENSOR_TYPE == 0`;
+    `psf_control_law` / analog type-P paths were not changed.
+- [x] 15.4 Build + tests green; OpenSpec strict validation.
+  - 2026-06-02: `ninja -C build_local` passed.
+  - 2026-06-02: `bash scripts/validate_regression.sh` passed.
+  - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-02: `python3 scripts/test_*.py` passed.
+  - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
+- [ ] 15.5 HW: re-verify the **constant-feed soak** that currently passes (no
+  regression from removing the down-step — overfeed must still converge via EST).
+
+## 16. Dynamic-flow: gated COMPRESSION partial-drain
+
+Bound the cycle amplitude so brief COMPRESSION touches don't dump the full span
+and force a re-ramp from zero (the "drops too hard" turning point).
+
+- [ ] 16.1 New runtime knob `SYNC_COMPRESSION_DRAIN_FRAC` (default ≈ `0.4`,
+  clamp `[0.0, 0.9]`): add to `controller_shared.h`, `settings_store.c`
+  (defaults/save/load), `protocol.c` (SET/GET + validate list), `gen_config.py`
+  / `config.ini.example` / `tune.h`. Bump `SETTINGS_VERSION` (supersedes the
+  earlier no-bump non-goal for this added field; defaulted-load preserves
+  existing TMC/calibration fields).
+- [ ] 16.2 `firmware/src/sync.c` (~`sync.c:2499`): replace the unconditional
+  type-D COMPRESSION `target_sps = 0` with — while the extruder actively draws
+  (estimated demand above an idle threshold) — `target_sps =
+  SYNC_COMPRESSION_DRAIN_FRAC × extruder_est_sps`, clamped strictly below demand
+  (no net-fill while pinned). Keep `target_sps = 0` when demand ≈ 0 /
+  `TASK_IDLE` to preserve the purge/idle no-grind true-stop
+  (purge-grind / compression-overfeed-stop).
+- [ ] 16.3 Ensure `fast_brake` / relief-pause / collapse paths still force `0`
+  where required (drain frac applies only to the normal active-draw COMPRESSION
+  feed, not to the brake/fault stops).
+- [ ] 16.4 `BUF_SENSOR_TYPE == 0` only; type-P untouched.
+- [ ] 16.5 Build + tests green; OpenSpec strict validation.
+
+## 17. Asymmetric relay cycle analyzer + tuning guide
+
+- [ ] 17.1 `scripts/`: read-only poll analyzer (parse `OK:` status lines from
+  `flare_cmd.py --poll`, or a saved capture). Compute over a window:
+  `tension_touches` (BUF→TENSION count), `comp_pin_ms` (consecutive COMPRESSION
+  with `MM ≈ 0`), `mean(EST − MM)` during NEUTRAL, `bp_min` / `bp_mean`, relay
+  `cycle_period`. No new firmware telemetry — existing fields only.
+- [ ] 17.2 Emit the asymmetric-objective verdict: PASS **iff**
+  `tension_touches == 0`; otherwise FAIL with remediation naming
+  `relay_neutral_frac` / `SYNC_COMPRESSION_DRAIN_FRAC` / trim — never
+  `sync_kp_rate` for type-D.
+- [ ] 17.3 Unit tests for the analyzer (parsing + metric math + verdict), in the
+  style of `test_flare_sync_check.py`.
+- [ ] 17.4 `TUNING.md`: add the type-D asymmetric tuning sequence (constraint =
+  TENSION touches → 0, then lower `SYNC_COMPRESSION_DRAIN_FRAC` for comfort) and
+  document `SYNC_COMPRESSION_DRAIN_FRAC` + the one-sided trim in
+  `MANUAL.md` / `BEHAVIOR.md`.
+- [ ] 17.5 `python3 -m py_compile scripts/*.py` + analyzer tests green; OpenSpec
+  strict validation.
+
+## 18. Hardware validation (dynamic-flow phase)
+
+- [ ] 18.1 HW: rerun the real-print benchmark (300 mm/min outer walls ↔
+  1500 mm/min infill). Expect **zero TENSION touches**; COMPRESSION touches
+  brief and self-correcting (no full-span dump, no fixed-rate click cycle);
+  `mean(EST − MM)` in NEUTRAL ≈ 0 (no underfeed drift).
+- [ ] 18.2 HW: tune `SYNC_COMPRESSION_DRAIN_FRAC` per the §17.4 sequence; record
+  the rig-validated default. If the pair under-leans (TENSION touches > 0 at
+  any drain frac), apply the deferred fallbacks from design.md (small
+  `relay_neutral_frac` raise and/or time-since-crossing back-off) and record.

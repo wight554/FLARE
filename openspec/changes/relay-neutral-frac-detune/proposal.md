@@ -79,3 +79,68 @@ controller that ignores it.
   `SET:RELAY_NEUTRAL_FRAC:1.00` or factory-resets; fresh flashes get 1.00.
 - No firmware guard yet for "`tune` mode kp-autotunes a relay that ignores
   kp" — recorded as an open follow-up in `design.md`.
+
+## Addendum (2026-06-02): dynamic-flow TENSION drift
+
+The steady-state fixes above (frac → 1.00, ramp tuning, no-overshoot slew,
+softened tension fallback, compression-side reserve) hold a **constant-feed**
+soak well. A real print that steps demand hard (300 mm/min outer walls ↔
+1500 mm/min infill) still degrades: on each COMPRESSION touch feed slams to `0`
+and the buffer then drifts slowly toward TENSION while "unsure", risking
+starvation. HW poll confirms it: `MM` sits a few percent **below** `EST`
+throughout NEUTRAL.
+
+Root cause (traced, `design.md` "Dynamic-flow TENSION drift"): the two-sided
+neutral trim is a slow integrator that assumes COMPRESSION/TENSION touches are a
+*standing feed bias*. Under demand-stepped flow the touches are *demand
+transients* (wall ↔ infill), so the trim mis-attributes a compression-dominated
+cycle as overfeed and **ratchets negative** (`−SYNC_RELAY_TRIM_STEP_SPS` per
+COMPRESSION touch, clamp `−SYNC_RELAY_TRIM_CLAMP_SPS = −2000 sps ≈ −293 mm/min`,
+leak only `+75 sps/s`). That negative trim drives NEUTRAL feed below demand →
+dead-reckoned position integrates toward TENSION. A small `relay_neutral_frac`
+raise does **not** fix it: one COMPRESSION touch (−44 mm/min) is under a
+`1.0→1.1` raise (+81 mm/min), but two touches (−88) eat it and the clamp buries
+it. The trim is the disease, not a confounder.
+
+The two complaints ("drops too hard on COMPRESSION", "drifts to TENSION when
+unsure") are the two **turning points of one relay limit cycle**. This phase
+attacks both, by removing a bias rather than stacking new ones:
+
+- **One-sided trim.** Drop the COMPRESSION down-step; keep the TENSION up-step
+  (fast anti-starvation) and the neutral leak. Trim becomes a non-negative
+  anti-starvation integrator that can never push toward TENSION. Steady overfeed
+  is already corrected by the switch-crossing `extruder_est_sps` estimator, so
+  the down-step was redundant *and* harmful under dynamic flow.
+- **Gated COMPRESSION partial-drain.** While the extruder actively draws, feed
+  `SYNC_COMPRESSION_DRAIN_FRAC × demand` (clamped < demand) instead of a hard
+  `0`, so the buffer drains a small bounded amount off the COMPRESSION rail
+  instead of dumping the full span and re-ramping from zero. Keep the true-stop
+  `0` only when demand ≈ 0 (end-of-feed / `TASK_IDLE`), preserving the
+  purge/idle no-grind behavior.
+- **Asymmetric-objective analyzer + tuning guide.** A read-only poll analyzer
+  (`scripts/`) reporting the metrics that matter (TENSION touches → must be `0`;
+  COMPRESSION pin time; `mean(EST − MM)` in NEUTRAL = the underfeed signature;
+  BP distribution; cycle period) and emitting a controller-correct verdict, plus
+  a `TUNING.md` section codifying the asymmetric tuning sequence. Makes the
+  multi-knob surface a near-1-D search ("raise lean until TENSION touches hit 0,
+  then lower drain until COMPRESSION pin is comfortable").
+
+This deliberately re-frames the goal as a **small asymmetric limit cycle hugging
+the COMPRESSION rail** (the benign, self-recalibrating rail) — the relay-control
++ constraint-back-off framing — rather than mid-band regulation, which is
+unobservable on a 2-switch buffer. `relay_neutral_frac` stays at the `1.00`
+demand-match default; the time-since-crossing "probe" and a frac raise are
+recorded as **deferred fallbacks** only if the pair under-leans on HW.
+
+### Addendum decisions / scope deltas
+
+- **`SETTINGS_VERSION` bump (supersedes the no-bump non-goal for this phase).**
+  `SYNC_COMPRESSION_DRAIN_FRAC` is a new persisted runtime knob (SET/GET) so the
+  analyzer/guide can sweep it live; adding a settings field requires a version
+  bump. Migration is safe — the new field loads its default; existing
+  TMC/calibration fields are preserved by the normal defaulted-load path.
+- The one-sided trim **supersedes** the two-sided trim shipped earlier in this
+  same change (§"Type-D relay trim learns from switch crossings" → "one-sided
+  anti-starvation integrator"). The change is still active/unarchived, so this is
+  an in-flight iteration, not a spec contradiction.
+- Still no type-P control-law change; all work scoped `BUF_SENSOR_TYPE == 0`.

@@ -1239,12 +1239,9 @@ estimator_done:
         if (g_bp_drift_samples < 65535u) g_bp_drift_samples++;
     }
 
-    if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL &&
-        (new_state == BUF_TENSION || new_state == BUF_COMPRESSION) &&
+    if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL && new_state == BUF_TENSION &&
         SYNC_RELAY_TRIM_STEP_SPS > 0 && SYNC_RELAY_TRIM_CLAMP_SPS > 0) {
-        float step = (float)SYNC_RELAY_TRIM_STEP_SPS;
-        if (new_state == BUF_COMPRESSION) g_relay_neutral_trim_sps -= step;
-        else g_relay_neutral_trim_sps += step;
+        g_relay_neutral_trim_sps += (float)SYNC_RELAY_TRIM_STEP_SPS;
         relay_neutral_trim_clamp();
     }
 

@@ -650,3 +650,187 @@ On exiting TENSION catch-up, the MMU feed rate drops instantly from `3000 mm/min
 
 ### The Fix
 Add and lower `sync_ramp_decel` to `150 mm/s²`. This makes the deceleration ramp gentle, preventing sudden speed collapses and allowing the buffer to settle smoothly in NEUTRAL.
+
+
+## Dynamic-flow TENSION drift (2026-06-02) — the trim ratchet
+
+### Symptom
+
+After the steady-state detune (frac → 1.00), a **constant-feed** soak is clean,
+but a real print stepping demand hard (300 mm/min outer walls ↔ 1500 mm/min
+infill) regresses: every COMPRESSION touch slams feed to `0`, then the buffer
+drifts slowly toward TENSION "when unsure", grazing starvation. HW poll shows
+`MM` sitting a few percent **below** `EST` for the whole NEUTRAL dwell, e.g. at
+`EST = 814.7 mm/min`, `MM` enters NEUTRAL near `770` and only climbs back to
+`~811` as the dwell ages.
+
+### Root cause: the two-sided neutral trim ratchets negative
+
+NEUTRAL feed = `(int)(demand_sps × relay_neutral_frac + g_relay_neutral_trim_sps)`
+(`relay_control_law`, `sync.c:2034`). The trim (`sync.c:1246`) is a slow
+integrator over switch crossings:
+
+```
+trim -= SYNC_RELAY_TRIM_STEP_SPS   on NEUTRAL → COMPRESSION   (STEP = 300 sps)
+trim += SYNC_RELAY_TRIM_STEP_SPS   on NEUTRAL → TENSION
+trim  +75 sps/s leak toward 0      after 500 ms in NEUTRAL    (LEAK_RATE_FRAC 0.25)
+clamp ±SYNC_RELAY_TRIM_CLAMP_SPS   (= ±2000 sps)
+```
+
+Unit scale: `MM_PER_STEP = 0.0024437` → `1 sps = 0.1466 mm/min`. So
+`EST 814 mm/min = 5552 sps`; one trim step `300 sps = 44 mm/min`; clamp
+`2000 sps = 293 mm/min`; leak `75 sps/s = 11 mm/min/s`.
+
+The trim's premise is that crossings indicate a *standing feed bias* to null
+out. That holds for a constant-feed soak. Under demand-stepped flow the
+crossings are *demand transients* (the wall↔infill steps), and the cycle is
+**COMPRESSION-dominated** (a 1500→300 step overfills before EST catches up). So
+the trim ratchets negative — `−44 mm/min` per COMPRESSION touch, leak too slow
+to recover — bottoming toward the `−293 mm/min` clamp. Negative trim makes
+NEUTRAL feed < demand, so the dead-reckoned virtual position
+(`buf_virtual_position_tick`, `sync.c:430`: `g_buf_pos += (feed − EST)·dt`)
+integrates **downward toward TENSION**. The observed `MM ≈ 770` climbing to
+`~811` is exactly the negative trim leaking back out — too late, the buffer has
+already drifted.
+
+`relay_base` clamp ruled out: `baseline_control_floor_sps ≈ BF 2400 mm/min =
+16367 sps ≫ demand 5552`, never binds. `(int)` truncation ≤ 1 sps, negligible.
+
+### Why a frac raise does not fix it
+
+`relay_neutral_frac 1.0 → 1.1` adds `0.1 × 5552 = 555 sps = +81 mm/min`. One
+COMPRESSION touch (`−44`) stays under it, but **two** touches (`−88`) exceed it
+and the clamp (`−293`) buries it. In a COMPRESSION-dominated cycle the trim
+dominates any modest lean. The trim must be fixed; lean on top of it is masking.
+
+### The two complaints are one limit cycle
+
+```
+ COMP rail ┤█──┐  feed → 0 (hard true-stop) = MAX drain      ← "drops too hard"
+           │   └──┐    (upper turning point dumps the whole span)
+   NEUTRAL ┤      └──┐  feed = demand + (negative trim) < demand
+           │         └──┐   (slow drift)
+ TENS rail ┤            █   ← "drifts to TENSION when unsure" = starvation
+```
+
+Hard-`0` on COMPRESSION guarantees a full rail-to-rail drain → large, slow cycle
+that always swings near TENSION. At 300 mm/min walls the extruder barely draws,
+so `0`-feed pins the buffer full, then resumes from `0`, undershoots, drifts.
+The hard-`0` *manufactures* the TENSION excursion.
+
+### Fix — remove a bias, bound the amplitude (do not stack leans)
+
+Reframe the objective as a **small asymmetric limit cycle hugging the
+COMPRESSION rail** (benign, self-recalibrating) instead of unobservable mid-band
+regulation. Minimal pair, attacking both turning points:
+
+1. **One-sided trim** (`sync.c:1242-1249`). Drop the `NEUTRAL → COMPRESSION`
+   down-step. Keep the `NEUTRAL → TENSION` up-step (fast anti-starvation) and
+   the neutral leak. Trim becomes non-negative — it can only ever raise feed,
+   never push toward TENSION. Steady overfeed is corrected by the
+   `extruder_est_sps` crossing estimator (`neutral_fill_sample`, `sync.c:1145`),
+   so the down-step was redundant and, under dynamic flow, harmful.
+
+2. **Gated COMPRESSION partial-drain** (`sync.c:2499`). Replace the
+   unconditional `target_sps = 0` with: while the extruder actively draws
+   (estimated demand above an idle threshold), `target_sps =
+   SYNC_COMPRESSION_DRAIN_FRAC × extruder_est_sps`, clamped strictly below
+   demand so the buffer cannot net-fill while pinned. Keep `0` when demand ≈ 0 /
+   `TASK_IDLE` — that is the purge/idle no-grind case the hard-`0` was added for
+   ([[purge-grind-root-cause-macro]], [[compression-overfeed-stop]]); the two
+   needs do not conflict once gated on demand. Suggested default
+   `SYNC_COMPRESSION_DRAIN_FRAC ≈ 0.4` (rig-tuned).
+
+Deferred fallbacks (only if the pair under-leans on HW), recorded not shipped:
+- small `relay_neutral_frac` raise (now effective, nothing eating it), and/or
+- a **time-since-crossing back-off** replacing the dead confidence probe
+  (`sync.c:2388`, `uncertainty × 6 sps ≈ 0.9 mm/min` — comment claims 150
+  mm/min; both the `×6` coefficient and the sqrt·0.025-scaled confidence make it
+  inert). The principled version scales the lean by ticks-since-last-switch
+  (intermittent-observation estimate-covariance growth), capped, reset on any
+  touch.
+
+### Control-theory framing (why this is the right shape)
+
+- **Åström–Hägglund relay feedback / auto-tuning** — the limit cycle is itself a
+  demand identifier; the crossing estimator (`arm_vel_mm_s = travel_mm /
+  effective_dwell`, `sync.c:1133`) already does this. Identification is *not* the
+  gap; the control objective is.
+- **Kalman filtering with intermittent observations** (Sinopoli et al., 2004) —
+  estimate covariance grows between measurements → justifies a
+  time-since-crossing back-off rather than the sigma gate.
+- **Constraint tightening / back-off in robust & stochastic MPC** (Mayne;
+  Richards–How) — back off from the *dangerous* constraint (TENSION) by a margin
+  sized to uncertainty. Formalizes "lean to the safe rail".
+- **Σ-Δ / PWM relay modulation** — duty-cycling the drain depth sets the
+  operating point between two discrete levels; maps onto
+  `SYNC_COMPRESSION_DRAIN_FRAC`.
+
+### Risks
+
+- **Lean pile-up.** frac + trim + reserve + drain-`k` all act on the same
+  feed-vs-demand axis; stacking is hard to reason about and can re-oscillate.
+  Mitigation: ship only the *removal* (one-sided trim) + amplitude bound
+  (drain-`k`); hold lean additions as deferred fallbacks.
+- **Steady-soak regression.** The two-sided trim aided constant-feed
+  convergence; removing the down-step shifts that onto the EST estimator. Must
+  re-verify the constant-feed soak (the case that currently passes).
+- **No mid-band ground truth** ([[typed-buffer-no-midband-groundtruth]]). Both
+  levers are open-loop bets validated only at the next crossing; prior mid-band
+  fixes failed on HW. Mitigation: every change biases toward the *benign* rail,
+  so mis-tuning fails **full** (brief stall), not **starved** (defect).
+- **HW-only validation.** Cycle shape is not unit-testable; needs rig soak with
+  the analyzer.
+
+### Analyzer + tuning guide
+
+Read-only host analyzer (`scripts/`, alongside `flare_cmd.py --poll` /
+`flare_sync_check.py`) over the poll stream. All metrics from existing fields
+(`BP`, `BUF`, `MM`, `EST`) — no new firmware telemetry:
+
+| Metric | From | Meaning |
+|--------|------|---------|
+| `tension_touches` | `BUF` → TENSION count | the hard constraint (target `0`) |
+| `comp_pin_ms` | consecutive COMPRESSION w/ `MM ≈ 0` | "drops too hard" severity |
+| `mean(EST − MM)` in NEUTRAL | `EST`, `MM` | underfeed / trim-ratchet signature (>0 = drifting TENSION) |
+| `bp_min`, `bp_mean` | `BP` | proximity to the dangerous rail |
+| `cycle_period`, amplitude | `BP` zero-crossings | cycle size |
+
+Verdict is asymmetric: **PASS only when `tension_touches == 0`**; remediation
+names `relay_neutral_frac` / COMPRESSION-drain / trim, never `sync_kp_rate` for
+type-D.
+
+`TUNING.md` tuning sequence (near-1-D search):
+1. Run a representative print (e.g. 300/1500 mm/min). Baseline the analyzer.
+2. Deploy one-sided trim; re-measure `tension_touches`.
+3. Still > 0? Raise `relay_neutral_frac` in small steps until `tension_touches =
+   0` (now effective — no negative trim to eat it).
+4. Lower `SYNC_COMPRESSION_DRAIN_FRAC` until `comp_pin_ms` is comfortable (no
+   grind/slam) while `tension_touches` stays `0`.
+5. Guard: watch `EV:BUF,cannot_refill` / `EST_LOW_CF`.
+
+### Settings / migration
+
+`SYNC_COMPRESSION_DRAIN_FRAC` is a new persisted runtime knob (SET/GET, clamped
+e.g. `[0.0, 0.9]`) so the guide can sweep it live → requires a `SETTINGS_VERSION`
+bump (supersedes this change's earlier no-bump non-goal *for this added field*).
+Defaulted-load preserves existing TMC/calibration fields. One-sided trim and
+gated drain are `BUF_SENSOR_TYPE == 0` only; type-P paths untouched.
+
+### §15 implementation plan (2026-06-02)
+
+Research read: this design section, the §15 task list, `buf_update()`,
+`relay_neutral_trim_clamp()`, `relay_neutral_trim_leak()`, and
+`relay_control_law()`. The root cause is the `BUF_NEUTRAL -> BUF_COMPRESSION`
+down-step at the crossing handler; clamp/leak/reset behavior can remain as-is.
+
+Plan:
+- `firmware/src/sync.c`: remove only the COMPRESSION trim down-step and keep the
+  TENSION up-step under the existing `BUF_SENSOR_TYPE == 0` crossing gate.
+  Leave the EST-jump reset (`trim *= 0.25f`) and neutral leak untouched.
+- `openspec/changes/relay-neutral-frac-detune/tasks.md`: mark §15.1-§15.4
+  complete after code review + validation. Leave §15.5 HW pending until real
+  hardware constant-feed soak results exist.
+
+Risk/invariant: trim must never become a negative feed bias from crossing
+updates, and analog type-P (`BUF_SENSOR_TYPE == 1`) must remain untouched.
