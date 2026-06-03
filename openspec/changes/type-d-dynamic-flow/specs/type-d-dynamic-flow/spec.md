@@ -12,8 +12,14 @@ This holds NEUTRAL feed high through the recovery window so the buffer does not
 re-drain into a second/third TENSION touch (the burst), collapsing each
 demand-step event to a single tension touch. The floor SHALL hand off to
 `extruder_est_sps` as it decays (by which time the estimator has caught the new
-demand). A brief COMPRESSION-side pulse during the recovery window is accepted as
-the cost of preventing the re-drain burst. This SHALL NOT alter analog type-P.
+demand). The recovery floor SHALL apply only in `BUF_NEUTRAL`: when its aggressive
+feed overshoots the buffer into `BUF_COMPRESSION`, the floor SHALL stop applying
+(it is NEUTRAL-only) so the existing COMPRESSION gated-drain / true-stop and
+relieve budget stabilize the buffer off the rail — the floor SHALL NOT fight the
+drain. A brief COMPRESSION-side excursion (one or a few transient touches) during
+the recovery window is accepted as the cost of preventing the re-drain tension
+burst, provided it stabilizes via the COMPRESSION path. This SHALL NOT alter
+analog type-P.
 
 The velocity-snap raise-only update of `extruder_est_sps` on the tension crossing
 MAY remain as a benign monotonic-up nudge; the recovery floor is the mechanism
@@ -26,6 +32,16 @@ that collapses the burst.
   recovery window
 - **AND** the buffer does not re-drain into further TENSION touches before the
   floor decays (the step produces one touch, not a burst)
+
+#### Scenario: Overshoot into COMPRESSION stabilizes via the drain, not the floor
+
+- **WHEN** the recovery floor's aggressive feed overshoots the buffer into
+  `BUF_COMPRESSION`
+- **THEN** the floor stops applying (it is NEUTRAL-only) and the existing
+  COMPRESSION gated-drain / true-stop + relieve budget drain the buffer off the
+  rail
+- **AND** the buffer stabilizes back toward NEUTRAL without the floor fighting the
+  drain (a brief COMPRESSION excursion is accepted)
 
 #### Scenario: Recovery floor decays and is not held high between steps
 

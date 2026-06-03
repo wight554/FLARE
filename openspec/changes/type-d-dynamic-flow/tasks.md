@@ -116,6 +116,10 @@ loud always; the decaying floor is loud only for ~1.5 s after each touch.
   `age = now - g_tension_floor_set_ms; if (g_tension_floor_sps>0 && age <
   SYNC_TENSION_RECOVERY_MS) { floor = g_tension_floor_sps * (1 - age/RECOVERY_MS);
   target_sps = max(target_sps, floor); }`. Feed-side only — independent of EST.
+  **NEUTRAL-only**: gate on `s == BUF_NEUTRAL` so an overshoot into COMPRESSION
+  stops the floor and lets the §16/§19 gated-drain stabilize the buffer (floor
+  must NOT fight the COMPRESSION drain). The floor re-applies if the buffer
+  returns to NEUTRAL while still inside the recovery window.
 - [ ] 5.4 New knobs (non-persisted, plumb like `SYNC_COMPRESSION_DRAIN_FRAC`):
   `SYNC_TENSION_RECOVERY_FLOOR` (mm/min, default ≈ `2400` / catchup level; `0` =
   disabled), `SYNC_TENSION_RECOVERY_MS` (default ≈ `1500`). Reset
