@@ -19,6 +19,8 @@
 #define CMD_POLL_COMMAND_BUDGET 4
 #define CMD_EVENT_WINDOW_MS 100
 #define CMD_EVENT_BUDGET 8
+#define CMD_PARAM_MAX 64
+#define CMD_PARAM_SCAN_WIDTH 63
 
 typedef struct {
     char buf[64];
@@ -784,9 +786,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         g_marker_seq++;
         cmd_reply("OK", "MARK");
     } else if (!strcmp(cmd, "SET")) {
-        char param[32];
+        char param[CMD_PARAM_MAX];
         char val_str[32];
-        if (sscanf(p, "%31[^:]:%31s", param, val_str) != 2) {
+        if (sscanf(p, "%63[^:]:%31s", param, val_str) != 2) {
             cmd_reply("ER", "SET:ARG");
             return;
         }
@@ -795,8 +797,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         bool handled = true;
 
         int lane_mask = 3;
-        char base_param[32];
-        strncpy(base_param, param, 32);
+        char base_param[CMD_PARAM_MAX];
+        strncpy(base_param, param, sizeof(base_param));
+        base_param[sizeof(base_param) - 1] = '\0';
         size_t len = strlen(param);
         if (len > 3 && !strcmp(param + len - 3, "_L1")) {
             lane_mask = 1;
@@ -1024,14 +1027,15 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else cmd_reply("ER", "SET:UNKNOWN_PARAM");
     } else if (!strcmp(cmd, "GET")) {
         char out[64];
-        char param[32];
+        char param[CMD_PARAM_MAX];
         int lane_mask = 1;
-        strncpy(param, p, 32);
-        size_t len = strlen(p);
-        if (len > 3 && !strcmp(p + len - 3, "_L1")) {
+        strncpy(param, p, sizeof(param));
+        param[sizeof(param) - 1] = '\0';
+        size_t len = strlen(param);
+        if (len > 3 && !strcmp(param + len - 3, "_L1")) {
             lane_mask = 1;
             param[len - 3] = '\0';
-        } else if (len > 3 && !strcmp(p + len - 3, "_L2")) {
+        } else if (len > 3 && !strcmp(param + len - 3, "_L2")) {
             lane_mask = 2;
             param[len - 3] = '\0';
         }

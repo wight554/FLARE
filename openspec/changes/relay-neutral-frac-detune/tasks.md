@@ -798,3 +798,29 @@ separate compression-noise source. See design.md "asymmetric EST attack".
     default → soak one type-P print to confirm no regression before committing).
   - Candidate config recorded in `TUNING.md` "Recommended type-D config".
   - Do NOT bake shared-knob defaults without the type-P regression check.
+
+## 21. Protocol long-parameter regression for §19 budget knob
+
+Rig command replay after §20 showed `SYNC_COMPRESSION_DRAIN_BUDGET_MM` was
+unreachable over USB: SET returned `ER:SET:ARG`, GET returned
+`ER:GET:UNKNOWN_PARAM`. The parameter name is exactly 32 characters, but
+`protocol.c` used a 32-byte token buffer and `%31[^:]`.
+
+- [x] 21.1 `firmware/src/protocol.c`: increase SET/GET parameter token buffers
+  and scan width so 32-character public parameter names fit with a null
+  terminator. Keep command semantics unchanged.
+  - 2026-06-03: Raised SET/GET parameter token buffers to 64 bytes and SET scan
+    width to 63; copied GET/base parameters now explicitly null-terminate.
+    Command semantics unchanged.
+- [x] 21.2 Add a regression test that fails if a public SET/GET name no longer
+  fits the protocol parser token width.
+  - 2026-06-03: Added `scripts/test_protocol_param_width.py`, covering the
+    32-character `SYNC_COMPRESSION_DRAIN_BUDGET_MM` public knob against the
+    parser token buffer/scan width.
+- [x] 21.3 Build + tests green; OpenSpec strict validation.
+  - 2026-06-03: `ninja -C build_local` passed.
+  - 2026-06-03: `bash scripts/validate_regression.sh` passed.
+  - 2026-06-03: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-03: `python3 scripts/test_protocol_param_width.py` passed.
+  - 2026-06-03: `python3 scripts/test_*.py` passed.
+  - 2026-06-03: `openspec validate relay-neutral-frac-detune --strict` passed.

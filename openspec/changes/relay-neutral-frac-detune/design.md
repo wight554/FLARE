@@ -983,3 +983,25 @@ type-D. It will not beat the worst *instantaneous* step (the buffer must still
 drain to *a* crossing first), so a hard floor may remain; if so, the only
 escapes are slicer (ruled out) or type-P hardware (continuous sensor →
 predictive soft-wall/velocity feedforward).
+
+## Protocol long-parameter regression (2026-06-03)
+
+Rig command replay showed `SET:SYNC_COMPRESSION_DRAIN_BUDGET_MM:3.0` returning
+`ER:SET:ARG` and `GET:SYNC_COMPRESSION_DRAIN_BUDGET_MM` returning
+`ER:GET:UNKNOWN_PARAM`, while adjacent knobs worked. The name is exactly
+32 characters; `protocol.c` parses SET/GET names into `char param[32]` with
+`%31[^:]`, so the token cannot include both all 32 characters and a null
+terminator. The §19 knob existed in firmware but was unreachable by protocol.
+
+Plan:
+- `firmware/src/protocol.c`: raise SET/GET parameter token buffers to 64 bytes,
+  use `%63[^:]`, and explicitly null-terminate copied base/GET parameters.
+  Leave values and reply buffers unchanged.
+- `scripts/test_protocol_param_width.py`: static regression test asserting the
+  longest public SET/GET parameter name fits the protocol token buffer and scan
+  width.
+- `openspec/changes/relay-neutral-frac-detune/tasks.md`: mark §21 done after
+  build, regression, Python, script tests, and OpenSpec strict pass.
+
+Risk/invariant: only command parsing width changes; command semantics and type-P
+paths do not change.
