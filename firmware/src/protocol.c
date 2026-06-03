@@ -619,9 +619,16 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         set_toolhead_filament(false);
         cmd_reply("OK", NULL);
     } else if (!strcmp(cmd, "BS")) {
-        if (controller_activity_in_progress() || sync_enabled) {
-            cmd_reply("ER", "BUSY");
-            return;
+        /* BS preempts active sync. The buffer can only be stabilized once sync
+         * has released the lane, but a tip-form macro issues BS while sync is
+         * still ACTIVE (not yet stopped), so a plain BUSY reject made the macro
+         * tip-form on a still-compressed buffer (and a fixed wait was racy).
+         * Stop sync and its lane feed here first; the hard activities below
+         * (TC, cutter, manual unload, boot stabilize) still block BS. */
+        if (g_sync_state == SYNC_ACTIVE) {
+            sync_disable(false);
+            lane_t *A = lane_ptr(active_lane);
+            if (A && A->task == TASK_FEED) lane_stop(A);   /* release the sync-driven feed -> lane IDLE */
         }
         /* Always force a full stabilize. If buffer-lock is active, release
          * it first AND clear the BL auto-start suppression so the stabilize
@@ -632,6 +639,10 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
          * stay stuck and sync never re-engages. */
         if (g_sync_state == SYNC_RETRACT_ASSIST) {
             sync_retract_assist_set(false);
+        }
+        if (controller_activity_in_progress()) {
+            cmd_reply("ER", "BUSY");
+            return;
         }
         /* Always clear BL auto-start suppression on BS, not just when BL is
          * active at call time. Suppression can leak in from other paths
