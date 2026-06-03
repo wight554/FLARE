@@ -140,6 +140,13 @@ static bool controller_activity_in_progress(void) {
     return false;
 }
 
+static bool controller_hard_activity_in_progress(void) {
+    if (manual_unload_active()) return true;
+    if (g_tc_ctx.state != TC_IDLE && g_tc_ctx.state != TC_ERROR) return true;
+    if (cutter_busy()) return true;
+    return false;
+}
+
 static bool cmd_event_permitted(void) {
     if (!stdio_usb_connected()) return false;
 
@@ -623,27 +630,29 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         set_toolhead_filament(false);
         cmd_reply("OK", NULL);
     } else if (!strcmp(cmd, "BS")) {
-        /* BS preempts active sync. The buffer can only be stabilized once sync
-         * has released the lane, but a tip-form macro issues BS while sync is
-         * still ACTIVE (not yet stopped), so a plain BUSY reject made the macro
-         * tip-form on a still-compressed buffer (and a fixed wait was racy).
-         * Stop sync and its lane feed here first; the hard activities below
-         * (TC, cutter, manual unload, boot stabilize) still block BS. */
-        if (g_sync_state == SYNC_ACTIVE) {
-            sync_disable(false);
-            lane_t *A = lane_ptr(active_lane);
-            if (A && A->task == TASK_FEED) lane_stop(A);   /* release the sync-driven feed -> lane IDLE */
+        if (controller_hard_activity_in_progress()) {
+            cmd_reply("ER", "BUSY");
+            return;
         }
-        /* Always force a full stabilize. If buffer-lock is active, release
+        /* BS is the buffer-service preemptor. Stop compatible firmware-owned
+         * services first so macros can replace sync/BL/old-BS/simple lane
+         * commands without sleeping on racy BUSY windows. */
+        if (g_sync_state == SYNC_RETRACT_ASSIST) {
+            sync_retract_assist_set(false);
+        } else if (g_sync_state != SYNC_OFF) {
+            sync_disable(false);
+        }
+        buffer_stabilize_cancel();
+        if (g_lane_l1.task != TASK_IDLE || g_lane_l2.task != TASK_IDLE) {
+            stop_all();
+        }
+        /* Always force a full stabilize. If buffer-lock was active, release
          * it first AND clear the BL auto-start suppression so the stabilize
          * can drive the buffer back to NEUTRAL even when raw is still
          * pinned at the armed extreme (e.g. filament parked at TENSION
          * after a tip-form unload move with no external force to push it
          * off the switch). Without clearing suppression the buffer can
          * stay stuck and sync never re-engages. */
-        if (g_sync_state == SYNC_RETRACT_ASSIST) {
-            sync_retract_assist_set(false);
-        }
         if (controller_activity_in_progress()) {
             cmd_reply("ER", "BUSY");
             return;
@@ -695,26 +704,36 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
          * first raw transition off the armed extreme — i.e. the moment
          * the extruder starts filling the buffer. Mass-balances long
          * extruder retracts that exceed the buffer's mechanical headroom.
-         * BL is allowed to take over from SYNC_ACTIVE. Reject only if a
-         * non-sync task (FL/UL/MV/AUTOLOAD/TC/cutter/manual_unload) is
-         * running. */
+         * BL is allowed to take over from SYNC_ACTIVE and active BS. Reject
+         * only if a non-sync lane task or hard activity is running. */
+        char dir_tok = 'T';
+        float follow_mm = 0.0f;
+        float follow_rate = 0.0f;
+        int n = sscanf(p, "%c:%f:%f", &dir_tok, &follow_mm, &follow_rate);
+        if (n < 1) dir_tok = 'T';
+        if (dir_tok != 'T' && dir_tok != 'C') {
+            cmd_reply("ER", "ARG");
+            return;
+        }
+        if (n == 2 || (n == 3 && (follow_mm <= 0.0f || follow_rate <= 0.0f))) {
+            cmd_reply("ER", "ARG");
+            return;
+        }
+        if (controller_hard_activity_in_progress()) {
+            cmd_reply("ER", "BUSY");
+            return;
+        }
+        buffer_stabilize_cancel();
+        if (sync_enabled) {
+            sync_disable(false);
+            lane_t *A = lane_ptr(active_lane);
+            if (A && A->task == TASK_FEED) lane_stop(A);
+        } else if (g_sync_state != SYNC_OFF && g_sync_state != SYNC_RETRACT_ASSIST) {
+            sync_disable(false);
+        }
         if (controller_activity_in_progress()) {
             cmd_reply("ER", "BUSY");
         } else {
-            char dir_tok = 'T';
-            float follow_mm = 0.0f;
-            float follow_rate = 0.0f;
-            int n = sscanf(p, "%c:%f:%f", &dir_tok, &follow_mm, &follow_rate);
-            if (n < 1) dir_tok = 'T';
-            if (dir_tok != 'T' && dir_tok != 'C') {
-                cmd_reply("ER", "ARG");
-                return;
-            }
-            if (n == 2 || (n == 3 && (follow_mm <= 0.0f || follow_rate <= 0.0f))) {
-                cmd_reply("ER", "ARG");
-                return;
-            }
-            if (sync_enabled) sync_disable(false);
             buf_state_t target = (dir_tok == 'C') ? BUF_COMPRESSION : BUF_TENSION;
             sync_buffer_lock_arm(target, follow_mm, follow_rate, now_ms);
             cmd_reply("OK", NULL);

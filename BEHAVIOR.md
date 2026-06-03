@@ -191,9 +191,11 @@ four sub-states inside `SYNC_RETRACT_ASSIST`:
    follow re-fires. Type-D has no analog position and relies on the elapsed-distance
    budget alone. A watchdog caps total arm time (`BL_WATCHDOG_DEFAULT_MS`, default
    30 s); timeout emits `EV:BL,WATCHDOG` and releases.
-4. **Release** — `BS` sent by the host (or watchdog expiry) calls
-   `sync_retract_assist_release` which drops back to `SYNC_ACTIVE` and
-   re-enables normal sync.
+4. **Release / replacement** — `BS` sent by the host releases BL and starts a
+   full buffer stabilize. A new `BL:T` / `BL:C` may also replace an active `BS`
+   stabilize; the stabilize drive is stopped and the requested BL prime starts
+   immediately. Hard activities (`TC`, cutter, manual unload) still reject BL/BS
+   with `ER:BUSY`.
 
 The `RA:<0|1>` command is removed. `GET:BL` returns the current arm state
 (`BL:T`, `BL:C`, or `BL:0`). The status field previously named `BL` (baseline

@@ -856,6 +856,10 @@ bool buffer_stabilize_request(uint32_t now_ms) {
     return buffer_stabilize_start_internal(now_ms, true, BUFFER_SERVICE_STABILIZE);
 }
 
+void buffer_stabilize_cancel(void) {
+    boot_stabilize_stop();
+}
+
 void boot_stabilize_start(uint32_t now_ms) {
     (void)buffer_stabilize_start_internal(now_ms, false, BUFFER_SERVICE_STABILIZE);
 }
