@@ -35,6 +35,10 @@ no gradual signal — capture B `BP` frozen then jumps). See design.md.
   - 2026-06-03: Added bounded geometric burst escalation, clamped to
     `GLOBAL_MAX_SPS`, reset on `sync_disable` and after held `BUF_NEUTRAL`
     dwell; `SYNC_TENSION_BURST_MS=0` disables the burst escalator.
+  - 2026-06-03: Moved escalation out of the demand-sample path and onto the
+    unconditional `BUF_NEUTRAL -> BUF_TENSION` crossing hook. Fast pinned
+    re-touches do not satisfy the dwell/feed-average sample gates, so escalation
+    must fire without `sample_valid`.
 - [x] 1.3 New knobs (non-persisted, plumb like `SYNC_COMPRESSION_DRAIN_FRAC`):
   `SYNC_TENSION_FAST_MM_S` (≈2 mm/s), `SYNC_TENSION_BURST_MS` (≈300-500),
   `SYNC_TENSION_ESC_STEP_SPS`, `SYNC_TENSION_ESC_RATIO` (≈1.5-2). No

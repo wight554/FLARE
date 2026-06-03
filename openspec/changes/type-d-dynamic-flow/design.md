@@ -140,8 +140,10 @@ shared-knob or feed-floor change in this change (the floor was already demoted).
   with-travel `feed_avg + drain_sps` and no-travel `feed_avg * 1.15` with a
   velocity lerp: `feed_avg * 1.15` at `v_norm=0`, measured demand at
   `v_norm=1`, and an explicit blend alpha that can reach `1.0`.
-- Add geometric burst escalation when tension touches repeat within
-  `SYNC_TENSION_BURST_MS`; clamp to `GLOBAL_MAX_SPS`.
+- Add geometric burst escalation on the unconditional
+  `BUF_NEUTRAL -> BUF_TENSION` crossing hook, after any estimator blend, because
+  fast pinned re-touches are too short to pass the demand-sample dwell gates.
+  Clamp to `GLOBAL_MAX_SPS`.
 - Reset the burst count once a `BUF_NEUTRAL` dwell has held beyond the burst
   window. Risk: slow single crossings must remain exactly the gentle
   `feed_avg * 1.15` endpoint.

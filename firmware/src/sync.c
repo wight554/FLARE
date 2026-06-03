@@ -1230,17 +1230,6 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
             float prev_est_sps = extruder_est_sps;
             if (neutral_drain_sample) {
                 blend_extruder_est_sps_direct(est_sps, alpha, now_ms);
-                if (SYNC_TENSION_BURST_MS > 0 && g_last_tension_ms != 0 &&
-                    (now_ms - g_last_tension_ms) < (uint32_t)SYNC_TENSION_BURST_MS) {
-                    if (g_tension_burst_n < 16) g_tension_burst_n++;
-                    float esc_sps = (float)SYNC_TENSION_ESC_STEP_SPS *
-                                    powf(SYNC_TENSION_ESC_RATIO, (float)g_tension_burst_n);
-                    extruder_est_sps = fminf(extruder_est_sps + esc_sps, (float)GLOBAL_MAX_SPS);
-                    extruder_est_last_update_ms = now_ms;
-                } else {
-                    g_tension_burst_n = 0;
-                }
-                g_last_tension_ms = now_ms;
             } else {
                 blend_extruder_est_sps(est_sps, alpha, now_ms);
             }
@@ -1281,6 +1270,24 @@ estimator_done:
         SYNC_RELAY_TRIM_STEP_SPS > 0 && SYNC_RELAY_TRIM_CLAMP_SPS > 0) {
         g_relay_neutral_trim_sps += (float)SYNC_RELAY_TRIM_STEP_SPS;
         relay_neutral_trim_clamp();
+    }
+
+    /* type-d-dynamic-flow: burst escalation on every NEUTRAL->TENSION
+     * crossing. Do not gate this by sample_valid/dwell; burst re-touches are
+     * too fast to produce demand samples, and those are exactly what this fixes.
+     * Run after any estimator blend so escalation lands on top. */
+    if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL && new_state == BUF_TENSION) {
+        if (SYNC_TENSION_BURST_MS > 0 && g_last_tension_ms != 0 &&
+            (now_ms - g_last_tension_ms) < (uint32_t)SYNC_TENSION_BURST_MS) {
+            if (g_tension_burst_n < 16) g_tension_burst_n++;
+            float esc_sps = (float)SYNC_TENSION_ESC_STEP_SPS *
+                            powf(SYNC_TENSION_ESC_RATIO, (float)g_tension_burst_n);
+            extruder_est_sps = fminf(extruder_est_sps + esc_sps, (float)GLOBAL_MAX_SPS);
+            extruder_est_last_update_ms = now_ms;
+        } else {
+            g_tension_burst_n = 0;
+        }
+        g_last_tension_ms = now_ms;
     }
 
     history_push(g_buf.state, prev_dwell);
