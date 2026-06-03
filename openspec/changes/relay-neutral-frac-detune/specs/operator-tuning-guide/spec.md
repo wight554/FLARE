@@ -206,3 +206,35 @@ the demand-match default.
 - **THEN** the reserve target is compression-side by `SYNC_RESERVE_PCT`
 - **AND** the controller refills toward that reserve while still using switch
   crossings as calibration truth
+
+### Requirement: Type-D estimator attacks rising demand faster than falling demand
+
+For `BUF_SENSOR_TYPE == 0`, the estimator SHALL use a faster attack when a
+switch-crossing demand sample is higher than the current `extruder_est_sps`.
+The firmware SHALL blend that sample with `SYNC_EST_ATTACK_ALPHA`, a
+runtime/non-persisted float clamped `[0.65, 1.0]`, and SHALL bypass the normal
+`EST_ALPHA_MAX` clamp for that rising-demand update.
+When the sample is lower than or equal to current `extruder_est_sps`, the
+estimator SHALL keep the existing dwell-derived EMA clamped by
+`EST_ALPHA_MIN..EST_ALPHA_MAX`, so falling demand remains slow and does not
+reintroduce COMPRESSION chatter. This SHALL apply only to type-D; analog type-P
+per-tick estimation and `psf_control_law` SHALL remain unchanged.
+
+#### Scenario: Rising type-D crossing sample fast-attacks EST
+
+- **WHEN** a type-D switch-crossing sample is above current `extruder_est_sps`
+- **THEN** firmware blends it with `SYNC_EST_ATTACK_ALPHA`
+- **AND** does not clamp that alpha to `EST_ALPHA_MAX`
+
+#### Scenario: Falling type-D sample keeps the slow EMA
+
+- **WHEN** a type-D switch-crossing sample is below or equal to current
+  `extruder_est_sps`
+- **THEN** firmware uses the existing dwell-derived alpha clamped to
+  `EST_ALPHA_MIN..EST_ALPHA_MAX`
+
+#### Scenario: Type-P estimator remains unchanged
+
+- **WHEN** `BUF_SENSOR_TYPE == 1`
+- **THEN** the analog per-tick estimator and `psf_control_law` behavior are not
+  changed by `SYNC_EST_ATTACK_ALPHA`

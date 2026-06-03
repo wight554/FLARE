@@ -78,6 +78,7 @@ run_current:
 # sync_compression_drain_frac: 0.40   # Type-D COMPRESSION active-draw drain; 0.0 = legacy hard-stop.
 # sync_compression_drain_budget_mm: 3.0  # Stop partial drain after this much COMPRESSION relieve effort;
                                         # 0.0 = immediate hard-stop.
+# sync_est_attack_alpha: 0.8       # Type-D rising-demand EST attack; clamp 0.65..1.0.
 # sync_relay_trim_step_sps: 300       # Type-D residual trim step; lower = slower correction,
                                       # rarer plateau clicks.
 # sync_relay_trim_clamp_sps: 2000     # Type-D residual trim anti-windup clamp.

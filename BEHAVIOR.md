@@ -279,6 +279,13 @@ negative feed bias. The trim is anti-windup clamped by
 `SYNC_RELAY_TRIM_CLAMP_SPS`, leaks toward zero during NEUTRAL dwell, resets when
 sync disables, and is not persisted.
 
+When a type-D switch-crossing sample is higher than current `EST`, the demand
+blend uses `SYNC_EST_ATTACK_ALPHA` instead of the normal dwell-limited
+`EST_ALPHA_MAX` clamp. This is a rising-demand-only fast attack for real-print
+slow→fast steps; falling or equal samples keep the slow EMA so down-steps do not
+reintroduce compression chatter. Analog type-P keeps its per-tick estimator and
+`psf_control_law` path unchanged.
+
 Zero feed in `BUF_COMPRESSION` does not deadlock the relay: the flip out keys on the physical `NEUTRAL` crossing (extruder draw), and `relay_min_flip_mm` defaults to `0` (time-based hysteresis).
 
 The type-D branch-test analyzer is `scripts/flare_sync_check.py --mode

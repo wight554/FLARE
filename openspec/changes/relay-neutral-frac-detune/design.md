@@ -928,3 +928,58 @@ Plan:
 Risk/invariant: applies only under `BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION`;
 analog type-P COMPRESSION/relief behavior remains byte-for-byte outside the new
 global declaration/plumbing.
+
+## Dynamic-flow TENSION skip — asymmetric EST attack (2026-06-03)
+
+### Symptom
+On the real print, slow→fast outer-wall→infill steps (300→1500 mm/min) still
+drive rare TENSION touches, and the extruder **skips** as the buffer approaches
+empty (defect, not just a telemetry touch). The operator cannot change slicer/
+print settings, so the demand step cannot be softened upstream.
+
+### What the soaks proved
+Exhaustive HW sweeps (reserve 35–70, accel 500–700, decel 150–700, frac
+1.0–1.55, catchup 1.3–1.6) map a frontier and a wall:
+- **reserve** = cheap position headroom (35→55 cut tension with no compression
+  cost); cliffs past ~65.
+- **frac** (standing overfeed) = louder compression, does NOT fix step-tension
+  (a standing lean cannot catch a step) and never reaches zero; measurement is
+  noise-dominated (frac1.45 reran 3→11 tension).
+- **decel** was stuck slow (150): on a 1500→300 down-step feed crawled down →
+  sustained overfeed → COMPRESSION flood. `decel700` fixed the audible noise
+  (`EST−MM −200→−11`, `COMP pin 9600→2200 ms`). **Keep decel ≈ 700.**
+- With `accel700 + decel700` (both fast) TENSION still did not drop → **ramp
+  rate is not the up-step limit.**
+
+### Root cause of the residual skip
+Type-D `extruder_est_sps` only updates at switch crossings, blended in
+`blend_extruder_est_sps` at `alpha ∈ [EST_ALPHA_MIN 0.12, EST_ALPHA_MAX 0.65]`,
+derived from dwell. A sharp step-up produces a *short* dwell to the corrective
+crossing → *low* alpha → the high-demand sample is blended in only ~12–65 % →
+feed catches the step over several crossings. The buffer drains to TENSION
+(skip) before EST converges. The slow attack — worst exactly when the step is
+sharpest — is the skip source. Ramp/headroom cannot fix it because feed cannot
+rise until EST does.
+
+### Fix: asymmetric EST attack (fast-up, slow-down)
+In `blend_extruder_est_sps`, when the new sample is **higher** than current EST
+(rising demand / step-up), blend at a fast attack alpha
+`SYNC_EST_ATTACK_ALPHA` (~0.8, above `EST_ALPHA_MAX`); when lower (falling
+demand), keep the existing slow clamped EMA. The first crossing after a step-up
+snaps EST to the new demand → feed ramps (accel700) → catches before TENSION.
+Attacks the lag directly, so no standing overfeed and no compression-noise
+penalty; `decel700` keeps the down-step clean underneath.
+
+Scope: `BUF_SENSOR_TYPE == 0` only — analog type-P uses a separate per-tick
+estimator (`sync.c:2004`, gated type-P) and must stay byte-identical. Risk: a
+noisy crossing reading high could spike EST → feed blip → a compression touch;
+bounded by `clamp_est_sps` + `type_d_sample_demand_bounds` (samples already
+validated) and attack alpha < 1.0. Knob is runtime/non-persisted so the rig can
+sweep `0.65→1.0`.
+
+### Expectation
+Targets the up-step skip at its source — the most promising lever left within
+type-D. It will not beat the worst *instantaneous* step (the buffer must still
+drain to *a* crossing first), so a hard floor may remain; if so, the only
+escapes are slicer (ruled out) or type-P hardware (continuous sensor →
+predictive soft-wall/velocity feedforward).

@@ -275,6 +275,63 @@ python3 scripts/flare_cmd.py SET:SYNC_RELAY_TRIM_STEP_SPS:0
 zero TENSION touches. COMPRESSION dwell/pin time is comfort/tuning data, not a
 FAIL by itself.
 
+### Type-D dynamic-flow model (what the knobs actually do)
+
+On a 2-switch buffer, NEUTRAL feed is **frozen between switch crossings** (EST
+only updates at a touch). A mid-NEUTRAL demand step (e.g. 300→1500 mm/min outer
+wall → infill) is therefore invisible until the buffer drains/fills to a rail —
+the touch is the first signal. Cost asymmetry: **TENSION = print defect
+(extruder skip), COMPRESSION = audible noise.** Goal = zero tension, rare
+compression (something must click to recalibrate).
+
+Each knob does a distinct job — do not conflate them:
+
+- **`SYNC_RESERVE_PCT`** — *position* setpoint (compression-side parking). Cheap
+  anti-tension headroom with little frequency cost. Helps up to ~65; cliffs near
+  the `0.7×threshold` cap (≈70).
+- **`SYNC_RAMP_ACCEL`** — feed-rise rate on a step-UP. Helps catch the step, but
+  not the real up-step limit (EST attack is).
+- **`SYNC_RAMP_DECEL`** — feed-FALL rate on a step-DOWN. **Slow decel floods
+  COMPRESSION** (feed keeps overfeeding after demand drops) — the main audible
+  noise source. Keep it fast (≈ accel).
+- **`RELAY_NEUTRAL_FRAC` > 1.0** — standing overfeed. Loud (constant compression
+  drift) and does NOT fix step-tension (a static lean can't catch a step). Avoid
+  raising it for step-skip; leave at demand-match `1.0`.
+- **`SYNC_EST_ATTACK_ALPHA`** — fast EST attack on *rising* demand. The targeted
+  step-skip fix: snaps feed up on the first corrective crossing instead of over
+  ~10. Sweep `0.65→1.0`.
+- **`SYNC_COMPRESSION_DRAIN_FRAC` / `_BUDGET_MM`** — bound the COMPRESSION feed
+  so touches don't grind and a pause/idle true-stops (no overfill).
+
+Measurement caveat: live-print captures are **noise-dominated** unless the
+stimulus is fixed — the same config can read 3 vs 11 tension touches on different
+print segments. Use an identical repeatable stimulus (same sliced file/segment,
+or a fixed `_FLARE_STEP_TEST` square-wave macro) before trusting a knob A/B.
+
+### Recommended type-D config (rig-derived 2026-06-03; finalize after §20.6)
+
+```
+SYNC_RESERVE_PCT      = 65      # shared w/ type-P — verify or set per-unit
+SYNC_RAMP_ACCEL       = 700     # shared — config-only (not persisted)
+SYNC_RAMP_DECEL       = 700     # shared — fixed the compression noise
+RELAY_NEUTRAL_FRAC    = 1.0     # demand-match; do NOT raise for step-skip
+RELAY_CATCHUP_FRAC    = 1.3
+SYNC_COMPRESSION_DRAIN_FRAC     = 0.4   # type-D only
+SYNC_COMPRESSION_DRAIN_BUDGET_MM = 3.0  # type-D only
+SYNC_EST_ATTACK_ALPHA = 0.8     # type-D only; sweep 0.65→1.0 to kill step-skip
+```
+
+**Shared-knob warning:** `SYNC_RESERVE_PCT`, `SYNC_RAMP_ACCEL`, `SYNC_RAMP_DECEL`
+are used by type-P as well. Baking them as `config.ini` defaults shifts type-P
+behavior — soak one type-P print to confirm no regression before doing so, or
+pin them per-unit (reserve persists via SAVE; accel/decel are config-only). The
+remaining knobs are type-D-only by code and safe as defaults.
+
+**Hard floor:** if the step-skip persists after the `SYNC_EST_ATTACK_ALPHA`
+sweep, it is the instantaneous-step limit of a 2-switch buffer. Remaining
+escapes are slicer (gentler wall→infill step) or type-P hardware (continuous
+sensor → predictive feedforward) — not a type-D knob.
+
 ## Type-P Buffer Lock (Tip Forming)
 
 Tip forming uses `BL:<T|C>:<follow_mm>:<rate>` (via `_FLARE_BL_MOVE`) to hold the

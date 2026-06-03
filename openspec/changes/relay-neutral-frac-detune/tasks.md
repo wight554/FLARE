@@ -677,6 +677,15 @@ and force a re-ramp from zero (the "drops too hard" turning point).
   the rig-validated default. If the pair under-leans (TENSION touches > 0 at
   any drain frac), apply the deferred fallbacks from design.md (small
   `relay_neutral_frac` raise and/or time-since-crossing back-off) and record.
+  - 2026-06-03: HW A/B (type-D rig, 300↔1500 print). Sweep:
+    baseline `4+1` TENSION / BP +2.47; `RESERVE_PCT 55` → `3+0` / BP +3.01;
+    `+ RAMP_ACCEL 700` → `1+1` / BP +3.99 / 21 COMP; `RAMP_ACCEL 600` → `2+0` /
+    BP +3.44. Floors at ~2 residual TENSION touches — both are real mid-print
+    speed-up lags (capture lines 1118, 1813: `MM<EST` at the step, catch-up
+    recovers to `MM 3000`), i.e. the **reactive limit** of a ±5 mm buffer on a
+    5× demand step. Operator chose `RAMP_ACCEL 700` + `RESERVE_PCT 55` ("feels
+    better"). True zero needs demand feedforward (deferred, design.md). Knob-lock
+    decision pending (shared with type-P — see §20).
 
 ## 19. Fix §16 partial-drain pause/idle grind (REGRESSION — shipped 72e0ddd)
 
@@ -726,3 +735,66 @@ reset on every transition at `sync.c:1260`).
   feed → 0 while paused, clean resume; analyzer PURGE + REGRESSION modes PASS.
   Re-confirm the §18 asymmetric soak unaffected (drain still bounds the cycle
   amplitude on normal touches).
+
+## 20. Dynamic-flow TENSION skip: asymmetric EST attack + decel lock
+
+HW (2026-06-03) proved the residual slow→fast TENSION skip is up-step EST lag,
+not ramp rate (accel700+decel700 still skipped), and that slow decel was the
+separate compression-noise source. See design.md "asymmetric EST attack".
+
+- [x] 20.1 `config.ini`: set `sync_ramp_decel` to ~`700` (was clobbered to 300;
+  HW: decel700 cut `EST−MM −200→−11`, `COMP pin 9600→2200 ms`). Confirm the
+  committed `sync_ramp_accel` is the intended value (working tree showed 300,
+  the 500 commit looked clobbered) — set accel to the rig value too. Regenerate
+  `tune.h`.
+  - 2026-06-03: Local `config.ini` baseline set to `sync_ramp_accel: 700` and
+    `sync_ramp_decel: 700`, matching the rig/candidate §20 notes; generated
+    `tune.h` now has equal up/down ramp SPS. Shared generator defaults were left
+    unchanged until §20.7/type-P default validation.
+- [x] 20.2 `firmware/src/sync.c` `blend_extruder_est_sps` (~`sync.c:984`): when
+  `BUF_SENSOR_TYPE == 0 && sample_sps > extruder_est_sps` (rising demand), blend
+  at `SYNC_EST_ATTACK_ALPHA` (fast attack, above `EST_ALPHA_MAX`); otherwise keep
+  the existing `clamp_f(alpha, EST_ALPHA_MIN, EST_ALPHA_MAX)` slow EMA. Falling
+  demand path unchanged. Type-P per-tick estimator (`sync.c:2004`) untouched.
+  - 2026-06-03: Added the type-D-only rising branch in
+    `blend_extruder_est_sps`; rising samples bypass `EST_ALPHA_MAX`, falling/equal
+    samples keep the existing clamped dwell EMA.
+- [x] 20.3 New runtime knob `SYNC_EST_ATTACK_ALPHA` (float, default ~`0.8`,
+  clamp `[EST_ALPHA_MAX, 1.0]` i.e. `[0.65, 1.0]`): plumb like
+  `SYNC_COMPRESSION_DRAIN_FRAC` (non-persisted, no `SETTINGS_VERSION` bump,
+  runtime SET/GET so the rig can sweep). Add to `controller_shared.h`,
+  `settings_store.c` (default/load-reset only), `protocol.c` (SET/GET + validate
+  list), `gen_config.py`, `config.ini`, `config.ini.example`, `flare_cmd.py
+  --dump`, `tune.h`.
+  - 2026-06-03: Added non-persisted runtime/config plumbing:
+    `controller_shared.h`, `main.c`, `settings_store.c` default/load reset,
+    `protocol.c` SET/GET/live-tune lock, `scripts/gen_config.py`,
+    `config.ini.example`, `scripts/flare_cmd.py --dump`, and docs/spec. No
+    `settings_t` field and no `SETTINGS_VERSION` bump.
+- [x] 20.4 `BUF_SENSOR_TYPE == 0` only; verify analog type-P estimator/
+  feedforward byte-identical.
+  - 2026-06-03: Code change is gated on `BUF_SENSOR_TYPE == 0`; analog type-P
+    per-tick estimator and `psf_control_law` were not edited.
+- [x] 20.5 Build + tests green; OpenSpec strict validation.
+  - 2026-06-03: `ninja -C build_local` passed.
+  - 2026-06-03: `bash scripts/validate_regression.sh` passed.
+  - 2026-06-03: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-03: `python3 scripts/test_*.py` passed.
+  - 2026-06-03: `openspec validate relay-neutral-frac-detune --strict` passed.
+- [ ] 20.6 HW: real-print soak, sweep `SYNC_EST_ATTACK_ALPHA` 0.65→1.0 with
+  reserve65 / accel700 / decel700 / frac1.0 / catchup1.3. Expect TENSION touches
+  → 0 (or skip-free) without compression-noise regression (COMP pin stays low,
+  period long). If a hard floor remains, record it — remaining escape is type-P
+  hardware (slicer is ruled out).
+- [ ] 20.7 Finalize defaults (AFTER §20.6 attack sweep — values depend on it).
+  Order: (1) lock `SYNC_EST_ATTACK_ALPHA` from the sweep; (2) re-derive accel/
+  reserve (the attack may let accel drop back to a quieter 500); (3) set
+  defaults, split by sharing:
+  - **type-D-only (safe as config defaults):** `SYNC_COMPRESSION_DRAIN_FRAC`,
+    `SYNC_COMPRESSION_DRAIN_BUDGET_MM`, `SYNC_EST_ATTACK_ALPHA`.
+  - **shared with type-P (verify or set per-unit):** `SYNC_RESERVE_PCT` (persists
+    via SAVE — pin per-unit, or default + type-P soak), `SYNC_RAMP_ACCEL` /
+    `SYNC_RAMP_DECEL` (config-only, not persisted → changing them IS a global
+    default → soak one type-P print to confirm no regression before committing).
+  - Candidate config recorded in `TUNING.md` "Recommended type-D config".
+  - Do NOT bake shared-knob defaults without the type-P regression check.

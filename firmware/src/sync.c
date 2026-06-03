@@ -983,7 +983,11 @@ static float clamp_est_sps(float est_sps) {
 
 static void blend_extruder_est_sps(float sample_sps, float alpha, uint32_t now_ms) {
     sample_sps = clamp_est_sps(sample_sps);
-    alpha = clamp_f(alpha, EST_ALPHA_MIN, EST_ALPHA_MAX);
+    if (BUF_SENSOR_TYPE == 0 && sample_sps > extruder_est_sps) {
+        alpha = SYNC_EST_ATTACK_ALPHA;
+    } else {
+        alpha = clamp_f(alpha, EST_ALPHA_MIN, EST_ALPHA_MAX);
+    }
     extruder_est_sps = alpha * sample_sps + (1.0f - alpha) * extruder_est_sps;
     extruder_est_last_update_ms = now_ms;
 }

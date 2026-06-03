@@ -183,7 +183,8 @@ dev-build-only — see the note at the top of this section.
 | `SYNC_RELAY_TRIM_CLAMP_SPS` | `sync_relay_trim_clamp_sps` | Runtime-only type-D residual trim anti-windup clamp in raw SPS. | 2000 |
 | `SYNC_COMPRESSION_DRAIN_FRAC` | `sync_compression_drain_frac` | Runtime-only type-D COMPRESSION active-draw drain fraction. `0.0` disables and restores legacy hard-stop; `>0` feeds this fraction of demand while `TASK_FEED` is active, clamped below demand. | 0.40 |
 | `SYNC_COMPRESSION_DRAIN_BUDGET_MM` | `sync_compression_drain_budget_mm` | Runtime-only type-D COMPRESSION partial-drain distance budget. Once COMPRESSION relieve effort reaches this many mm, partial drain true-stops at `0`; `0.0` means immediate hard-stop. | 3.0 |
-| `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `SYNC_COMPRESSION_DRAIN_FRAC`, `SYNC_COMPRESSION_DRAIN_BUDGET_MM`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
+| `SYNC_EST_ATTACK_ALPHA` | `sync_est_attack_alpha` | Runtime-only type-D rising-demand EST attack alpha. Applies only when a type-D switch-crossing sample is above current `EST`; falling/equal samples keep the slower dwell EMA. Clamped 0.65 to 1.0. | 0.8 |
+| `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `SYNC_COMPRESSION_DRAIN_FRAC`, `SYNC_COMPRESSION_DRAIN_BUDGET_MM`, `SYNC_EST_ATTACK_ALPHA`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
 
 For type-D branch A/B tests, capture with:
 
