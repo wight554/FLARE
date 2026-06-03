@@ -178,7 +178,8 @@ remains a config/`SET:` knob only for experiments that accept this
 caveat; the time-based `BUF_HYST_MS` is the supported chatter guard.
 
 `RELAY_CATCHUP_FRAC`, `RELAY_NEUTRAL_FRAC`, `SYNC_COMPRESSION_DRAIN_FRAC`,
-`RELAY_MIN_FLIP_MM`, and the three `RELAY_COLLAPSE_{DELAY_MS,RAMP_MULT,CAP_MS}` are runtime-safe
+`SYNC_COMPRESSION_DRAIN_BUDGET_MM`, `RELAY_MIN_FLIP_MM`, and the three
+`RELAY_COLLAPSE_{DELAY_MS,RAMP_MULT,CAP_MS}` are runtime-safe
 `SET:`/`GET:` parameters (and appear in `flare_cmd.py --dump`) for field
 experiments without a reflash. The collapse-ramp keys shape the
 deep-COMPRESSION / print-end stop; defaults (250 / 3 / 600) already give
@@ -218,9 +219,14 @@ and resets when sync disables.
 Set it to `0.0` for the legacy hard-stop A/B. Values above zero feed that
 fraction of estimated demand only while the active lane is in `TASK_FEED`, and
 the firmware clamps the result strictly below demand so the buffer still drains.
+`SYNC_COMPRESSION_DRAIN_BUDGET_MM` bounds that partial drain by COMPRESSION
+relieve effort: if the buffer stays pinned after the budget, feed true-stops at
+`0` so pause/idle cannot grind on stale `EST`. Set the budget to `0.0` for an
+immediate hard-stop branch, or raise it only if real draw leaves COMPRESSION too
+early during normal print touches.
 When demand is idle/end-of-feed, COMPRESSION remains a true zero feed for
-purge/idle no-grind behavior. This knob is runtime/config-backed but not saved
-in flash settings; reboot or `SL` restores the `config.ini` default.
+purge/idle no-grind behavior. These knobs are runtime/config-backed but not
+saved in flash settings; reboot or `SL` restores the `config.ini` defaults.
 
 Firmware preserves the type-D `BUF_NEUTRAL` relay target as a lower bound only
 while reserve error is clearly tension-side. If reserve is already at/above
@@ -242,6 +248,9 @@ Tune only from real print behavior:
 - Toggle `SYNC_COMPRESSION_DRAIN_FRAC` between `0.0` and the configured default
   to compare legacy hard-stop against partial drain. Lower it if COMPRESSION
   dwell feels too pushy; keep TENSION touches at zero.
+- Set `SYNC_COMPRESSION_DRAIN_BUDGET_MM:0.0` to test immediate hard-stop, or
+  keep the default `3.0` mm to bound pause/idle overfill while allowing short
+  normal active-draw COMPRESSION touches.
 - Do **not** touch `sync_kp_rate` for type D — it is inert (analog type-P only).
 - Leave `relay_min_flip_mm` at `0.0` unless deliberately testing the deadlock
   caveat above.
@@ -255,6 +264,7 @@ python3 scripts/flare_sync_check.py --live --poll 100 --mode asymmetric --branch
 
 # Partial-drain branch
 python3 scripts/flare_cmd.py SET:SYNC_COMPRESSION_DRAIN_FRAC:0.40
+python3 scripts/flare_cmd.py SET:SYNC_COMPRESSION_DRAIN_BUDGET_MM:3.0
 python3 scripts/flare_sync_check.py --live --poll 100 --mode asymmetric --branch-label partial-drain --capture-log partial-drain.txt
 
 # Trim branch guard (optional): 0 disables anti-starvation trim for comparison

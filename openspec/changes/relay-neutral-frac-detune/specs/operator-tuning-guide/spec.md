@@ -87,11 +87,15 @@ zero — while sync is active and the extruder is actively drawing filament
 the buffer drains a small bounded amount off the COMPRESSION rail instead of
 dumping the full span toward TENSION and forcing a re-ramp from zero. The drain
 fraction SHALL be clamped strictly below demand so the buffer cannot net-fill
-while pinned. When estimated demand is ≈ 0 (end-of-feed / `TASK_IDLE`),
+while pinned. The partial-drain path SHALL also be bounded by
+`SYNC_COMPRESSION_DRAIN_BUDGET_MM` of COMPRESSION relieve effort; once the budget
+is reached, COMPRESSION feed SHALL true-stop at `0` until the buffer leaves
+COMPRESSION. When estimated demand is ≈ 0 (end-of-feed / `TASK_IDLE`),
 COMPRESSION feed SHALL remain a true zero to preserve the purge/idle no-grind
-behavior. `SYNC_COMPRESSION_DRAIN_FRAC = 0.0` SHALL disable the partial-drain
-path and restore the legacy hard-stop for A/B testing. Applies only to type-D;
-SHALL NOT alter analog type-P.
+behavior. `SYNC_COMPRESSION_DRAIN_FRAC = 0.0` or
+`SYNC_COMPRESSION_DRAIN_BUDGET_MM = 0.0` SHALL disable the partial-drain path and
+restore the legacy hard-stop for A/B testing. Applies only to type-D; SHALL NOT
+alter analog type-P.
 
 #### Scenario: Active-draw COMPRESSION drains gently
 
@@ -99,6 +103,12 @@ SHALL NOT alter analog type-P.
   actively drawing (estimated demand above the idle threshold)
 - **THEN** the commanded feed is `SYNC_COMPRESSION_DRAIN_FRAC × demand`,
   clamped strictly below demand
+
+#### Scenario: Over-budget COMPRESSION true-stops
+
+- **WHEN** the type-D buffer stays in `BUF_COMPRESSION`
+- **AND** COMPRESSION relieve effort reaches `SYNC_COMPRESSION_DRAIN_BUDGET_MM`
+- **THEN** the commanded feed is `0` (true-stop preserved)
 
 #### Scenario: Idle COMPRESSION true-stops
 

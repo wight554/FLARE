@@ -901,3 +901,30 @@ belongs to the deferred time-since-crossing back-off described in "Dynamic-flow
 TENSION drift", applied as a positive safe-rail lean rather than a COMPRESSION
 down-step. Keep §7.5 obsolete unless hardware proves the deferred fallback is
 needed.
+
+### §19 implementation plan (2026-06-03)
+
+Research read: the §19 task block, this design's dynamic-flow section,
+`g_sync_relieve_effort_mm` reset/accumulation sites, the §16 type-D COMPRESSION
+branch in `sync_tick()`, and the non-persisted `SYNC_COMPRESSION_DRAIN_FRAC`
+runtime plumbing. The regression is not task-state detection: pause captures
+show `A->task == TASK_FEED` and stale `EST` throughout the pause. The reliable
+signal is the already-tracked COMPRESSION relieve distance.
+
+Plan:
+- `firmware/src/sync.c`: add only
+  `g_sync_relieve_effort_mm < SYNC_COMPRESSION_DRAIN_BUDGET_MM` to the existing
+  Type-D active-draw partial-drain gate. Keep the existing `else target_sps = 0`
+  as the over-budget hard-stop and keep the branch above the `SYNC_MIN_SPS`
+  clamp.
+- `SYNC_COMPRESSION_DRAIN_BUDGET_MM`: clone the non-persisted
+  `SYNC_COMPRESSION_DRAIN_FRAC` surface as a config-backed runtime float:
+  default `3.0`, clamp `[0.0, 25.0]`, SET/GET/live-dump support, no
+  `settings_t` field, no `SETTINGS_VERSION` bump. `0.0` means immediate
+  hard-stop for legacy A/B.
+- `openspec/changes/relay-neutral-frac-detune/tasks.md`: mark §19.1-§19.4 after
+  build/tests/OpenSpec pass; leave §19.5 HW unchecked.
+
+Risk/invariant: applies only under `BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION`;
+analog type-P COMPRESSION/relief behavior remains byte-for-byte outside the new
+global declaration/plumbing.

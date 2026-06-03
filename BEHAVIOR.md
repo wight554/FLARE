@@ -261,7 +261,7 @@ runtime-only (not persisted; re-seeded from defaults each boot).
 For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`), FLARE overrides the continuous PI/EKF estimator-driven target with a two-level hysteretic relay control law matched directly to the physical microswitches:
 
 - **`BUF_TENSION` (empty/starved)**: Commands a strong fixed catch-up rate based on the configured baseline rate (`baseline_control_floor_sps() * RELAY_CATCHUP_FRAC`) to ensure rapid buffer refill, completely independent of the velocity estimator.
-- **`BUF_COMPRESSION` (full reserve)**: In type-D, fast-brake and idle/end-of-feed still command a **true zero feed** (0 SPS) instead of `SYNC_MIN_SPS`, so purge/idle cannot push filament into a full buffer. During normal active draw (`TASK_FEED`) the guarded drain path may command `SYNC_COMPRESSION_DRAIN_FRAC * extruder_est_sps`, clamped strictly below demand, so the extruder still drains the buffer off the compression rail without dumping the full span from a hard stop. Set `SYNC_COMPRESSION_DRAIN_FRAC` to `0.0` to restore the legacy hard-stop for A/B tests.
+- **`BUF_COMPRESSION` (full reserve)**: In type-D, fast-brake and idle/end-of-feed still command a **true zero feed** (0 SPS) instead of `SYNC_MIN_SPS`, so purge/idle cannot push filament into a full buffer. During normal active draw (`TASK_FEED`) the guarded drain path may command `SYNC_COMPRESSION_DRAIN_FRAC * extruder_est_sps`, clamped strictly below demand, so the extruder still drains the buffer off the compression rail without dumping the full span from a hard stop. That partial drain is bounded by `SYNC_COMPRESSION_DRAIN_BUDGET_MM` of COMPRESSION relieve effort; after the budget, the branch true-stops at `0` so pause/idle cannot grind indefinitely on stale `EST`. Set `SYNC_COMPRESSION_DRAIN_FRAC` or `SYNC_COMPRESSION_DRAIN_BUDGET_MM` to `0.0` to restore immediate hard-stop behavior for A/B tests.
 - **`BUF_NEUTRAL` (neutral zone)**: Dynamically tracks estimated extruder demand (`extruder_est_sps * RELAY_NEUTRAL_FRAC`, default `1.00` demand match) plus a volatile crossing-learned trim, clamped to the range `[SYNC_MIN_SPS, baseline_control_floor_sps()]`. The type-D ramp clamps each tick to the target instead of overshooting it; switches act as guardrails during steady consumption. The virtual reserve target is slightly compression-side (`SYNC_RESERVE_PCT` of the switch half-span) so real prints have headroom before fast infill speed-ups pull the buffer toward TENSION.
 
 In type-D `BUF_NEUTRAL`, the relay target is also the minimum applied neutral
@@ -286,7 +286,8 @@ asymmetric`. It reads only `BP`, `BUF`, `MM`, and `EST`, reports TENSION touches
 COMPRESSION pin time, NEUTRAL `EST-MM`, BP distribution, and relay touch period,
 and passes iff TENSION touches are zero. Use `--branch-label` to tag captures
 from guarded firmware branches such as `SYNC_COMPRESSION_DRAIN_FRAC=0.0`
-(legacy hard-stop) versus `0.40` (partial drain).
+(legacy hard-stop) versus `0.40` with `SYNC_COMPRESSION_DRAIN_BUDGET_MM=3.0`
+(bounded partial drain).
 
 #### Velocity estimator
 

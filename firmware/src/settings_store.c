@@ -165,6 +165,7 @@ void settings_defaults(void) {
     RELAY_CATCHUP_FRAC = clamp_f(CONF_RELAY_CATCHUP_FRAC, 0.5f, 3.0f);
     RELAY_NEUTRAL_FRAC = clamp_f(CONF_RELAY_NEUTRAL_FRAC, 0.5f, 3.0f);
     SYNC_COMPRESSION_DRAIN_FRAC = clamp_f(CONF_SYNC_COMPRESSION_DRAIN_FRAC, 0.0f, 0.9f);
+    SYNC_COMPRESSION_DRAIN_BUDGET_MM = clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, 25.0f);
     
     SYNC_COMPRESSION_BIAS_FRAC = clamp_f(CONF_SYNC_COMPRESSION_BIAS_FRAC, 0.0f, 0.7f);
     flow_schedule_reset_runtime();
@@ -417,6 +418,7 @@ void settings_load(void) {
     RELAY_CATCHUP_FRAC = clamp_f(s->relay_catchup_frac, 0.5f, 3.0f);
     RELAY_NEUTRAL_FRAC = clamp_f(s->relay_neutral_frac, 0.5f, 3.0f);
     SYNC_COMPRESSION_DRAIN_FRAC = clamp_f(CONF_SYNC_COMPRESSION_DRAIN_FRAC, 0.0f, 0.9f);
+    SYNC_COMPRESSION_DRAIN_BUDGET_MM = clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, 25.0f);
 
     SYNC_COMPRESSION_BIAS_FRAC = clamp_f(s->sync_compression_bias_frac, 0.0f, 0.7f);
     flow_schedule_reset_runtime();

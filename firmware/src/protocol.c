@@ -106,6 +106,7 @@ static bool live_tune_locked_param(const char *param) {
            !strcmp(param, "SYNC_RELAY_TRIM_STEP_SPS") ||
            !strcmp(param, "SYNC_RELAY_TRIM_CLAMP_SPS") ||
            !strcmp(param, "SYNC_COMPRESSION_DRAIN_FRAC") ||
+           !strcmp(param, "SYNC_COMPRESSION_DRAIN_BUDGET_MM") ||
            !strcmp(param, "RELAY_MIN_FLIP_MM") ||
            !strcmp(param, "RELAY_COLLAPSE_DELAY_MS") ||
            !strcmp(param, "RELAY_COLLAPSE_RAMP_MULT") ||
@@ -970,6 +971,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "SYNC_RELAY_TRIM_STEP_SPS")) SYNC_RELAY_TRIM_STEP_SPS = clamp_i(iv, 0, 5000);
         else if (!strcmp(base_param, "SYNC_RELAY_TRIM_CLAMP_SPS")) SYNC_RELAY_TRIM_CLAMP_SPS = clamp_i(iv, 0, 50000);
         else if (!strcmp(base_param, "SYNC_COMPRESSION_DRAIN_FRAC")) SYNC_COMPRESSION_DRAIN_FRAC = clamp_f(fv, 0.0f, 0.9f);
+        else if (!strcmp(base_param, "SYNC_COMPRESSION_DRAIN_BUDGET_MM")) SYNC_COMPRESSION_DRAIN_BUDGET_MM = clamp_f(fv, 0.0f, 25.0f);
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "RELAY_MIN_FLIP_MM")) RELAY_MIN_FLIP_MM = clamp_f(fv, 0.0f, 100.0f);
         else if (!strcmp(base_param, "RELAY_COLLAPSE_DELAY_MS")) RELAY_COLLAPSE_DELAY_MS = clamp_i(iv, 0, 5000);
@@ -1158,6 +1160,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "SYNC_RELAY_TRIM_STEP_SPS")) snprintf(out, sizeof(out), "SYNC_RELAY_TRIM_STEP_SPS:%d", SYNC_RELAY_TRIM_STEP_SPS);
         else if (!strcmp(param, "SYNC_RELAY_TRIM_CLAMP_SPS")) snprintf(out, sizeof(out), "SYNC_RELAY_TRIM_CLAMP_SPS:%d", SYNC_RELAY_TRIM_CLAMP_SPS);
         else if (!strcmp(param, "SYNC_COMPRESSION_DRAIN_FRAC")) snprintf(out, sizeof(out), "SYNC_COMPRESSION_DRAIN_FRAC:%.3f", (double)SYNC_COMPRESSION_DRAIN_FRAC);
+        else if (!strcmp(param, "SYNC_COMPRESSION_DRAIN_BUDGET_MM")) snprintf(out, sizeof(out), "SYNC_COMPRESSION_DRAIN_BUDGET_MM:%.3f", (double)SYNC_COMPRESSION_DRAIN_BUDGET_MM);
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "RELAY_MIN_FLIP_MM")) snprintf(out, sizeof(out), "RELAY_MIN_FLIP_MM:%.3f", (double)RELAY_MIN_FLIP_MM);
         else if (!strcmp(param, "RELAY_COLLAPSE_DELAY_MS")) snprintf(out, sizeof(out), "RELAY_COLLAPSE_DELAY_MS:%d", RELAY_COLLAPSE_DELAY_MS);

@@ -2500,7 +2500,8 @@ void sync_tick(uint32_t now_ms) {
         int idle_threshold_sps = SYNC_MIN_SPS;
         if (idle_threshold_sps < 1) idle_threshold_sps = 1;
         if (A && A->task == TASK_FEED && demand_sps > idle_threshold_sps &&
-            SYNC_COMPRESSION_DRAIN_FRAC > 0.0f) {
+            SYNC_COMPRESSION_DRAIN_FRAC > 0.0f &&
+            g_sync_relieve_effort_mm < SYNC_COMPRESSION_DRAIN_BUDGET_MM) {
             int drain_sps = (int)((float)demand_sps * SYNC_COMPRESSION_DRAIN_FRAC);
             if (drain_sps < 0) drain_sps = 0;
             if (drain_sps > max_sps) drain_sps = max_sps;

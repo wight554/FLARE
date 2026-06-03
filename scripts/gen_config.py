@@ -131,6 +131,8 @@ DEFAULTS = {
     # Type-D COMPRESSION partial-drain guard. 0.0 = legacy hard-stop; >0 feeds
     # this demand fraction while TASK_FEED is active, clamped strictly below demand.
     "sync_compression_drain_frac": "0.40",
+    # Stop partial drain after this much COMPRESSION relieve effort. 0.0 = hard-stop.
+    "sync_compression_drain_budget_mm": "3.0",
     # Drift Observer
 
     # Adaptive Sync
@@ -520,6 +522,7 @@ def main():
         f"#define CONF_SYNC_RELAY_TRIM_STEP_SPS {get('sync_relay_trim_step_sps')}",
         f"#define CONF_SYNC_RELAY_TRIM_CLAMP_SPS {get('sync_relay_trim_clamp_sps')}",
         f"#define CONF_SYNC_COMPRESSION_DRAIN_FRAC {get_float('sync_compression_drain_frac')}f",
+        f"#define CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM {get_float('sync_compression_drain_budget_mm')}f",
         f"#define CONF_ZONE_BIAS_BASE_SPS   {mm_min_to_sps(get('zone_bias_base_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_RAMP_SPS_S {mm_min_to_sps(get('zone_bias_ramp_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_MAX_SPS    {mm_min_to_sps(get('zone_bias_max_rate'), l1)}",

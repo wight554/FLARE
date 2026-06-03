@@ -677,3 +677,52 @@ and force a re-ramp from zero (the "drops too hard" turning point).
   the rig-validated default. If the pair under-leans (TENSION touches > 0 at
   any drain frac), apply the deferred fallbacks from design.md (small
   `relay_neutral_frac` raise and/or time-since-crossing back-off) and record.
+
+## 19. Fix §16 partial-drain pause/idle grind (REGRESSION — shipped 72e0ddd)
+
+HW capture 2026-06-03 (`pause.txt`): on a print **pause**, the §16 COMPRESSION
+partial-drain feeds `0.4 × stale-EST ≈ 335 sps` into an already-full buffer
+**indefinitely** — `BP:5.00` pinned, `AV:0.00`, `EST:837` frozen (no crossings
+to decay it), `L1T:FEED` never flips IDLE, `CT:310 s` dwell, overfill **86 mm**,
+`cannot_relieve`. The §16 gate (`task==FEED && EST>SYNC_MIN`) assumes EST = the
+*current* extruder draw; on pause that assumption breaks and it reopens the exact
+purge-grind the old hard-`0` prevented ([[purge-grind-root-cause-macro]],
+[[compression-overfeed-stop]]). Analyzer PURGE + REGRESSION modes both FAIL.
+
+Fix: bound the drain by **relieve distance**, then true-stop. The drain's intent
+is amplitude-bounding on a transient touch — a real draw pulls the buffer off the
+COMPRESSION rail within a few mm; a pause keeps it pinned. So cap the drain on
+`g_sync_relieve_effort_mm` (already accumulates MMU feed while in COMPRESSION,
+reset on every transition at `sync.c:1260`).
+
+- [x] 19.1 `firmware/src/sync.c` (~`sync.c:2498-2512`): add a drain budget — feed
+  `SYNC_COMPRESSION_DRAIN_FRAC × demand` only while
+  `g_sync_relieve_effort_mm < SYNC_COMPRESSION_DRAIN_BUDGET_MM`; once the relieve
+  effort exceeds the budget (buffer still pinned, not leaving COMPRESSION →
+  pause/idle), force `target_sps = 0` (hard-stop). Real print touches leave
+  COMPRESSION before the budget; pause/idle trips it and true-stops. Strictly
+  safer than current: worst case = pre-§16 behavior.
+  - 2026-06-03: Added the budget as one extra condition on the existing Type-D
+    COMPRESSION partial-drain gate. Over-budget falls through to the existing
+    `target_sps = 0`; the branch remains above the `SYNC_MIN_SPS` clamp.
+- [x] 19.2 New compile/runtime knob `SYNC_COMPRESSION_DRAIN_BUDGET_MM`
+  (default ≈ `3.0`, matching the analyzer overfill budget; clamp e.g.
+  `[0.0, 25.0]`). Plumb like `SYNC_COMPRESSION_DRAIN_FRAC` (non-persisted, no
+  `SETTINGS_VERSION` bump). `0.0` = immediate hard-stop = legacy A/B guard.
+  - 2026-06-03: Added config/default, runtime global, `SET:`/`GET:`, live-dump,
+    root docs, and OpenSpec contract. Mirrored `SYNC_COMPRESSION_DRAIN_FRAC` as
+    non-persisted: no `settings_t` field and no `SETTINGS_VERSION` bump.
+- [x] 19.3 `BUF_SENSOR_TYPE == 0` only; type-P COMPRESSION/relief path untouched.
+  - 2026-06-03: Control-law change is scoped to the existing
+    `BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION` branch; analog type-P
+    smoothing/relief path unchanged.
+- [x] 19.4 Build + tests green; OpenSpec strict validation.
+  - 2026-06-03: `ninja -C build_local` passed.
+  - 2026-06-03: `bash scripts/validate_regression.sh` passed.
+  - 2026-06-03: `python3 -m py_compile scripts/*.py` passed.
+  - 2026-06-03: `python3 scripts/test_*.py` passed.
+  - 2026-06-03: `openspec validate relay-neutral-frac-detune --strict` passed.
+- [ ] 19.5 HW: re-capture a pause. Expect overfill ≤ budget (~3 mm, not 86 mm),
+  feed → 0 while paused, clean resume; analyzer PURGE + REGRESSION modes PASS.
+  Re-confirm the §18 asymmetric soak unaffected (drain still bounds the cycle
+  amplitude on normal touches).

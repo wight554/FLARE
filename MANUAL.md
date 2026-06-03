@@ -182,7 +182,8 @@ dev-build-only — see the note at the top of this section.
 | `SYNC_RELAY_TRIM_STEP_SPS` | `sync_relay_trim_step_sps` | Runtime-only type-D anti-starvation trim step in raw SPS. TENSION touches add it; COMPRESSION touches do not subtract. | 300 |
 | `SYNC_RELAY_TRIM_CLAMP_SPS` | `sync_relay_trim_clamp_sps` | Runtime-only type-D residual trim anti-windup clamp in raw SPS. | 2000 |
 | `SYNC_COMPRESSION_DRAIN_FRAC` | `sync_compression_drain_frac` | Runtime-only type-D COMPRESSION active-draw drain fraction. `0.0` disables and restores legacy hard-stop; `>0` feeds this fraction of demand while `TASK_FEED` is active, clamped below demand. | 0.40 |
-| `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `SYNC_COMPRESSION_DRAIN_FRAC`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
+| `SYNC_COMPRESSION_DRAIN_BUDGET_MM` | `sync_compression_drain_budget_mm` | Runtime-only type-D COMPRESSION partial-drain distance budget. Once COMPRESSION relieve effort reaches this many mm, partial drain true-stops at `0`; `0.0` means immediate hard-stop. | 3.0 |
+| `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `SYNC_COMPRESSION_DRAIN_FRAC`, `SYNC_COMPRESSION_DRAIN_BUDGET_MM`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
 
 For type-D branch A/B tests, capture with:
 
