@@ -1,51 +1,26 @@
 # Design — type-d-dynamic-flow
 
-## The two regimes, and why one knob can't serve both
+## Scope: fast-step tension burst only (slow drift already solved)
+
+HW captures settled the regimes:
 
 ```
-                     observable?   right response        wrong response
-slow NEUTRAL drift   YES (g_buf_pos EST tracks, so the    GENTLE proportional   high floor / geometric
-toward TENSION        dead-reckon follows the drift)       lean; decay on        ramp → constant
-                                                           recovery → quiet      COMPRESSION clicks
-fast 5× step into    NO (EST frozen, drains mid-band→     accept 1 touch;       gentle 1.15× EST
-TENSION               tension crossing no switch)          AGGRESSIVE recovery   recovery → burst of
-                                                           (EST snap + catchup)  re-drain touches
+                     status        handled by
+slow NEUTRAL drift   SOLVED        SYNC_RESERVE_PCT 65 compression bias — slow
+toward TENSION                     benchy rides COMPRESSION (REGRESSION PASS),
+                                   does NOT drift to TENSION. No new work.
+fast 5× step into    BROKEN        this change — Piece 2 (velocity snap + burst
+TENSION                            escalation). Burst of re-drain touches today.
 ```
 
-The control principle (event-triggered / intermittent-observation control;
-robust-MPC constraint back-off): **back off from the dangerous rail by a margin
-sized to uncertainty, but close the loop so you stop when the threat clears — and
-make the response aggressiveness asymmetric, because the cost is asymmetric**
-(TENSION = print defect, COMPRESSION = benign noise). Leaning toward TENSION is
-gentle; recovering from it is aggressive.
+A proactive NEUTRAL soft-wall lean was considered and **dropped** (see "Dropped:
+Piece 1"). Control principle for what remains (event-triggered / intermittent-
+observation control; robust-MPC constraint back-off): the tension-recovery
+direction is the *safe* overshoot direction (toward COMPRESSION = benign), so
+respond **aggressively**, scaled by how the buffer reached the rail. Recovering
+from TENSION is aggressive; there is no NEUTRAL lean to keep gentle.
 
-## Piece 1 — proactive NEUTRAL soft-wall lean (slow drift)
-
-In the slow regime `g_buf_pos` is valid (steady demand → EST good → the
-integrated position genuinely tracks). Lean proportional to the tension-side
-excursion, toward a virtual wall inside the physical TENSION switch:
-
-```
-e = (-g_buf_pos) - SOFT_WALL_DEADBAND_MM          # tension-side excursion past deadband
-if e > 0:  lean_target = K_SOFTWALL * e            # sps, P-term
-else:      lean_target = 0
-# feed the existing one-sided trim (clamped, leaked):
-g_relay_neutral_trim_sps += slew(lean_target - g_relay_neutral_trim_sps)
-```
-- Reuses `g_relay_neutral_trim_sps` (§15): clamp `+SYNC_RELAY_TRIM_CLAMP_SPS`,
-  in-NEUTRAL leak toward 0, apply path in `relay_control_law`. The §15
-  TENSION-touch step stays as the hard backstop.
-- Self-correcting: leans only while drifting; recovers → leak pulls it back →
-  quiet. This is `psf_control_law`'s soft-wall (sync.c:2061) on the dead-reckon.
-- Knob: `SYNC_NEUTRAL_SOFTWALL_GAIN` (K, sps per mm; 0 = disabled),
-  `SYNC_NEUTRAL_SOFTWALL_DEADBAND_MM` (or reuse the reserve deadband).
-
-Validity gate: only meaningful when the dead-reckon tracks (slow/steady). Fast
-steps make `g_buf_pos` stale, but there the lean simply hasn't ramped yet (short
-dwell) and the tension touch + Piece 2 take over — so no special gating needed
-beyond the proportional form (small e → small lean).
-
-## Piece 2 — velocity snap + consecutive-tension escalation (fast-step burst)
+## Piece 2 — velocity snap + consecutive-tension escalation (the fix)
 
 HW capture A confirmed the mechanism and refined the gate. On every tension
 touch `MM=3000` (catchup magnitude is fine); the burst is `EST` **creeping**
@@ -105,41 +80,53 @@ Catchup magnitude is adequate (HW: `MM` hits ~3000). Marginal win: scale the
 feed a tick sooner. Aggressive/overshoot here is safe (toward COMPRESSION). Lower
 priority than Piece 2 — ship only if the first-touch clearance is still slow.
 
-## Piece 4 — demote the feed floor
+## Feed floor (already demoted; no new work)
 
-`SYNC_MIN_RATE 1000` was the prior skip fix but is too loud for real prints. With
-Piece 1 handling slow drift quietly, lower the default `SYNC_MIN_RATE` to a quiet
-value (HW-tuned; candidate ~100-300). It stays a knob: operators wanting the
-loud zero-fast-step-skip behavior can raise it. Document the trade in TUNING.md.
+`SYNC_MIN_RATE` default is already `100` (shipped in `relay-neutral-frac-detune`):
+quiet, with `SYNC_RESERVE_PCT 65` compression-biasing the slow case. A high floor
+remains the operator opt-in for the loud zero-fast-step-skip mode. Recorded here
+so this change's spec carries the type-D lever map; no code change.
+
+## Dropped: Piece 1 (proactive NEUTRAL soft-wall lean)
+
+Originally planned a P-term lean on the dead-reckoned tension-side excursion to
+correct slow drift. **Dropped after capture B:**
+- `SYNC_RESERVE_PCT 65` already compression-biases slow prints — the slow benchy
+  rode COMPRESSION (REGRESSION PASS), no TENSION drift. The drift the soft-wall
+  targeted does not occur at the shipped default.
+- The dead-reckon gives no usable signal anyway: capture B showed `BP` frozen at
+  `+3.25` (feed == EST → net 0 → integrator stalls) right up to a **sudden** jump
+  to `−5.00`. A position-proportional lean sees `+3.25` (compression side) →
+  computes zero tension excursion → does nothing. The rare residual TENSION
+  touches are sudden/step-driven (Piece 2's domain), not gradual.
+
+So a position soft-wall is both unnecessary (reserve handles it) and inert (no
+gradual signal). The `SYNC_NEUTRAL_SOFTWALL_*` knobs are not added.
 
 ## Risks
 
-- **Soft-wall on a drifting dead-reckon:** over a very long dwell `g_buf_pos`
-  itself accumulates error. Mitigation: the lean is bounded (trim clamp) and
-  biases toward the *safe* (COMPRESSION) side; worst case = a mild compression
-  touch (benign), which also re-baselines the dead-reckon.
 - **Velocity threshold tuning:** too low → every crossing treated as fast → slow
   drift re-overshoots (the `7178c34` regression returns); too high → bursts
   persist. `SYNC_TENSION_FAST_MM_S` must be HW-swept.
-- **Two leans interacting** (soft-wall lean + §15 trim step): both push the same
-  trim; the clamp + leak bound them. Verify they don't wind up.
+- **Escalation windup:** the burst escalator + §15 TENSION-touch step both push
+  the trim/EST up; bound by the trim clamp + demand ceiling + the burst reset on a
+  held NEUTRAL dwell. Verify it converges and resets, not winds up.
 - **Measurement noise:** live-print captures are noise-dominated — use a fixed
   stimulus (square-wave macro or identical sliced print) for A/B.
 
-## HW validation gate (before/while implementing)
+## HW validation gate
 
-Capture a fast-step tension burst, confirm the diagnosis: between touch 1 and
-touch 2, `MM` is HIGH (~3000, catchup fine) and `EST` is LOW/creeping (the `1.15×`
-under-correction). If confirmed → Piece 2 is the fix. Also capture a slow-ish
-print at low `SYNC_MIN_RATE`: does `BP` trend negative *gradually* before TENSION
-(→ Piece 1 soft-wall works) or jump (→ dead-reckon not tracking even slow → fall
-back to a time-since-crossing ramp).
+Capture A (fast-step burst) already confirmed the diagnosis: `MM` ~3000 (catchup
+fine), `EST` creeping ~+200 sps/touch over 4-5 touches/entry, first crossing
+`AV −2.7..−4.6 mm/s`, re-touches `AV 0`. → Piece 2 (velocity snap + burst
+escalation) is the fix. Post-implementation, re-run capture A and confirm the
+burst collapses to ~1 touch; sweep `SYNC_TENSION_FAST_MM_S` / `_BURST_MS` /
+escalation ratio.
 
 ## Scope / settings
 
 All `BUF_SENSOR_TYPE == 0`. Type-P estimator / `psf_control_law` byte-identical.
-New knobs (`SYNC_NEUTRAL_SOFTWALL_GAIN`, `SYNC_NEUTRAL_SOFTWALL_DEADBAND_MM`,
-`SYNC_TENSION_FAST_MM_S`) follow the non-persisted runtime pattern of
-`SYNC_COMPRESSION_DRAIN_FRAC` — no `SETTINGS_VERSION` bump. `SYNC_MIN_RATE`
-default change is the only edit to a shared knob (lowering it is safe for type-P;
-it was the type-D-specific raise that needed review).
+New knobs (`SYNC_TENSION_FAST_MM_S`, `SYNC_TENSION_BURST_MS`,
+`SYNC_TENSION_ESC_STEP_SPS`, `SYNC_TENSION_ESC_RATIO`) follow the non-persisted
+runtime pattern of `SYNC_COMPRESSION_DRAIN_FRAC` — no `SETTINGS_VERSION` bump. No
+shared-knob or feed-floor change in this change (the floor was already demoted).
