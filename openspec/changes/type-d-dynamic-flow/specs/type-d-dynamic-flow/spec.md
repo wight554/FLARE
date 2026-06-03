@@ -43,8 +43,8 @@ toward TENSION) and SHALL NOT alter analog type-P feedforward.
 
 ### Requirement: Tension-crossing EST snaps on velocity and escalates on bursts
 
-For `BUF_SENSOR_TYPE == 0`, the `extruder_est_sps` update on a crossing into
-`BUF_TENSION` SHALL use two triggers. (1) When drain velocity is present, the
+For `BUF_SENSOR_TYPE == 0`, a crossing into `BUF_TENSION` SHALL update
+`extruder_est_sps` via two triggers. (1) When drain velocity is present, the
 update SHALL scale aggressiveness by crossing velocity toward the measured demand
 `mmu_feed + drain_rate` at high blend weight, so the recovered NEUTRAL feed
 matches demand on the first touch. (2) When a tension touch occurs within a burst
