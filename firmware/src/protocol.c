@@ -111,9 +111,8 @@ static bool live_tune_locked_param(const char *param) {
            !strcmp(param, "SYNC_COMPRESSION_DRAIN_BUDGET_MM") ||
            !strcmp(param, "SYNC_EST_ATTACK_ALPHA") ||
            !strcmp(param, "SYNC_TENSION_FAST_MM_S") ||
-           !strcmp(param, "SYNC_TENSION_BURST_MS") ||
-           !strcmp(param, "SYNC_TENSION_ESC_STEP_SPS") ||
-           !strcmp(param, "SYNC_TENSION_ESC_RATIO") ||
+           !strcmp(param, "SYNC_TENSION_RECOVERY_FLOOR") ||
+           !strcmp(param, "SYNC_TENSION_RECOVERY_MS") ||
            !strcmp(param, "RELAY_MIN_FLIP_MM") ||
            !strcmp(param, "RELAY_COLLAPSE_DELAY_MS") ||
            !strcmp(param, "RELAY_COLLAPSE_RAMP_MULT") ||
@@ -1012,9 +1011,8 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "SYNC_COMPRESSION_DRAIN_BUDGET_MM")) SYNC_COMPRESSION_DRAIN_BUDGET_MM = clamp_f(fv, 0.0f, 25.0f);
         else if (!strcmp(base_param, "SYNC_EST_ATTACK_ALPHA")) SYNC_EST_ATTACK_ALPHA = clamp_f(fv, 0.65f, 1.0f);
         else if (!strcmp(base_param, "SYNC_TENSION_FAST_MM_S")) SYNC_TENSION_FAST_MM_S = clamp_f(fv, 1.0f, 200.0f);
-        else if (!strcmp(base_param, "SYNC_TENSION_BURST_MS")) SYNC_TENSION_BURST_MS = clamp_i(iv, 0, 5000);
-        else if (!strcmp(base_param, "SYNC_TENSION_ESC_STEP_SPS")) SYNC_TENSION_ESC_STEP_SPS = clamp_i(iv, 0, 5000);
-        else if (!strcmp(base_param, "SYNC_TENSION_ESC_RATIO")) SYNC_TENSION_ESC_RATIO = clamp_f(fv, 1.0f, 4.0f);
+        else if (!strcmp(base_param, "SYNC_TENSION_RECOVERY_FLOOR")) SYNC_TENSION_RECOVERY_FLOOR_SPS = clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(6000.0f));
+        else if (!strcmp(base_param, "SYNC_TENSION_RECOVERY_MS")) SYNC_TENSION_RECOVERY_MS = clamp_i(iv, 0, 10000);
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "RELAY_MIN_FLIP_MM")) RELAY_MIN_FLIP_MM = clamp_f(fv, 0.0f, 100.0f);
         else if (!strcmp(base_param, "RELAY_COLLAPSE_DELAY_MS")) RELAY_COLLAPSE_DELAY_MS = clamp_i(iv, 0, 5000);
@@ -1207,9 +1205,8 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "SYNC_COMPRESSION_DRAIN_BUDGET_MM")) snprintf(out, sizeof(out), "SYNC_COMPRESSION_DRAIN_BUDGET_MM:%.3f", (double)SYNC_COMPRESSION_DRAIN_BUDGET_MM);
         else if (!strcmp(param, "SYNC_EST_ATTACK_ALPHA")) snprintf(out, sizeof(out), "SYNC_EST_ATTACK_ALPHA:%.3f", (double)SYNC_EST_ATTACK_ALPHA);
         else if (!strcmp(param, "SYNC_TENSION_FAST_MM_S")) snprintf(out, sizeof(out), "SYNC_TENSION_FAST_MM_S:%.3f", (double)SYNC_TENSION_FAST_MM_S);
-        else if (!strcmp(param, "SYNC_TENSION_BURST_MS")) snprintf(out, sizeof(out), "SYNC_TENSION_BURST_MS:%d", SYNC_TENSION_BURST_MS);
-        else if (!strcmp(param, "SYNC_TENSION_ESC_STEP_SPS")) snprintf(out, sizeof(out), "SYNC_TENSION_ESC_STEP_SPS:%d", SYNC_TENSION_ESC_STEP_SPS);
-        else if (!strcmp(param, "SYNC_TENSION_ESC_RATIO")) snprintf(out, sizeof(out), "SYNC_TENSION_ESC_RATIO:%.3f", (double)SYNC_TENSION_ESC_RATIO);
+        else if (!strcmp(param, "SYNC_TENSION_RECOVERY_FLOOR")) snprintf(out, sizeof(out), "SYNC_TENSION_RECOVERY_FLOOR:%.1f", (double)sps_to_mm_per_min_idx(SYNC_TENSION_RECOVERY_FLOOR_SPS, idx));
+        else if (!strcmp(param, "SYNC_TENSION_RECOVERY_MS")) snprintf(out, sizeof(out), "SYNC_TENSION_RECOVERY_MS:%d", SYNC_TENSION_RECOVERY_MS);
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "RELAY_MIN_FLIP_MM")) snprintf(out, sizeof(out), "RELAY_MIN_FLIP_MM:%.3f", (double)RELAY_MIN_FLIP_MM);
         else if (!strcmp(param, "RELAY_COLLAPSE_DELAY_MS")) snprintf(out, sizeof(out), "RELAY_COLLAPSE_DELAY_MS:%d", RELAY_COLLAPSE_DELAY_MS);

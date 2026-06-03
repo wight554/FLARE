@@ -102,9 +102,9 @@ run_current:
                                         # 0.0 = immediate hard-stop.
 # sync_est_attack_alpha: 0.8       # Type-D rising-demand EST attack; clamp 0.65..1.0.
 # sync_tension_fast_mm_s: 2.0      # Type-D TENSION crossing velocity for full EST snap.
-# sync_tension_burst_ms: 400       # Repeat TENSION touches inside this window escalate EST.
-# sync_tension_esc_step_sps: 300   # First geometric burst escalation step.
-# sync_tension_esc_ratio: 1.6      # Burst escalation multiplier; clamp 1.0..4.0.
+# sync_tension_recovery_floor: 2400 # Type-D decaying NEUTRAL feed floor after TENSION touch;
+                                    # mm/min, 0 disables, clamp 0..6000.
+# sync_tension_recovery_ms: 1500    # Recovery-floor decay window; clamp 0..10000.
 # sync_relay_trim_step_sps: 300       # Type-D residual trim step; lower = slower correction,
                                       # rarer plateau clicks.
 # sync_relay_trim_clamp_sps: 2000     # Type-D residual trim anti-windup clamp.

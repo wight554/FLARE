@@ -300,10 +300,10 @@ Each knob does a distinct job — do not conflate them:
 - **`SYNC_EST_ATTACK_ALPHA`** — fast EST attack on generic rising-demand
   switch samples. It helps recovery after corrective crossings without making
   down-steps chatter.
-- **`SYNC_TENSION_FAST_MM_S` / `_BURST_MS` / `_ESC_*`** — type-D TENSION
-  recovery. Fast crossings snap EST toward measured demand; immediate re-touches
-  escalate geometrically so a slow→fast step becomes a single positioning touch
-  instead of a burst.
+- **`SYNC_TENSION_FAST_MM_S` / `_RECOVERY_*`** — type-D TENSION recovery. Fast
+  crossings snap EST toward measured demand; each TENSION touch also arms a
+  decaying NEUTRAL feed floor so a slow→fast step becomes a single positioning
+  touch instead of a burst.
 - **`SYNC_COMPRESSION_DRAIN_FRAC` / `_BUDGET_MM`** — bound the COMPRESSION feed
   so touches don't grind and a pause/idle true-stops (no overfill).
 
@@ -312,20 +312,23 @@ stimulus is fixed — the same config can read 3 vs 11 tension touches on differ
 print segments. Use an identical repeatable stimulus (same sliced file/segment,
 or a fixed `_FLARE_STEP_TEST` square-wave macro) before trusting a knob A/B.
 
-### Fast-step recovery: EST snap + burst escalation
+### Fast-step recovery: EST snap + recovery floor
 
 A two-switch type-D buffer cannot observe a demand jump while the arm is still
 inside `BUF_NEUTRAL`. One `BUF_TENSION` touch on a slow→fast step is therefore a
 positioning/recalibration touch. The fix is to make that touch recover demand
-immediately instead of letting `EST` creep over several repeat touches.
+immediately instead of letting the buffer re-drain over several repeat touches.
 
 `SYNC_TENSION_FAST_MM_S` maps arm velocity to snap strength. A slow/no-travel
 single crossing keeps the gentle `feed_avg * 1.15` fallback that protects slow
 drift. A fast crossing snaps toward measured demand (`feed_avg + drain_rate`) at
-high alpha. If the buffer re-touches TENSION inside `SYNC_TENSION_BURST_MS`,
-`SYNC_TENSION_ESC_STEP_SPS` and `SYNC_TENSION_ESC_RATIO` add a bounded geometric
-EST jump for pinned `AV=0` re-touches that velocity cannot see. Set
-`SYNC_TENSION_BURST_MS:0` to disable this burst escalator for A/B tests.
+high alpha. The crossing also sets `SYNC_TENSION_RECOVERY_FLOOR`, a feed-side
+lower bound applied only in `BUF_NEUTRAL` and decayed over
+`SYNC_TENSION_RECOVERY_MS`. The floor is independent of `EST`, so recovery-cycle
+fill/drain samples cannot lower it between touches. If it overshoots into
+`BUF_COMPRESSION`, the floor stops applying and the COMPRESSION drain/true-stop
+path stabilizes the buffer. Set `SYNC_TENSION_RECOVERY_FLOOR:0` to disable this
+recovery floor for A/B tests.
 
 High `SYNC_MIN_RATE` remains the optional loud zero-touch mode: it prefeeds slow
 sections near the fast-segment rate, which can prevent even the first TENSION
@@ -346,9 +349,8 @@ RELAY_NEUTRAL_FRAC    = 1.0     # demand-match; do NOT raise for step-skip
 RELAY_CATCHUP_FRAC    = 1.3
 SYNC_EST_ATTACK_ALPHA = 0.8     # fast EST attack on rising demand
 SYNC_TENSION_FAST_MM_S      = 2.0  # full snap threshold for fast TENSION crossings
-SYNC_TENSION_BURST_MS       = 400  # repeated TENSION touches inside this window escalate EST
-SYNC_TENSION_ESC_STEP_SPS   = 300
-SYNC_TENSION_ESC_RATIO      = 1.6
+SYNC_TENSION_RECOVERY_FLOOR = 2400 # mm/min NEUTRAL feed floor after TENSION touch
+SYNC_TENSION_RECOVERY_MS    = 1500 # decay window for the recovery floor
 SYNC_COMPRESSION_DRAIN_FRAC      = 0.4  # 0.4 = fuller buffer / more tension margin (vs 0.2)
 SYNC_COMPRESSION_DRAIN_BUDGET_MM = 3.0
 ```
@@ -370,9 +372,9 @@ Lever map (what each does):
   catch a step. Leave at 1.0.
 - `SYNC_EST_ATTACK_ALPHA` — fast EST attack on rising demand; helps when a
   crossing occurs during the drain (i.e. compression-pinned), inert mid-band.
-- `SYNC_TENSION_FAST_MM_S` / `_BURST_MS` / `_ESC_*` — fast-step recovery after
-  the first type-D TENSION touch; collapses re-touch bursts without raising the
-  quiet feed floor.
+- `SYNC_TENSION_FAST_MM_S` / `_RECOVERY_*` — fast-step recovery after the first
+  type-D TENSION touch; collapses re-touch bursts with a bounded decaying floor
+  instead of raising the quiet feed floor permanently.
 - `SYNC_COMPRESSION_DRAIN_FRAC` — compression comfort/safety; higher = fuller
   buffer = more tension margin.
 

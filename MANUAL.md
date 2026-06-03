@@ -185,9 +185,8 @@ dev-build-only — see the note at the top of this section.
 | `SYNC_COMPRESSION_DRAIN_BUDGET_MM` | `sync_compression_drain_budget_mm` | Runtime-only type-D COMPRESSION partial-drain distance budget. Once COMPRESSION relieve effort reaches this many mm, partial drain true-stops at `0`; `0.0` means immediate hard-stop. | 3.0 |
 | `SYNC_EST_ATTACK_ALPHA` | `sync_est_attack_alpha` | Runtime-only type-D rising-demand EST attack alpha. Applies only when a type-D switch-crossing sample is above current `EST`; falling/equal samples keep the slower dwell EMA. Clamped 0.65 to 1.0. | 0.8 |
 | `SYNC_TENSION_FAST_MM_S` | `sync_tension_fast_mm_s` | Runtime-only type-D TENSION crossing velocity (mm/s) that maps to full EST snap toward measured demand. Slow crossings keep the gentle fallback. | 2.0 |
-| `SYNC_TENSION_BURST_MS` | `sync_tension_burst_ms` | Runtime-only type-D burst window. Consecutive TENSION touches inside this window geometrically escalate EST; `0` disables burst escalation. | 400 |
-| `SYNC_TENSION_ESC_STEP_SPS` | `sync_tension_esc_step_sps` | Runtime-only type-D burst escalation base step in raw SPS. | 300 |
-| `SYNC_TENSION_ESC_RATIO` | `sync_tension_esc_ratio` | Runtime-only type-D burst escalation multiplier. | 1.6 |
+| `SYNC_TENSION_RECOVERY_FLOOR` | `sync_tension_recovery_floor` | Runtime-only type-D decaying NEUTRAL feed floor in mm/min. Each TENSION touch sets this feed-side lower bound independent of `EST`; `0.0` disables. Clamped 0 to 6000. | 2400 |
+| `SYNC_TENSION_RECOVERY_MS` | `sync_tension_recovery_ms` | Runtime-only type-D recovery-floor decay window in ms. The floor decays to zero after this window. Clamped 0 to 10000. | 1500 |
 | `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `SYNC_COMPRESSION_DRAIN_FRAC`, `SYNC_COMPRESSION_DRAIN_BUDGET_MM`, `SYNC_EST_ATTACK_ALPHA`, `SYNC_TENSION_*`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
 
 For type-D branch A/B tests, capture with:

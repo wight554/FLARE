@@ -64,6 +64,9 @@ DEPRECATED_KEYS = {
     "tc_timeout_th_ms",
     "tc_timeout_y_ms",
     "reload_y_timeout_ms",
+    "sync_tension_burst_ms",
+    "sync_tension_esc_step_sps",
+    "sync_tension_esc_ratio",
 }
 
 # --- Defaults (merged from config.h and Klipper standards) ---
@@ -141,11 +144,10 @@ DEFAULTS = {
     # Type-D rising-demand estimator attack. Bypasses EST_ALPHA_MAX only on up-steps.
     "sync_est_attack_alpha": "0.8",
     # Type-D fast TENSION recovery. Fast crossings snap EST toward measured demand;
-    # repeat touches in this window escalate geometrically.
+    # each TENSION touch also arms a decaying NEUTRAL feed floor.
     "sync_tension_fast_mm_s": "2.0",
-    "sync_tension_burst_ms": "400",
-    "sync_tension_esc_step_sps": "300",
-    "sync_tension_esc_ratio": "1.6",
+    "sync_tension_recovery_floor": "2400",
+    "sync_tension_recovery_ms": "1500",
     # Drift Observer
 
     # Adaptive Sync
@@ -259,7 +261,7 @@ def validate_known_keys(cfg, config_path):
             classify(key, f"{section}.{key}")
 
     if deprecated:
-        print(f"Warning: ignoring demoted internal (Tier-3) config key(s) in "
+        print(f"Warning: ignoring deprecated/demoted config key(s) in "
               f"{config_path}: {', '.join(deprecated)}", file=sys.stderr)
 
     if unknown:
@@ -538,9 +540,8 @@ def main():
         f"#define CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM {get_float('sync_compression_drain_budget_mm')}f",
         f"#define CONF_SYNC_EST_ATTACK_ALPHA {get_float('sync_est_attack_alpha')}f",
         f"#define CONF_SYNC_TENSION_FAST_MM_S {get_float('sync_tension_fast_mm_s')}f",
-        f"#define CONF_SYNC_TENSION_BURST_MS {get('sync_tension_burst_ms')}",
-        f"#define CONF_SYNC_TENSION_ESC_STEP_SPS {get('sync_tension_esc_step_sps')}",
-        f"#define CONF_SYNC_TENSION_ESC_RATIO {get_float('sync_tension_esc_ratio')}f",
+        f"#define CONF_SYNC_TENSION_RECOVERY_FLOOR_SPS {mm_min_to_sps(get('sync_tension_recovery_floor'), l1)}",
+        f"#define CONF_SYNC_TENSION_RECOVERY_MS {get('sync_tension_recovery_ms')}",
         f"#define CONF_ZONE_BIAS_BASE_SPS   {mm_min_to_sps(get('zone_bias_base_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_RAMP_SPS_S {mm_min_to_sps(get('zone_bias_ramp_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_MAX_SPS    {mm_min_to_sps(get('zone_bias_max_rate'), l1)}",

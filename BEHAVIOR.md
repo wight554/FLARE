@@ -292,11 +292,14 @@ For `BUF_NEUTRAL -> BUF_TENSION`, type-D tension recovery is more aggressive
 than generic rising-demand attack. Firmware scales the crossing sample by arm
 velocity: a slow/no-velocity crossing keeps the softened `feed_avg * 1.15`
 fallback, while a fast crossing snaps toward measured demand
-`feed_avg + drain_rate` with alpha up to `1.0`. If another TENSION touch arrives
-inside `SYNC_TENSION_BURST_MS`, the pinned zero-velocity re-touch geometrically
-adds `SYNC_TENSION_ESC_STEP_SPS * SYNC_TENSION_ESC_RATIO^n` to `EST`, clamped by
-`GLOBAL_MAX_RATE`. The burst counter resets after a held NEUTRAL dwell. This is
-only for type-D tension recovery; type-P remains byte-identical. The target is to
+`feed_avg + drain_rate` with alpha up to `1.0`. Each TENSION touch also arms a
+feed-side `SYNC_TENSION_RECOVERY_FLOOR` lower bound that applies only while the
+buffer is back in `BUF_NEUTRAL`; it decays to zero over
+`SYNC_TENSION_RECOVERY_MS`. This floor does not modify `extruder_est_sps`, so
+recovery-cycle fill/drain estimator samples cannot pull it down. If the
+aggressive floor overshoots into `BUF_COMPRESSION`, it stops applying and the
+existing COMPRESSION drain/true-stop path stabilizes the buffer. This is only
+for type-D tension recovery; type-P remains byte-identical. The target is to
 collapse fast-step bursts to one positioning touch, not to eliminate all
 fast-step touches.
 

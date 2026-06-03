@@ -124,8 +124,8 @@ static float g_bp_drift_correction_applied_mm = 0.0f;
 static uint32_t g_tension_pin_ts[TENSION_PIN_WINDOW_LEN] = {0};
 static int g_tension_pin_ts_idx = 0;
 static uint32_t g_tension_risk_emit_ms = 0;
-static uint32_t g_last_tension_ms = 0;
-static int g_tension_burst_n = 0;
+static int g_tension_floor_sps = 0;
+static uint32_t g_tension_floor_set_ms = 0;
 static float g_relay_flip_travel_since_mm = 0.0f;
 static float g_relay_neutral_trim_sps = 0.0f;
 static uint32_t g_relay_trim_last_leak_ms = 0;
@@ -1005,14 +1005,6 @@ static void blend_extruder_est_sps_direct(float sample_sps, float alpha, uint32_
     extruder_est_last_update_ms = now_ms;
 }
 
-static void type_d_tension_burst_neutral_reset(uint32_t now_ms) {
-    if (BUF_SENSOR_TYPE != 0 || g_buf.state != BUF_NEUTRAL || SYNC_TENSION_BURST_MS <= 0) return;
-    if ((now_ms - g_buf.entered_ms) >= (uint32_t)SYNC_TENSION_BURST_MS) {
-        g_last_tension_ms = 0;
-        g_tension_burst_n = 0;
-    }
-}
-
 static void type_d_neutral_feed_reset(void) {
     g_type_d_neutral_feed_sps_sum = 0;
     g_type_d_neutral_feed_samples = 0;
@@ -1230,7 +1222,7 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
             float prev_est_sps = extruder_est_sps;
             if (neutral_drain_sample) {
                 /* TENSION means starvation: let the snap raise EST, but never
-                 * wipe burst escalation back down to a buffer-limited sample. */
+                 * lower it back to a buffer-limited sample. */
                 blend_extruder_est_sps_direct(est_sps, alpha, now_ms);
                 if (extruder_est_sps < prev_est_sps) extruder_est_sps = prev_est_sps;
             } else {
@@ -1275,22 +1267,10 @@ estimator_done:
         relay_neutral_trim_clamp();
     }
 
-    /* type-d-dynamic-flow: burst escalation on every NEUTRAL->TENSION
-     * crossing. Do not gate this by sample_valid/dwell; burst re-touches are
-     * too fast to produce demand samples, and those are exactly what this fixes.
-     * Run after any estimator blend so escalation lands on top. */
-    if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL && new_state == BUF_TENSION) {
-        if (SYNC_TENSION_BURST_MS > 0 && g_last_tension_ms != 0 &&
-            (now_ms - g_last_tension_ms) < (uint32_t)SYNC_TENSION_BURST_MS) {
-            if (g_tension_burst_n < 16) g_tension_burst_n++;
-            float esc_sps = (float)SYNC_TENSION_ESC_STEP_SPS *
-                            powf(SYNC_TENSION_ESC_RATIO, (float)g_tension_burst_n);
-            extruder_est_sps = fminf(extruder_est_sps + esc_sps, (float)GLOBAL_MAX_SPS);
-            extruder_est_last_update_ms = now_ms;
-        } else {
-            g_tension_burst_n = 0;
-        }
-        g_last_tension_ms = now_ms;
+    if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL && new_state == BUF_TENSION &&
+        SYNC_TENSION_RECOVERY_FLOOR_SPS > 0) {
+        g_tension_floor_sps = SYNC_TENSION_RECOVERY_FLOOR_SPS;
+        g_tension_floor_set_ms = now_ms;
     }
 
     history_push(g_buf.state, prev_dwell);
@@ -1431,6 +1411,24 @@ static int sync_neutral_anti_tension_floor_sps(buf_state_t s, lane_t *A,
     if (assist_floor_sps <= SYNC_MIN_SPS) return 0;
 
     return assist_floor_sps;
+}
+
+static int type_d_tension_recovery_floor_sps(buf_state_t s, uint32_t now_ms) {
+    if (BUF_SENSOR_TYPE != 0 || s != BUF_NEUTRAL || g_tension_floor_sps <= 0) return 0;
+    if (SYNC_TENSION_RECOVERY_MS <= 0) {
+        g_tension_floor_sps = 0;
+        return 0;
+    }
+
+    uint32_t age_ms = now_ms - g_tension_floor_set_ms;
+    if (age_ms >= (uint32_t)SYNC_TENSION_RECOVERY_MS) {
+        g_tension_floor_sps = 0;
+        return 0;
+    }
+
+    float decay = 1.0f - ((float)age_ms / (float)SYNC_TENSION_RECOVERY_MS);
+    int floor_sps = (int)((float)g_tension_floor_sps * decay);
+    return (floor_sps > 0) ? floor_sps : 0;
 }
 
 int sync_clamp_max_sps(int requested_sps) {
@@ -1816,8 +1814,8 @@ void sync_disable(bool reset_estimator) {
     memset(g_tension_pin_ts, 0, sizeof(g_tension_pin_ts));
     g_tension_pin_ts_idx = 0;
     g_tension_risk_emit_ms = 0;
-    g_last_tension_ms = 0;
-    g_tension_burst_n = 0;
+    g_tension_floor_sps = 0;
+    g_tension_floor_set_ms = 0;
     g_relay_flip_travel_since_mm = 0.0f;
     g_relay_neutral_trim_sps = 0.0f;
     g_relay_trim_last_leak_ms = 0;
@@ -2019,8 +2017,6 @@ void buf_sensor_tick(uint32_t now_ms) {
         buf_update(s, now_ms);
         sync_on_transition(prev, s, now_ms);
     }
-    type_d_tension_burst_neutral_reset(now_ms);
-
     if (BUF_SENSOR_TYPE == 0 && do_pos) {
         buf_virtual_position_tick(lane_ptr(active_lane), elapsed_ms);
     }
@@ -2511,6 +2507,11 @@ void sync_tick(uint32_t now_ms) {
      * shared shapers must be able to brake before the COMPRESSION switch. */
     if (type_d_neutral_relay_floor_sps > 0 && target_sps < type_d_neutral_relay_floor_sps) {
         target_sps = type_d_neutral_relay_floor_sps;
+    }
+
+    int tension_recovery_floor_sps = type_d_tension_recovery_floor_sps(s, now_ms);
+    if (tension_recovery_floor_sps > 0 && target_sps < tension_recovery_floor_sps) {
+        target_sps = tension_recovery_floor_sps;
     }
 
     bool compression_wall_critical = false;

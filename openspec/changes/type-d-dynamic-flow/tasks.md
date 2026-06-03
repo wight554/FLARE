@@ -103,15 +103,20 @@ re-drain, then decays (handing off to EST as it converges). Operator decision:
 acceptable if recovery is fast. Static `SYNC_MIN_RATE 1000` also worked but is
 loud always; the decaying floor is loud only for ~1.5 s after each touch.
 
-- [ ] 5.1 `firmware/src/sync.c`: **remove** the §1.2 burst escalation
+- [x] 5.1 `firmware/src/sync.c`: **remove** the §1.2 burst escalation
   (`SYNC_TENSION_ESC_STEP_SPS`, `SYNC_TENSION_ESC_RATIO`, `SYNC_TENSION_BURST_MS`,
   `g_tension_burst_n`, `g_last_tension_ms`, `type_d_tension_burst_neutral_reset`)
   — proven ineffective. Keep the velocity-snap raise-only (§1.1) as a benign
   monotonic-up EST nudge (or remove if simpler).
-- [ ] 5.2 Add the recovery floor: on the unconditional `BUF_NEUTRAL -> BUF_TENSION`
+  - 2026-06-03: Removed escalation state, neutral reset helper, unconditional EST
+    bump block, and public `_BURST/_ESC` knobs from firmware/config/protocol/dump
+    docs. Kept the raise-only velocity snap.
+- [x] 5.2 Add the recovery floor: on the unconditional `BUF_NEUTRAL -> BUF_TENSION`
   crossing, set `g_tension_floor_sps = SYNC_TENSION_RECOVERY_FLOOR (sps)` and
   `g_tension_floor_set_ms = now_ms`.
-- [ ] 5.3 In the type-D `BUF_NEUTRAL` relay feed path (after `target_sps` is
+  - 2026-06-03: Added `g_tension_floor_sps` / `g_tension_floor_set_ms`; tension
+    crossing arms the floor from `SYNC_TENSION_RECOVERY_FLOOR_SPS`.
+- [x] 5.3 In the type-D `BUF_NEUTRAL` relay feed path (after `target_sps` is
   computed, before the final clamp), apply the decaying floor:
   `age = now - g_tension_floor_set_ms; if (g_tension_floor_sps>0 && age <
   SYNC_TENSION_RECOVERY_MS) { floor = g_tension_floor_sps * (1 - age/RECOVERY_MS);
@@ -120,12 +125,24 @@ loud always; the decaying floor is loud only for ~1.5 s after each touch.
   stops the floor and lets the §16/§19 gated-drain stabilize the buffer (floor
   must NOT fight the COMPRESSION drain). The floor re-applies if the buffer
   returns to NEUTRAL while still inside the recovery window.
-- [ ] 5.4 New knobs (non-persisted, plumb like `SYNC_COMPRESSION_DRAIN_FRAC`):
+  - 2026-06-03: Added a NEUTRAL-only decaying lower-bound helper applied after
+    relay/recovery shapers and before the final clamp; it never touches
+    `extruder_est_sps` and expires on zero/elapsed recovery windows.
+- [x] 5.4 New knobs (non-persisted, plumb like `SYNC_COMPRESSION_DRAIN_FRAC`):
   `SYNC_TENSION_RECOVERY_FLOOR` (mm/min, default ≈ `2400` / catchup level; `0` =
   disabled), `SYNC_TENSION_RECOVERY_MS` (default ≈ `1500`). Reset
   `g_tension_floor_sps` in `sync_disable`. Mind the 32-char param-name limit.
-- [ ] 5.5 `BUF_SENSOR_TYPE == 0` only; type-P untouched.
-- [ ] 5.6 Build + tests green; OpenSpec strict.
+  - 2026-06-03: Added generator defaults/macros, non-persisted settings load
+    reset, protocol SET/GET, `flare_cmd.py --dump`, config example, and manual
+    docs. `settings_t` unchanged.
+- [x] 5.5 `BUF_SENSOR_TYPE == 0` only; type-P untouched.
+  - 2026-06-03: Floor arming and application are guarded by `BUF_SENSOR_TYPE == 0`
+    and `s == BUF_NEUTRAL`; no `psf_control_law` or type-P estimator edits.
+- [x] 5.6 Build + tests green; OpenSpec strict.
+  - 2026-06-03: Passed `ninja -C build_local`,
+    `bash scripts/validate_regression.sh`, `python3 -m py_compile scripts/*.py`,
+    `python3 scripts/test_*.py`, and
+    `openspec validate type-d-dynamic-flow --strict`.
 - [ ] 5.7 HW: fast-step print → 1 TENSION touch per step, no burst, recovery
   fast; brief COMPRESSION pulse acceptable. Sweep `SYNC_TENSION_RECOVERY_FLOOR`
   (high enough to cover infill demand) and `SYNC_TENSION_RECOVERY_MS` (long
