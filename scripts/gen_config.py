@@ -87,10 +87,11 @@ DEFAULTS = {
     "buf_stab_rate": "600",
     "sync_max_rate": "2200",
     "global_max_rate": "5000",
-    "sync_min_rate": "1000",      # mm/min — type-D dynamic-flow feed floor (2026-06-03). Holds feed up
-                                  # through slow walls so a slow→fast step has no deficit → zero TENSION/skip.
-                                  # Set near fast-segment rate. SHARED nominal, but floors only the type-D
-                                  # relay NEUTRAL path; type-P psf_control_law clamps [0,max], unaffected.
+    "sync_min_rate": "100",       # mm/min — quiet default. A HIGH floor (≈fast-segment rate) eliminates
+                                  # the slow→fast TENSION skip but overfeeds slow sections into constant
+                                  # COMPRESSION clicks (too loud for real prints). Slow-drift protection
+                                  # moves to the type-d-dynamic-flow soft-wall lean; raise this only for the
+                                  # optional loud zero-fast-step-skip mode. Floors only the type-D relay path.
     "pre_ramp_rate": "90",
 
     # Motion / Ramp

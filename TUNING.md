@@ -336,7 +336,9 @@ classic "noisy but works" relay behavior. Quiet *and* skip-free needs **type-P**
 ### Recommended type-D config (rig-validated 2026-06-03, shipped defaults)
 
 ```
-SYNC_MIN_RATE         = 1000    # THE skip fix — set near your fast-segment rate
+SYNC_MIN_RATE         = 100     # quiet default. Raise to ~fast-segment rate (e.g. 1000) ONLY for the
+                                #   optional loud zero-fast-step-skip mode (constant slow-section clicks).
+                                #   Slow-drift protection is the type-d-dynamic-flow soft-wall lean.
 SYNC_RESERVE_PCT      = 65      # compression-side step headroom (cliffs ~70)
 SYNC_RAMP_ACCEL       = 700     # catch step-ups
 SYNC_RAMP_DECEL       = 700     # drop feed fast on step-downs (cuts compression noise)

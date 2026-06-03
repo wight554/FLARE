@@ -76,9 +76,11 @@ run_current:
 # compression-noisy on slow sections (the feed floor overfeeds them to pre-empt
 # the step — grind-safe, not a fault). This is the intended type-D behavior;
 # quiet + zero-skip simultaneously requires a type-P analog sensor.
-#   sync_min_rate: 1000      # THE skip fix — holds feed up through slow walls so
-#                            #   a slow→fast step has no deficit. Set near your
-#                            #   fast-segment rate. Lower = quieter but skips.
+#   sync_min_rate: 100       # quiet default. Raising toward the fast-segment rate
+#                            #   (~1000) eliminates the slow→fast step skip but
+#                            #   overfeeds slow sections into constant clicks (loud
+#                            #   zero-skip mode). Slow-drift protection is the
+#                            #   type-d-dynamic-flow soft-wall lean, not this floor.
 #   sync_reserve_pct: 65     # compression-side step headroom (cliffs ~70)
 #   sync_ramp_accel: 700     # catch step-ups
 #   sync_ramp_decel: 700     # drop feed fast on step-downs (cuts compression noise)
