@@ -308,29 +308,68 @@ stimulus is fixed — the same config can read 3 vs 11 tension touches on differ
 print segments. Use an identical repeatable stimulus (same sliced file/segment,
 or a fixed `_FLARE_STEP_TEST` square-wave macro) before trusting a knob A/B.
 
-### Recommended type-D config (rig-derived 2026-06-03; finalize after §20.6)
+### The step-skip fix: the feed FLOOR (`SYNC_MIN_RATE`)
+
+The dominant cause of slow→fast TENSION skips was a **missing feed floor**.
+`relay-neutral-frac-detune` §9 demand-scaled away the old `baseline·0.70` NEUTRAL
+floor, so during a slow outer wall feed dropped to ~demand (e.g. 300) and then
+**lagged the step to infill (1500)** — the buffer drained to TENSION and the
+extruder skipped before any switch crossing could update the estimate.
+
+Restoring a high floor via **`SYNC_MIN_RATE`** holds feed up *through* the slow
+wall, so the slow→fast step has little/no deficit → the buffer never drains to
+TENSION → **zero skip.** This pre-empts the step instead of reacting to it (a
+2-switch buffer has no mid-band observation, so reactive levers — reserve, frac,
+accel, EST-attack — cannot fully prevent the skip; only the floor does).
+
+HW floor sweep (real print, asymmetric mode): `800`→1 tension; `900`/`950`→ still
+reached the rail; **`1000`→ zero tension with margin (BP min −1.13).** Set
+`SYNC_MIN_RATE` at or just above your **fast-segment** rate.
+
+**Trade-off (unavoidable):** the floor overfeeds slow sections → compression-
+noisy there (frequent brief touches; grind-safe via the drain budget, not a
+fault). Lower floor = quieter but skips. There is **no quiet + zero-skip on
+type-D** — the noise is the cost of pre-empting an unobservable step. This is the
+classic "noisy but works" relay behavior. Quiet *and* skip-free needs **type-P**
+(analog sensor → continuous position → predictive soft-wall/velocity feedforward).
+
+### Recommended type-D config (rig-validated 2026-06-03, shipped defaults)
 
 ```
-SYNC_RESERVE_PCT      = 65      # shared w/ type-P — verify or set per-unit
-SYNC_RAMP_ACCEL       = 700     # shared — config-only (not persisted)
-SYNC_RAMP_DECEL       = 700     # shared — fixed the compression noise
-RELAY_NEUTRAL_FRAC    = 1.0     # demand-match; do NOT raise for step-skip
+SYNC_MIN_RATE         = 1000    # THE skip fix — set near your fast-segment rate
+SYNC_RESERVE_PCT      = 65      # compression-side step headroom (cliffs ~70)
+SYNC_RAMP_ACCEL       = 700     # catch step-ups
+SYNC_RAMP_DECEL       = 700     # drop feed fast on step-downs (cuts compression noise)
+RELAY_NEUTRAL_FRAC    = 1.0     # demand-match; do NOT raise for step-skip (use the floor)
 RELAY_CATCHUP_FRAC    = 1.3
-SYNC_COMPRESSION_DRAIN_FRAC     = 0.4   # type-D only
-SYNC_COMPRESSION_DRAIN_BUDGET_MM = 3.0  # type-D only
-SYNC_EST_ATTACK_ALPHA = 0.8     # type-D only; sweep 0.65→1.0 to kill step-skip
+SYNC_EST_ATTACK_ALPHA = 0.8     # fast EST attack on rising demand
+SYNC_COMPRESSION_DRAIN_FRAC      = 0.4  # 0.4 = fuller buffer / more tension margin (vs 0.2)
+SYNC_COMPRESSION_DRAIN_BUDGET_MM = 3.0
 ```
 
-**Shared-knob warning:** `SYNC_RESERVE_PCT`, `SYNC_RAMP_ACCEL`, `SYNC_RAMP_DECEL`
-are used by type-P as well. Baking them as `config.ini` defaults shifts type-P
-behavior — soak one type-P print to confirm no regression before doing so, or
-pin them per-unit (reserve persists via SAVE; accel/decel are config-only). The
-remaining knobs are type-D-only by code and safe as defaults.
+These ship as `config.ini` defaults (type-D is the default sensor).
+`SYNC_MIN_RATE`, `SYNC_RESERVE_PCT`, `SYNC_RAMP_ACCEL`, `SYNC_RAMP_DECEL` are
+**shared with type-P** — a `buf_sensor_type=1` operator should review them.
+(`SYNC_MIN_RATE` floors only the type-D relay NEUTRAL path; type-P
+`psf_control_law` clamps to `[0, max]` and is unaffected.)
 
-**Hard floor:** if the step-skip persists after the `SYNC_EST_ATTACK_ALPHA`
-sweep, it is the instantaneous-step limit of a 2-switch buffer. Remaining
-escapes are slicer (gentler wall→infill step) or type-P hardware (continuous
-sensor → predictive feedforward) — not a type-D knob.
+Lever map (what each does, why others can't replace the floor):
+- **`SYNC_MIN_RATE`** — feed floor; the only lever that *pre-empts* the step
+  (holds feed up before the deficit). Sets the skip↔noise operating point.
+- `SYNC_RAMP_DECEL` — fast feed-fall on step-downs; the compression-*noise* fix
+  (slow decel floods compression). Independent of the skip.
+- `SYNC_RESERVE_PCT` — position headroom; cheap, but headroom only delays the
+  skip, can't prevent it. Cliffs ~70.
+- `RELAY_NEUTRAL_FRAC` >1 — standing overfeed; loud, and a static lean can't
+  catch a step. Leave at 1.0.
+- `SYNC_EST_ATTACK_ALPHA` — fast EST attack on rising demand; helps when a
+  crossing occurs during the drain (i.e. compression-pinned), inert mid-band.
+- `SYNC_COMPRESSION_DRAIN_FRAC` — compression comfort/safety; higher = fuller
+  buffer = more tension margin.
+
+Measurement caveat: live-print captures are noise-dominated unless the stimulus
+is fixed — the same config can read 3 vs 11 tension touches on different print
+segments. Use an identical repeatable stimulus before trusting a knob A/B.
 
 ## Type-P Buffer Lock (Tip Forming)
 

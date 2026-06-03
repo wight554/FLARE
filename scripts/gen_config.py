@@ -87,7 +87,10 @@ DEFAULTS = {
     "buf_stab_rate": "600",
     "sync_max_rate": "2200",
     "global_max_rate": "5000",
-    "sync_min_rate": "100",
+    "sync_min_rate": "1000",      # mm/min — type-D dynamic-flow feed floor (2026-06-03). Holds feed up
+                                  # through slow walls so a slow→fast step has no deficit → zero TENSION/skip.
+                                  # Set near fast-segment rate. SHARED nominal, but floors only the type-D
+                                  # relay NEUTRAL path; type-P psf_control_law clamps [0,max], unaffected.
     "pre_ramp_rate": "90",
 
     # Motion / Ramp
@@ -100,8 +103,9 @@ DEFAULTS = {
     "buf_psf_max_tens": "0.0",
     "buf_psf_neutral": "0.5",
     "buf_psf_goal": "0.7",
-    "sync_ramp_accel": "150",     # mm/s² — sync loop UP slew (closed-loop bandwidth).
-    "sync_ramp_decel": "300",     # mm/s² — sync loop DN slew (typically 2× accel for safety).
+    "sync_ramp_accel": "700",     # mm/s² — sync loop UP slew (type-D HW 2026-06-03; catch step-ups).
+    "sync_ramp_decel": "700",     # mm/s² — sync loop DN slew (type-D HW: fast decel cuts COMPRESSION
+                                  # overfeed noise on down-steps; was 300/150). Shared — review for type-P.
     "sync_tick_ms": "20",
     "sync_psf_slew_per_mm": "1500",   # type-P feed slew: max sps change per mm filament moved (lower = gentler)
     "sync_psf_filter_mm": "25.0",     # type-P feed target EMA length in mm (bigger = smoother)
@@ -115,7 +119,7 @@ DEFAULTS = {
     "sync_cannot_refill_mm": "50.0",
     "sync_cannot_relieve_mm": "50.0",
     "sync_kp_rate": "900",
-    "sync_reserve_pct": "35",
+    "sync_reserve_pct": "65",     # type-D HW 2026-06-03: compression-side step headroom (cliffs ~70). Shared.
     "sync_auto_stop_ms": "5000",
     # Type-D Relay Fallback Law
     "relay_catchup_frac": "1.30",

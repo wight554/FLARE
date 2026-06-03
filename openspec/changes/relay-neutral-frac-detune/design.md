@@ -1005,3 +1005,34 @@ Plan:
 
 Risk/invariant: only command parsing width changes; command semantics and type-P
 paths do not change.
+
+## RESOLUTION — the feed floor was the regression (2026-06-03)
+
+The "asymmetric EST attack" note above expected a possible hard floor with only
+type-P as escape. HW disproved the "structural wall": **a feed floor fixes it.**
+
+Root cause of the slow→fast skip = §9 demand-scaled away the `baseline·0.70`
+NEUTRAL feed floor. Without it, NEUTRAL feed falls to ~demand during the slow
+outer wall, then lags the 300→1500 step; the buffer drains to TENSION before any
+crossing updates the estimate → skip. Reactive levers (reserve, frac, accel,
+EST-attack) can't prevent it — a 2-switch buffer has no mid-band observation, so
+the drain from mid-band to tension crosses no switch. The **floor pre-empts** the
+deficit: `SYNC_MIN_RATE` holds feed up through the wall so the step has no
+deficit and the buffer never drains.
+
+HW: floor sweep `800/900/950/1000` → only **1000** gives zero TENSION with margin
+(BP min −1.13). `SYNC_MIN_RATE:1000` shipped as default (type-D is the default
+sensor). Cost: compression-noisy on slow sections (the floor overfeeds them to
+pre-empt the step) — grind-safe via §16/§19, and exactly the pre-change "noisy
+but works" behavior. **There is no quiet + zero-skip on type-D**; the noise is
+intrinsic to pre-empting an unobservable demand step. Quiet *and* skip-free needs
+type-P (continuous sensor → predictive feedforward).
+
+decel700 independently fixed a separate compression-noise source (slow decel
+flooded compression on step-downs). EST-attack + decel are retained
+(harmless-to-helpful; decel fixed real noise) but the floor is the skip fix.
+
+Final shipped type-D defaults: `SYNC_MIN_RATE 1000 / SYNC_RESERVE_PCT 65 /
+SYNC_RAMP_ACCEL 700 / SYNC_RAMP_DECEL 700 / RELAY_NEUTRAL_FRAC 1.0 /
+RELAY_CATCHUP_FRAC 1.3 / SYNC_EST_ATTACK_ALPHA 0.8 /
+SYNC_COMPRESSION_DRAIN_FRAC 0.4 / SYNC_COMPRESSION_DRAIN_BUDGET_MM 3.0`.

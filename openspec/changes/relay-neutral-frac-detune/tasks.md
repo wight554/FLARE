@@ -781,23 +781,46 @@ separate compression-noise source. See design.md "asymmetric EST attack".
   - 2026-06-03: `python3 -m py_compile scripts/*.py` passed.
   - 2026-06-03: `python3 scripts/test_*.py` passed.
   - 2026-06-03: `openspec validate relay-neutral-frac-detune --strict` passed.
-- [ ] 20.6 HW: real-print soak, sweep `SYNC_EST_ATTACK_ALPHA` 0.65→1.0 with
-  reserve65 / accel700 / decel700 / frac1.0 / catchup1.3. Expect TENSION touches
-  → 0 (or skip-free) without compression-noise regression (COMP pin stays low,
-  period long). If a hard floor remains, record it — remaining escape is type-P
-  hardware (slicer is ruled out).
-- [ ] 20.7 Finalize defaults (AFTER §20.6 attack sweep — values depend on it).
-  Order: (1) lock `SYNC_EST_ATTACK_ALPHA` from the sweep; (2) re-derive accel/
-  reserve (the attack may let accel drop back to a quieter 500); (3) set
-  defaults, split by sharing:
-  - **type-D-only (safe as config defaults):** `SYNC_COMPRESSION_DRAIN_FRAC`,
-    `SYNC_COMPRESSION_DRAIN_BUDGET_MM`, `SYNC_EST_ATTACK_ALPHA`.
-  - **shared with type-P (verify or set per-unit):** `SYNC_RESERVE_PCT` (persists
-    via SAVE — pin per-unit, or default + type-P soak), `SYNC_RAMP_ACCEL` /
-    `SYNC_RAMP_DECEL` (config-only, not persisted → changing them IS a global
-    default → soak one type-P print to confirm no regression before committing).
-  - Candidate config recorded in `TUNING.md` "Recommended type-D config".
-  - Do NOT bake shared-knob defaults without the type-P regression check.
+- [x] 20.6 HW: real-print soak. EST-attack sweep alone did NOT reach zero
+  (mid-band rest → step drains to tension crossing no switch → attack has no
+  crossing to fire on). **The actual fix was the feed FLOOR, not the attack.**
+  - 2026-06-03: Root cause of the residual skip = §9 demand-scaled away the
+    `baseline·0.70` NEUTRAL feed floor. Without it, feed drops to ~demand during
+    the slow outer wall → lags the 300→1500 step → buffer drains to TENSION →
+    skip. Restoring a high floor via `SYNC_MIN_RATE` holds feed up through the
+    wall → zero step deficit → **zero tension/skip**.
+  - HW floor sweep (asymmetric mode, real print): `800`→1+1 tension;
+    `900`→1+1 (BP −5.00); `950`→0+1 event (BP −5.00, 151s); **`1000`→0+0,
+    BP min −1.13 (margin), 215s = PASS.** 1000 is the lowest floor with true
+    zero + tension margin; lower floors intermittently reach the rail.
+  - `SYNC_COMPRESSION_DRAIN_FRAC` 0.2 vs 0.4 both hold tension 0 at floor 1000;
+    **0.4 chosen** (BP min −1.13 vs −2.81 = fuller buffer, more tension margin,
+    safer; operator reported no audible difference).
+  - decel700 (§20.1) independently fixed the compression overfeed noise on
+    down-steps (`EST−MM −200→−11`, pin 9600→2200 ms).
+  - **Conclusion:** zero-skip on type-D is achievable but **inherently
+    compression-noisy** (the floor must overfeed slow sections to pre-empt the
+    step; no mid-band observation exists to do it reactively). This is the
+    pre-`relay-neutral-frac-detune` "noisy but works" behavior, restored and now
+    grind-safe (§16/§19). Quiet + zero-skip simultaneously needs type-P hardware.
+    EST-attack + decel are kept (harmless-to-helpful; decel fixed real noise).
+- [x] 20.7 Finalize defaults (type-D is the default sensor → bake globally;
+  operator decision 2026-06-03).
+  - 2026-06-03: `config.ini` set `sync_min_rate: 1000`, `sync_reserve_pct: 65`
+    (active); `sync_ramp_accel/decel: 700` already active (§20.1). Generator
+    defaults `RELAY_NEUTRAL_FRAC 1.0`, `RELAY_CATCHUP_FRAC 1.3`,
+    `SYNC_COMPRESSION_DRAIN_FRAC 0.4`, `SYNC_COMPRESSION_DRAIN_BUDGET_MM 3.0`,
+    `SYNC_EST_ATTACK_ALPHA 0.8` stand.
+  - Copy-paste type-D block added to `config.ini.example`.
+  - Type-P note: `SYNC_MIN_RATE`/`SYNC_RESERVE_PCT`/`SYNC_RAMP_ACCEL/DECEL` are
+    shared. Type-D is the default sensor, so these ship as global defaults; a
+    `BUF_SENSOR_TYPE=1` operator should review them (documented in TUNING.md +
+    config.ini.example). `SYNC_MIN_RATE` floors only the type-D NEUTRAL relay
+    path; type-P (`psf_control_law`) clamps to `[0, max]` and is unaffected.
+  - [x] 20.7a Build + tests green after config default change.
+    - 2026-06-03: `gen_config.py` regenerated `tune.h` (`CONF_SYNC_MIN_SPS 6820`
+      =1000 mm/min, `CONF_SYNC_RESERVE_PCT 65`, ramp 5729 =700). `ninja -C
+      build_local` passed. `openspec validate --strict` passed.
 
 ## 21. Protocol long-parameter regression for §19 budget knob
 

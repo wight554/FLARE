@@ -70,6 +70,26 @@ run_current:
                                    # or normal sync timeout only after COMPRESSION
                                    # recovery has already hit the minimum floor.
 
+# ─── Recommended type-D dynamic-flow config (rig-validated 2026-06-03) ───────
+# Copy this block for a type-D buffer that prints with sharp speed steps (e.g.
+# slow outer walls ↔ fast infill). It achieves ZERO tension/skip. Trade-off:
+# compression-noisy on slow sections (the feed floor overfeeds them to pre-empt
+# the step — grind-safe, not a fault). This is the intended type-D behavior;
+# quiet + zero-skip simultaneously requires a type-P analog sensor.
+#   sync_min_rate: 1000      # THE skip fix — holds feed up through slow walls so
+#                            #   a slow→fast step has no deficit. Set near your
+#                            #   fast-segment rate. Lower = quieter but skips.
+#   sync_reserve_pct: 65     # compression-side step headroom (cliffs ~70)
+#   sync_ramp_accel: 700     # catch step-ups
+#   sync_ramp_decel: 700     # drop feed fast on step-downs (cuts compression noise)
+#   relay_neutral_frac: 1.0  # demand match — do NOT raise to fight skip (use the floor)
+#   sync_est_attack_alpha: 0.8   # fast EST attack on rising demand
+#   sync_compression_drain_frac: 0.40   # 0.4 = fuller buffer / more tension margin
+# NOTE: sync_min_rate / sync_reserve_pct / sync_ramp_accel / sync_ramp_decel are
+# SHARED with type-P. Type-D is the default sensor so these ship as defaults; if
+# you run buf_sensor_type=1, review them. (sync_min_rate floors only the type-D
+# relay path; type-P psf_control_law is unaffected.)
+
 # ─── Type-D Relay Fallback Law ──────────────────────────────────────────────
 # relay_catchup_frac: 1.30            # TENSION refill multiplier in type-D relay mode.
 # relay_neutral_frac: 1.00            # NEUTRAL fallback multiplier in type-D relay mode.
