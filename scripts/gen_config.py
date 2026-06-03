@@ -140,6 +140,12 @@ DEFAULTS = {
     "sync_compression_drain_budget_mm": "3.0",
     # Type-D rising-demand estimator attack. Bypasses EST_ALPHA_MAX only on up-steps.
     "sync_est_attack_alpha": "0.8",
+    # Type-D fast TENSION recovery. Fast crossings snap EST toward measured demand;
+    # repeat touches in this window escalate geometrically.
+    "sync_tension_fast_mm_s": "2.0",
+    "sync_tension_burst_ms": "400",
+    "sync_tension_esc_step_sps": "300",
+    "sync_tension_esc_ratio": "1.6",
     # Drift Observer
 
     # Adaptive Sync
@@ -531,6 +537,10 @@ def main():
         f"#define CONF_SYNC_COMPRESSION_DRAIN_FRAC {get_float('sync_compression_drain_frac')}f",
         f"#define CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM {get_float('sync_compression_drain_budget_mm')}f",
         f"#define CONF_SYNC_EST_ATTACK_ALPHA {get_float('sync_est_attack_alpha')}f",
+        f"#define CONF_SYNC_TENSION_FAST_MM_S {get_float('sync_tension_fast_mm_s')}f",
+        f"#define CONF_SYNC_TENSION_BURST_MS {get('sync_tension_burst_ms')}",
+        f"#define CONF_SYNC_TENSION_ESC_STEP_SPS {get('sync_tension_esc_step_sps')}",
+        f"#define CONF_SYNC_TENSION_ESC_RATIO {get_float('sync_tension_esc_ratio')}f",
         f"#define CONF_ZONE_BIAS_BASE_SPS   {mm_min_to_sps(get('zone_bias_base_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_RAMP_SPS_S {mm_min_to_sps(get('zone_bias_ramp_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_MAX_SPS    {mm_min_to_sps(get('zone_bias_max_rate'), l1)}",

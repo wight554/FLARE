@@ -124,6 +124,8 @@ static float g_bp_drift_correction_applied_mm = 0.0f;
 static uint32_t g_tension_pin_ts[TENSION_PIN_WINDOW_LEN] = {0};
 static int g_tension_pin_ts_idx = 0;
 static uint32_t g_tension_risk_emit_ms = 0;
+static uint32_t g_last_tension_ms = 0;
+static int g_tension_burst_n = 0;
 static float g_relay_flip_travel_since_mm = 0.0f;
 static float g_relay_neutral_trim_sps = 0.0f;
 static uint32_t g_relay_trim_last_leak_ms = 0;
@@ -992,6 +994,21 @@ static void blend_extruder_est_sps(float sample_sps, float alpha, uint32_t now_m
     extruder_est_last_update_ms = now_ms;
 }
 
+static void blend_extruder_est_sps_direct(float sample_sps, float alpha, uint32_t now_ms) {
+    sample_sps = clamp_est_sps(sample_sps);
+    alpha = clamp_f(alpha, 0.0f, 1.0f);
+    extruder_est_sps = alpha * sample_sps + (1.0f - alpha) * extruder_est_sps;
+    extruder_est_last_update_ms = now_ms;
+}
+
+static void type_d_tension_burst_neutral_reset(uint32_t now_ms) {
+    if (BUF_SENSOR_TYPE != 0 || g_buf.state != BUF_NEUTRAL || SYNC_TENSION_BURST_MS <= 0) return;
+    if ((now_ms - g_buf.entered_ms) >= (uint32_t)SYNC_TENSION_BURST_MS) {
+        g_last_tension_ms = 0;
+        g_tension_burst_n = 0;
+    }
+}
+
 static void type_d_neutral_feed_reset(void) {
     g_type_d_neutral_feed_sps_sum = 0;
     g_type_d_neutral_feed_samples = 0;
@@ -1169,16 +1186,14 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
             float feed_avg_sps = 0.0f;
             if (prev_dwell >= SYNC_NEUTRAL_FILL_MIN_DWELL_MS &&
                 type_d_neutral_feed_avg_sps(&feed_avg_sps)) {
-                if (has_known_travel) {
-                    float drain_sps = fabsf(g_buf.arm_vel_mm_s) / mm_per_step;
-                    est_sps = feed_avg_sps + drain_sps;
-                    sample_valid = type_d_sample_demand_bounds(&est_sps);
-                } else {
-                    est_sps = feed_avg_sps * 1.15f; // softened from 1.5f to prevent EST overshooting spikes during physical drift
-                    sample_valid = type_d_sample_demand_bounds(&est_sps);
-                }
-                alpha = clamp_f((float)prev_dwell / SYNC_NEUTRAL_FILL_EST_ALPHA_DWELL_MS,
-                                EST_ALPHA_MIN, EST_ALPHA_MAX);
+                float v_mm_s = fabsf(g_buf.arm_vel_mm_s);
+                float v_norm = clamp_f(v_mm_s / SYNC_TENSION_FAST_MM_S, 0.0f, 1.0f);
+                float drain_sps = has_known_travel ? (v_mm_s / mm_per_step) : 0.0f;
+                float demand_slow = feed_avg_sps * 1.15f; // softened from 1.5f to prevent EST overshooting spikes during physical drift
+                float demand_fast = feed_avg_sps + drain_sps;
+                est_sps = demand_slow + v_norm * (demand_fast - demand_slow);
+                sample_valid = type_d_sample_demand_bounds(&est_sps);
+                alpha = EST_ALPHA_MAX + v_norm * (1.0f - EST_ALPHA_MAX);
             }
         } else if (compression_drain_sample) {
             float drain_feed_sps = mmu_avg_sps;
@@ -1209,7 +1224,22 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
 
         if (sample_valid) {
             float prev_est_sps = extruder_est_sps;
-            blend_extruder_est_sps(est_sps, alpha, now_ms);
+            if (neutral_drain_sample) {
+                blend_extruder_est_sps_direct(est_sps, alpha, now_ms);
+                if (SYNC_TENSION_BURST_MS > 0 && g_last_tension_ms != 0 &&
+                    (now_ms - g_last_tension_ms) < (uint32_t)SYNC_TENSION_BURST_MS) {
+                    if (g_tension_burst_n < 16) g_tension_burst_n++;
+                    float esc_sps = (float)SYNC_TENSION_ESC_STEP_SPS *
+                                    powf(SYNC_TENSION_ESC_RATIO, (float)g_tension_burst_n);
+                    extruder_est_sps = fminf(extruder_est_sps + esc_sps, (float)GLOBAL_MAX_SPS);
+                    extruder_est_last_update_ms = now_ms;
+                } else {
+                    g_tension_burst_n = 0;
+                }
+                g_last_tension_ms = now_ms;
+            } else {
+                blend_extruder_est_sps(est_sps, alpha, now_ms);
+            }
             float reset_threshold_sps = fmaxf((float)SYNC_RELAY_TRIM_STEP_SPS, 100.0f);
             if (fabsf(extruder_est_sps - prev_est_sps) >= reset_threshold_sps) {
                 g_relay_neutral_trim_sps *= 0.25f;
@@ -1772,6 +1802,8 @@ void sync_disable(bool reset_estimator) {
     memset(g_tension_pin_ts, 0, sizeof(g_tension_pin_ts));
     g_tension_pin_ts_idx = 0;
     g_tension_risk_emit_ms = 0;
+    g_last_tension_ms = 0;
+    g_tension_burst_n = 0;
     g_relay_flip_travel_since_mm = 0.0f;
     g_relay_neutral_trim_sps = 0.0f;
     g_relay_trim_last_leak_ms = 0;
@@ -1973,6 +2005,7 @@ void buf_sensor_tick(uint32_t now_ms) {
         buf_update(s, now_ms);
         sync_on_transition(prev, s, now_ms);
     }
+    type_d_tension_burst_neutral_reset(now_ms);
 
     if (BUF_SENSOR_TYPE == 0 && do_pos) {
         buf_virtual_position_tick(lane_ptr(active_lane), elapsed_ms);

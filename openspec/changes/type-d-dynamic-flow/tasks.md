@@ -17,26 +17,43 @@ no gradual signal — capture B `BP` frozen then jumps). See design.md.
 
 ## 1. Tension-crossing EST: velocity snap + consecutive-tension escalation
 
-- [ ] 1.1 `firmware/src/sync.c` (`buf_update`, `neutral_drain_sample` /
+- [x] 1.1 `firmware/src/sync.c` (`buf_update`, `neutral_drain_sample` /
   `→ BUF_TENSION` path ~`sync.c:1164-1178`): **Trigger 1 (velocity snap):**
   `v_norm = clamp(|arm_vel_mm_s| / SYNC_TENSION_FAST_MM_S, 0, 1)`;
   `est_sample = lerp(feed_avg*1.15, mmu_feed + drain_rate, v_norm)`;
   `alpha = lerp(EST_ALPHA_MAX, 1.0, v_norm)` (bypass the ALPHA_MAX clamp like the
   §20 attack); `EST = max(EST, blended)`.
-- [ ] 1.2 **Trigger 2 (burst escalation):** track `last_tension_ms` + `burst_n`.
+  - 2026-06-03: Implemented velocity-scaled type-D TENSION recovery sample with
+    direct alpha blend so fast crossings can reach alpha 1.0 while the
+    zero-velocity endpoint remains `feed_avg * 1.15`.
+- [x] 1.2 **Trigger 2 (burst escalation):** track `last_tension_ms` + `burst_n`.
   If a TENSION crossing is within `SYNC_TENSION_BURST_MS` of the prior one,
   `burst_n++` and add `SYNC_TENSION_ESC_STEP_SPS * SYNC_TENSION_ESC_RATIO^burst_n`
   to EST (clamp to a demand ceiling). Reset `burst_n` when a `BUF_NEUTRAL` dwell
   holds past `SYNC_TENSION_BURST_MS`. Geometric/aggressive is correct here
   (tension-recovery direction; overshoot → COMPRESSION is safe).
-- [ ] 1.3 New knobs (non-persisted, plumb like `SYNC_COMPRESSION_DRAIN_FRAC`):
+  - 2026-06-03: Added bounded geometric burst escalation, clamped to
+    `GLOBAL_MAX_SPS`, reset on `sync_disable` and after held `BUF_NEUTRAL`
+    dwell; `SYNC_TENSION_BURST_MS=0` disables the burst escalator.
+- [x] 1.3 New knobs (non-persisted, plumb like `SYNC_COMPRESSION_DRAIN_FRAC`):
   `SYNC_TENSION_FAST_MM_S` (≈2 mm/s), `SYNC_TENSION_BURST_MS` (≈300-500),
   `SYNC_TENSION_ESC_STEP_SPS`, `SYNC_TENSION_ESC_RATIO` (≈1.5-2). No
   `SETTINGS_VERSION` bump. Mind the 32-char param-name limit (§21).
-- [ ] 1.4 Slow single crossing (`v_norm≈0`, `burst_n=0`) MUST reproduce today's
+  - 2026-06-03: Added `CONF_*` generation, runtime variables, load-reset-only
+    settings defaults, protocol SET/GET handlers, live-write guard coverage,
+    host dump entries, and config examples. `settings_t` unchanged.
+- [x] 1.4 Slow single crossing (`v_norm≈0`, `burst_n=0`) MUST reproduce today's
   `feed_avg*1.15` exactly (no `7178c34` regression).
-- [ ] 1.5 `BUF_SENSOR_TYPE == 0` only; type-P estimator untouched.
-- [ ] 1.6 Build + tests green; OpenSpec strict.
+  - 2026-06-03: Slow endpoint uses `feed_avg_sps * 1.15f`; burst escalation only
+    runs on repeated TENSION within the configured window.
+- [x] 1.5 `BUF_SENSOR_TYPE == 0` only; type-P estimator untouched.
+  - 2026-06-03: Changes are guarded by `BUF_SENSOR_TYPE == 0`; no
+    `psf_control_law` or type-P estimator path edits.
+- [x] 1.6 Build + tests green; OpenSpec strict.
+  - 2026-06-03: Passed `ninja -C build_local`,
+    `bash scripts/validate_regression.sh`, `python3 -m py_compile scripts/*.py`,
+    `python3 scripts/test_*.py`, and
+    `openspec validate type-d-dynamic-flow --strict`.
 
 ## 2. (Optional) velocity-scaled catchup ramp
 
@@ -46,10 +63,12 @@ no gradual signal — capture B `BP` frozen then jumps). See design.md.
 
 ## 3. Docs
 
-- [ ] 3.1 `TUNING.md` / `BEHAVIOR.md` / `MANUAL.md`: document the new tension-
+- [x] 3.1 `TUNING.md` / `BEHAVIOR.md` / `MANUAL.md`: document the new tension-
   recovery knobs and that the fast-step TENSION touch is reduced to a single
   positioning touch (not eliminated — see non-goals). Note the floor stays demoted
   and reserve handles slow drift.
+  - 2026-06-03: Updated operator docs for the four knobs, burst/velocity recovery
+    behavior, quiet floor default, and reserve-based slow-drift protection.
 
 ## 4. HW validation
 

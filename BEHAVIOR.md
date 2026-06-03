@@ -286,6 +286,18 @@ slow→fast steps; falling or equal samples keep the slow EMA so down-steps do n
 reintroduce compression chatter. Analog type-P keeps its per-tick estimator and
 `psf_control_law` path unchanged.
 
+For `BUF_NEUTRAL -> BUF_TENSION`, type-D tension recovery is more aggressive
+than generic rising-demand attack. Firmware scales the crossing sample by arm
+velocity: a slow/no-velocity crossing keeps the softened `feed_avg * 1.15`
+fallback, while a fast crossing snaps toward measured demand
+`feed_avg + drain_rate` with alpha up to `1.0`. If another TENSION touch arrives
+inside `SYNC_TENSION_BURST_MS`, the pinned zero-velocity re-touch geometrically
+adds `SYNC_TENSION_ESC_STEP_SPS * SYNC_TENSION_ESC_RATIO^n` to `EST`, clamped by
+`GLOBAL_MAX_RATE`. The burst counter resets after a held NEUTRAL dwell. This is
+only for type-D tension recovery; type-P remains byte-identical. The target is to
+collapse fast-step bursts to one positioning touch, not to eliminate all
+fast-step touches.
+
 Zero feed in `BUF_COMPRESSION` does not deadlock the relay: the flip out keys on the physical `NEUTRAL` crossing (extruder draw), and `relay_min_flip_mm` defaults to `0` (time-based hysteresis).
 
 The type-D branch-test analyzer is `scripts/flare_sync_check.py --mode

@@ -80,11 +80,11 @@ run_current:
 #                            #   (~1000) eliminates the slow→fast step skip but
 #                            #   overfeeds slow sections into constant clicks (loud
 #                            #   zero-skip mode). Slow-drift protection is the
-#                            #   type-d-dynamic-flow soft-wall lean, not this floor.
+#                            #   compression reserve bias, not this floor.
 #   sync_reserve_pct: 65     # compression-side step headroom (cliffs ~70)
 #   sync_ramp_accel: 700     # catch step-ups
 #   sync_ramp_decel: 700     # drop feed fast on step-downs (cuts compression noise)
-#   relay_neutral_frac: 1.0  # demand match — do NOT raise to fight skip (use the floor)
+#   relay_neutral_frac: 1.0  # demand match — do NOT raise to fight skip
 #   sync_est_attack_alpha: 0.8   # fast EST attack on rising demand
 #   sync_compression_drain_frac: 0.40   # 0.4 = fuller buffer / more tension margin
 # NOTE: sync_min_rate / sync_reserve_pct / sync_ramp_accel / sync_ramp_decel are
@@ -101,6 +101,10 @@ run_current:
 # sync_compression_drain_budget_mm: 3.0  # Stop partial drain after this much COMPRESSION relieve effort;
                                         # 0.0 = immediate hard-stop.
 # sync_est_attack_alpha: 0.8       # Type-D rising-demand EST attack; clamp 0.65..1.0.
+# sync_tension_fast_mm_s: 2.0      # Type-D TENSION crossing velocity for full EST snap.
+# sync_tension_burst_ms: 400       # Repeat TENSION touches inside this window escalate EST.
+# sync_tension_esc_step_sps: 300   # First geometric burst escalation step.
+# sync_tension_esc_ratio: 1.6      # Burst escalation multiplier; clamp 1.0..4.0.
 # sync_relay_trim_step_sps: 300       # Type-D residual trim step; lower = slower correction,
                                       # rarer plateau clicks.
 # sync_relay_trim_clamp_sps: 2000     # Type-D residual trim anti-windup clamp.

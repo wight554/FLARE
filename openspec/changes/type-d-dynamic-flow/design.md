@@ -130,3 +130,39 @@ New knobs (`SYNC_TENSION_FAST_MM_S`, `SYNC_TENSION_BURST_MS`,
 `SYNC_TENSION_ESC_STEP_SPS`, `SYNC_TENSION_ESC_RATIO`) follow the non-persisted
 runtime pattern of `SYNC_COMPRESSION_DRAIN_FRAC` — no `SETTINGS_VERSION` bump. No
 shared-knob or feed-floor change in this change (the floor was already demoted).
+
+## Implementation plan — 2026-06-03
+
+### firmware/src/sync.c
+- Add type-D-only burst state (`last_tension_ms`, `burst_n`) beside existing
+  tension-risk state and reset it in `sync_disable`.
+- In `buf_update`, replace the `BUF_NEUTRAL -> BUF_TENSION` split between
+  with-travel `feed_avg + drain_sps` and no-travel `feed_avg * 1.15` with a
+  velocity lerp: `feed_avg * 1.15` at `v_norm=0`, measured demand at
+  `v_norm=1`, and an explicit blend alpha that can reach `1.0`.
+- Add geometric burst escalation when tension touches repeat within
+  `SYNC_TENSION_BURST_MS`; clamp to `GLOBAL_MAX_SPS`.
+- Reset the burst count once a `BUF_NEUTRAL` dwell has held beyond the burst
+  window. Risk: slow single crossings must remain exactly the gentle
+  `feed_avg * 1.15` endpoint.
+
+### firmware/include/controller_shared.h + firmware/src/settings_store.c
+- Declare and load-reset four non-persisted runtime knobs, following
+  `SYNC_COMPRESSION_DRAIN_FRAC`; do not alter `settings_t` or
+  `SETTINGS_VERSION`.
+- Risk: defaults must come from generated `CONF_*` macros, not header-only C.
+
+### firmware/src/protocol.c + scripts/flare_cmd.py
+- Add `SET:`/`GET:` handlers and live-tune-lock coverage for the four knobs.
+- Add dump entries so host live dumps preserve protocol parity.
+- Risk: parameter names must fit the fixed parser width and return stable
+  decimal/integer formats.
+
+### scripts/gen_config.py + config.ini + config.ini.example
+- Add defaults and generated macros for all four knobs.
+- Risk: config defaults and generated `tune.h` must remain synchronized.
+
+### MANUAL.md + BEHAVIOR.md + TUNING.md
+- Document tension-recovery velocity snap and burst escalation, including that a
+  fast-step touch is reduced to a positioning touch, not eliminated.
+- Note `SYNC_MIN_RATE` remains quiet and reserve bias handles slow drift.

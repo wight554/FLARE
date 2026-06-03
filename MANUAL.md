@@ -175,7 +175,7 @@ dev-build-only — see the note at the top of this section.
 | Parameter | `config.ini` Key | Description | Default |
 |-----------|------------------|-------------|---------|
 | `SYNC_KP_RATE` | `sync_kp_rate` | Proportional reserve-correction window around the virtual buffer target | 900 |
-| `SYNC_RESERVE_PCT` | `sync_reserve_pct` | Normal-sync reserve target as % of half `BUF_SWITCH_SPAN` toward compression | 35 |
+| `SYNC_RESERVE_PCT` | `sync_reserve_pct` | Normal-sync reserve target as % of half `BUF_SWITCH_SPAN` toward compression | 65 |
 | `COMPRESSION_BIAS_FRAC` | `sync_compression_bias_frac` | Scalar fallback compression-side setpoint shift when no flow schedule is configured (0.0 to 0.7) | 0.45 |
 | `RELAY_CATCHUP_FRAC` | `relay_catchup_frac` | Type-D relay TENSION refill multiplier | 1.30 |
 | `RELAY_NEUTRAL_FRAC` | `relay_neutral_frac` | Type-D relay NEUTRAL fallback multiplier (demand match) | 1.00 |
@@ -184,7 +184,11 @@ dev-build-only — see the note at the top of this section.
 | `SYNC_COMPRESSION_DRAIN_FRAC` | `sync_compression_drain_frac` | Runtime-only type-D COMPRESSION active-draw drain fraction. `0.0` disables and restores legacy hard-stop; `>0` feeds this fraction of demand while `TASK_FEED` is active, clamped below demand. | 0.40 |
 | `SYNC_COMPRESSION_DRAIN_BUDGET_MM` | `sync_compression_drain_budget_mm` | Runtime-only type-D COMPRESSION partial-drain distance budget. Once COMPRESSION relieve effort reaches this many mm, partial drain true-stops at `0`; `0.0` means immediate hard-stop. | 3.0 |
 | `SYNC_EST_ATTACK_ALPHA` | `sync_est_attack_alpha` | Runtime-only type-D rising-demand EST attack alpha. Applies only when a type-D switch-crossing sample is above current `EST`; falling/equal samples keep the slower dwell EMA. Clamped 0.65 to 1.0. | 0.8 |
-| `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `SYNC_COMPRESSION_DRAIN_FRAC`, `SYNC_COMPRESSION_DRAIN_BUDGET_MM`, `SYNC_EST_ATTACK_ALPHA`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
+| `SYNC_TENSION_FAST_MM_S` | `sync_tension_fast_mm_s` | Runtime-only type-D TENSION crossing velocity (mm/s) that maps to full EST snap toward measured demand. Slow crossings keep the gentle fallback. | 2.0 |
+| `SYNC_TENSION_BURST_MS` | `sync_tension_burst_ms` | Runtime-only type-D burst window. Consecutive TENSION touches inside this window geometrically escalate EST; `0` disables burst escalation. | 400 |
+| `SYNC_TENSION_ESC_STEP_SPS` | `sync_tension_esc_step_sps` | Runtime-only type-D burst escalation base step in raw SPS. | 300 |
+| `SYNC_TENSION_ESC_RATIO` | `sync_tension_esc_ratio` | Runtime-only type-D burst escalation multiplier. | 1.6 |
+| `LIVE_TUNE_LOCK` | _(runtime only)_ | Debug-only host live-write guard. The default observe-only tuner does not use it. `SET:LIVE_TUNE_LOCK:1` blocks live writes to `BASELINE_RATE`/`BASELINE_SPS`, `COMPRESSION_BIAS_FRAC`, `SYNC_COMPRESSION_DRAIN_FRAC`, `SYNC_COMPRESSION_DRAIN_BUDGET_MM`, `SYNC_EST_ATTACK_ALPHA`, `SYNC_TENSION_*`, `NEUTRAL_CREEP_*`, and `VAR_BLEND_*`/`BUF_VARIANCE_*`; `GET:LIVE_TUNE_LOCK` returns `0` or `1`. Not persisted; resets to `0` on boot. | 0 |
 
 For type-D branch A/B tests, capture with:
 
