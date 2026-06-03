@@ -41,15 +41,20 @@ toward TENSION) and SHALL NOT alter analog type-P feedforward.
 - **THEN** no proactive NEUTRAL lean is applied (behavior reverts to the trim's
   TENSION-touch backstop only)
 
-### Requirement: Tension-crossing EST aggressiveness scales with crossing velocity
+### Requirement: Tension-crossing EST snaps on velocity and escalates on bursts
 
-For `BUF_SENSOR_TYPE == 0`, on a crossing into `BUF_TENSION` the firmware SHALL
-scale the `extruder_est_sps` update aggressiveness by the crossing velocity
-(drain rate). A fast crossing (a sharp demand step) SHALL update the estimate
-toward the measured demand `mmu_feed + drain_rate` at high blend weight so the
-recovered NEUTRAL feed matches demand on the first touch; a slow crossing SHALL
-retain the gentle softened fallback so slow drift does not overshoot. This SHALL
-NOT alter the analog type-P estimator.
+For `BUF_SENSOR_TYPE == 0`, the `extruder_est_sps` update on a crossing into
+`BUF_TENSION` SHALL use two triggers. (1) When drain velocity is present, the
+update SHALL scale aggressiveness by crossing velocity toward the measured demand
+`mmu_feed + drain_rate` at high blend weight, so the recovered NEUTRAL feed
+matches demand on the first touch. (2) When a tension touch occurs within a burst
+window of the previous one (consecutive touches — the buffer is still under-fed,
+which is the only signal available for pinned re-touches where drain velocity is
+zero), the firmware SHALL escalate the estimate jump geometrically per
+consecutive touch until tension clears, and SHALL reset that escalation once a
+`BUF_NEUTRAL` dwell holds past the burst window. A single slow crossing with no
+recent prior touch SHALL retain the gentle softened fallback so slow drift does
+not overshoot. This SHALL NOT alter the analog type-P estimator.
 
 #### Scenario: Fast step converges in a single tension touch
 
@@ -57,14 +62,22 @@ NOT alter the analog type-P estimator.
   (a sharp slow→fast demand step)
 - **THEN** `extruder_est_sps` is updated toward `mmu_feed + drain_rate` at full
   attack
-- **AND** the post-recovery NEUTRAL feed matches the new demand, so the buffer
-  does not re-drain into a second TENSION touch
+- **AND** the post-recovery NEUTRAL feed matches the new demand
 
-#### Scenario: Slow crossing keeps the gentle fallback
+#### Scenario: Pinned re-touch burst is escalated, not crept
 
-- **WHEN** the type-D buffer crosses into TENSION with a low crossing velocity
-  (slow drift)
-- **THEN** the estimate update uses the softened gentle path (no aggressive snap)
+- **WHEN** consecutive TENSION touches occur within the burst window (pinned
+  re-touches with zero drain velocity)
+- **THEN** the estimate jump escalates geometrically per touch until tension
+  clears, instead of creeping up a fixed fraction per touch
+- **AND** the escalation resets after a `BUF_NEUTRAL` dwell holds past the window
+
+#### Scenario: Slow single crossing keeps the gentle fallback
+
+- **WHEN** the type-D buffer crosses into TENSION with low velocity and no recent
+  prior tension touch (slow drift)
+- **THEN** the estimate update uses the softened gentle path (no snap, no
+  escalation)
 - **AND** the buffer does not overshoot into COMPRESSION
 
 ### Requirement: Feed floor is not the primary anti-tension lever

@@ -25,18 +25,34 @@
 - [ ] 1.3 `BUF_SENSOR_TYPE == 0` only; analog type-P feedforward byte-identical.
 - [ ] 1.4 Build + tests green; OpenSpec strict.
 
-## 2. Velocity-scaled tension-crossing EST (fast-step burst fix)
+## 2. Tension-crossing EST: velocity snap + consecutive-tension escalation
 
-- [ ] 2.1 `firmware/src/sync.c` (`buf_update`, the `→ BUF_TENSION` /
-  `neutral_drain_sample` path ~`sync.c:1164-1178`): scale the EST update by
-  crossing velocity. `v_norm = clamp(|arm_vel_mm_s| / SYNC_TENSION_FAST_MM_S,
-  0, 1)`; `est_sample = lerp(feed_avg*1.15, mmu_feed + drain_rate, v_norm)`;
-  `alpha = lerp(EST_ALPHA_MAX, 1.0, v_norm)`. Fast crossing → snap to measured
-  demand at full attack; slow → existing gentle path (preserve `7178c34`).
-- [ ] 2.2 New knob `SYNC_TENSION_FAST_MM_S` (velocity for full aggressiveness;
-  default TBD). Plumb non-persisted as above.
-- [ ] 2.3 `BUF_SENSOR_TYPE == 0` only; type-P estimator untouched.
-- [ ] 2.4 Build + tests green; OpenSpec strict.
+HW capture A: catchup `MM=3000` (fine); burst = EST creep ~+200 sps/touch
+(`667→892→1074→1194→1382`, TPX→12), 4-5 touches/infill-entry, EST decays to ~670
+between entries. First crossing has drain velocity (`AV −2.7..−4.6 mm/s`);
+re-touches are pinned (`AV=0`) so velocity alone can't gate them — consecutive
+touches are the signal.
+
+- [ ] 2.1 `firmware/src/sync.c` (`buf_update`, `neutral_drain_sample` /
+  `→ BUF_TENSION` path ~`sync.c:1164-1178`): **Trigger 1 (velocity snap):**
+  `v_norm = clamp(|arm_vel_mm_s| / SYNC_TENSION_FAST_MM_S, 0, 1)`;
+  `est_sample = lerp(feed_avg*1.15, mmu_feed + drain_rate, v_norm)`;
+  `alpha = lerp(EST_ALPHA_MAX, 1.0, v_norm)` (bypass the ALPHA_MAX clamp like the
+  §20 attack); `EST = max(EST, blended)`.
+- [ ] 2.2 **Trigger 2 (burst escalation):** track `last_tension_ms` + `burst_n`.
+  If a TENSION crossing is within `SYNC_TENSION_BURST_MS` of the prior one,
+  `burst_n++` and add `SYNC_TENSION_ESC_STEP_SPS * SYNC_TENSION_ESC_RATIO^burst_n`
+  to EST (clamp to a demand ceiling). Reset `burst_n` when a `BUF_NEUTRAL` dwell
+  holds past `SYNC_TENSION_BURST_MS`. Geometric/aggressive is correct here
+  (tension-recovery direction; overshoot → COMPRESSION is safe).
+- [ ] 2.3 New knobs (non-persisted, plumb like `SYNC_COMPRESSION_DRAIN_FRAC`):
+  `SYNC_TENSION_FAST_MM_S` (≈2 mm/s), `SYNC_TENSION_BURST_MS` (≈300-500),
+  `SYNC_TENSION_ESC_STEP_SPS`, `SYNC_TENSION_ESC_RATIO` (≈1.5-2). No
+  `SETTINGS_VERSION` bump. Mind the 32-char param-name limit (§21).
+- [ ] 2.4 Slow single crossing (`v_norm≈0`, `burst_n=0`) MUST reproduce today's
+  `feed_avg*1.15` exactly (no `7178c34` regression).
+- [ ] 2.5 `BUF_SENSOR_TYPE == 0` only; type-P estimator untouched.
+- [ ] 2.6 Build + tests green; OpenSpec strict.
 
 ## 3. (Optional) velocity-scaled catchup ramp
 

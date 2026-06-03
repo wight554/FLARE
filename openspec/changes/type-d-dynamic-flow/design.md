@@ -45,33 +45,58 @@ steps make `g_buf_pos` stale, but there the lean simply hasn't ramped yet (short
 dwell) and the tension touch + Piece 2 take over — so no special gating needed
 beyond the proportional form (small e → small lean).
 
-## Piece 2 — velocity-scaled tension-crossing EST (fast-step burst)
+## Piece 2 — velocity snap + consecutive-tension escalation (fast-step burst)
 
-The burst is post-recovery NEUTRAL feed too low because the tension-crossing EST
-update is the softened `feed_avg × 1.15` (no-travel fallback, `7178c34`). Make the
-aggressiveness scale with crossing velocity:
+HW capture A confirmed the mechanism and refined the gate. On every tension
+touch `MM=3000` (catchup magnitude is fine); the burst is `EST` **creeping**
+~+200 sps/touch (`667→892→1074→1194→1382`, TPX climbing to 12), taking 4-5
+touches per infill entry to converge to the real demand (~1300-1400), then
+decaying back to ~670 during the next slow wall so the following infill entry
+re-bursts. Two distinct crossing types drive it:
+
+- **First drain crossing** of a cluster: `AV ≈ −2.7 .. −4.6 mm/s` (drain velocity
+  present) — the demand is *measurable*.
+- **Re-touches**: `AV = 0.00` (buffer pinned at the rail) — no drain velocity, so
+  a pure velocity gate misses them. The signal that they are still under-fed is
+  simply **another tension touch right after the last one**.
+
+So the fix needs two triggers:
 
 ```
-v = |arm_vel_mm_s| at the crossing            # = drain rate = deficit magnitude
-v_norm = clamp(v / SYNC_TENSION_FAST_MM_S, 0, 1)
+# Trigger 1 — first crossing with drain velocity: snap to measured demand
+v = |arm_vel_mm_s|;  v_norm = clamp(v / SYNC_TENSION_FAST_MM_S, 0, 1)   # AV ~2.7-4.6 → thr ~2
+demand_fast = mmu_feed_sps + drain_sps          # measured demand
+demand_slow = feed_avg_sps * 1.15               # existing gentle path (7178c34)
+est_sample  = lerp(demand_slow, demand_fast, v_norm)
+alpha       = lerp(EST_ALPHA_MAX, 1.0, v_norm)  # fast → full attack (bypasses ALPHA_MAX clamp)
+EST = max(EST, blend(est_sample, alpha))
 
-# demand revealed by the drain: extruder pulled = mmu_feed + drain_rate
-demand_fast = mmu_feed_sps + drain_sps         # aggressive target (one-touch)
-demand_slow = feed_avg_sps * 1.15              # existing gentle path (7178c34)
-
-est_sample = lerp(demand_slow, demand_fast, v_norm)
-alpha      = lerp(EST_ALPHA_MAX, 1.0, v_norm)  # fast crossing → full attack
-blend_extruder_est_sps(est_sample, alpha)
+# Trigger 2 — consecutive tension within T_burst: GEOMETRIC escalation
+if (now - last_tension_ms) < SYNC_TENSION_BURST_MS:
+    burst_n += 1
+    EST += SYNC_TENSION_ESC_STEP_SPS * pow(SYNC_TENSION_ESC_RATIO, burst_n)   # clamp to demand cap
+else:
+    burst_n = 0                                  # reset after a held NEUTRAL dwell
+last_tension_ms = now
 ```
-- Fast crossing (`v` high) → EST snaps to the measured demand at full attack →
-  the recovered NEUTRAL feed is correct → no re-drain → single touch.
-- Slow crossing (`v` low) → existing gentle `1.15×` / clamped alpha → no overshoot
-  (preserves the `7178c34` slow-drift fix). The softening is now *conditional*.
-- Knob: `SYNC_TENSION_FAST_MM_S` (velocity at which the crossing counts as a hard
-  step → full aggressiveness).
-- When there is known switch-to-switch travel the existing `feed + drain` path
-  (sync.c:1170) already computes `demand_fast`; this generalizes it to the
-  no-travel / re-drain crossings that currently fall to the gentle `1.15×`.
+
+- **Trigger 1** catches the first crossing (velocity present) → EST snaps to the
+  measured `mmu_feed + drain_rate` → recovered NEUTRAL feed correct → ideally one
+  touch. Generalizes the existing with-travel `feed+drain` (sync.c:1170) to the
+  no-travel case that currently falls to the gentle `1.15×`.
+- **Trigger 2** handles the `AV=0` re-touches the velocity gate can't see: each
+  consecutive tension touch within `T_burst` proves EST is still low, so escalate
+  the EST jump **geometrically** until tension clears. Collapses the 4-5 touch
+  creep into ~1-2. **Aggressive/geometric is correct here** — this is the
+  *tension-recovery* direction (overshoot → COMPRESSION = safe), the exact
+  opposite of the NEUTRAL lean (Piece 1) where geometric overshoots into clicks.
+  Same instinct, correct location.
+- Slow single drift (one touch, no recent prior) → `v_norm≈0`, `burst_n=0` → the
+  gentle `1.15×` path, no escalation → preserves the `7178c34` slow-drift fix.
+  The softening is now *conditional on not being in a burst*.
+- Knobs: `SYNC_TENSION_FAST_MM_S` (≈2 mm/s), `SYNC_TENSION_BURST_MS` (≈300-500),
+  `SYNC_TENSION_ESC_STEP_SPS` / `SYNC_TENSION_ESC_RATIO` (≈1.5-2, capped at a
+  demand ceiling). `burst_n` resets when a NEUTRAL dwell holds past `T_burst`.
 
 ## Piece 3 (optional) — velocity-scaled catchup ramp
 

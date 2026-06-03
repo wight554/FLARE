@@ -44,12 +44,17 @@ the controller which regime it is in and how hard to respond.
   buffer recovers, so it leans only while actually drifting → quiet. This is the
   type-P `psf_control_law` soft-wall ported to type-D's dead-reckon, gated to the
   slow/observable regime.
-- **Velocity-scaled tension-crossing EST (fast-step burst fix).** On a
-  `NEUTRAL/COMPRESSION → TENSION` crossing, scale the EST update aggressiveness by
-  the crossing velocity: a fast crossing snaps EST to the measured demand
-  `mmu_feed + drain_rate` at full attack (one-touch convergence); a slow crossing
-  keeps the gentle `× 1.15` path. The `7178c34` softening becomes *conditional*
-  instead of a global compromise.
+- **Tension-crossing EST: velocity snap + consecutive-tension escalation
+  (fast-step burst fix).** HW capture A confirmed catchup is strong (`MM=3000`)
+  and the burst is EST *creeping* ~+200 sps/touch over 4-5 touches per infill
+  entry. Two triggers: (1) a crossing with drain velocity snaps EST to the
+  measured demand `mmu_feed + drain_rate` at full attack; (2) consecutive tension
+  touches within a burst window — the only signal for pinned `AV=0` re-touches —
+  escalate the EST jump **geometrically** until tension clears, then reset after a
+  held NEUTRAL dwell. A single slow crossing keeps the gentle `× 1.15` path, so the
+  `7178c34` softening becomes *conditional on not being in a burst*. (Geometric
+  escalation is correct in this tension-recovery direction — overshoot toward
+  COMPRESSION is the safe side — the exact opposite of the NEUTRAL lean.)
 - **Optional: velocity-scaled catchup ramp.** Collapse `SYNC_TENSION_RAMP_DELAY`
   toward 0 for fast crossings so the first touch clears a tick sooner. Secondary
   to the EST snap (catchup magnitude is already adequate).
