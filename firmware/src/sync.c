@@ -1229,7 +1229,10 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
         if (sample_valid) {
             float prev_est_sps = extruder_est_sps;
             if (neutral_drain_sample) {
+                /* TENSION means starvation: let the snap raise EST, but never
+                 * wipe burst escalation back down to a buffer-limited sample. */
                 blend_extruder_est_sps_direct(est_sps, alpha, now_ms);
+                if (extruder_est_sps < prev_est_sps) extruder_est_sps = prev_est_sps;
             } else {
                 blend_extruder_est_sps(est_sps, alpha, now_ms);
             }

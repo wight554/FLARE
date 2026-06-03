@@ -26,6 +26,8 @@ no gradual signal — capture B `BP` frozen then jumps). See design.md.
   - 2026-06-03: Implemented velocity-scaled type-D TENSION recovery sample with
     direct alpha blend so fast crossings can reach alpha 1.0 while the
     zero-velocity endpoint remains `feed_avg * 1.15`.
+  - 2026-06-03: Made the TENSION crossing blend raise-only so a buffer-limited
+    velocity sample cannot lower `EST` and erase accumulated burst escalation.
 - [x] 1.2 **Trigger 2 (burst escalation):** track `last_tension_ms` + `burst_n`.
   If a TENSION crossing is within `SYNC_TENSION_BURST_MS` of the prior one,
   `burst_n++` and add `SYNC_TENSION_ESC_STEP_SPS * SYNC_TENSION_ESC_RATIO^burst_n`

@@ -139,7 +139,8 @@ shared-knob or feed-floor change in this change (the floor was already demoted).
 - In `buf_update`, replace the `BUF_NEUTRAL -> BUF_TENSION` split between
   with-travel `feed_avg + drain_sps` and no-travel `feed_avg * 1.15` with a
   velocity lerp: `feed_avg * 1.15` at `v_norm=0`, measured demand at
-  `v_norm=1`, and an explicit blend alpha that can reach `1.0`.
+  `v_norm=1`, and an explicit raise-only blend alpha that can reach `1.0` on
+  TENSION crossings.
 - Add geometric burst escalation on the unconditional
   `BUF_NEUTRAL -> BUF_TENSION` crossing hook, after any estimator blend, because
   fast pinned re-touches are too short to pass the demand-sample dwell gates.
