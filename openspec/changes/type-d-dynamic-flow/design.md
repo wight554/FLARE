@@ -169,3 +169,30 @@ shared-knob or feed-floor change in this change (the floor was already demoted).
 - Document tension-recovery velocity snap and burst escalation, including that a
   fast-step touch is reduced to a positioning touch, not eliminated.
 - Note `SYNC_MIN_RATE` remains quiet and reserve bias handles slow drift.
+
+## Pivot (2026-06-03): decaying recovery floor replaces burst escalation
+
+HW fix3→fix7 proved the Piece 2 burst escalation cannot collapse the burst:
+even ungated from `sample_valid`, with `BURST_MS 3000` and raise-only blend, EST
+oscillates `~780↔~1080`, TPX→12-13. The escalation pushes `extruder_est_sps`, but
+the recovery-cycle NEUTRAL-fill / COMPRESSION-drain crossings re-estimate the
+genuinely-low wall demand (~766) and pull EST back down between touches → the
+re-drain persists. No EST-side mechanism wins, because between steps the demand
+really is low.
+
+Replacement: a **feed-side decaying floor**, independent of EST.
+- On `NEUTRAL→TENSION`: `g_tension_floor_sps = SYNC_TENSION_RECOVERY_FLOOR`,
+  `g_tension_floor_set_ms = now`.
+- NEUTRAL relay feed: `target = max(target, floor·(1 − age/RECOVERY_MS))` while
+  `age < SYNC_TENSION_RECOVERY_MS`.
+Because it is not an EST term, the fill/drain samples can't lower it → NEUTRAL
+feed stays high through recovery → buffer can't re-drain → burst collapses to one
+touch. It decays (hands off to EST as the estimator converges), so it is loud
+only ~1.5 s after each touch — quiet between steps, unlike a static high
+`SYNC_MIN_RATE`.
+
+Accepted scope (operator): touch-1 per step is structural (no anticipation); a
+brief COMPRESSION pulse during the recovery window is acceptable for fast
+recovery. Knobs: `SYNC_TENSION_RECOVERY_FLOOR` (≈2400 mm/min), `RECOVERY_MS`
+(≈1500). The §1.2 escalation + its knobs are removed; velocity-snap raise-only
+(§1.1) may stay as a benign nudge. See tasks §5.

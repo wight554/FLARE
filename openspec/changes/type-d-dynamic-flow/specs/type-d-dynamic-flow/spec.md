@@ -1,37 +1,45 @@
 ## ADDED Requirements
 
-### Requirement: Tension-crossing EST snaps on velocity and escalates on bursts
+### Requirement: A tension touch slams a decaying recovery feed floor
 
-For `BUF_SENSOR_TYPE == 0`, a crossing into `BUF_TENSION` SHALL update
-`extruder_est_sps` via two triggers. (1) When drain velocity is present, the
-update SHALL scale aggressiveness by crossing velocity toward the measured demand
-`mmu_feed + drain_rate` at high blend weight, so the recovered NEUTRAL feed
-matches demand on the first touch. (2) When a tension touch occurs within a burst
-window of the previous one (consecutive touches — the buffer is still under-fed,
-which is the only signal available for pinned re-touches where drain velocity is
-zero), the firmware SHALL escalate the estimate jump geometrically per
-consecutive touch until tension clears, and SHALL reset that escalation once a
-`BUF_NEUTRAL` dwell holds past the burst window. A single slow crossing with no
-recent prior touch SHALL retain the gentle softened fallback so slow drift does
-not overshoot. Aggressive recovery here is intentional: the tension-recovery
-direction overshoots toward COMPRESSION (benign), unlike a NEUTRAL lean. This
-SHALL NOT alter the analog type-P estimator.
+For `BUF_SENSOR_TYPE == 0`, a crossing into `BUF_TENSION` SHALL set a recovery
+feed floor `SYNC_TENSION_RECOVERY_FLOOR` (≈ the fast-segment / catchup rate) and
+SHALL apply that floor as a lower bound on the `BUF_NEUTRAL` relay feed, decaying
+the floor to zero over `SYNC_TENSION_RECOVERY_MS`. The floor SHALL be a feed-side
+term independent of `extruder_est_sps` so it is not pulled back down by the
+NEUTRAL-fill / COMPRESSION-drain estimator samples during the recovery cycle.
+This holds NEUTRAL feed high through the recovery window so the buffer does not
+re-drain into a second/third TENSION touch (the burst), collapsing each
+demand-step event to a single tension touch. The floor SHALL hand off to
+`extruder_est_sps` as it decays (by which time the estimator has caught the new
+demand). A brief COMPRESSION-side pulse during the recovery window is accepted as
+the cost of preventing the re-drain burst. This SHALL NOT alter analog type-P.
 
-#### Scenario: Fast step converges in a single tension touch
+The velocity-snap raise-only update of `extruder_est_sps` on the tension crossing
+MAY remain as a benign monotonic-up nudge; the recovery floor is the mechanism
+that collapses the burst.
 
-- **WHEN** the type-D buffer crosses into TENSION with a high crossing velocity
-  (a sharp slow→fast demand step)
-- **THEN** `extruder_est_sps` is updated toward `mmu_feed + drain_rate` at full
-  attack
-- **AND** the post-recovery NEUTRAL feed matches the new demand
+#### Scenario: Burst collapses to a single tension touch
 
-#### Scenario: Pinned re-touch burst is escalated, not crept
+- **WHEN** a demand step drives the type-D buffer into TENSION
+- **THEN** the recovery floor is set and bounds NEUTRAL feed high through the
+  recovery window
+- **AND** the buffer does not re-drain into further TENSION touches before the
+  floor decays (the step produces one touch, not a burst)
 
-- **WHEN** consecutive TENSION touches occur within the burst window (pinned
-  re-touches with zero drain velocity)
-- **THEN** the estimate jump escalates geometrically per touch until tension
-  clears, instead of creeping up a fixed fraction per touch
-- **AND** the escalation resets after a `BUF_NEUTRAL` dwell holds past the window
+#### Scenario: Recovery floor decays and is not held high between steps
+
+- **WHEN** `SYNC_TENSION_RECOVERY_MS` elapses after a tension touch with no new
+  touch
+- **THEN** the floor has decayed to zero and NEUTRAL feed is governed by the
+  estimator again (quiet between steps, unlike a static high `SYNC_MIN_RATE`)
+
+#### Scenario: Floor is independent of the estimator
+
+- **WHEN** NEUTRAL-fill or COMPRESSION-drain crossings lower `extruder_est_sps`
+  during the recovery cycle
+- **THEN** the recovery floor still bounds NEUTRAL feed (it is not an EST term),
+  so the recovered feed stays high and the re-drain is prevented
 
 #### Scenario: Slow single crossing keeps the gentle fallback
 

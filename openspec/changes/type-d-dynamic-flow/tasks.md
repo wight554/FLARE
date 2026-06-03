@@ -79,8 +79,50 @@ no gradual signal — capture B `BP` frozen then jumps). See design.md.
 ## 4. HW validation
 
 - [ ] 4.1 Fast-step print (300↔1500): the burst collapses to at most **one**
-  TENSION touch per step; EST correct on first touch (no re-drain). Sweep
-  `SYNC_TENSION_FAST_MM_S` / `SYNC_TENSION_BURST_MS` / escalation ratio.
+  TENSION touch per step; recovery fast, no re-drain. (See §5 — the burst
+  escalation did NOT achieve this; the recovery floor does.)
 - [ ] 4.2 Regression: a slow single crossing does not overshoot into COMPRESSION
   (the `7178c34` gentle path still applies); slow benchy still rides the reserve.
 - [ ] 4.3 Record final knob defaults; finalize gen_config defaults.
+
+## 5. Pivot: decaying recovery feed floor (replaces burst escalation)
+
+HW (fix3→fix7, 2026-06-03): the §1.2 burst escalation does NOT collapse the
+burst. Even after fixing the gate (ungated from `sample_valid`), widening the
+window (`BURST_MS 3000`), and making the tension blend raise-only, EST still
+oscillates `~780 ↔ ~1080` and TPX climbs to 12-13. Root cause: the escalation
+pushes `extruder_est_sps`, but the recovery-cycle NEUTRAL-fill / COMPRESSION-drain
+crossings **correctly re-estimate the low wall demand (~766)** and pull EST back
+down between touches — so the re-drain (burst) persists. No EST-side fix can win:
+between steps the demand genuinely is low.
+
+Fix: a **feed-side decaying floor**, independent of EST, slammed high on the
+tension touch — holds NEUTRAL feed up through the recovery so the buffer can't
+re-drain, then decays (handing off to EST as it converges). Operator decision:
+1 tension touch/step is acceptable; a brief COMPRESSION pulse during recovery is
+acceptable if recovery is fast. Static `SYNC_MIN_RATE 1000` also worked but is
+loud always; the decaying floor is loud only for ~1.5 s after each touch.
+
+- [ ] 5.1 `firmware/src/sync.c`: **remove** the §1.2 burst escalation
+  (`SYNC_TENSION_ESC_STEP_SPS`, `SYNC_TENSION_ESC_RATIO`, `SYNC_TENSION_BURST_MS`,
+  `g_tension_burst_n`, `g_last_tension_ms`, `type_d_tension_burst_neutral_reset`)
+  — proven ineffective. Keep the velocity-snap raise-only (§1.1) as a benign
+  monotonic-up EST nudge (or remove if simpler).
+- [ ] 5.2 Add the recovery floor: on the unconditional `BUF_NEUTRAL -> BUF_TENSION`
+  crossing, set `g_tension_floor_sps = SYNC_TENSION_RECOVERY_FLOOR (sps)` and
+  `g_tension_floor_set_ms = now_ms`.
+- [ ] 5.3 In the type-D `BUF_NEUTRAL` relay feed path (after `target_sps` is
+  computed, before the final clamp), apply the decaying floor:
+  `age = now - g_tension_floor_set_ms; if (g_tension_floor_sps>0 && age <
+  SYNC_TENSION_RECOVERY_MS) { floor = g_tension_floor_sps * (1 - age/RECOVERY_MS);
+  target_sps = max(target_sps, floor); }`. Feed-side only — independent of EST.
+- [ ] 5.4 New knobs (non-persisted, plumb like `SYNC_COMPRESSION_DRAIN_FRAC`):
+  `SYNC_TENSION_RECOVERY_FLOOR` (mm/min, default ≈ `2400` / catchup level; `0` =
+  disabled), `SYNC_TENSION_RECOVERY_MS` (default ≈ `1500`). Reset
+  `g_tension_floor_sps` in `sync_disable`. Mind the 32-char param-name limit.
+- [ ] 5.5 `BUF_SENSOR_TYPE == 0` only; type-P untouched.
+- [ ] 5.6 Build + tests green; OpenSpec strict.
+- [ ] 5.7 HW: fast-step print → 1 TENSION touch per step, no burst, recovery
+  fast; brief COMPRESSION pulse acceptable. Sweep `SYNC_TENSION_RECOVERY_FLOOR`
+  (high enough to cover infill demand) and `SYNC_TENSION_RECOVERY_MS` (long
+  enough to bridge until EST converges, short enough to stay quiet between steps).
