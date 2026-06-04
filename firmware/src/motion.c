@@ -61,7 +61,7 @@ void motion_limit_runtime_rates(bool refresh_active_motors) {
     }
 }
 
-void din_init(din_t *d, uint pin) {
+void debounced_input_init(debounced_input_t *d, uint pin) {
     d->pin = pin;
     gpio_init(pin);
     gpio_set_dir(pin, GPIO_IN);
@@ -73,7 +73,7 @@ void din_init(din_t *d, uint pin) {
     d->last_edge = get_absolute_time();
 }
 
-void din_update(din_t *d) {
+void debounced_input_update(debounced_input_t *d) {
     absolute_time_t now = get_absolute_time();
     bool raw = gpio_get(d->pin);
 
@@ -89,28 +89,28 @@ void din_update(din_t *d) {
     }
 }
 
-void motor_init(motor_t *m, uint en, uint dir, uint step, bool dir_invert) {
-    m->en = en;
-    m->dir = dir;
-    m->step = step;
+void motor_init(motor_t *m, uint en_pin, uint dir_pin, uint step_pin, bool dir_invert) {
+    m->en_pin = en_pin;
+    m->dir_pin = dir_pin;
+    m->step_pin = step_pin;
     m->dir_invert = dir_invert;
 
-    gpio_init(m->en);
-    gpio_set_dir(m->en, GPIO_OUT);
+    gpio_init(m->en_pin);
+    gpio_set_dir(m->en_pin, GPIO_OUT);
 
-    gpio_init(m->dir);
-    gpio_set_dir(m->dir, GPIO_OUT);
+    gpio_init(m->dir_pin);
+    gpio_set_dir(m->dir_pin, GPIO_OUT);
 
     if (EN_ACTIVE_LOW)
-        gpio_put(m->en, 1);
+        gpio_put(m->en_pin, 1);
     else
-        gpio_put(m->en, 0);
+        gpio_put(m->en_pin, 0);
 
-    gpio_put(m->dir, 0);
+    gpio_put(m->dir_pin, 0);
 
-    gpio_set_function(m->step, GPIO_FUNC_PWM);
-    m->slice = pwm_gpio_to_slice_num(m->step);
-    m->chan = pwm_gpio_to_channel(m->step);
+    gpio_set_function(m->step_pin, GPIO_FUNC_PWM);
+    m->slice = pwm_gpio_to_slice_num(m->step_pin);
+    m->chan = pwm_gpio_to_channel(m->step_pin);
 
     pwm_config cfg = pwm_get_default_config();
     pwm_init(m->slice, &cfg, false);
@@ -119,14 +119,14 @@ void motor_init(motor_t *m, uint en, uint dir, uint step, bool dir_invert) {
 
 void motor_enable(motor_t *m, bool on) {
     if (EN_ACTIVE_LOW)
-        gpio_put(m->en, on ? 0 : 1);
+        gpio_put(m->en_pin, on ? 0 : 1);
     else
-        gpio_put(m->en, on ? 1 : 0);
+        gpio_put(m->en_pin, on ? 1 : 0);
 }
 
 void motor_set_dir(motor_t *m, bool forward) {
     bool d = forward ^ m->dir_invert;
-    gpio_put(m->dir, d ? 1 : 0);
+    gpio_put(m->dir_pin, d ? 1 : 0);
 }
 
 void motor_set_rate_sps(motor_t *m, int sps) {
@@ -163,8 +163,8 @@ void motor_stop(motor_t *m) {
 }
 
 void lane_setup(lane_t *L, uint pin_in, uint pin_out, motor_t m, int lane_id, tmc_t *tmc) {
-    din_init(&L->in_sw, pin_in);
-    din_init(&L->out_sw, pin_out);
+    debounced_input_init(&L->in_sw, pin_in);
+    debounced_input_init(&L->out_sw, pin_out);
     L->m = m;
     L->task = TASK_IDLE;
     L->task_limit_mm = 0.0f;

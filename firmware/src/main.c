@@ -257,10 +257,10 @@ void sync_currents_from_ihold_irun(int ln, uint32_t reg) {
 // ===================== Globals =====================
 lane_t g_lane_l1;
 lane_t g_lane_l2;
-din_t g_y_split;
+debounced_input_t g_y_split;
 
-din_t g_buf_tension_din;
-din_t g_buf_compression_din;
+debounced_input_t g_buf_tension_din;
+debounced_input_t g_buf_compression_din;
 
 tmc_t g_tmc_l1;
 tmc_t g_tmc_l2;
@@ -468,9 +468,9 @@ int main(void) {
     lane_setup(&g_lane_l1, PIN_L1_IN, PIN_L1_OUT, l1, 1, &g_tmc_l1);
     lane_setup(&g_lane_l2, PIN_L2_IN, PIN_L2_OUT, l2, 2, &g_tmc_l2);
 
-    din_init(&g_y_split, PIN_Y_SPLIT);
-    din_init(&g_buf_tension_din, PIN_BUF_TENSION);
-    din_init(&g_buf_compression_din, PIN_BUF_COMPRESSION);
+    debounced_input_init(&g_y_split, PIN_Y_SPLIT);
+    debounced_input_init(&g_buf_tension_din, PIN_BUF_TENSION);
+    debounced_input_init(&g_buf_compression_din, PIN_BUF_COMPRESSION);
 
     adc_init();
     adc_gpio_init(PIN_PSF);
@@ -480,17 +480,17 @@ int main(void) {
     settings_load();
     cutter_init();
 
-    // din_init reads GPIOs once without debounce; sensors may not have settled.
-    // Spin din_update for 25 ms so the 10 ms debounce threshold commits correctly.
+    // debounced_input_init reads GPIOs once without debounce; sensors may not have settled.
+    // Spin debounced_input_update for 25 ms so the 10 ms debounce threshold commits correctly.
     // For Type-P, also poll the ADC pin to let the EWMA filter settle to the true physical value.
     for (int i = 0; i < 25; i++) {
-        din_update(&g_lane_l1.in_sw);
-        din_update(&g_lane_l1.out_sw);
-        din_update(&g_lane_l2.in_sw);
-        din_update(&g_lane_l2.out_sw);
-        din_update(&g_y_split);
-        din_update(&g_buf_tension_din);
-        din_update(&g_buf_compression_din);
+        debounced_input_update(&g_lane_l1.in_sw);
+        debounced_input_update(&g_lane_l1.out_sw);
+        debounced_input_update(&g_lane_l2.in_sw);
+        debounced_input_update(&g_lane_l2.out_sw);
+        debounced_input_update(&g_y_split);
+        debounced_input_update(&g_buf_tension_din);
+        debounced_input_update(&g_buf_compression_din);
         if (BUF_SENSOR_TYPE == 1) {
             buf_analog_update();
         }
@@ -529,13 +529,13 @@ int main(void) {
         }
 
         // Inputs
-        din_update(&g_lane_l1.in_sw);
-        din_update(&g_lane_l1.out_sw);
-        din_update(&g_lane_l2.in_sw);
-        din_update(&g_lane_l2.out_sw);
-        din_update(&g_y_split);
-        din_update(&g_buf_tension_din);
-        din_update(&g_buf_compression_din);
+        debounced_input_update(&g_lane_l1.in_sw);
+        debounced_input_update(&g_lane_l1.out_sw);
+        debounced_input_update(&g_lane_l2.in_sw);
+        debounced_input_update(&g_lane_l2.out_sw);
+        debounced_input_update(&g_y_split);
+        debounced_input_update(&g_buf_tension_din);
+        debounced_input_update(&g_buf_compression_din);
 
         // USB commands
         cmd_poll(g_now_ms);

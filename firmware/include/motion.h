@@ -2,10 +2,10 @@
 
 #include "controller_shared.h"
 
-void din_init(din_t *d, uint pin);
-void din_update(din_t *d);
+void debounced_input_init(debounced_input_t *d, uint pin);
+void debounced_input_update(debounced_input_t *d);
 
-void motor_init(motor_t *m, uint en, uint dir, uint step, bool dir_invert);
+void motor_init(motor_t *m, uint en_pin, uint dir_pin, uint step_pin, bool dir_invert);
 void motor_enable(motor_t *m, bool on);
 void motor_set_dir(motor_t *m, bool forward);
 void motor_set_rate_sps(motor_t *m, int sps);

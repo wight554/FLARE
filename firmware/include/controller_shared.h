@@ -25,10 +25,10 @@ typedef struct {
     bool stable;
     bool last_raw;
     absolute_time_t last_edge;
-} din_t;
+} debounced_input_t;
 
 typedef struct {
-    uint en, dir, step;
+    uint en_pin, dir_pin, step_pin;
     bool dir_invert;
     uint slice;
     uint chan;
@@ -53,8 +53,8 @@ typedef enum {
 } fault_t;
 
 typedef struct lane_s {
-    din_t in_sw;
-    din_t out_sw;
+    debounced_input_t in_sw;
+    debounced_input_t out_sw;
     motor_t m;
     task_t task;
     uint32_t motion_started_ms;
@@ -131,7 +131,7 @@ typedef struct {
     uint32_t mmu_sps_dwell_samples;
 } buf_tracker_t;
 
-static inline bool on_al(const din_t *d) {
+static inline bool on_al(const debounced_input_t *d) {
     return d->stable != 0;
 }
 
@@ -283,9 +283,9 @@ extern bool g_shadow_ihold_irun_valid[NUM_LANES];
 extern bool g_shadow_vsense[NUM_LANES];
 extern lane_t g_lane_l1;
 extern lane_t g_lane_l2;
-extern din_t g_y_split;
-extern din_t g_buf_tension_din;
-extern din_t g_buf_compression_din;
+extern debounced_input_t g_y_split;
+extern debounced_input_t g_buf_tension_din;
+extern debounced_input_t g_buf_compression_din;
 extern tmc_t g_tmc_l1;
 extern tmc_t g_tmc_l2;
 extern tc_ctx_t g_tc_ctx;
