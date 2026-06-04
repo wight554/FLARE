@@ -2196,9 +2196,11 @@ void sync_tick(uint32_t now_ms) {
              * re-arm sync immediately once debounced state is NEUTRAL during active print
              * or TENSION during feed. */
             buf_state_t s = g_buf.state;
-            if (BUF_SENSOR_TYPE == 0 &&
-                (s == BUF_TENSION || (s == BUF_NEUTRAL && A->task == TASK_FEED))) {
-                g_buf_pos = buf_target_reserve_mm();
+            bool relief_rearm = (BUF_SENSOR_TYPE == 0)
+                ? (s == BUF_TENSION || (s == BUF_NEUTRAL && A->task == TASK_FEED))
+                : ((g_buf_pos < -0.6f) && (g_sync_tension_transitioned || g_vel_norm < -0.1f));
+            if (relief_rearm) {
+                if (BUF_SENSOR_TYPE == 0) g_buf_pos = buf_target_reserve_mm();
                 sync_current_sps = sync_bootstrap_sps();
                 sync_set_state(SYNC_ACTIVE);
                 sync_auto_started = true;
