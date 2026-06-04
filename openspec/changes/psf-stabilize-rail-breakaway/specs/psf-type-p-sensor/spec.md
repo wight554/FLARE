@@ -9,8 +9,8 @@ the short-window position-change test; it SHALL keep driving and re-baseline the
 stagnation reference position, aborting only if the buffer remains saturated past
 `PSF_STAB_RAIL_BREAK_MS` measured from stabilize start. Once the signal
 desaturates, the firmware SHALL apply the standard dry-spin stagnation check
-(`PSF_STAB_STAGNANT_MS` / `PSF_STAB_STAGNANT_NORM`). Type-D stabilize is
-unchanged.
+(`PSF_STAB_STAGNANT_MS` / `PSF_STAB_STAGNANT_NORM`) with its window measured from
+desaturation, not from stabilize start. Type-D stabilize is unchanged.
 
 #### Scenario: Loaded buffer breaks off the tension rail
 
@@ -32,5 +32,5 @@ unchanged.
 
 - **WHEN** `BUF_SENSOR_TYPE == 1`, the signal is not saturated, and the buffer
   position changes less than `PSF_STAB_STAGNANT_NORM` within
-  `PSF_STAB_STAGNANT_MS`
+  `PSF_STAB_STAGNANT_MS` after desaturation
 - **THEN** stabilize emits `BUF_STAB:STAGNANT_TIMEOUT` and stops

@@ -53,6 +53,19 @@ enough that a jam doesn't grind.
 *Alternative rejected*: rely on the existing 10 s `g_boot_stabilize_deadline_ms`.
 Too long — 100 mm into a stuck buffer.
 
+### D2b — Desaturated stagnant window uses its own timer
+
+`g_boot_stabilize_started_ms` cannot also drive the off-rail stagnant window:
+rail breakaway may legitimately take longer than `PSF_STAB_STAGNANT_MS`, so the
+first desaturated tick would see the window already expired and compare a tiny
+`-0.99 → -0.98` position delta against `PSF_STAB_STAGNANT_NORM`, false-firing
+`STAGNANT_TIMEOUT`. The firmware keeps a separate
+`g_stab_stagnant_since_ms` timer. It is initialized with stabilize start and
+refreshed on every saturated tick along with `g_boot_stabilize_start_pos`; once
+the signal desaturates, the dry-spin window is measured from that last saturated
+tick. The rail cap still uses `g_boot_stabilize_started_ms`, so a never-breaks
+jam remains bounded.
+
 ### D3 — Live-tunable, no NVM
 
 `200`/`0.03f` become `PSF_STAB_STAGNANT_MS`/`PSF_STAB_STAGNANT_NORM`; add

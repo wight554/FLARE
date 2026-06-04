@@ -208,6 +208,7 @@ lane_t *g_boot_stabilize_lane = NULL;
 bool g_boot_stabilize_forward = false;
 static bool g_buffer_stabilize_emit_events = false;
 static uint32_t g_boot_stabilize_started_ms = 0;
+static uint32_t g_stab_stagnant_since_ms = 0;
 static float g_boot_stabilize_start_pos = 0.0f;
 
 typedef enum {
@@ -839,6 +840,7 @@ static bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events, b
     g_buffer_service_mode = mode;
     g_idle_compression_since_ms = 0;
     g_boot_stabilize_started_ms = now_ms;
+    g_stab_stagnant_since_ms = now_ms;
     g_boot_stabilize_start_pos = g_buf_pos;
 
     motor_enable(&stab_lane->m, true);
@@ -911,7 +913,8 @@ void buffer_stabilize_tick(uint32_t now_ms) {
                 return;
             }
             g_boot_stabilize_start_pos = g_buf_pos;
-        } else if ((int32_t)(now_ms - g_boot_stabilize_started_ms) >= PSF_STAB_STAGNANT_MS) {
+            g_stab_stagnant_since_ms = now_ms;
+        } else if ((int32_t)(now_ms - g_stab_stagnant_since_ms) >= PSF_STAB_STAGNANT_MS) {
             float change = fabsf(g_buf_pos - g_boot_stabilize_start_pos);
             if (change < PSF_STAB_STAGNANT_NORM) {
                 if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "STAGNANT_TIMEOUT");

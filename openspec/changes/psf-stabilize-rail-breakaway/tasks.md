@@ -30,6 +30,12 @@
   `g_boot_stabilize_started_ms`. The desaturated path uses the new live knobs.
   Type-D does not enter the block.
 
+  2026-06-04 fix-forward: Rig showed breakaway works, but desaturation could
+  false-fire the dry-spin check because the off-rail window still used
+  `g_boot_stabilize_started_ms`. Added `g_stab_stagnant_since_ms`, initialized at
+  stabilize start and refreshed while saturated, so the stagnant window starts
+  at desaturation while the rail-break cap still measures from start.
+
 ## 3. Build
 
 - [x] 3.1 `ninja -C build_local` — clean, no warnings on `sync.c`.
@@ -39,6 +45,9 @@
   `ninja -C build_local` regenerated `tune.h`, rebuilt affected firmware, and
   linked cleanly. `openspec validate psf-stabilize-rail-breakaway --strict`
   passed.
+
+  2026-06-04 fix-forward: `ninja -C build_local` rebuilt `sync.c` and linked
+  cleanly. `openspec validate psf-stabilize-rail-breakaway --strict` passed.
 
 ## 4. Rig Verification
 
