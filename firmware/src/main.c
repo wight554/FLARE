@@ -488,41 +488,21 @@ int main(void) {
     prev_lane1_in_present = lane_in_present(&g_lane_l1);
     prev_lane2_in_present = lane_in_present(&g_lane_l2);
 
-    // Boot buffer neutralization is deferred + retried inside the main loop. A
-    // single boot-time attempt proved unreliable: an early/transient abort (the
-    // buffer pinned at the rail) left the buffer stuck with no recovery, while a
-    // later manual BS from the identical state always worked. Re-fire boot
-    // stabilize every BOOT_STAB_RETRY_MS while not already stabilizing and the
-    // buffer is not yet at goal, until BOOT_STAB_DEADLINE_MS. Once at goal
-    // (buf_state_raw() == BUF_NEUTRAL) start_internal no-ops, so retries are safe.
-    bool boot_stab_done = false;
-    uint32_t boot_stab_last_ms = 0;
-    // Wait for the motor/TMC and the buffer signal to settle before the first
-    // attempt: at ~750ms the drive was still sluggish and hit the rail-break cap
-    // (STAGNANT), forcing a retry. ~2.5s lets the first attempt succeed cleanly.
+    // One-shot boot buffer neutralization, deferred into the loop. NO retry for
+    // now: a single attempt makes the settle-delay honest — if it STAGNANTs, the
+    // delay is too short (raise BOOT_STAB_FIRST_MS) rather than being masked by a
+    // retry. At ~750ms the motor/TMC + buffer signal were unsettled and the drive
+    // hit the rail-break cap; tune BOOT_STAB_FIRST_MS until the single attempt
+    // DONEs cleanly.
+    bool boot_stab_armed = false;
     const uint32_t BOOT_STAB_FIRST_MS = 2500;
-    const uint32_t BOOT_STAB_RETRY_MS = 1500;
-    const uint32_t BOOT_STAB_DEADLINE_MS = 14000;
 
     while (true) {
         g_now_ms = to_ms_since_boot(get_absolute_time());
 
-        if (!boot_stab_done && active_lane != 0 && g_now_ms >= BOOT_STAB_FIRST_MS) {
-            // Exit the instant the buffer reaches goal — checked every iteration,
-            // not just at the retry boundary, so a successful drive never triggers
-            // one more retry. The deadline is only a never-succeeds failsafe; this
-            // does not block the loop (stabilize + commands run in the background).
-            // Success = the stabilize's own completion (DONE forces stable_state
-            // to NEUTRAL, parking a hair tension-side of goal by design). Checking
-            // raw position instead chased past that safe early stop and fired
-            // extra nudges. Only a STAGNANT abort (no settle) retries.
-            if (boot_stabilize_settled() || g_now_ms >= BOOT_STAB_DEADLINE_MS) {
-                boot_stab_done = true;
-            } else if (!g_boot_stabilizing &&
-                       (g_now_ms - boot_stab_last_ms) >= BOOT_STAB_RETRY_MS) {
-                boot_stab_last_ms = g_now_ms;
-                boot_stabilize_start(g_now_ms);
-            }
+        if (!boot_stab_armed && active_lane != 0 && g_now_ms >= BOOT_STAB_FIRST_MS) {
+            boot_stab_armed = true;
+            boot_stabilize_start(g_now_ms);
         }
 
         // Inputs
