@@ -2628,7 +2628,11 @@ void sync_tick(uint32_t now_ms) {
            smoothing handles), so snap straight to the soft-wall target. Once the
            buffer climbs back out of the wall, the smoothing path resumes. */
         sync_current_sps = target_sps;
-        g_psf_target_filt = (float)target_sps;
+        /* Seed the smoothing target at DEMAND, not the wall's max_sps: once the
+           buffer climbs out of the wall the smoothing resumes from here, so feed
+           eases to the extruder rate instead of staying pinned at max and
+           overshooting into COMPRESSION. */
+        g_psf_target_filt = extruder_est_sps;
     }
     else if (BUF_SENSOR_TYPE == 1) {
         /* Type-P distance-based smoothing (Happy-Hare-style). Both the target
