@@ -483,8 +483,8 @@ Operator validation found the "smooth / jump-free / interactive" claims of Phase
 - [ ] 37.3.2 Verify cut → hold `0` during travel → count down (already `0`) on the post-cut unload.
 
 ### 37.4 Anchor load tracking to physical progress (#1)
-- [ ] 37.4.1 Start `load_phase_start` at first real feed (first non-idle load `tc_state` / first gate-sensor rise), not at `FLARE_WAIT_TC` entry (`:927/955/958`), so the heat/`TEMPERATURE_WAIT` dead-time in `FLARE_UNLOAD_TOOLHEAD` is not counted as elapsed.
-- [ ] 37.4.2 Align `loading_speed` (`:943`, default 50 mm/s) with the board-reported feed, or interpolate `filament_position` between physical sensor crossings (pre_gate → gate → hub → toolhead) instead of pure open-loop time.
+- [x] 37.4.1 Start `load_phase_start` at first real feed (first non-idle load `tc_state` / first gate-sensor rise), not at `FLARE_WAIT_TC` entry (`:927/955/958`), so the heat/`TEMPERATURE_WAIT` dead-time in `FLARE_UNLOAD_TOOLHEAD` is not counted as elapsed.
+- [x] 37.4.2 Align `loading_speed` (`:943`, default 50 mm/s) with the board-reported feed, or interpolate `filament_position` between physical sensor crossings (pre_gate → gate → hub → toolhead) instead of pure open-loop time.
 - [ ] 37.4.3 Verify standalone load counts up smoothly `0 → 1925` matching real strand travel, with no early clamp-and-sit.
 
 ### 37.5 Make the drawn tip move (#4) — investigation-gated

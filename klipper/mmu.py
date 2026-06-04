@@ -239,6 +239,12 @@ class MMUMock:
         self.board_feed_rate = gcmd.get_float('FEED_RATE', self.board_feed_rate)
         self.board_rev_rate = gcmd.get_float('REV_RATE', self.board_rev_rate)
 
+        # Update loading_speed dynamically with board feed rate
+        speed_override = 100.0
+        if 0 <= self.active_gate < len(self.gate_speed_override):
+            speed_override = float(self.gate_speed_override[self.active_gate])
+        self.loading_speed = self.board_feed_rate * (speed_override / 100.0)
+
         self.swaps_total = gcmd.get_int('SWAPS_TOTAL', self.swaps_total)
         self.swaps_success = gcmd.get_int('SWAPS_SUCCESS', self.swaps_success)
         self.swaps_failed = gcmd.get_int('SWAPS_FAILED', self.swaps_failed)
@@ -989,10 +995,10 @@ class MMUMock:
                 self.th_clear_time = None
         else:
             self.current_phase = "load"
-            self.load_phase_start = start_time
+            self.load_phase_start = 0.0
 
         self.cut_phase_start = 0.0
-        self.load_phase_start = 0.0 if is_swapping else start_time
+        self.load_phase_start = 0.0
 
         try:
             while not self._is_toolhead_sensor_triggered():
@@ -1014,6 +1020,11 @@ class MMUMock:
 
                         # 1. Map physical board tc_state to virtual progress phases first
                         now = reactor.monotonic()
+
+                        feed_rate_mms = state.get("feed_rate_mms", 0.0)
+                        if feed_rate_mms > 0.0:
+                            self.loading_speed = feed_rate_mms * (speed_override / 100.0)
+
                         self._update_phase(tc_state, state.get("action", "Idle"), now)
 
                         # 2. Assign current_gate based on the active virtual phase
@@ -1386,7 +1397,7 @@ class MMUMock:
                 # Filament is fully unloaded back to the gate/drive gears, hold at 0.0 mm
                 filament_position = 0.0
             elif self.current_phase == "load":
-                elapsed = now - self.load_phase_start
+                elapsed = now - self.load_phase_start if self.load_phase_start > 0.0 else 0.0
                 # Count up from 0.0 to path_len (1925 mm) instead of bowden_length (1800 mm)
                 filament_position = min(path_len, elapsed * self.loading_speed)
             else:
