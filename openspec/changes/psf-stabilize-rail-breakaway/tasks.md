@@ -36,6 +36,13 @@
   stabilize start and refreshed while saturated, so the stagnant window starts
   at desaturation while the rail-break cap still measures from start.
 
+  2026-06-04 fix-forward (D2c): boot-stab still false-aborted because
+  `g_buf_analog_saturated_since_ms` is armed only in `buf_sensor_tick()`, which at
+  boot runs after the debounce loop and after `buffer_stabilize_tick()` in the
+  main loop — so the flag was 0 on boot-stab's first ticks. Rail test is now
+  `saturated_flag || fabsf(g_buf_pos) >= 0.99f`. `boot_stabilize_start` flipped to
+  `emit_events=true` for boot observability. `ninja` clean, links.
+
 ## 3. Build
 
 - [x] 3.1 `ninja -C build_local` — clean, no warnings on `sync.c`.

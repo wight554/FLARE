@@ -865,7 +865,9 @@ void buffer_stabilize_cancel(void) {
 }
 
 void boot_stabilize_start(uint32_t now_ms) {
-    (void)buffer_stabilize_start_internal(now_ms, false, BUFFER_SERVICE_STABILIZE);
+    /* emit_events=true: boot-stab shares the BS path; keeping it observable
+       (BUF_STAB:START/DONE/STAGNANT) is essential for diagnosing boot behavior. */
+    (void)buffer_stabilize_start_internal(now_ms, true, BUFFER_SERVICE_STABILIZE);
 }
 
 void buffer_stabilize_tick(uint32_t now_ms) {
@@ -906,7 +908,16 @@ void buffer_stabilize_tick(uint32_t now_ms) {
     }
 
     if (BUF_SENSOR_TYPE == 1 && g_boot_stabilizing) {
-        if (g_buf_analog_saturated_since_ms != 0) {
+        /* Detect the rail by position OR the saturation flag. At boot the flag is
+           not set yet: the 25ms debounce loop runs buf_analog_update() (settles
+           g_buf_pos) but never buf_sensor_tick(), which is what arms
+           g_buf_analog_saturated_since_ms, and buffer_stabilize_tick() runs before
+           buf_sensor_tick() in the main loop. Without the position check, boot-stab
+           takes the desaturated branch against a buffer pinned at the rail and
+           false-aborts. 0.99 matches the saturation threshold so flag and position
+           agree. */
+        bool at_rail = (g_buf_analog_saturated_since_ms != 0) || (fabsf(g_buf_pos) >= 0.99f);
+        if (at_rail) {
             if ((int32_t)(now_ms - g_boot_stabilize_started_ms) >= PSF_STAB_RAIL_BREAK_MS) {
                 if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "STAGNANT_TIMEOUT");
                 boot_stabilize_stop();

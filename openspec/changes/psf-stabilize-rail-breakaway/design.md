@@ -66,6 +66,20 @@ the signal desaturates, the dry-spin window is measured from that last saturated
 tick. The rail cap still uses `g_boot_stabilize_started_ms`, so a never-breaks
 jam remains bounded.
 
+### D2c — Rail detected by position OR saturation flag (boot fix)
+
+`g_buf_analog_saturated_since_ms` is armed only in `buf_sensor_tick()`. At boot
+the 25 ms debounce loop runs `buf_analog_update()` (settles `g_buf_pos` to the
+rail) but never `buf_sensor_tick()`, and in the main loop
+`buffer_stabilize_tick()` runs *before* `buf_sensor_tick()`. So on boot-stab's
+first ticks the flag is still 0 while the buffer is pinned at the rail → the
+desaturated branch runs and false-aborts. Fix: the rail test is
+`g_buf_analog_saturated_since_ms != 0 || fabsf(g_buf_pos) >= 0.99f`. `0.99`
+matches the saturation threshold (`sync.c` analog publish), so flag and position
+agree; the position term just removes the dependency on `buf_sensor_tick` having
+run first. Also flip `boot_stabilize_start` to `emit_events=true` so boot-stab is
+observable (`BUF_STAB:START/DONE/STAGNANT`), matching the `BS` path.
+
 ### D3 — Live-tunable, no NVM
 
 `200`/`0.03f` become `PSF_STAB_STAGNANT_MS`/`PSF_STAB_STAGNANT_NORM`; add
