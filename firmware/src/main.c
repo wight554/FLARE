@@ -503,11 +503,15 @@ int main(void) {
     while (true) {
         g_now_ms = to_ms_since_boot(get_absolute_time());
 
-        if (!boot_stab_done && active_lane != 0 && g_now_ms >= 750 &&
-            !g_boot_stabilizing && (g_now_ms - boot_stab_last_ms) >= BOOT_STAB_RETRY_MS) {
+        if (!boot_stab_done && active_lane != 0 && g_now_ms >= 750) {
+            // Exit the instant the buffer reaches goal — checked every iteration,
+            // not just at the retry boundary, so a successful drive never triggers
+            // one more retry. The deadline is only a never-succeeds failsafe; this
+            // does not block the loop (stabilize + commands run in the background).
             if (buf_state_raw() == BUF_NEUTRAL || g_now_ms >= BOOT_STAB_DEADLINE_MS) {
-                boot_stab_done = true;        // at goal, or gave up
-            } else {
+                boot_stab_done = true;
+            } else if (!g_boot_stabilizing &&
+                       (g_now_ms - boot_stab_last_ms) >= BOOT_STAB_RETRY_MS) {
                 boot_stab_last_ms = g_now_ms;
                 boot_stabilize_start(g_now_ms);
             }
