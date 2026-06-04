@@ -11,9 +11,10 @@
 
 ## 3. Regression tripwire
 
-- [ ] 3.1 Measure current filler density across `openspec/specs/**/spec.md` to pick a threshold/scope that does not red-fail existing specs (resolve the open question: all-specs-permissive vs changed-specs-strict)
-- [ ] 3.2 Write `scripts/test_spec_compression.py` (stdlib unittest, matches existing `scripts/test_*.py`): glob specs, strip code fences/tables/headings, compute banned-filler density (the/a/an, just/really/basically/actually/simply, "in order to", "you should", "make sure to"), fail over threshold, name offenders, never rewrite
-- [ ] 3.3 Verify the test passes against current uncompressed specs in the chosen posture, and fails on a deliberately bloated fixture
+- [x] 3.1 Measure current filler density across `openspec/specs/**/spec.md` to pick a threshold/scope that does not red-fail existing specs (resolve the open question: all-specs-permissive vs changed-specs-strict)
+  - 2026-06-05: measured 32 specs, max 14.61%; selected all-specs permissive threshold at 16.0%.
+- [x] 3.2 Write `scripts/test_spec_compression.py` (stdlib unittest, matches existing `scripts/test_*.py`): glob specs, strip code fences/tables/headings, compute banned-filler density (the/a/an, just/really/basically/actually/simply, "in order to", "you should", "make sure to"), fail over threshold, name offenders, never rewrite
+- [x] 3.3 Verify the test passes against current uncompressed specs in the chosen posture, and fails on a deliberately bloated fixture
 
 ## 4. Caveman comms default (cross-UI)
 
