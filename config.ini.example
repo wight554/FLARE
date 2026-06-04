@@ -105,7 +105,7 @@ run_current:
 # sync_tension_probe_max: 3000     # Type-D recovery feed-floor latch ceiling;
                                     # mm/min, clamp 0..6000.
 # sync_tension_probe_up: 3000       # Floor probe-up rate while TENSION; mm/min per s.
-# sync_tension_probe_down: 600      # Floor ease-off rate while COMPRESSION; mm/min per s.
+# sync_tension_probe_down: 1200     # Floor ease-off rate while COMPRESSION; mm/min per s.
 # sync_relay_trim_step_sps: 300       # Type-D residual trim step; lower = slower correction,
                                       # rarer plateau clicks.
 # sync_relay_trim_clamp_sps: 2000     # Type-D residual trim anti-windup clamp.

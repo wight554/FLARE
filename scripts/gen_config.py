@@ -150,7 +150,7 @@ DEFAULTS = {
     "sync_tension_fast_mm_s": "2.0",
     "sync_tension_probe_max": "3000",   # mm/min, latch ceiling
     "sync_tension_probe_up": "3000",    # mm/min per s, probe up while TENSION
-    "sync_tension_probe_down": "600",   # mm/min per s, ease off while COMPRESSION
+    "sync_tension_probe_down": "1200",  # mm/min per s, ease off while COMPRESSION
     # Drift Observer
 
     # Adaptive Sync

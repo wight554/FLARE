@@ -176,7 +176,12 @@ AIMD, no clock**. COMPRESSION (not a timeout) is the recovery-done signal.
   compression-park is the type-D structural floor (zero-skip ⇒ compression-noisy;
   see `typed-stepskip-floor-fix`), not a DOWN tunable. Live captures are
   noise-dominated (same config 3↔11 touches/segment).
-- [ ] 6.5 PENDING — proper A/B: **fixed sliced print, fixed/equal duration**,
-  2-3 runs averaged (square-wave macro or identical print). Decide final
-  `SYNC_TENSION_PROBE_DOWN` default (currently 600; 600-1200 indistinguishable on
-  noisy live data). Until then defaults ship as-is.
+- [x] 6.5 A/B DECISION (2026-06-04, slow print, near-equal duration 184 vs
+  198 s): on the cleaner slow stimulus DOWN 1200 beats 600 clearly — comp/s
+  0.33→0.22 (−33 %), pin% 1.2→0.35 (−70 %), max pin 800→500 ms, BP mean
+  +4.24→+3.88, both tension/s 0 and EST−MM ~+1 (latch barely engaged on slow =
+  regression PASS, no overfeed). The earlier fast-step "flat DOWN" was because
+  frequent tension re-snaps outrun the leak; slow sections are where leak-rate
+  shows. No fast-case regression (burst stays collapsed). **Baked
+  `SYNC_TENSION_PROBE_DOWN` default 600 → 1200.** Audibly indistinguishable but
+  measurably quieter.

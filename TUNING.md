@@ -363,7 +363,7 @@ SYNC_EST_ATTACK_ALPHA = 0.8     # fast EST attack on rising demand
 SYNC_TENSION_FAST_MM_S   = 2.0  # full snap threshold for fast TENSION crossings
 SYNC_TENSION_PROBE_MAX   = 3000 # mm/min, recovery feed-floor latch ceiling
 SYNC_TENSION_PROBE_UP    = 3000 # mm/min per s, probe floor up while TENSION
-SYNC_TENSION_PROBE_DOWN  = 600  # mm/min per s, ease floor down while COMPRESSION
+SYNC_TENSION_PROBE_DOWN  = 1200 # mm/min per s, ease floor down while COMPRESSION
 SYNC_COMPRESSION_DRAIN_FRAC      = 0.4  # 0.4 = fuller buffer / more tension margin (vs 0.2)
 SYNC_COMPRESSION_DRAIN_BUDGET_MM = 3.0
 ```
