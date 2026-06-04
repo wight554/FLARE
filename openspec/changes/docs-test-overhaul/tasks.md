@@ -32,3 +32,4 @@
 - `python3 scripts/test_spec_compression.py` PASS.
 - `scripts/validate_regression.sh` PASS, including `python3 -m py_compile scripts/*.py`, unittest discovery, mock MMU status self-test, firmware build via `ninja -C build_local`, and `git diff --check`.
 - `rg -n "TBD|created by archiving" openspec/specs/*/spec.md` found no placeholder Purpose text.
+- Implementation commit: `6d54f3e`.
