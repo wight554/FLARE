@@ -58,9 +58,24 @@
 
 ## 4. Rig Verification
 
-- [ ] 4.1 **Rig**: loaded buffer at `BP −1.0` (saturated) → `BS` drives off the
-  rail to goal `≈ +0.40`, emits `BUF_STAB:DONE`. No `STAGNANT_TIMEOUT`.
-- [ ] 4.2 **Rig**: boot with loaded buffer at the rail → boot-stab drives to goal.
+- [x] 4.1 **Rig**: loaded buffer at `BP −1.0` (saturated) → `BS` drives off the
+  rail to goal `≈ +0.40`, emits `BUF_STAB:DONE`. No `STAGNANT_TIMEOUT`. PASS.
+
+  2026-06-04: required two fix-forwards beyond the original change — the
+  desaturated stagnant window needed its own timer (`g_stab_stagnant_since_ms`,
+  commit on `psf-stabilize-rail-breakaway`) and rail detection by position
+  (`9afa3fb`). `BS` from cold `−1.0` now drives to `+0.40`, `CF 0.50→1.0`.
+
+- [x] 4.2 **Rig**: boot with loaded buffer at the rail → boot-stab drives to goal.
+  PASS via deferred + retried boot trigger.
+
+  2026-06-04: a single boot-time `boot_stabilize_start` did not stick (transient
+  early-boot abort / brief spring-back off goal). Moved the trigger into the main
+  loop and made it retry every 1.5s until `buf_state_raw()==BUF_NEUTRAL` or a 12s
+  deadline (`62e82ad`, `0e32360`); `boot_stabilize_start` flipped to
+  `emit_events=true`. Boot now converges to `BP +0.40` in 2-3 nudges and holds.
+  Minor: 2-3 `BUF_STAB:START/DONE` cycles at boot during convergence (benign,
+  finite). A manual `BS` from a settled buffer still lands in one drive.
 - [ ] 4.3 **Rig**: measure breakaway distance (mm fed before `g_buf_pos` leaves
   `−1.0`); set `PSF_STAB_RAIL_BREAK_MS` ≥ that + margin; record value.
 - [ ] 4.4 **Rig**: uncoupled / jammed buffer (won't track) → aborts at the cap
