@@ -234,7 +234,7 @@ static buf_state_t g_buf_pending_state = BUF_NEUTRAL;
 static uint32_t g_buf_pending_since_ms = 0;
 static float g_buf_physical_entry_pos_mm = 0.0f;
 
-static int lane_motion_sps(lane_t *L);
+static int lane_motion_sps(lane_t *lane);
 static int baseline_control_floor_sps(void);
 static void buf_update(buf_state_t new_state, uint32_t now_ms);
 
@@ -344,11 +344,11 @@ flow_param_t flow_param(int flow_sps) {
     return p;
 }
 
-static int lane_motion_sps(lane_t *L) {
-    if (!L)
+static int lane_motion_sps(lane_t *lane) {
+    if (!lane)
         return 0;
-    if (L->current_sps > 0)
-        return L->current_sps;
+    if (lane->current_sps > 0)
+        return lane->current_sps;
     if (g_tc_ctx.state == TC_RELOAD_FOLLOW && g_tc_ctx.reload_current_sps > 0)
         return g_tc_ctx.reload_current_sps;
     return sync_current_sps;
@@ -443,27 +443,27 @@ static void buf_anchor_virtual_position(buf_state_t old_state, buf_state_t new_s
         g_buf_pos = 0.0f;
 }
 
-static void buf_virtual_position_tick(lane_t *A, uint32_t elapsed_ms) {
+static void buf_virtual_position_tick(lane_t *lane, uint32_t elapsed_ms) {
     if (BUF_SENSOR_TYPE != 0 || elapsed_ms == 0)
         return;
 
     float threshold = buf_threshold_mm();
     float physical_half = buf_physical_half_travel_mm();
-    if (!A) {
+    if (!lane) {
         g_buf_pos = clamp_f(g_buf_pos, -physical_half, physical_half);
         return;
     }
 
-    int idx = lane_to_idx(A->lane_id);
+    int idx = lane_to_idx(lane->lane_id);
     if (idx < 0 || idx >= NUM_LANES)
         idx = 0;
 
     bool tracking_motion = sync_enabled || g_tc_ctx.state == TC_RELOAD_APPROACH ||
                            g_tc_ctx.state == TC_RELOAD_FOLLOW ||
-                           (A->task == TASK_FEED && A->fault == FAULT_NONE);
+                           (lane->task == TASK_FEED && lane->fault == FAULT_NONE);
     if (tracking_motion) {
         float dt_s = (float)elapsed_ms / 1000.0f;
-        float mmu_mm_s = (float)lane_motion_sps(A) * MM_PER_STEP[idx];
+        float mmu_mm_s = (float)lane_motion_sps(lane) * MM_PER_STEP[idx];
         float extruder_mm_s = extruder_est_sps * MM_PER_STEP[idx];
         float net_delta = (mmu_mm_s - extruder_mm_s) * dt_s;
         g_buf_pos += net_delta;
@@ -481,28 +481,28 @@ static void buf_virtual_position_tick(lane_t *A, uint32_t elapsed_ms) {
         g_buf_pos = clamp_f(g_buf_pos, -threshold, threshold);
 }
 
-static float lane_motion_mm_s(lane_t *L) {
-    if (!L)
+static float lane_motion_mm_s(lane_t *lane) {
+    if (!lane)
         return 0.0f;
-    int idx = lane_to_idx(L->lane_id);
+    int idx = lane_to_idx(lane->lane_id);
     if (idx < 0 || idx >= NUM_LANES)
         idx = 0;
-    return (float)lane_motion_sps(L) * MM_PER_STEP[idx];
+    return (float)lane_motion_sps(lane) * MM_PER_STEP[idx];
 }
 
-static float extruder_motion_mm_s(lane_t *L) {
-    if (!L)
+static float extruder_motion_mm_s(lane_t *lane) {
+    if (!lane)
         return 0.0f;
-    int idx = lane_to_idx(L->lane_id);
+    int idx = lane_to_idx(lane->lane_id);
     if (idx < 0 || idx >= NUM_LANES)
         idx = 0;
     return extruder_est_sps * MM_PER_STEP[idx];
 }
 
-float sync_compression_wall_velocity_mm_s(lane_t *L) {
-    if (!L || g_buf_signal.kind != BUF_SRC_VIRTUAL_ENDSTOP)
+float sync_compression_wall_velocity_mm_s(lane_t *lane) {
+    if (!lane || g_buf_signal.kind != BUF_SRC_VIRTUAL_ENDSTOP)
         return 0.0f;
-    float toward_compression = lane_motion_mm_s(L) - extruder_motion_mm_s(L);
+    float toward_compression = lane_motion_mm_s(lane) - extruder_motion_mm_s(lane);
     return toward_compression > 0.0f ? toward_compression : 0.0f;
 }
 
@@ -519,14 +519,14 @@ static int sync_compression_floor_sps(void) {
     return (SYNC_MIN_SPS > COMPRESSION_SPS) ? SYNC_MIN_SPS : COMPRESSION_SPS;
 }
 
-float sync_compression_wall_time_ms(lane_t *L) {
-    float toward_compression = sync_compression_wall_velocity_mm_s(L);
-    if (!L || g_buf_signal.kind != BUF_SRC_VIRTUAL_ENDSTOP || toward_compression < 0.05f)
+float sync_compression_wall_time_ms(lane_t *lane) {
+    float toward_compression = sync_compression_wall_velocity_mm_s(lane);
+    if (!lane || g_buf_signal.kind != BUF_SRC_VIRTUAL_ENDSTOP || toward_compression < 0.05f)
         return 1000000000.0f;
     return (sync_compression_wall_remaining_mm() / toward_compression) * 1000.0f;
 }
 
-static void neutral_creep_update(buf_state_t s, lane_t *A, uint32_t now_ms) {
+static void neutral_creep_update(buf_state_t s, lane_t *lane, uint32_t now_ms) {
     /* D5/relay-buffer-control-2switch 7.2-A: keep neutral_creep as
      * intended-inert telemetry; fallback relay control ignores it. */
     if (g_sync_state != SYNC_ACTIVE || NEUTRAL_CREEP_TIMEOUT_MS == 0 ||
@@ -1225,8 +1225,8 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
 
     uint32_t prev_dwell = now_ms - g_buf.entered_ms;
     g_buf.dwell_ms = prev_dwell;
-    lane_t *A = lane_ptr(active_lane);
-    int mmu_now_sps = lane_motion_sps(A);
+    lane_t *lane = lane_ptr(active_lane);
+    int mmu_now_sps = lane_motion_sps(lane);
 
     float mmu_avg_sps = 0.0f;
     if (g_buf.mmu_sps_dwell_samples > 0) {
@@ -1449,7 +1449,7 @@ static void buf_update(buf_state_t new_state, uint32_t now_ms) {
         sync_current_sps = sync_bootstrap_sps();
         sync_set_state(SYNC_ACTIVE);
         sync_auto_started = true;
-        sync_tail_assist_active = A && !lane_in_present(A) && lane_out_present(A);
+        sync_tail_assist_active = lane && !lane_in_present(lane) && lane_out_present(lane);
         sync_idle_since_ms = 0;
         cmd_event("SYNC", "AUTO_START");
     }
@@ -1537,12 +1537,12 @@ static int baseline_control_floor_sps(void) {
     return (fp.baseline_sps > g_baseline_target_sps) ? fp.baseline_sps : g_baseline_target_sps;
 }
 
-static int sync_neutral_anti_tension_floor_sps(buf_state_t s, lane_t *A, float error_norm,
+static int sync_neutral_anti_tension_floor_sps(buf_state_t s, lane_t *lane, float error_norm,
                                                float deadband_norm, int neutral_target_sps,
                                                uint32_t now_ms) {
-    if (g_sync_state != SYNC_ACTIVE || s != BUF_NEUTRAL || !A)
+    if (g_sync_state != SYNC_ACTIVE || s != BUF_NEUTRAL || !lane)
         return 0;
-    if (A->task != TASK_FEED || A->fault != FAULT_NONE)
+    if (lane->task != TASK_FEED || lane->fault != FAULT_NONE)
         return 0;
     (void)now_ms;
 
@@ -1600,7 +1600,7 @@ void sync_set_state(sync_state_t new_state) {
 }
 
 void sync_retract_assist_set(bool enabled) {
-    lane_t *A = lane_ptr(active_lane);
+    lane_t *lane = lane_ptr(active_lane);
     if (enabled) {
         sync_current_sps = 0;
         sync_auto_started = false;
@@ -1608,14 +1608,14 @@ void sync_retract_assist_set(bool enabled) {
         sync_idle_since_ms = 0;
         g_bl_autostart_suppressed = false;
         sync_set_state(SYNC_RETRACT_ASSIST);
-        if (A && A->task == TASK_FEED)
-            lane_stop(A);
+        if (lane && lane->task == TASK_FEED)
+            lane_stop(lane);
     } else {
         if (g_sync_state == SYNC_RETRACT_ASSIST) {
             /* Stop any BL-driven motor motion before transitioning to SYNC_OFF */
-            if (g_bl_sub_state != BL_IDLE && A) {
-                motor_set_rate_sps(&A->m, 0);
-                motor_enable(&A->m, false);
+            if (g_bl_sub_state != BL_IDLE && lane) {
+                motor_set_rate_sps(&lane->m, 0);
+                motor_enable(&lane->m, false);
             }
             g_bl_sub_state = BL_IDLE;
             g_bl_prime_start_ms = 0;
@@ -1675,14 +1675,14 @@ bool sync_retract_assist_enabled(void) {
  * Safe to call when already in SYNC_RETRACT_ASSIST (re-arms with a fresh prime). */
 void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate_mmpm,
                           uint32_t now_ms) {
-    lane_t *A = lane_ptr(active_lane);
-    if (!A)
+    lane_t *lane = lane_ptr(active_lane);
+    if (!lane)
         return;
 
     /* Stop any in-progress BL motor drive before re-arming */
     if (g_bl_sub_state != BL_IDLE) {
-        motor_set_rate_sps(&A->m, 0);
-        motor_enable(&A->m, false);
+        motor_set_rate_sps(&lane->m, 0);
+        motor_enable(&lane->m, false);
     }
 
     /* Enter (or stay in) SYNC_RETRACT_ASSIST */
@@ -1691,8 +1691,8 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
     sync_tail_assist_active = false;
     sync_idle_since_ms = 0;
     sync_set_state(SYNC_RETRACT_ASSIST);
-    if (A->task == TASK_FEED)
-        lane_stop(A);
+    if (lane->task == TASK_FEED)
+        lane_stop(lane);
 
     g_bl_target_state = target;
     /* Park the buffer goal at the armed rail until BS/timeout clears it. */
@@ -1702,7 +1702,7 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
      * gates:
      *   phase 1 — search until switch fires (outer cap: BUF_MAX_TRAVEL_MM)
      *   phase 2 — lock at switch click (no post-settle travel). */
-    int idx = A->lane_id - 1;
+    int idx = lane->lane_id - 1;
     /* Type-P (analog) primes gently at BUF_STAB_SPS: the PSF EMA filter lags,
      * so a full-speed SYNC_MAX_SPS prime overshoots PSF_HOME_THRESHOLD_NORM and
      * slams the rail before the motor reads the threshold and stops. Type-D
@@ -1740,9 +1740,9 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
     /* BL:T → retract (forward=false) to pull buffer toward tension extreme.
      * BL:C → extrude (forward=true) to push buffer toward compression extreme. */
     bool forward = (target == BUF_COMPRESSION);
-    motor_enable(&A->m, true);
-    motor_set_dir(&A->m, forward);
-    motor_set_rate_sps(&A->m, prime_sps);
+    motor_enable(&lane->m, true);
+    motor_set_dir(&lane->m, forward);
+    motor_set_rate_sps(&lane->m, prime_sps);
 
     cmd_event("BL", "PRIME");
 }
@@ -1768,8 +1768,8 @@ bool sync_buffer_lock_motor_moving(void) {
  * and g_bl_sub_state != BL_IDLE.
  * Runs at main-loop rate (no SYNC_TICK_MS gating) so lock-break is detected
  * on the same tick as the raw buffer edge. */
-static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
-    if (!A)
+static void sync_buffer_lock_tick(lane_t *lane, uint32_t now_ms) {
+    if (!lane)
         return;
 
     if (g_bl_sub_state == BL_PRIME) {
@@ -1809,7 +1809,7 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
 
         if (post_done || deadline_hit) {
             /* Prime done — stop motor but keep enabled for holding torque */
-            motor_set_rate_sps(&A->m, 0);
+            motor_set_rate_sps(&lane->m, 0);
             /* motor_enable stays true: locked hold needs energized stepper */
 
             if (deadline_hit) {
@@ -1841,13 +1841,13 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
             }
 
             if (lock_broken) {
-                int idx = A->lane_id - 1;
+                int idx = lane->lane_id - 1;
                 int follow_sps = (int)(g_bl_follow_rate_mmpm / 60.0f / MM_PER_STEP[idx] + 0.5f);
                 if (follow_sps < 1)
                     follow_sps = 1;
                 follow_sps = sync_clamp_max_sps(follow_sps);
                 bool forward = (g_bl_target_state == BUF_COMPRESSION);
-                motor_set_dir(&A->m, forward);
+                motor_set_dir(&lane->m, forward);
                 /* Ramp the follow like the normal motion path. An instant 0->target
                  * rate jump exceeds the stepper's pull-in torque and stalls (it can
                  * spin fast but can't *start* fast), so a fast retract gets no follow
@@ -1858,7 +1858,7 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
                     start_sps = follow_sps;
                 if (start_sps < 1)
                     start_sps = 1;
-                motor_set_rate_sps(&A->m, start_sps);
+                motor_set_rate_sps(&lane->m, start_sps);
 
                 g_bl_follow_start_ms = now_ms;
                 g_bl_follow_cur_sps = start_sps;
@@ -1879,7 +1879,7 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         /* Concurrent follow-on retract. Mass-balances the extruder fill
          * over a known distance; when the armed distance is consumed,
          * stop the motor and return to LOCKED (waiting for BS or watchdog). */
-        int idx = A->lane_id - 1;
+        int idx = lane->lane_id - 1;
         float dt_s = (float)(now_ms - g_bl_last_tick_ms) / 1000.0f;
         if (dt_s < 0.0001f)
             dt_s = 0.0001f;
@@ -1897,7 +1897,7 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
                                 ? (g_buf_pos <= -PSF_FOLLOW_RAIL_NORM)
                                 : (g_buf_pos >= PSF_FOLLOW_RAIL_NORM);
             if (rail_hit) {
-                motor_set_rate_sps(&A->m, 0);
+                motor_set_rate_sps(&lane->m, 0);
                 g_bl_sub_state = BL_LOCKED;
                 cmd_event("EV:BL", "FOLLOW_GATED");
                 g_bl_last_tick_ms = now_ms;
@@ -1912,7 +1912,7 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
             g_bl_follow_cur_sps += RAMP_STEP_SPS;
             if (g_bl_follow_cur_sps > g_bl_follow_target_sps)
                 g_bl_follow_cur_sps = g_bl_follow_target_sps;
-            motor_set_rate_sps(&A->m, g_bl_follow_cur_sps);
+            motor_set_rate_sps(&lane->m, g_bl_follow_cur_sps);
             g_bl_follow_mm_per_s = (float)g_bl_follow_cur_sps * MM_PER_STEP[idx];
         }
 
@@ -1921,7 +1921,7 @@ static void sync_buffer_lock_tick(lane_t *A, uint32_t now_ms) {
         float traveled = g_bl_follow_traveled_mm;
 
         if (traveled >= g_bl_follow_mm) {
-            motor_set_rate_sps(&A->m, 0);
+            motor_set_rate_sps(&lane->m, 0);
             g_bl_follow_mm = 0.0f;
             g_bl_follow_rate_mmpm = 0.0f;
             g_bl_follow_start_ms = 0;
@@ -2042,33 +2042,33 @@ static int sync_effective_kp_sps(buf_state_t s) {
 }
 
 static void sync_apply_to_active(void) {
-    lane_t *A = lane_ptr(active_lane);
-    if (!A) {
+    lane_t *lane = lane_ptr(active_lane);
+    if (!lane) {
         sync_current_sps = 0;
         return;
     }
-    if (A->task == TASK_MOVE)
+    if (lane->task == TASK_MOVE)
         return;
 
-    bool is_protected_task = (A->task == TASK_UNLOAD || A->task == TASK_AUTOLOAD);
+    bool is_protected_task = (lane->task == TASK_UNLOAD || lane->task == TASK_AUTOLOAD);
 
     if (sync_current_sps > 0) {
         if (is_protected_task) {
-            A->current_sps = sync_current_sps;
-            A->target_sps = sync_current_sps;
-            motor_set_rate_sps(&A->m, sync_current_sps);
-            motor_enable(&A->m, true);
-        } else if (A->task != TASK_FEED && A->fault == FAULT_NONE) {
-            lane_start(A, TASK_FEED, sync_current_sps, true, g_now_ms, 0);
+            lane->current_sps = sync_current_sps;
+            lane->target_sps = sync_current_sps;
+            motor_set_rate_sps(&lane->m, sync_current_sps);
+            motor_enable(&lane->m, true);
+        } else if (lane->task != TASK_FEED && lane->fault == FAULT_NONE) {
+            lane_start(lane, TASK_FEED, sync_current_sps, true, g_now_ms, 0);
         } else {
-            A->current_sps = sync_current_sps;
-            A->target_sps = sync_current_sps;
-            motor_set_rate_sps(&A->m, sync_current_sps);
-            motor_enable(&A->m, true);
-            motor_set_dir(&A->m, true);
+            lane->current_sps = sync_current_sps;
+            lane->target_sps = sync_current_sps;
+            motor_set_rate_sps(&lane->m, sync_current_sps);
+            motor_enable(&lane->m, true);
+            motor_set_dir(&lane->m, true);
         }
-    } else if (A->task == TASK_FEED) {
-        lane_stop(A);
+    } else if (lane->task == TASK_FEED) {
+        lane_stop(lane);
     }
 }
 
@@ -2079,8 +2079,8 @@ static void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t
 
     if (now_state == BUF_TENSION) {
         sync_tension_pin_since_ms = now_ms;
-        lane_t *A = lane_ptr(active_lane);
-        if (A && (A->task == TASK_IDLE || A->task == TASK_FEED)) {
+        lane_t *lane = lane_ptr(active_lane);
+        if (lane && (lane->task == TASK_IDLE || lane->task == TASK_FEED)) {
             g_sync_tension_transitioned = true;
         }
         g_tension_pin_ts[g_tension_pin_ts_idx] = now_ms;
@@ -2195,16 +2195,16 @@ void buf_sensor_tick(uint32_t now_ms) {
     }
 
     if (do_pos) {
-        lane_t *A = lane_ptr(active_lane);
-        if (A) {
+        lane_t *lane = lane_ptr(active_lane);
+        if (lane) {
             uint8_t idx = (active_lane == 2) ? 1 : 0;
             float delta_mm =
-                (float)lane_motion_sps(A) * ((float)elapsed_ms / 1000.0f) * MM_PER_STEP[idx];
+                (float)lane_motion_sps(lane) * ((float)elapsed_ms / 1000.0f) * MM_PER_STEP[idx];
             g_sync_mmu_total_mm += delta_mm;
             g_relay_flip_travel_since_mm += fabsf(delta_mm);
 
             if (BUF_SENSOR_TYPE == 1 && sync_enabled) {
-                float mmu_mm_s = (float)lane_motion_sps(A) * MM_PER_STEP[idx];
+                float mmu_mm_s = (float)lane_motion_sps(lane) * MM_PER_STEP[idx];
                 float arm_vel = g_vel_norm * buf_physical_half_travel_mm();
                 /* Filament conservation: extruder draw = mmu feed + buffer drain rate.
                    Buffer drains toward TENSION, which is now NEGATIVE velocity, so the
@@ -2304,8 +2304,8 @@ static int psf_control_law(float error_norm) {
 }
 
 void sync_tick(uint32_t now_ms) {
-    lane_t *A = lane_ptr(active_lane);
-    if (!A || tc_state() != TC_IDLE || g_boot_stabilizing)
+    lane_t *lane = lane_ptr(active_lane);
+    if (!lane || tc_state() != TC_IDLE || g_boot_stabilizing)
         return;
 
     if (BUF_SENSOR_TYPE == 1 && sync_enabled) {
@@ -2386,7 +2386,7 @@ void sync_tick(uint32_t now_ms) {
             sync_tension_pin_since_ms = (g_buf.state == BUF_TENSION) ? now_ms : 0;
             sync_set_state(SYNC_ACTIVE);
             sync_auto_started = true;
-            sync_tail_assist_active = !lane_in_present(A) && lane_out_present(A);
+            sync_tail_assist_active = !lane_in_present(lane) && lane_out_present(lane);
             sync_idle_since_ms = 0;
             cmd_event("SYNC", "FAULT_HOLD_RECOVERY");
             cmd_event("SYNC", "AUTO_START");
@@ -2396,7 +2396,7 @@ void sync_tick(uint32_t now_ms) {
     } else if (g_sync_state == SYNC_RETRACT_ASSIST || g_sync_state == SYNC_RELIEF_PAUSE) {
         if (g_sync_state == SYNC_RETRACT_ASSIST) {
             if (g_bl_sub_state != BL_IDLE) {
-                sync_buffer_lock_tick(A, now_ms);
+                sync_buffer_lock_tick(lane, now_ms);
             }
             return;
         } else {
@@ -2406,7 +2406,7 @@ void sync_tick(uint32_t now_ms) {
             buf_state_t s = g_buf.state;
             bool relief_rearm =
                 (BUF_SENSOR_TYPE == 0)
-                    ? (s == BUF_TENSION || (s == BUF_NEUTRAL && A->task == TASK_FEED))
+                    ? (s == BUF_TENSION || (s == BUF_NEUTRAL && lane->task == TASK_FEED))
                     : ((g_buf_pos < -0.6f) && (g_sync_tension_transitioned || g_vel_norm < -0.1f));
             if (relief_rearm) {
                 if (BUF_SENSOR_TYPE == 0)
@@ -2415,7 +2415,7 @@ void sync_tick(uint32_t now_ms) {
                 sync_tension_pin_since_ms = (g_buf.state == BUF_TENSION) ? now_ms : 0;
                 sync_set_state(SYNC_ACTIVE);
                 sync_auto_started = true;
-                sync_tail_assist_active = !lane_in_present(A) && lane_out_present(A);
+                sync_tail_assist_active = !lane_in_present(lane) && lane_out_present(lane);
                 sync_idle_since_ms = 0;
                 cmd_event("SYNC", "AUTO_START");
             } else {
@@ -2429,7 +2429,7 @@ void sync_tick(uint32_t now_ms) {
        TASK_UNLOAD guards the non-cut path; this covers the TASK_IDLE window inside
        MANUAL_UNLOAD_WAIT_FIRST_CLEAR / WAIT_CUT before the state machine completes. */
     bool auto_start_allowed =
-        (A->task == TASK_IDLE || A->task == TASK_FEED) && !manual_unload_active();
+        (lane->task == TASK_IDLE || lane->task == TASK_FEED) && !manual_unload_active();
 
     /* Do not auto-start sync when both OUT sensors are active: the hub has two
        filaments loaded simultaneously and the system is in manual recovery.
@@ -2466,13 +2466,13 @@ void sync_tick(uint32_t now_ms) {
         if (on_al(&g_y_split)) {
             if (lane_out_present(&g_lane_l1) && active_lane != 1) {
                 set_active_lane(1);
-                A = lane_ptr(active_lane);
+                lane = lane_ptr(active_lane);
             } else if (lane_out_present(&g_lane_l2) && active_lane != 2) {
                 set_active_lane(2);
-                A = lane_ptr(active_lane);
+                lane = lane_ptr(active_lane);
             }
         }
-        bool tail_assist = !lane_in_present(A) && lane_out_present(A);
+        bool tail_assist = !lane_in_present(lane) && lane_out_present(lane);
         int startup_sps = sync_bootstrap_sps();
         sync_current_sps = startup_sps;
         /* Count tension-dwell from activation, not a stale idle value. Because
@@ -2524,13 +2524,13 @@ void sync_tick(uint32_t now_ms) {
         return;
     }
 
-    if (A && (A->task == TASK_FEED || A->task == TASK_IDLE) && A->fault == FAULT_NONE &&
+    if (lane && (lane->task == TASK_FEED || lane->task == TASK_IDLE) && lane->fault == FAULT_NONE &&
         g_sync_state == SYNC_ACTIVE) {
         if (g_buf.mmu_sps_dwell_samples >= 10000) {
             g_buf.mmu_sps_dwell_sum /= 2;
             g_buf.mmu_sps_dwell_samples /= 2;
         }
-        g_buf.mmu_sps_dwell_sum += (uint32_t)lane_motion_sps(A);
+        g_buf.mmu_sps_dwell_sum += (uint32_t)lane_motion_sps(lane);
         g_buf.mmu_sps_dwell_samples++;
     }
     float raw_target = buf_target_reserve_mm();
@@ -2693,7 +2693,7 @@ void sync_tick(uint32_t now_ms) {
     }
 
     int neutral_anti_tension_floor_sps = sync_neutral_anti_tension_floor_sps(
-        s, A, error_norm, deadband_norm, type_d_neutral_relay_floor_sps, now_ms);
+        s, lane, error_norm, deadband_norm, type_d_neutral_relay_floor_sps, now_ms);
     if (neutral_anti_tension_floor_sps > 0 && target_sps < neutral_anti_tension_floor_sps) {
         target_sps = neutral_anti_tension_floor_sps;
     }
@@ -2766,8 +2766,8 @@ void sync_tick(uint32_t now_ms) {
 
     bool compression_wall_critical = false;
     if (BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION) {
-        float compression_push_mm_s = sync_compression_wall_velocity_mm_s(A);
-        float compression_wall_ms = sync_compression_wall_time_ms(A);
+        float compression_push_mm_s = sync_compression_wall_velocity_mm_s(lane);
+        float compression_wall_ms = sync_compression_wall_time_ms(lane);
         compression_wall_critical = compression_push_mm_s > SYNC_COMPRESSION_HARD_PUSH_MM_S &&
                                     compression_wall_ms < SYNC_COMPRESSION_HARD_WALL_MS;
     }
@@ -2803,7 +2803,7 @@ void sync_tick(uint32_t now_ms) {
         int idle_threshold_sps = SYNC_MIN_SPS;
         if (idle_threshold_sps < 1)
             idle_threshold_sps = 1;
-        if (A && A->task == TASK_FEED && demand_sps > idle_threshold_sps &&
+        if (lane && lane->task == TASK_FEED && demand_sps > idle_threshold_sps &&
             SYNC_COMPRESSION_DRAIN_FRAC > 0.0f &&
             g_sync_relieve_effort_mm < SYNC_COMPRESSION_DRAIN_BUDGET_MM) {
             int drain_sps = (int)((float)demand_sps * SYNC_COMPRESSION_DRAIN_FRAC);
