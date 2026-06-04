@@ -507,19 +507,32 @@ fast moves. Confirm `g_vel_norm` sign + thresholds.
 - **#7**: Does `compression_recovery` trigger on TENSION→COMPRESSION
   correctly for type-P, or does it fire spuriously? Rig-verify. (May be moot —
   the Layer 3 stop-catch supersedes much of the recovery logic for type-P.)
+  **DECIDED (2026-06-04)**: superseded by the soft-wall ownership decision below —
+  the cap is gated off type-P entirely.
 - **H2**: Is the estimator drag-down at L1498-1504 helpful or harmful for
   type-P? Rig-verify direction and adjust comment/code. (Likely deleted for
   type-P under D9 — the continuous estimator removes the need.)
 - **PSF_ZONE_DEADBAND = 0.1**: Is this the right default? Revisit after
-  first rig session.
+  first rig session. [RIG-BLOCKED — measure]
 - **Gain signs (D11)**: Confirm `Kp`/`Kd` signs on rig — depends on physical
-  buffer/gear orientation.
+  buffer/gear orientation. [RIG-BLOCKED — measure]
 - **PSF_CTRL_DEADBAND vs jitter floor (D11/D12)**: Measure actual ADC jitter
-  on rig; size dead zone and `KD_PSF` against it.
+  on rig; size dead zone and `KD_PSF` against it. [RIG-BLOCKED — measure]
+  **DECIDED (2026-06-04)**: first rig session runs **P-only, `KD_PSF = 0`** —
+  validate Layer-1 PD + soft wall cleanly, then dial Kd up against the measured
+  jitter floor. (Avoids derivative kick before noise is characterized.)
 - **Loop rate (D16)**: Is 50Hz actually the bottleneck for fast-move catching,
   or is motor accel the limit? Measure before bumping `PSF_TICK_MS`.
+  **DECIDED (2026-06-04)**: **defer** — keep 50Hz; only add a decoupled
+  `PSF_TICK_MS` if the rig shows the loop (not motor accel) is the bottleneck.
 - **Tip-shaping (D17)**: Does continuous catching meet the acceptance test for
   dropping host retract triggers? Stretch — rig-gated.
+  **DECIDED (2026-06-04)**: **keep as rig-gated stretch** — measure travel/accel
+  headroom this session as a non-blocking hypothesis; host follow-up only if the
+  acceptance test passes.
 - **compression_recovery / soft-wall overlap**: With Layer 2 soft walls + Layer
   3 catch, does the shared `compression_recovery` cap still add value for
   type-P, or is it redundant? Decide on rig.
+  **DECIDED (2026-06-04)**: **redundant for type-P** — the soft wall owns the
+  compression side. Gate the `compression_recovery` feed cap + collapse to type-D.
+  Tracked in change `psf-soft-wall-owns-compression`.

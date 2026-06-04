@@ -2467,7 +2467,7 @@ void sync_tick(uint32_t now_ms) {
         target_sps = neutral_anti_tension_floor_sps;
     }
 
-    if (sync_compression_recovery_active) {
+    if (BUF_SENSOR_TYPE == 0 && sync_compression_recovery_active) {
         uint32_t compression_recovery_ms = now_ms - g_buf.entered_ms;
         int compression_floor_sps = sync_compression_floor_sps();
         int kp_window = sync_effective_kp_sps(s);
@@ -2579,7 +2579,7 @@ void sync_tick(uint32_t now_ms) {
     else target_sps = clamp_i(target_sps, SYNC_MIN_SPS, max_sps);
 
     int ramp_dn_sps = SYNC_RAMP_DN_SPS;
-    if (!fast_brake_active && sync_compression_recovery_active && s == BUF_COMPRESSION) {
+    if (BUF_SENSOR_TYPE == 0 && !fast_brake_active && sync_compression_recovery_active && s == BUF_COMPRESSION) {
         uint32_t compression_recovery_ms = now_ms - g_buf.entered_ms;
         if (compression_recovery_ms > SYNC_COMPRESSION_COLLAPSE_DELAY_MS) {
             ramp_dn_sps *= SYNC_COMPRESSION_COLLAPSE_RAMP_MULT;
