@@ -488,14 +488,23 @@ int main(void) {
     prev_lane1_in_present = lane_in_present(&g_lane_l1);
     prev_lane2_in_present = lane_in_present(&g_lane_l2);
 
-    // Start any needed dual-endstop buffer neutralization in the background so
-    // commands and state machines are responsive immediately after boot.
-    if (active_lane != 0) {
-        boot_stabilize_start(to_ms_since_boot(get_absolute_time()));
-    }
+    // Boot buffer neutralization is deferred into the main loop (see below):
+    // firing it here, at ~boot time, ran before USB/the loop/motor path were
+    // fully alive — the single motor command issued at arm time was effectively
+    // lost and the stabilize then timed out against a motionless buffer. Arm it a
+    // short, settled time into the loop instead, so motors step and the
+    // BUF_STAB:* events are observable over USB.
+    bool boot_stab_armed = false;
 
     while (true) {
         g_now_ms = to_ms_since_boot(get_absolute_time());
+
+        // Deferred one-shot boot stabilize: once the loop is up and the
+        // controller is idle, neutralize the buffer to goal.
+        if (!boot_stab_armed && active_lane != 0 && g_now_ms >= 750) {
+            boot_stab_armed = true;
+            boot_stabilize_start(g_now_ms);
+        }
 
         // Inputs
         din_update(&g_lane_l1.in_sw);
