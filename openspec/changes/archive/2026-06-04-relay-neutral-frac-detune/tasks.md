@@ -588,8 +588,10 @@ clamp `−2000 sps`), dragging NEUTRAL feed below demand → drift to TENSION.
   - 2026-06-02: `python3 -m py_compile scripts/*.py` passed.
   - 2026-06-02: `python3 scripts/test_*.py` passed.
   - 2026-06-02: `openspec validate relay-neutral-frac-detune --strict` passed.
-- [ ] 15.5 HW: re-verify the **constant-feed soak** that currently passes (no
-  regression from removing the down-step — overfeed must still converge via EST).
+- [x] 15.5 SUPERSEDED by `type-d-dynamic-flow` (archived 2026-06-04): constant-
+  feed steady-state re-verified there — HW poll shows no spurious TENSION at
+  constant demand (tension only on real demand steps), overfeed converges. No
+  regression from the down-step removal.
 
 ## 16. Dynamic-flow: gated COMPRESSION partial-drain
 
@@ -669,14 +671,18 @@ and force a re-ramp from zero (the "drops too hard" turning point).
 
 ## 18. Hardware validation (dynamic-flow phase)
 
-- [ ] 18.1 HW: rerun the real-print benchmark (300 mm/min outer walls ↔
-  1500 mm/min infill). Expect **zero TENSION touches**; COMPRESSION touches
-  brief and self-correcting (no full-span dump, no fixed-rate click cycle);
-  `mean(EST − MM)` in NEUTRAL ≈ 0 (no underfeed drift).
-- [ ] 18.2 HW: tune `SYNC_COMPRESSION_DRAIN_FRAC` per the §17.4 sequence; record
-  the rig-validated default. If the pair under-leans (TENSION touches > 0 at
-  any drain frac), apply the deferred fallbacks from design.md (small
-  `relay_neutral_frac` raise and/or time-since-crossing back-off) and record.
+- [x] 18.1 SUPERSEDED by `type-d-dynamic-flow` (archived 2026-06-04): the
+  "**zero** TENSION touches" criterion was proven **structurally impossible** for
+  a 2-switch type-D buffer (the demand-step touch is unavoidable — EST frozen
+  between crossings, no mid-band sensor). The successor change reframed to
+  "tension only on structural step-ups" and achieved it (HW poll confirmed,
+  COMPRESSION brief/self-correcting, `mean(EST−MM)` ≈ 0 on the slow-print A/B).
+- [x] 18.2 HW DONE (2026-06-03, recorded below): swept `SYNC_COMPRESSION_DRAIN_FRAC`;
+  the residual ~2 TENSION touches are the reactive limit of a ±5 mm buffer on a
+  5× step (true zero needs demand feedforward, deferred). Operator chose
+  `RAMP_ACCEL 700` + `RESERVE_PCT 55`. The deferred fallback (time-since-crossing
+  back-off) was later built as the NEUTRAL uncertainty creep in
+  `type-d-dynamic-flow`. `DRAIN_FRAC 0.4` carried into the type-D defaults.
   - 2026-06-03: HW A/B (type-D rig, 300↔1500 print). Sweep:
     baseline `4+1` TENSION / BP +2.47; `RESERVE_PCT 55` → `3+0` / BP +3.01;
     `+ RAMP_ACCEL 700` → `1+1` / BP +3.99 / 21 COMP; `RAMP_ACCEL 600` → `2+0` /
@@ -731,10 +737,13 @@ reset on every transition at `sync.c:1260`).
   - 2026-06-03: `python3 -m py_compile scripts/*.py` passed.
   - 2026-06-03: `python3 scripts/test_*.py` passed.
   - 2026-06-03: `openspec validate relay-neutral-frac-detune --strict` passed.
-- [ ] 19.5 HW: re-capture a pause. Expect overfill ≤ budget (~3 mm, not 86 mm),
-  feed → 0 while paused, clean resume; analyzer PURGE + REGRESSION modes PASS.
-  Re-confirm the §18 asymmetric soak unaffected (drain still bounds the cycle
-  amplitude on normal touches).
+- [x] 19.5 RESOLVED (2026-06-04): the pause-overfill root cause turned out to be
+  the print **macro** (G90 absolute-E retracting into the buffer), not firmware —
+  fixed with `M83` in the macro plus the 1-line firmware COMPRESSION true-stop
+  (feed → 0 while paused). Purge no longer grinds/jams; the §18 asymmetric drain
+  is unaffected (true-stop only fires at idle/end-of-feed, not on normal touches,
+  which still use the bounded partial-drain). Firmware side carried forward and
+  re-validated in `type-d-dynamic-flow`.
 
 ## 20. Dynamic-flow TENSION skip: asymmetric EST attack + decel lock
 
