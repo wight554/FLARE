@@ -11,11 +11,7 @@ static inline uint32_t rgb_to_grb(uint8_t r, uint8_t g, uint8_t b) {
     return ((uint32_t)g << 16u) | ((uint32_t)r << 8u) | (uint32_t)b;
 }
 
-static void ws2812_program_init_local(PIO pio,
-                                      uint sm,
-                                      uint offset,
-                                      uint pin,
-                                      float freq,
+static void ws2812_program_init_local(PIO pio, uint sm, uint offset, uint pin, float freq,
                                       bool rgbw) {
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);

@@ -10,9 +10,9 @@
 
 ## 2. Mechanical format baseline
 
-- [ ] 2.1 Run `clang-format -i` over all `firmware/src/*.c` + `firmware/include/*.h`
-- [ ] 2.2 Verify `ninja -C build_local` passes; confirm diff is whitespace/layout only
-- [ ] 2.3 Commit as isolated format-only change (single known SHA)
+- [x] 2.1 Run `clang-format -i` over all `firmware/src/*.c` + `firmware/include/*.h`
+- [x] 2.2 Verify `ninja -C build_local` passes; confirm diff is whitespace/layout only
+- [x] 2.3 Commit as isolated format-only change (single known SHA)
 
 ## 3. Behavior-preserving renames (per file, no logic edits)
 

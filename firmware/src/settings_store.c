@@ -39,7 +39,6 @@ typedef struct {
     int cut_feed_sps;
     int cut_feed_mm, cut_length_mm, cut_amount;
 
-
     int runout_cooldown_ms;
 
     int buf_sensor_type;
@@ -92,7 +91,8 @@ static uint32_t crc32_buf(const uint8_t *data, size_t len) {
 
 static float buf_switch_span_half_from_full(float span_mm, int max_travel_mm) {
     float max_span_mm = (float)max_travel_mm;
-    if (max_span_mm < 2.0f) max_span_mm = 2.0f;
+    if (max_span_mm < 2.0f)
+        max_span_mm = 2.0f;
     return clamp_f(span_mm, 2.0f, max_span_mm) * 0.5f;
 }
 
@@ -101,7 +101,8 @@ void settings_defaults(void) {
     REV_SPS = CONF_REV_SPS;
     AUTO_SPS = CONF_AUTO_SPS;
 
-    GLOBAL_MAX_SPS = clamp_i(CONF_GLOBAL_MAX_SPS, mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
+    GLOBAL_MAX_SPS =
+        clamp_i(CONF_GLOBAL_MAX_SPS, mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
     SYNC_MAX_SPS = sync_clamp_max_sps(CONF_SYNC_MAX_SPS);
     SYNC_MIN_SPS = CONF_SYNC_MIN_SPS;
     SYNC_RAMP_UP_SPS = CONF_SYNC_RAMP_UP_SPS;
@@ -121,7 +122,8 @@ void settings_defaults(void) {
     DIST_Y_BUF = CONF_DIST_Y_BUF;
     BUF_BODY_LEN = CONF_BUF_BODY_LEN;
     BUF_MAX_TRAVEL_MM = clamp_i(CONF_BUF_MAX_TRAVEL_MM, 10, 1000);
-    BUF_SWITCH_SPAN_HALF_MM = buf_switch_span_half_from_full(CONF_BUF_SWITCH_SPAN_MM, BUF_MAX_TRAVEL_MM);
+    BUF_SWITCH_SPAN_HALF_MM =
+        buf_switch_span_half_from_full(CONF_BUF_SWITCH_SPAN_MM, BUF_MAX_TRAVEL_MM);
     ZONE_BIAS_BASE_SPS = CONF_ZONE_BIAS_BASE_SPS;
     ZONE_BIAS_RAMP_SPS_S = CONF_ZONE_BIAS_RAMP_SPS_S;
     ZONE_BIAS_MAX_SPS = CONF_ZONE_BIAS_MAX_SPS;
@@ -137,7 +139,8 @@ void settings_defaults(void) {
         TMC_RUN_CURRENT_MA[i] = (i == 0) ? CONF_L1_RUN_CURRENT_MA : CONF_L2_RUN_CURRENT_MA;
         TMC_HOLD_CURRENT_MA[i] = (i == 0) ? CONF_L1_HOLD_CURRENT_MA : CONF_L2_HOLD_CURRENT_MA;
         TMC_MICROSTEPS[i] = (i == 0) ? CONF_L1_MICROSTEPS : CONF_L2_MICROSTEPS;
-        TMC_STEALTHCHOP_SPS[i] = (i == 0) ? CONF_L1_STEALTHCHOP_THRESHOLD : CONF_L2_STEALTHCHOP_THRESHOLD;
+        TMC_STEALTHCHOP_SPS[i] =
+            (i == 0) ? CONF_L1_STEALTHCHOP_THRESHOLD : CONF_L2_STEALTHCHOP_THRESHOLD;
     }
 
     SERVO_OPEN_US = CONF_SERVO_OPEN_US;
@@ -148,7 +151,6 @@ void settings_defaults(void) {
     CUT_FEED_MM = CONF_CUT_FEED_MM;
     CUT_LENGTH_MM = CONF_CUT_LENGTH_MM;
     CUT_AMOUNT = CONF_CUT_AMOUNT;
-
 
     RUNOUT_COOLDOWN_MS = CONF_RUNOUT_COOLDOWN_MS;
 
@@ -168,11 +170,15 @@ void settings_defaults(void) {
     SYNC_COMPRESSION_DRAIN_BUDGET_MM = clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, 25.0f);
     SYNC_EST_ATTACK_ALPHA = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, 0.65f, 1.0f);
     SYNC_TENSION_FAST_MM_S = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, 200.0f);
-    SYNC_TENSION_PROBE_MAX_SPS = clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(6000.0f));
-    SYNC_TENSION_PROBE_UP_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
-    SYNC_TENSION_PROBE_DOWN_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
-    SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
-    
+    SYNC_TENSION_PROBE_MAX_SPS =
+        clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(6000.0f));
+    SYNC_TENSION_PROBE_UP_SPS_PER_S =
+        clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+    SYNC_TENSION_PROBE_DOWN_SPS_PER_S =
+        clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+    SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S =
+        clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+
     SYNC_COMPRESSION_BIAS_FRAC = clamp_f(CONF_SYNC_COMPRESSION_BIAS_FRAC, 0.0f, 0.7f);
     flow_schedule_reset_runtime();
 
@@ -253,7 +259,6 @@ void settings_save(void) {
     s.cut_length_mm = CUT_LENGTH_MM;
     s.cut_amount = CUT_AMOUNT;
 
-
     s.runout_cooldown_ms = RUNOUT_COOLDOWN_MS;
 
     s.buf_sensor_type = BUF_SENSOR_TYPE;
@@ -310,15 +315,18 @@ void sync_tmc_settings(int lane) {
     int idx = lane_to_idx(lane);
     tmc_t *t = (lane == 1) ? &g_tmc_l1 : &g_tmc_l2;
 
-    MM_PER_STEP[idx] = TMC_ROTATION_DISTANCE[idx] / (float)(TMC_FULL_STEPS[idx] * TMC_GEAR_RATIO[idx] * TMC_MICROSTEPS[idx]);
+    MM_PER_STEP[idx] = TMC_ROTATION_DISTANCE[idx] /
+                       (float)(TMC_FULL_STEPS[idx] * TMC_GEAR_RATIO[idx] * TMC_MICROSTEPS[idx]);
 
-    tmc_setup_chopconf(t, TMC_MICROSTEPS[idx], TMC_TOFF[idx], TMC_TBL[idx], TMC_HSTRT[idx], TMC_HEND[idx], TMC_INTERPOLATE[idx]);
+    tmc_setup_chopconf(t, TMC_MICROSTEPS[idx], TMC_TOFF[idx], TMC_TBL[idx], TMC_HSTRT[idx],
+                       TMC_HEND[idx], TMC_INTERPOLATE[idx]);
     tmc_set_stealthchop_sps(t, TMC_STEALTHCHOP_SPS[idx], TMC_MICROSTEPS[idx]);
     tmc_set_run_current_ma(t, TMC_RUN_CURRENT_MA[idx], TMC_HOLD_CURRENT_MA[idx]);
 
     // Synchronize shadow state for protocol reporting
     g_shadow_vsense[idx] = (TMC_RUN_CURRENT_MA[idx] <= 980);
-    g_shadow_ihold_irun[idx] = build_ihold_irun_reg(TMC_RUN_CURRENT_MA[idx], TMC_HOLD_CURRENT_MA[idx], g_shadow_vsense[idx]);
+    g_shadow_ihold_irun[idx] = build_ihold_irun_reg(TMC_RUN_CURRENT_MA[idx],
+                                                    TMC_HOLD_CURRENT_MA[idx], g_shadow_vsense[idx]);
     g_shadow_ihold_irun_valid[idx] = true;
 }
 
@@ -327,15 +335,19 @@ static void tmc_apply_all(void) {
     tmc_set_pwmconf(&g_tmc_l2);
     tmc_set_stealthchop_sps(&g_tmc_l1, TMC_STEALTHCHOP_SPS[0], TMC_MICROSTEPS[0]);
     tmc_set_stealthchop_sps(&g_tmc_l2, TMC_STEALTHCHOP_SPS[1], TMC_MICROSTEPS[1]);
-    tmc_setup_chopconf(&g_tmc_l1, TMC_MICROSTEPS[0], TMC_TOFF[0], TMC_TBL[0], TMC_HSTRT[0], TMC_HEND[0], TMC_INTERPOLATE[0]);
-    tmc_setup_chopconf(&g_tmc_l2, TMC_MICROSTEPS[1], TMC_TOFF[1], TMC_TBL[1], TMC_HSTRT[1], TMC_HEND[1], TMC_INTERPOLATE[1]);
+    tmc_setup_chopconf(&g_tmc_l1, TMC_MICROSTEPS[0], TMC_TOFF[0], TMC_TBL[0], TMC_HSTRT[0],
+                       TMC_HEND[0], TMC_INTERPOLATE[0]);
+    tmc_setup_chopconf(&g_tmc_l2, TMC_MICROSTEPS[1], TMC_TOFF[1], TMC_TBL[1], TMC_HSTRT[1],
+                       TMC_HEND[1], TMC_INTERPOLATE[1]);
     tmc_set_run_current_ma(&g_tmc_l1, TMC_RUN_CURRENT_MA[0], TMC_HOLD_CURRENT_MA[0]);
     tmc_set_run_current_ma(&g_tmc_l2, TMC_RUN_CURRENT_MA[1], TMC_HOLD_CURRENT_MA[1]);
 
     g_shadow_vsense[0] = (TMC_RUN_CURRENT_MA[0] <= 980);
     g_shadow_vsense[1] = (TMC_RUN_CURRENT_MA[1] <= 980);
-    g_shadow_ihold_irun[0] = build_ihold_irun_reg(TMC_RUN_CURRENT_MA[0], TMC_HOLD_CURRENT_MA[0], g_shadow_vsense[0]);
-    g_shadow_ihold_irun[1] = build_ihold_irun_reg(TMC_RUN_CURRENT_MA[1], TMC_HOLD_CURRENT_MA[1], g_shadow_vsense[1]);
+    g_shadow_ihold_irun[0] =
+        build_ihold_irun_reg(TMC_RUN_CURRENT_MA[0], TMC_HOLD_CURRENT_MA[0], g_shadow_vsense[0]);
+    g_shadow_ihold_irun[1] =
+        build_ihold_irun_reg(TMC_RUN_CURRENT_MA[1], TMC_HOLD_CURRENT_MA[1], g_shadow_vsense[1]);
     g_shadow_ihold_irun_valid[0] = true;
     g_shadow_ihold_irun_valid[1] = true;
 }
@@ -360,7 +372,8 @@ void settings_load(void) {
     REV_SPS = s->rev_sps;
     AUTO_SPS = s->auto_sps;
 
-    GLOBAL_MAX_SPS = clamp_i(s->global_max_sps, mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
+    GLOBAL_MAX_SPS =
+        clamp_i(s->global_max_sps, mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
     SYNC_MAX_SPS = sync_clamp_max_sps(s->sync_max_sps);
     SYNC_MIN_SPS = s->sync_min_sps;
     SYNC_AUTO_STOP_MS = s->sync_auto_stop_ms;
@@ -372,7 +385,8 @@ void settings_load(void) {
     AUTO_MODE = s->auto_mode;
     AUTO_PRELOAD = (s->auto_preload != 0);
     BUF_MAX_TRAVEL_MM = clamp_i(s->buf_max_travel_mm, 10, 1000);
-    BUF_SWITCH_SPAN_HALF_MM = buf_switch_span_half_from_full(s->buf_switch_span_mm, BUF_MAX_TRAVEL_MM);
+    BUF_SWITCH_SPAN_HALF_MM =
+        buf_switch_span_half_from_full(s->buf_switch_span_mm, BUF_MAX_TRAVEL_MM);
     DIST_IN_OUT = s->dist_in_out;
     DIST_OUT_Y = s->dist_out_y;
     DIST_Y_BUF = s->dist_y_buf;
@@ -398,7 +412,8 @@ void settings_load(void) {
         TMC_STEALTHCHOP_SPS[i] = s->tmc_stealthchop_sps[i];
         TMC_RUN_CURRENT_MA[i] = s->tmc_run_current_ma[i];
         TMC_HOLD_CURRENT_MA[i] = s->tmc_hold_current_ma[i];
-        MM_PER_STEP[i] = TMC_ROTATION_DISTANCE[i] / (float)(TMC_FULL_STEPS[i] * TMC_GEAR_RATIO[i] * TMC_MICROSTEPS[i]);
+        MM_PER_STEP[i] = TMC_ROTATION_DISTANCE[i] /
+                         (float)(TMC_FULL_STEPS[i] * TMC_GEAR_RATIO[i] * TMC_MICROSTEPS[i]);
     }
 
     SERVO_OPEN_US = s->servo_open_us;
@@ -409,7 +424,6 @@ void settings_load(void) {
     CUT_FEED_MM = s->cut_feed_mm;
     CUT_LENGTH_MM = s->cut_length_mm;
     CUT_AMOUNT = s->cut_amount;
-
 
     RUNOUT_COOLDOWN_MS = s->runout_cooldown_ms;
 
@@ -427,10 +441,14 @@ void settings_load(void) {
     SYNC_COMPRESSION_DRAIN_BUDGET_MM = clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, 25.0f);
     SYNC_EST_ATTACK_ALPHA = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, 0.65f, 1.0f);
     SYNC_TENSION_FAST_MM_S = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, 200.0f);
-    SYNC_TENSION_PROBE_MAX_SPS = clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(6000.0f));
-    SYNC_TENSION_PROBE_UP_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
-    SYNC_TENSION_PROBE_DOWN_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
-    SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+    SYNC_TENSION_PROBE_MAX_SPS =
+        clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(6000.0f));
+    SYNC_TENSION_PROBE_UP_SPS_PER_S =
+        clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+    SYNC_TENSION_PROBE_DOWN_SPS_PER_S =
+        clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+    SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S =
+        clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
 
     SYNC_COMPRESSION_BIAS_FRAC = clamp_f(s->sync_compression_bias_frac, 0.0f, 0.7f);
     flow_schedule_reset_runtime();

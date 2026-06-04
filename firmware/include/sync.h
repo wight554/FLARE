@@ -28,8 +28,8 @@ void sync_retract_assist_set(bool enabled);
 void sync_retract_assist_release(uint32_t now_ms);
 void sync_bl_clear_autostart_suppress(void);
 bool sync_retract_assist_enabled(void);
-void sync_buffer_lock_arm(buf_state_t target, float follow_mm,
-                          float follow_rate_mmpm, uint32_t now_ms);
+void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate_mmpm,
+                          uint32_t now_ms);
 const char *sync_buffer_lock_arm_str(void);
 bool sync_buffer_lock_motor_moving(void);
 void sync_relief_pause(void);
@@ -64,8 +64,8 @@ float sync_reserve_integral_get_mm(void);
 float sync_buf_sigma_mm(void);
 float sync_bp_residual_last_mm(void);
 float sync_bp_drift_ewma_mm(void);
-int   sync_bp_drift_samples(void);
-int   sync_tension_pin_window_count(uint32_t now_ms);
+int sync_bp_drift_samples(void);
+int sync_tension_pin_window_count(uint32_t now_ms);
 float sync_bp_drift_correction_applied_mm(void);
 
 extern float g_sync_refill_effort_mm;

@@ -1,8 +1,8 @@
 #pragma once
 
+#include "controller_shared.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include "controller_shared.h"
 
 void cutter_init(void);
 bool cutter_busy(void);

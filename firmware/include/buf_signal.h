@@ -11,11 +11,11 @@ typedef enum {
 } buf_source_kind_t;
 
 typedef struct {
-    float pos_norm;         /* normalized [-1..+1]: -1 = full compression, +1 = full tension */
-    float pos_mm;           /* physical mm (endstop: virtual position; analog: norm × half_travel) */
-    float confidence;       /* 0.0..1.0 — signal reliability; low = treat as stale */
-    uint32_t age_ms;        /* ms since this signal was last meaningfully updated */
-    buf_state_t zone;       /* quantized: BUF_NEUTRAL / TENSION / COMPRESSION / FAULT */
+    float pos_norm;   /* normalized [-1..+1]: -1 = full compression, +1 = full tension */
+    float pos_mm;     /* physical mm (endstop: virtual position; analog: norm × half_travel) */
+    float confidence; /* 0.0..1.0 — signal reliability; low = treat as stale */
+    uint32_t age_ms;  /* ms since this signal was last meaningfully updated */
+    buf_state_t zone; /* quantized: BUF_NEUTRAL / TENSION / COMPRESSION / FAULT */
     buf_source_kind_t kind; /* which source produced this signal */
     bool fault;             /* source-reported hard fault */
 } buf_signal_t;

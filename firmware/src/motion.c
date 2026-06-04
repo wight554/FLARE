@@ -1,7 +1,7 @@
 #include "motion.h"
 
-#include "toolchange.h"
 #include "sync.h"
+#include "toolchange.h"
 
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
@@ -15,12 +15,14 @@ static bool lane_tail_in_transit(lane_t *L) {
 }
 
 static bool lane_tail_runout_ready(lane_t *L) {
-    if (!lane_out_present(L)) return true;
+    if (!lane_out_present(L))
+        return true;
     return (L->task_dist_mm - L->dist_at_in_clear_mm) >= ((float)DIST_IN_OUT * 1.2f);
 }
 
 int motion_clamp_rate_sps(int sps) {
-    if (sps <= 0) return sps;
+    if (sps <= 0)
+        return sps;
     return (sps < GLOBAL_MAX_SPS) ? sps : GLOBAL_MAX_SPS;
 }
 
@@ -43,14 +45,16 @@ void motion_limit_runtime_rates(bool refresh_active_motors) {
     sync_current_sps = motion_clamp_rate_sps(sync_current_sps);
     g_tc_ctx.reload_current_sps = motion_clamp_rate_sps(g_tc_ctx.reload_current_sps);
 
-    if (SYNC_MIN_SPS > SYNC_MAX_SPS) SYNC_MIN_SPS = SYNC_MAX_SPS;
+    if (SYNC_MIN_SPS > SYNC_MAX_SPS)
+        SYNC_MIN_SPS = SYNC_MAX_SPS;
 
-    lane_t *lanes[] = { &g_lane_l1, &g_lane_l2 };
+    lane_t *lanes[] = {&g_lane_l1, &g_lane_l2};
     for (size_t i = 0; i < NUM_LANES; i++) {
         lane_t *L = lanes[i];
         L->target_sps = motion_clamp_rate_sps(L->target_sps);
         L->current_sps = motion_clamp_rate_sps(L->current_sps);
-        if (L->target_sps > 0 && L->current_sps > L->target_sps) L->current_sps = L->target_sps;
+        if (L->target_sps > 0 && L->current_sps > L->target_sps)
+            L->current_sps = L->target_sps;
         if (refresh_active_motors && L->task != TASK_IDLE && L->current_sps > 0) {
             motor_set_rate_sps(&L->m, L->current_sps);
         }
@@ -97,8 +101,10 @@ void motor_init(motor_t *m, uint en, uint dir, uint step, bool dir_invert) {
     gpio_init(m->dir);
     gpio_set_dir(m->dir, GPIO_OUT);
 
-    if (EN_ACTIVE_LOW) gpio_put(m->en, 1);
-    else gpio_put(m->en, 0);
+    if (EN_ACTIVE_LOW)
+        gpio_put(m->en, 1);
+    else
+        gpio_put(m->en, 0);
 
     gpio_put(m->dir, 0);
 
@@ -112,8 +118,10 @@ void motor_init(motor_t *m, uint en, uint dir, uint step, bool dir_invert) {
 }
 
 void motor_enable(motor_t *m, bool on) {
-    if (EN_ACTIVE_LOW) gpio_put(m->en, on ? 0 : 1);
-    else gpio_put(m->en, on ? 1 : 0);
+    if (EN_ACTIVE_LOW)
+        gpio_put(m->en, on ? 0 : 1);
+    else
+        gpio_put(m->en, on ? 1 : 0);
 }
 
 void motor_set_dir(motor_t *m, bool forward) {
@@ -132,12 +140,16 @@ void motor_set_rate_sps(motor_t *m, int sps) {
     float target = (float)sps;
 
     float div = (float)sys / (target * 65535.0f);
-    if (div < 1.0f) div = 1.0f;
-    if (div > 255.0f) div = 255.0f;
+    if (div < 1.0f)
+        div = 1.0f;
+    if (div > 255.0f)
+        div = 255.0f;
 
     uint32_t wrap = (uint32_t)((float)sys / (div * target) - 1.0f);
-    if (wrap < 10) wrap = 10;
-    if (wrap > 65535) wrap = 65535;
+    if (wrap < 10)
+        wrap = 10;
+    if (wrap > 65535)
+        wrap = 65535;
 
     pwm_set_clkdiv(m->slice, div);
     pwm_set_wrap(m->slice, wrap);
@@ -216,10 +228,12 @@ void lane_start(lane_t *L, task_t t, int sps, bool forward, uint32_t now_ms, flo
 
     L->target_sps = motion_clamp_rate_sps(sps);
     L->current_sps = motion_clamp_rate_sps(RAMP_STEP_SPS);
-    if (L->current_sps > L->target_sps) L->current_sps = L->target_sps;
+    if (L->current_sps > L->target_sps)
+        L->current_sps = L->target_sps;
     L->ramp_last_tick_ms = now_ms;
     L->motion_started_ms = now_ms;
-    if (L->task_started_ms == 0) L->task_started_ms = now_ms;
+    if (L->task_started_ms == 0)
+        L->task_started_ms = now_ms;
 
     motor_enable(&L->m, true);
     motor_set_dir(&L->m, forward);
@@ -230,7 +244,7 @@ void lane_start(lane_t *L, task_t t, int sps, bool forward, uint32_t now_ms, flo
 }
 
 void lane_tick(lane_t *L, uint32_t now_ms) {
-    char lane_s[2] = { (char)('0' + L->lane_id), 0 };
+    char lane_s[2] = {(char)('0' + L->lane_id), 0};
 
     bool in_p = lane_in_present(L);
     if (L->prev_in && !in_p) {
@@ -242,7 +256,8 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
         if ((int32_t)(now_ms - L->ramp_last_tick_ms) >= RAMP_TICK_MS) {
             L->ramp_last_tick_ms = now_ms;
             L->current_sps += RAMP_STEP_SPS;
-            if (L->current_sps > L->target_sps) L->current_sps = L->target_sps;
+            if (L->current_sps > L->target_sps)
+                L->current_sps = L->target_sps;
             motor_set_rate_sps(&L->m, L->current_sps);
         }
     }
@@ -257,8 +272,10 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
     if (L->task == TASK_AUTOLOAD) {
         if (lane_out_present(L)) {
             if (AUTOLOAD_RETRACT_MM > 0) {
-                float secs = (float)AUTOLOAD_RETRACT_MM / ((float)REV_SPS * MM_PER_STEP[L->lane_id - 1]);
-                if (secs < 0.05f) secs = 0.05f;
+                float secs =
+                    (float)AUTOLOAD_RETRACT_MM / ((float)REV_SPS * MM_PER_STEP[L->lane_id - 1]);
+                if (secs < 0.05f)
+                    secs = 0.05f;
                 L->dist_at_out_mm = L->task_dist_mm;
                 L->retract_deadline_ms = now_ms + (uint32_t)(secs * 1000.0f);
                 L->task = TASK_UNLOAD;
@@ -348,10 +365,12 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                the buffer tension is caused by the OTHER lane being printed, not
                by the printer blocking THIS lane.  Skip the check in that case. */
             if (BUF_SENSOR_TYPE == 0 && UNLOAD_TENSION_BLOCK_MS > 0 && !L->unload_to_in &&
-                    !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
+                !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
                 if (g_buf.state == BUF_TENSION) {
-                    if (L->buf_tension_since_ms == 0) L->buf_tension_since_ms = now_ms;
-                    else if ((int32_t)(now_ms - L->buf_tension_since_ms) >= UNLOAD_TENSION_BLOCK_MS) {
+                    if (L->buf_tension_since_ms == 0)
+                        L->buf_tension_since_ms = now_ms;
+                    else if ((int32_t)(now_ms - L->buf_tension_since_ms) >=
+                             UNLOAD_TENSION_BLOCK_MS) {
                         lane_stop(L);
                         cmd_event("UNLOAD_BLOCKED", NULL);
                     }
@@ -371,7 +390,8 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
             if (done) {
                 bool suppress_event = L->suppress_unloaded_event;
                 lane_stop(L);
-                if (!suppress_event) cmd_event("UNLOADED", lane_s);
+                if (!suppress_event)
+                    cmd_event("UNLOADED", lane_s);
             }
         }
     }
@@ -384,7 +404,8 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
 
         if (TS_BUF_FALLBACK_MS > 0 && L->unload_sensor_latch) {
             if (g_buf.state == BUF_COMPRESSION) {
-                if (L->buf_tension_since_ms == 0) L->buf_tension_since_ms = now_ms;
+                if (L->buf_tension_since_ms == 0)
+                    L->buf_tension_since_ms = now_ms;
                 else if ((int32_t)(now_ms - L->buf_tension_since_ms) >= TS_BUF_FALLBACK_MS)
                     set_toolhead_filament(true);
             } else {
@@ -396,10 +417,12 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
         bool buf_compression_sane = false;
         if (L->unload_sensor_latch) {
             float dist_since_out = L->task_dist_mm - L->dist_at_out_mm;
-            float threshold = (float)DIST_OUT_Y + (float)DIST_Y_BUF + (float)BUF_MAX_TRAVEL_MM / 2.0f;
+            float threshold =
+                (float)DIST_OUT_Y + (float)DIST_Y_BUF + (float)BUF_MAX_TRAVEL_MM / 2.0f;
             bool distance_passed = (dist_since_out >= threshold * 0.8f);
             /* For Type-P, we do not require the distance bypass gate because we have continuous
-               analog tracking and the buffer won't deviate from home (1.0) until filament hits the gears. */
+               analog tracking and the buffer won't deviate from home (1.0) until filament hits the
+               gears. */
             if (BUF_SENSOR_TYPE == 1) {
                 distance_passed = true;
             }
@@ -448,10 +471,10 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
             } else {
                 lane_stop(L);
                 cmd_event("RUNOUT", lane_s);
-                if (RELOAD_MODE && tc_state() == TC_IDLE) reload_trigger(L->lane_id, now_ms);
+                if (RELOAD_MODE && tc_state() == TC_IDLE)
+                    reload_trigger(L->lane_id, now_ms);
             }
-        } else if (!L->unload_sensor_latch &&
-                   (int32_t)(now_ms - L->motion_started_ms) >= 10000) {
+        } else if (!L->unload_sensor_latch && (int32_t)(now_ms - L->motion_started_ms) >= 10000) {
             lane_stop(L);
             cmd_event("RUNOUT", lane_s);
         } else if (L->task_limit_mm > 0 && L->task_dist_mm >= L->task_limit_mm) {
@@ -489,7 +512,8 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
             } else {
                 cmd_event("RUNOUT", lane_s);
                 L->runout_block_until_ms = now_ms + (uint32_t)RUNOUT_COOLDOWN_MS;
-                if (L->task == TASK_FEED) set_toolhead_filament(false);
+                if (L->task == TASK_FEED)
+                    set_toolhead_filament(false);
                 lane_stop(L);
                 if (RELOAD_MODE && L->task == TASK_FEED && tc_state() == TC_IDLE)
                     reload_trigger(L->lane_id, now_ms);
@@ -497,8 +521,10 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
         }
     }
 
-    if (L->task != TASK_IDLE && !lane_in_present(L) && !lane_out_present(L) && g_buf.state != BUF_TENSION) {
-        if (L->dry_spin_ms == 0) L->dry_spin_ms = now_ms;
+    if (L->task != TASK_IDLE && !lane_in_present(L) && !lane_out_present(L) &&
+        g_buf.state != BUF_TENSION) {
+        if (L->dry_spin_ms == 0)
+            L->dry_spin_ms = now_ms;
         if ((int32_t)(now_ms - L->dry_spin_ms) > 8000) {
             lane_stop(L);
             L->fault = FAULT_DRY_SPIN;
@@ -508,17 +534,21 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
         L->dry_spin_ms = 0;
     }
 
-    if (L->reload_tail_ms != 0 && (L->task == TASK_FEED || L->task == TASK_LOAD_FULL || L->task == TASK_AUTOLOAD)) {
+    if (L->reload_tail_ms != 0 &&
+        (L->task == TASK_FEED || L->task == TASK_LOAD_FULL || L->task == TASK_AUTOLOAD)) {
         if (lane_tail_runout_ready(L)) {
             bool tail_assist_finished = sync_tail_assist_active && L->task == TASK_FEED;
-            if (tail_assist_finished) sync_disable(true);
+            if (tail_assist_finished)
+                sync_disable(true);
             L->reload_tail_ms = 0;
             L->runout_block_until_ms = now_ms + (uint32_t)RUNOUT_COOLDOWN_MS;
             cmd_event("RUNOUT", lane_s);
-            if (L->task == TASK_FEED) set_toolhead_filament(false);
+            if (L->task == TASK_FEED)
+                set_toolhead_filament(false);
             bool was_reload = (RELOAD_MODE && L->task == TASK_FEED && tc_state() == TC_IDLE);
             lane_stop(L);
-            if (was_reload) reload_trigger(L->lane_id, now_ms);
+            if (was_reload)
+                reload_trigger(L->lane_id, now_ms);
         }
     }
 }

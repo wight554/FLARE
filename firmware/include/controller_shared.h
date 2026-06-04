@@ -4,19 +4,21 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "pico/stdlib.h"
 #include "config.h"
+#include "pico/stdlib.h"
 #include "tmc2209.h"
 
 /* Type-P Analog home / physical extreme thresholds */
-#define PSF_HOME_THRESHOLD_NORM             0.90f   /* reached/locked extreme boundary */
-#define PSF_FOLLOW_RAIL_NORM                0.95f   /* BL_FOLLOW open-loop safety gate: stop feed before slamming the armed rail */
-#define PSF_HOME_DEVIATION_THRESHOLD_NORM   0.85f   /* non-home / contact detection boundary */
-#define PSF_LOAD_CONTACT_THRESHOLD_NORM     0.50f  /* load contact detection boundary (compression zone) */
+#define PSF_HOME_THRESHOLD_NORM 0.90f /* reached/locked extreme boundary */
+#define PSF_FOLLOW_RAIL_NORM                                                                       \
+    0.95f /* BL_FOLLOW open-loop safety gate: stop feed before slamming the armed rail */
+#define PSF_HOME_DEVIATION_THRESHOLD_NORM 0.85f /* non-home / contact detection boundary */
+#define PSF_LOAD_CONTACT_THRESHOLD_NORM                                                            \
+    0.50f /* load contact detection boundary (compression zone) */
 /* Type-P unload over-tension guard (D22). Type-P homes at the tension rail, so
    a pin there is a fault only while filament is still present during retract. */
-#define PSF_TENSION_PIN_NORM                0.98f   /* unload: pinned-at-tension fault boundary (rig-tune) */
-#define PSF_UNLOAD_RELIEF_ARM_MS            300u    /* unload: pinned dwell before one-shot relief jog */
+#define PSF_TENSION_PIN_NORM 0.98f    /* unload: pinned-at-tension fault boundary (rig-tune) */
+#define PSF_UNLOAD_RELIEF_ARM_MS 300u /* unload: pinned dwell before one-shot relief jog */
 
 typedef struct {
     uint pin;
@@ -116,12 +118,7 @@ typedef struct {
     bool unload_cut_done;
 } tc_ctx_t;
 
-typedef enum {
-    BUF_NEUTRAL,
-    BUF_TENSION,
-    BUF_COMPRESSION,
-    BUF_FAULT
-} buf_state_t;
+typedef enum { BUF_NEUTRAL, BUF_TENSION, BUF_COMPRESSION, BUF_FAULT } buf_state_t;
 
 typedef struct {
     buf_state_t state;
@@ -241,34 +238,34 @@ extern float BUF_VARIANCE_BLEND_REF_MM;
 extern float g_buf_pos_raw_status;
 extern float SYNC_RESERVE_INTEGRAL_GAIN;
 extern float SYNC_RESERVE_INTEGRAL_CLAMP_MM;
-extern int   SYNC_RESERVE_INTEGRAL_DECAY_MS;
+extern int SYNC_RESERVE_INTEGRAL_DECAY_MS;
 extern float EST_SIGMA_HARD_CAP_MM;
 extern float EST_LOW_CF_WARN_THRESHOLD;
 extern float EST_FALLBACK_CF_THRESHOLD;
 extern float RELAY_CATCHUP_FRAC;
 extern float RELAY_NEUTRAL_FRAC;
-extern int   SYNC_RELAY_TRIM_STEP_SPS;
-extern int   SYNC_RELAY_TRIM_CLAMP_SPS;
+extern int SYNC_RELAY_TRIM_STEP_SPS;
+extern int SYNC_RELAY_TRIM_CLAMP_SPS;
 extern float SYNC_COMPRESSION_DRAIN_FRAC;
 extern float SYNC_COMPRESSION_DRAIN_BUDGET_MM;
 extern float SYNC_EST_ATTACK_ALPHA;
 extern float SYNC_TENSION_FAST_MM_S;
-extern int   SYNC_TENSION_PROBE_MAX_SPS;
-extern int   SYNC_TENSION_PROBE_UP_SPS_PER_S;
-extern int   SYNC_TENSION_PROBE_DOWN_SPS_PER_S;
-extern int   SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S;
+extern int SYNC_TENSION_PROBE_MAX_SPS;
+extern int SYNC_TENSION_PROBE_UP_SPS_PER_S;
+extern int SYNC_TENSION_PROBE_DOWN_SPS_PER_S;
+extern int SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S;
 extern float RELAY_MIN_FLIP_MM;
-extern int   RELAY_COLLAPSE_DELAY_MS;
-extern int   RELAY_COLLAPSE_RAMP_MULT;
-extern int   RELAY_COLLAPSE_CAP_MS;
+extern int RELAY_COLLAPSE_DELAY_MS;
+extern int RELAY_COLLAPSE_RAMP_MULT;
+extern int RELAY_COLLAPSE_CAP_MS;
 #define BUF_DRIFT_CLAMP_LIMIT_MM 8.0f
-extern int   BUF_DRIFT_EWMA_TAU_MS;
-extern int   BUF_DRIFT_MIN_SAMPLES;
+extern int BUF_DRIFT_EWMA_TAU_MS;
+extern int BUF_DRIFT_MIN_SAMPLES;
 extern float BUF_DRIFT_APPLY_THR_MM;
 extern float BUF_DRIFT_CLAMP_MM;
 extern float BUF_DRIFT_APPLY_MIN_CF;
-extern int   TENSION_RISK_WINDOW_MS;
-extern int   TENSION_RISK_THRESHOLD;
+extern int TENSION_RISK_WINDOW_MS;
+extern int TENSION_RISK_THRESHOLD;
 extern int AUTOLOAD_MAX_MM;
 extern int AUTO_MODE;
 extern bool AUTO_PRELOAD;
