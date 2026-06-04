@@ -50,6 +50,7 @@ float sync_compression_wall_velocity_mm_s(lane_t *lane);
 float sync_compression_wall_time_ms(lane_t *lane);
 
 void boot_stabilize_start(uint32_t now_ms);
+bool boot_stabilize_settled(void);
 void buf_sensor_tick(uint32_t now_ms);
 void sync_tick(uint32_t now_ms);
 float sync_reserve_error_mm(void);

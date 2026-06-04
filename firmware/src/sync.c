@@ -864,6 +864,14 @@ void buffer_stabilize_cancel(void) {
     boot_stabilize_stop();
 }
 
+/* True once a stabilize has settled the buffer at goal. A successful DONE forces
+   g_buf_stable_state = BUF_NEUTRAL (predict parks a hair tension-side of goal, by
+   design); a STAGNANT abort does not. Lets the boot retry stop on the first real
+   success instead of chasing raw position past the predict's safe early stop. */
+bool boot_stabilize_settled(void) {
+    return !g_boot_stabilizing && g_buf_stable_state == BUF_NEUTRAL;
+}
+
 void boot_stabilize_start(uint32_t now_ms) {
     /* emit_events=true: boot-stab shares the BS path; keeping it observable
        (BUF_STAB:START/DONE/STAGNANT) is essential for diagnosing boot behavior. */

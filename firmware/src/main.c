@@ -508,7 +508,11 @@ int main(void) {
             // not just at the retry boundary, so a successful drive never triggers
             // one more retry. The deadline is only a never-succeeds failsafe; this
             // does not block the loop (stabilize + commands run in the background).
-            if (buf_state_raw() == BUF_NEUTRAL || g_now_ms >= BOOT_STAB_DEADLINE_MS) {
+            // Success = the stabilize's own completion (DONE forces stable_state
+            // to NEUTRAL, parking a hair tension-side of goal by design). Checking
+            // raw position instead chased past that safe early stop and fired
+            // extra nudges. Only a STAGNANT abort (no settle) retries.
+            if (boot_stabilize_settled() || g_now_ms >= BOOT_STAB_DEADLINE_MS) {
                 boot_stab_done = true;
             } else if (!g_boot_stabilizing &&
                        (g_now_ms - boot_stab_last_ms) >= BOOT_STAB_RETRY_MS) {
