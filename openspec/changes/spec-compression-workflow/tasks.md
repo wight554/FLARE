@@ -24,6 +24,15 @@
 
 ## 5. Verify
 
-- [ ] 5.1 Run `openspec validate spec-compression-workflow --strict` and the existing `scripts/test_*.py` suite; confirm green
-- [ ] 5.2 Sanity-check: compress one short spec by hand per `openspec/COMPRESSION.md`, diff to confirm normative clauses and code/structure survive
-- [ ] 5.3 Sanity-check comms: confirm `AGENTS.md` directive reads tool-agnostic and `openspec/COMMS.md` exclusions cover all 4 human-readable surfaces
+- [x] 5.1 Run `openspec validate spec-compression-workflow --strict` and the existing `scripts/test_*.py` suite; confirm green
+- [x] 5.2 Sanity-check: compress one short spec by hand per `openspec/COMPRESSION.md`, diff to confirm normative clauses and code/structure survive
+- [x] 5.3 Sanity-check comms: confirm `AGENTS.md` directive reads tool-agnostic and `openspec/COMMS.md` exclusions cover all 4 human-readable surfaces
+
+## Validation - 2026-06-05
+
+- `openspec validate spec-compression-workflow --strict` PASS.
+- `for f in scripts/test_*.py; do python3 "$f" || exit $?; done` PASS.
+- `python3 -m py_compile scripts/*.py` PASS.
+- Manual compression sanity PASS: normative `SHALL`/`MUST` clause, requirement/scenario headings, WHEN/THEN lines, and fenced code survived unchanged while filler prose compressed.
+- Comms sanity PASS: `AGENTS.md` points to `openspec/COMMS.md`; `openspec/COMMS.md` excludes commits/PRs, source code/comments, user-facing docs, security warnings, and irreversible confirmations.
+- Implementation commits: `9097245` (change artifacts), `80465ce` (rules/directives), `0fa63b6` (tripwire).
