@@ -1,7 +1,8 @@
 # reserve-safety-floor Specification
 
 ## Purpose
-TBD - created by archiving change fix-flow-schedule-reserve-regression. Update Purpose after archive.
+Protects the configured reserve bias floor when flow schedules adjust sync feed targets.
+
 ## Requirements
 ### Requirement: Reserve bias is floored by the configured scalar
 
@@ -64,4 +65,3 @@ below config. This is the controller's full-bias safety invariant.
   active
 - **THEN** the effective reserve bias is ≥ `SYNC_TRAILING_BIAS_FRAC` and
   the baseline control floor is ≥ `g_baseline_target_sps`
-

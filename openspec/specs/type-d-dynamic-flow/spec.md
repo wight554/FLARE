@@ -1,7 +1,8 @@
 # type-d-dynamic-flow Specification
 
 ## Purpose
-TBD - created by archiving change type-d-dynamic-flow. Update Purpose after archive.
+Captures dynamic type-D relay feed behavior that helps the two-switch buffer recover demand without a mid-band position signal.
+
 ## Requirements
 ### Requirement: A tension touch slams a decaying recovery feed floor
 
@@ -90,4 +91,3 @@ document the trade-off.
 - **WHEN** an operator raises `SYNC_MIN_RATE` toward the fast-segment rate
 - **THEN** fast-step TENSION touches are eliminated at the cost of constant
   COMPRESSION clicking (documented as the loud zero-skip mode)
-

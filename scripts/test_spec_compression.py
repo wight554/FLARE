@@ -11,6 +11,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 SPEC_GLOB = "openspec/specs/**/spec.md"
 MAX_FILLER_DENSITY_PCT = 16.0
+PURPOSE_HEADING = "## Purpose"
 WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]*")
 FILLER_WORDS = {
     "a",
@@ -37,8 +38,53 @@ class SpecDensity:
     density_pct: float
 
 
+def purpose_lines(text):
+    lines = text.splitlines()
+    nonblank = [(idx, line.strip()) for idx, line in enumerate(lines) if line.strip()]
+    if not nonblank:
+        return None
+
+    first_idx, first_line = nonblank[0]
+    if first_line.startswith("# "):
+        if len(nonblank) < 2 or nonblank[1][1] != PURPOSE_HEADING:
+            return None
+        purpose_idx = nonblank[1][0]
+    elif first_line == PURPOSE_HEADING:
+        purpose_idx = first_idx
+    else:
+        return None
+
+    body = []
+    for line in lines[purpose_idx + 1:]:
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            break
+        if stripped:
+            body.append(stripped)
+    return body
+
+
+def remove_purpose_section(text):
+    lines = text.splitlines()
+    output = []
+    in_purpose = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped == PURPOSE_HEADING:
+            in_purpose = True
+            continue
+        if in_purpose:
+            if stripped.startswith("#"):
+                in_purpose = False
+            else:
+                continue
+        output.append(line)
+    return "\n".join(output)
+
+
 def prose_without_protected_regions(text):
     """Return prose counted by the density tripwire."""
+    text = remove_purpose_section(text)
     lines = []
     in_fence = False
     for line in text.splitlines():
@@ -109,6 +155,24 @@ def format_offenders(offenders):
 
 
 class TestSpecCompression(unittest.TestCase):
+    def test_repository_specs_have_human_purpose(self):
+        paths = sorted(REPO.glob(SPEC_GLOB))
+        self.assertGreater(len(paths), 0)
+
+        failures = []
+        for path in paths:
+            lines = purpose_lines(path.read_text(encoding="utf-8"))
+            if not lines:
+                failures.append(f"{path}: missing ## Purpose")
+                continue
+            if len(lines) > 3:
+                failures.append(f"{path}: Purpose has {len(lines)} lines")
+            lowered = " ".join(lines).lower()
+            if "tbd" in lowered or "created by archiving" in lowered:
+                failures.append(f"{path}: placeholder Purpose")
+
+        self.assertEqual([], failures, "\n".join(failures))
+
     def test_repository_specs_stay_under_permissive_threshold(self):
         paths = sorted(REPO.glob(SPEC_GLOB))
         self.assertGreater(len(paths), 0)
@@ -130,10 +194,17 @@ class TestSpecCompression(unittest.TestCase):
         self.assertEqual(1, len(offenders))
         self.assertIn("spec.md", format_offenders(offenders))
 
-    def test_code_headings_and_tables_are_ignored(self):
+    def test_purpose_code_headings_and_tables_are_ignored(self):
         report = density_for_text(
             Path("fixture.md"),
             """\
+# Fixture Spec
+
+## Purpose
+This is the readable human summary that may use normal prose and should be ignored by the density tripwire.
+
+## Requirements
+
 # The heading should not count the filler
 
 | the | a | an |

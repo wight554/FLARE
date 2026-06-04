@@ -36,3 +36,34 @@ FLARE documentation contains advanced, mathematics-heavy explanations (centroids
   - **Mitigation**: The Sidecar JSON matcher is already thoroughly covered in `test_klipper_motion_tracker.py` and `test_gcode_marker.py`, so the legacy M118 parity comparison is redundant and obsolete.
 - **Risk**: Moving documentation content breaks links/structure in manuals.
   - **Mitigation**: Perform a global grep for file links and cross-references, updating all links to point to the newly restructured paths.
+
+## Apply Notes - 2026-06-05
+
+### Spec Readability Findings
+
+- Read `openspec/changes/docs-test-overhaul/{proposal,design,tasks}.md`, `specs/spec-readability/spec.md`, `specs/static-regression-validation/spec.md`, `openspec/README.md`, `scripts/test_spec_compression.py`, and `scripts/validate_regression.sh`.
+- Current active specs already include `## Purpose`, but multiple archived specs still have placeholder text: `TBD - created by archiving change ...`.
+- Existing density tripwire counts all non-heading prose, so new human-readable `## Purpose` prose must be explicitly removed from the density corpus.
+- `scripts/validate_regression.sh` already uses unittest discovery; extending `scripts/test_spec_compression.py` keeps Purpose presence inside the existing static regression gate.
+
+### Spec Readability File Plan
+
+#### openspec/specs/*/spec.md
+- Replace placeholder/TBD Purpose blocks with 1-3 readable human summaries.
+- Leave requirement text, scenarios, code blocks, and normative clauses unchanged.
+- Risk: adding summaries must not restate or weaken normative requirements.
+
+#### openspec/README.md
+- Add central spec-to-doc index with one row per active capability spec.
+- Link paired human docs where available; use explicit `none` for internal/orphan specs.
+- Risk: table can drift; Purpose-presence test covers spec headers, while table remains human-reviewed.
+
+#### scripts/test_spec_compression.py
+- Exclude each spec's `## Purpose` section from filler-density counting.
+- Add test that every active spec has a non-empty, non-placeholder Purpose section near the top.
+- Add fixture coverage that Purpose prose is ignored by density.
+- Risk: parser should only skip the Purpose section, not the entire requirement body.
+
+#### openspec/changes/docs-test-overhaul/tasks.md
+- Mark group 4 tasks complete only after validation.
+- Record validation notes and commit SHA after commit/push.

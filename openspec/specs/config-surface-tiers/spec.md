@@ -1,7 +1,8 @@
 # config-surface-tiers Specification
 
 ## Purpose
-TBD - created by archiving change tier-config-surface. Update Purpose after archive.
+Classifies configuration knobs by audience and storage surface so operator tunables, developer constants, and board constants stay separated.
+
 ## Requirements
 ### Requirement: Configuration parameters are classified by tier
 
@@ -86,4 +87,3 @@ config dump SHALL NOT emit the demoted key.
 - **WHEN** `flare_cmd.py --config` dumps a device configuration
 - **THEN** the output contains no demoted (T3) key
 - **AND** the dumped config rebuilds without warnings about demoted keys
-

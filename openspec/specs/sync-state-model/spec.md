@@ -1,10 +1,9 @@
 # Sync State Model Specification
 
 ## Purpose
-Durable contract for the explicit sync controller lifecycle state machine
-(`SYNC_OFF`, `SYNC_ACTIVE`, `SYNC_RETRACT_ASSIST`, `SYNC_RELIEF_PAUSE`,
-`SYNC_FAULT_HOLD`) and its non-destructive relief/fault behavior, replacing
-ad-hoc destructive disable.
+Defines the explicit sync controller lifecycle state machine and its
+non-destructive relief/fault behavior.
+
 ## Requirements
 ### Requirement: Explicit Sync Lifecycle States
 The sync controller SHALL maintain a single explicit state among
@@ -196,4 +195,3 @@ complete without implying FLARE support.
 - **WHEN** the sensor taxonomy is documented
 - **THEN** TO and CO appear with an explicit "not implemented in FLARE"
   note
-

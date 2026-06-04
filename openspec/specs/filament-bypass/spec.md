@@ -1,7 +1,8 @@
 # filament-bypass Specification
 
 ## Purpose
-TBD - created by archiving change filament-bypass-integration. Update Purpose after archive.
+Defines the host and UI behavior for selecting filament bypass instead of a numbered MMU lane.
+
 ## Requirements
 ### Requirement: Local Filament Bypass State
 The host daemon and Klipper mock SHALL expose a unified `bypass` boolean and status field, mapped to Happy Hare gate/tool sentinel `-2`.
@@ -53,4 +54,3 @@ All MMU lane eject procedures SHALL be skipped and safely suppressed under bypas
 - **WHEN** `MMU_EJECT` or `FLARE_EJECT` is executed while bypassed
 - **THEN** Klipper prints a G-code console response "Bypass active; no physical eject needed. Please manually pull the filament strand out."
 - **AND** returns immediately without sending `UM:` or any serial command to the board
-

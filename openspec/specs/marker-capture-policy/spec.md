@@ -1,7 +1,8 @@
 # marker-capture-policy Specification
 
 ## Purpose
-TBD - created by archiving change remove-deprecated-and-phase-cleanup. Update Purpose after archive.
+Records the decision to use slicer sidecar metadata as the single live capture path and retire older marker-file flows.
+
 ## Requirements
 ### Requirement: Sidecar is the only capture path
 
@@ -60,4 +61,3 @@ deleted.
 - **THEN** it contains no phase prose, presents a current module/directory
   map and a "where to look" index, and cross-links the specs, `TUNING.md`,
   and `BEHAVIOR.md` instead of restating durable contracts
-

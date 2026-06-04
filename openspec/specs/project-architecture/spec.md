@@ -2,11 +2,9 @@
 
 ## Purpose
 
-Capture the durable firmware architecture and workflow contracts that were
-previously only summarized in `CONTEXT.md`. `CONTEXT.md` remains a compact
-navigation guide; this spec is the OpenSpec-native contract agents should read
-when changing firmware structure, runtime parameters, protocol behavior, or
-persistence.
+Captures durable firmware architecture and workflow contracts for contributors.
+Read this before changing firmware structure, runtime parameters, protocol
+behavior, or persistence; use `CONTEXT.md` as the navigation guide.
 ## Requirements
 ### Requirement: Firmware shall remain cooperative and non-blocking
 
@@ -141,4 +139,3 @@ a racy delay.
 - **WHEN** toolchange, cutter, or manual unload is active
 - **AND** the host sends `BS` or `BL:T`
 - **THEN** the firmware returns `ER:BUSY`
-

@@ -1,7 +1,8 @@
 # buffer-geometry-vocabulary Specification
 
 ## Purpose
-TBD - created by archiving change align-buffer-range-vocab. Update Purpose after archive.
+Defines shared buffer geometry terms so firmware, docs, and tuning guides use the same distance and switch-span vocabulary.
+
 ## Requirements
 ### Requirement: Buffer geometry vocabulary
 Buffer geometry SHALL be configured through exactly two full-range tunables
@@ -110,4 +111,3 @@ identically for an equivalent geometry.
   `buf_max_travel_mm = 25`
 - **THEN** its analog scaling and thresholds are identical to a pre-rename
   type-P build with internal half `= 5` and total travel `= 25`
-

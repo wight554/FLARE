@@ -1,7 +1,8 @@
 # operator-tuning-guide Specification
 
 ## Purpose
-TBD - created by archiving change tuning-operator-guide. Update Purpose after archive.
+Defines what the human tuning guide must explain, which workflows it must support, and which internal details it must avoid.
+
 ## Requirements
 ### Requirement: Self-contained jargon-free tuning guide
 
@@ -426,4 +427,3 @@ per-tick estimation and `psf_control_law` SHALL remain unchanged.
 - **WHEN** `BUF_SENSOR_TYPE == 1`
 - **THEN** the analog per-tick estimator and `psf_control_law` behavior are not
   changed by `SYNC_EST_ATTACK_ALPHA`
-

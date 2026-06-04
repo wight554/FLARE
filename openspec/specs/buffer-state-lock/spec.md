@@ -1,7 +1,8 @@
 # buffer-state-lock Specification
 
 ## Purpose
-TBD - created by archiving change buffer-state-lock. Update Purpose after archive.
+Describes host-controlled buffer lock behavior used to drive type-D buffers to tension or compression for setup, service, and testing.
+
 ## Requirements
 ### Requirement: BL Command Surface
 The firmware SHALL accept a host `BL:<state>` command that arms the active
@@ -138,4 +139,3 @@ timeout (default 30 seconds) of entering the locked sub-state.
 - **THEN** the firmware auto-releases the lock
 - **AND** emits `EV:BL:TIMEOUT`
 - **AND** returns to `SYNC_OFF`
-

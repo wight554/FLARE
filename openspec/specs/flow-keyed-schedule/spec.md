@@ -2,10 +2,9 @@
 
 ## Purpose
 
-Define the versioned flow-keyed schedule that maps live estimated flow to
-sync `{baseline_sps, compression_bias_frac}`, its bounded/deterministic
-generation contract, the firmware interpolation behavior, and the
-degenerate single-point equivalence that preserves prior scalar behavior.
+Defines how live estimated flow maps to sync baseline and compression bias.
+Also explains deterministic schedule generation, firmware interpolation, and
+single-point behavior that preserves older scalar tuning.
 
 ## Requirements
 

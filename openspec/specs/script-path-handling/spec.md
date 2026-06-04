@@ -1,7 +1,8 @@
 # script-path-handling Specification
 
 ## Purpose
-TBD - created by archiving change script-path-robustness. Update Purpose after archive.
+Defines path expansion behavior for host tools so file inputs, globs, and output paths resolve predictably.
+
 ## Requirements
 ### Requirement: Tilde and glob expansion for input paths
 
@@ -75,4 +76,3 @@ explicit file list SHALL match the pre-change behavior.
 - **WHEN** `flare_analyze.py --in` is given the same glob or file list
   before and after this change
 - **THEN** the resolved run set and order are identical
-

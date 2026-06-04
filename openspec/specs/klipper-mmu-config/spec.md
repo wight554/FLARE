@@ -1,7 +1,8 @@
 # klipper-mmu-config Specification
 
 ## Purpose
-TBD - created by archiving change klipper-mmu-config-overhaul. Update Purpose after archive.
+Specifies the bundled Klipper MMU config surface that lets users include one file for FLARE macros and UI state.
+
 ## Requirements
 ### Requirement: Single-file Klipper MMU config
 `klipper/flare_mmu.cfg` SHALL provide a complete Klipper MMU integration

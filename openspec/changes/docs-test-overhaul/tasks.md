@@ -18,3 +18,17 @@
 
 - [x] 3.1 Perform a global repository scan of documentation links and update any broken references
 - [x] 3.2 Run the static regression validation script (`validate_regression.sh`) to confirm the entire gate remains green
+
+## 4. Spec Readability (human summaries)
+
+- [x] 4.1 Backfill an uncompressed `## Purpose` block (1-3 prose lines, no normative restatement) at the top of every `openspec/specs/*/spec.md` that lacks one
+- [x] 4.2 Add a spec→doc index table to `openspec/README.md`: one row per capability spec with a one-line human summary and its paired human doc (`TUNING.md`, `KLIPPER.md`, `README.md`, …) or an explicit "none" marker for orphan specs
+- [x] 4.3 Extend `scripts/test_spec_compression.py` (or add a sibling test) to flag any `openspec/specs/*/spec.md` missing a `## Purpose` section; keep the `## Purpose` prose exempt from the filler-density tripwire
+- [x] 4.4 Run `scripts/validate_regression.sh`; confirm Purpose-presence check and compression tripwire both pass
+
+## Validation - 2026-06-05
+
+- `openspec validate docs-test-overhaul --strict` PASS.
+- `python3 scripts/test_spec_compression.py` PASS.
+- `scripts/validate_regression.sh` PASS, including `python3 -m py_compile scripts/*.py`, unittest discovery, mock MMU status self-test, firmware build via `ninja -C build_local`, and `git diff --check`.
+- `rg -n "TBD|created by archiving" openspec/specs/*/spec.md` found no placeholder Purpose text.

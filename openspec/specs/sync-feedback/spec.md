@@ -1,7 +1,8 @@
 # sync-feedback Specification
 
 ## Purpose
-TBD - created by archiving change psf-soft-wall-owns-compression. Update Purpose after archive.
+Defines shared Sync-Feedback Sensor behavior across type-D switch buffers and type-P proportional buffers.
+
 ## Requirements
 ### Requirement: Compression Recovery Cap Gated to Type-D
 
@@ -95,4 +96,3 @@ forcing a feed floor fights drain and is incorrect.
 - **THEN** `sync_current_sps` is NOT force-raised by a compression floor
 - **AND** the PD law naturally reduces target_sps toward zero as error_norm
   shows buffer is at or past goal
-

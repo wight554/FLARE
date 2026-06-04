@@ -1,7 +1,8 @@
 # cutter-feed-timeout Specification
 
 ## Purpose
-TBD - created by archiving change cutter-feed-timeout. Update Purpose after archive.
+Documents the cutter feed timeout tunable and its serial/config exposure for safe long cutter-feed moves.
+
 ## Requirements
 ### Requirement: cutter-feed-timeout-tunable
 `CUT_TIMEOUT_FEED_MS` — the per-phase motor-feed safety timeout used in `CUT_FEED_WAIT` — SHALL be a runtime-tunable parameter sourced from `config.ini` (`cut_feed_timeout_ms`), persisted in flash, and accessible via `GET:CUT_FEED_MS` / `SET:CUT_FEED_MS` serial protocol commands.
@@ -40,4 +41,3 @@ The parameter SHALL be clamped to [500, 10000] ms on `SET:`. Default SHALL be 30
 #### Scenario: GET returns current settle timeout
 - **WHEN** host sends `GET:CUT_SETTLE_MS`
 - **THEN** firmware replies `OK:CUT_SETTLE_MS:<value>`
-

@@ -1,7 +1,8 @@
 # psf-type-p-sensor Specification
 
 ## Purpose
-TBD - created by archiving change psf-relief-pause-rearm. Update Purpose after archive.
+Captures behavior for the proportional Sync-Feedback Sensor path, including recovery, refill, and soft-wall control decisions.
+
 ## Requirements
 ### Requirement: Type-P Relief-Pause Auto-Recovery
 
@@ -340,4 +341,3 @@ saturation window. Type-D fault handling is unchanged.
 - **WHEN** `BUF_SENSOR_TYPE == 1` and the buffer stays pinned at tension during
   active sync past the dwell/saturation window despite max refill
 - **THEN** the terminal `fault_hold` still fires (gear protection preserved)
-

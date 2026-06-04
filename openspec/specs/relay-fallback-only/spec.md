@@ -1,7 +1,8 @@
 # relay-fallback-only Specification
 
 ## Purpose
-TBD - created by archiving change relay-fallback-only. Update Purpose after archive.
+Keeps type-D relay control on the simple fallback law after the confidence estimator path was removed.
+
 ## Requirements
 ### Requirement: Type-D relay NEUTRAL is unconditionally the fallback
 
@@ -94,4 +95,3 @@ keys SHALL be retained with unchanged behavior.
   persisted settings
 - **THEN** settings reset to defaults (which equal the fallback
   behavior) without fault
-
