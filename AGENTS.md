@@ -1,38 +1,24 @@
 > [!IMPORTANT]
-> **DEVELOPER AND AI AGENT GUIDE ONLY**
-> This document contains technical onboarding rules, session startup protocols, and constraints meant specifically for developers and autonomous coding assistants (such as Claude or Gemini). If you are a printer operator looking to wire, build, or configure FLARE, please refer to the operator guides listed in the [README](README.md) instead.
+> **DEVELOPER AND AI AGENT GUIDE ONLY** — onboarding rules, session protocol, and constraints for developers and coding agents. Printer operators wiring/building/configuring FLARE: see the operator guides in the [README](README.md).
 
 # FLARE — Agent Onboarding
 
-For AI agents (Claude, Gemini, Codex, Opus, Copilot, etc.). Read first, then
-read `openspec/README.md` and the relevant specs under `openspec/specs/`
-before touching anything.
-
-**For AI environment setup (skills, MCPs), see [AI.md](./AI.md).**
-**This project uses OpenSpec for durable design tracking.** Read `openspec/README.md` and relevant specs under `openspec/specs/` when work touches existing design contracts or starts a new feature/change.
+For AI agents (Claude, Gemini, Codex, Opus, Copilot, etc.). Read this first, then `openspec/README.md` and relevant `openspec/specs/` before touching anything. AI environment setup (skills, MCPs): [AI.md](./AI.md). Project uses OpenSpec for durable design tracking.
 
 ## Session Start Protocol
 
 Before anything else:
 1. Use caveman-full chat style per `openspec/COMMS.md` (tool-agnostic; no Claude-only skill required).
-2. Proactively use `cavemem` MCP (or similar persistent memory tools) for cross-session context.
-3. Post in chat:
-
-> **AGENTS.md ✓ | OpenSpec: [one-line summary of active change/spec context, or "no active change"]**
-
-Lets user verify context loaded before work begins.
+2. Use `cavemem` MCP (or similar persistent memory) for cross-session context.
+3. Post: **AGENTS.md ✓ | OpenSpec: [one-line active change/spec summary, or "no active change"]** — lets user verify context loaded.
 
 ---
 
 ## What This Project Is
 
-**FLARE** = **Filament Lane Automation and Reload Engine**: standalone
-dual-lane MMU / RELOAD controller firmware for RP2040 on FYSETC ERB V2.0.
-The name applies to firmware and host tooling, not the complete mechanical
-module. This firmware is still in active development, so breaking namespace
-changes are allowed when they keep the tree coherent.
+**FLARE** = **Filament Lane Automation and Reload Engine**: standalone dual-lane MMU / RELOAD controller firmware for RP2040 on FYSETC ERB V2.0. Name applies to firmware + host tooling, not the mechanical module. Active development — breaking namespace changes allowed when they keep the tree coherent.
 
-- Two TMC2209 stepper drivers, one per filament lane, over UART
+- Two TMC2209 stepper drivers, one per lane, over UART
 - Per-lane IN / OUT filament switches; optional Y-splitter switch; optional toolhead sensor (TS:)
 - Sync-Feedback Sensor: type D dual-endstop (default, `BUF_SENSOR_TYPE=0`, D=0) or type P analog / Hall-effect (`BUF_SENSOR_TYPE=1`, P=1)
 - USB CDC serial at 115200 baud — `CMD:params\n`, responses `OK:...` / `ER:...`, events `EV:...`
@@ -46,54 +32,48 @@ Two modes via `RELOAD_MODE`:
 
 ## OpenSpec Workflow
 
-FLARE keeps durable design history and current behavioral contracts in
-`openspec/`.
+Durable design history + behavioral contracts live in `openspec/`. Context windows finite — research-then-code without writing down risks losing work mid-task. **Write first in OpenSpec artifacts.**
 
-- Author OpenSpec spec/change artifact prose compressed per
-  `openspec/COMPRESSION.md`, while preserving RFC-2119 clauses and
-  requirement/scenario structure exactly.
-- Current specs live under `openspec/specs/`.
-- New substantial work should start in `openspec/changes/<change-id>/` with
-  `proposal.md`, `design.md`, and `tasks.md` before implementation.
-- Substantial active work belongs in `openspec/changes/<change-id>/`.
-- Durable behavior belongs in `openspec/specs/`.
-- Historical phase/task prose is not kept in-tree after migration; use git
-  history when archaeology is needed.
-- Do not recreate repo-root `TASK.md`; use OpenSpec artifacts for handoff.
+- Current durable behavior → `openspec/specs/`. Substantial active work → `openspec/changes/<change-id>/` (`proposal.md`, `design.md`, `tasks.md`) before implementation.
+- Author artifact prose compressed per `openspec/COMPRESSION.md`, preserving RFC-2119 clauses and requirement/scenario structure exactly.
+- Historical phase/task prose not kept in-tree post-migration; use git history for archaeology. Do not recreate root `TASK.md`.
 
-For sync, calibration, tuner, and analyzer work, read
-`openspec/specs/sync-refactor/spec.md` first, then read the relevant
-phase-level spec under `openspec/specs/` (`calibration-workflow`,
-`bucket-locking`, `analyzer-rigor`, etc.). Use git history for old phase prose,
-original rationale, and detailed implementation prompts.
+**Required before writing any code:**
+1. **Research** — read source, grep symbols, understand current state. Substantial work: write findings into `design.md` (what read, what learned, constraints).
+2. **Plan** — draft implementation plan in the change/design note before opening editor. Per file to modify: path, exact change + why, risk/invariant to watch. If task changes durable behavior or workflow, create/update the OpenSpec artifact first.
+   ```
+   ### firmware/src/protocol.c + firmware/src/settings_store.c
+   - Add GET/SET plumbing for JOIN_RATE so reload approach speed is tunable
+   - Wire the runtime value through the persistence helpers in settings_store.c
+   - Risk: keep config.ini, MANUAL.md, and generated tune.h in sync
+   ```
+3. **Implement** — work file by file. After each durable unit: update task list/design note with steps, validation, commit SHA; commit + push immediately. For new features, note which flows could regress and how to validate.
+4. **Never hold more than one file's worth of changes in memory** before committing.
+5. **Preserve `tasks.md` history** — never empty/truncate/delete the task list of an active change. Mark lines `[x]`, append dated validation notes. Must stay reconstructable at archive.
 
-For project workflow and task tracking rules, read
-`openspec/specs/task-workflow/spec.md` alongside this file.
-For firmware architecture and gotchas, read
-`openspec/specs/project-architecture/spec.md` plus `CONTEXT.md` when changing
-firmware internals.
+**Spec reading map:** sync/calibration/tuner/analyzer work → read `openspec/specs/sync-refactor/spec.md` first, then the phase spec (`calibration-workflow`, `bucket-locking`, `analyzer-rigor`, …). Workflow/task rules → `openspec/specs/task-workflow/spec.md`. Firmware architecture/gotchas → `openspec/specs/project-architecture/spec.md` + `CONTEXT.md`. Old rationale/prompts → git history.
 
 ---
 
 ## Key Files
 
-| File | What it contains |
-|------|-----------------|
-| `firmware/src/main.c` | Top-level init, runtime globals, autopreload, LEDs, and main-loop orchestration |
-| `firmware/src/motion.c` | Per-lane motion, debounced sensors, motor helpers, and lane tasks |
-| `firmware/src/sync.c` | Buffer sensing, estimator-driven sync, and boot stabilization |
-| `firmware/src/toolchange.c` | Cutter sequencing, toolchange flow, and RELOAD orchestration |
-| `firmware/src/protocol.c` | USB serial command parsing, status dump, SET/GET handling, and advanced TMC commands |
-| `firmware/src/settings_store.c` | Flash-backed settings defaults/save/load and TMC apply helpers |
-| `firmware/include/controller_shared.h` | Shared runtime types, globals, and conversion helpers used across modules |
-| `firmware/include/config.h` | Board-level constants and pin map; includes generated `tune.h` |
+| File | Contains |
+|------|----------|
+| `firmware/src/main.c` | Top-level init, runtime globals, autopreload, LEDs, main-loop orchestration |
+| `firmware/src/motion.c` | Per-lane motion, debounced sensors, motor helpers, lane tasks |
+| `firmware/src/sync.c` | Buffer sensing, estimator-driven sync, boot stabilization |
+| `firmware/src/toolchange.c` | Cutter sequencing, toolchange flow, RELOAD orchestration |
+| `firmware/src/protocol.c` | USB serial command parsing, status dump, SET/GET, advanced TMC commands |
+| `firmware/src/settings_store.c` | Flash-backed settings defaults/save/load, TMC apply helpers |
+| `firmware/include/controller_shared.h` | Shared runtime types, globals, conversion helpers |
+| `firmware/include/config.h` | Board constants + pin map; includes generated `tune.h` |
 | `firmware/include/tune.h` | Generated by `scripts/gen_config.py` from `config.ini` — **gitignored** |
-| `CONTEXT.md` | Deep firmware reference: data structures, settings pattern, critical gotchas, navigation guide |
-| `BEHAVIOR.md` | Behavioral reference: state machines, RELOAD flow, sync estimator, tuning procedures |
-| `MANUAL.md` | Full command and runtime parameter reference |
-| `KLIPPER.md` | Klipper integration: shell helper setup, toolchange macros, sync tuning |
+| `CONTEXT.md` | Deep firmware reference: data structures, settings pattern, gotchas, navigation |
+| `BEHAVIOR.md` | State machines, RELOAD flow, sync estimator, tuning procedures |
+| `MANUAL.md` | Full command + runtime parameter reference |
+| `KLIPPER.md` | Klipper integration: shell helper, toolchange macros, sync tuning |
 | `HARDWARE.md` | Board pinout, sensor wiring |
-| `BUILD_FLASH.md` | Build and flash instructions |
+| `BUILD_FLASH.md` | Build + flash instructions |
 | `scripts/flare_cmd.py` | Single-command serial helper for Klipper shell integration |
 | `openspec/specs/` | Current OpenSpec behavioral contracts |
 
@@ -110,124 +90,44 @@ Cross-compiler must be in PATH. If `build_local/` missing:
 cmake -S firmware -B build_local -G Ninja -DPICO_SDK_PATH=/path/to/pico-sdk
 ```
 
----
-
 ## When to Read CONTEXT.md
 
-Load `CONTEXT.md` when task involves:
-
-- Adding/modifying runtime parameter (full 10-step checklist there)
-- Touching RELOAD approach / follow logic
-- Modifying `settings_t`, `lane_t`, or any state machine
-- Need exact data structure layout or known gotchas
-
-Skip for doc-only edits, script changes, or build/config work — save context budget for code reading.
+Load `CONTEXT.md` when task touches: a runtime parameter (full 10-step checklist there); RELOAD approach/follow logic; `settings_t`, `lane_t`, or any state machine; exact data layout or known gotchas. Skip for doc-only, script, or build/config work — save context budget.
 
 ---
 
 ## Non-Negotiable Rules
 
-1. **MANDATORY: Build must pass** before EVERY commit. Run `cmake --build build_clang` or `ninja -C build_local` (skip if purely docs). Never skip. Broken build = failed task.
-2. **MANDATORY: Python Validation** — Run `python3 -m py_compile scripts/*.py` before every commit touching scripts.
-3. **Commit and push after every change — automatically, without asking.** Don't ask "should I commit?" — just do it.
-4. **Bump `SETTINGS_VERSION`** in `settings_store.c` when field added/removed from `settings_t`. Grep for current version.
+1. **Build must pass before EVERY commit.** `ninja -C build_local` (or `cmake --build build_clang`). Skip only if purely docs. Broken build = failed task.
+2. **Python validation** — `python3 -m py_compile scripts/*.py` before every commit touching scripts.
+3. **Commit + push after every change, automatically, without asking.** Don't ask "should I commit?" — do it.
+4. **Bump `SETTINGS_VERSION`** in `settings_store.c` when a `settings_t` field is added/removed. Grep current version.
 5. **No mock/stub hardware** — all changes must compile against real Pico SDK target.
-6. **MANDATORY: Documentation Sync** — Every finished task must validate against all project docs (`MANUAL.md`, `BEHAVIOR.md`, etc.). Parameter name changes in code MUST update everywhere in docs.
-7. **MANDATORY: Runtime tunables live in `config.ini`** — No tuning defaults only in firmware C headers. Add/update keys in `config.ini` / `config.ini.example`, wire through `scripts/gen_config.py` into `firmware/include/tune.h`, consume `CONF_*` in firmware.
-8. **MANDATORY: Runtime tunable protocol parity** — Whenever adding or modifying any runtime/serial tunable, verify the full surface together: `SET:` handler, matching `GET:` handler, `scripts/flare_cmd.py --dump` entry when it belongs in live dumps, and docs. Do not stop after `SET:` only.
-9. **MANDATORY: Specify model in commit messages** — Always include exact model name in `Generated-By` footer. Examples: `Generated-By: Antigravity (Gemini 3.1 Flash)`. Creates audit trail. No need to repeat in chat.
-10. **MANDATORY: Analyze regression impact for new features** — Unless user asks to change current behavior, every new feature needs code-level impact review of affected flows (preload, load, unload, toolchange, sync, RELOAD, persistence, protocol, docs) and validation those flows stay intact.
-11. **MANDATORY: Prefer Git MCP for git operations when available and applicable.** Use Git MCP for `status`, `diff`, `add`, `commit`, `log`, `show`, `branch`, and `checkout`. Fall back to non-interactive shell git when Git MCP is unavailable, lacks the needed operation, fails, or when pushing/remotes require shell git.
-12. **MANDATORY: Do NOT commit local AI config** — Never commit `.agents/`, `.claude/`, or `skills-lock.json`. All AI config stays global per `AI.md`.
-13. **MANDATORY: Preserve AI-assisted attribution** — If Claude produced or substantially assisted a commit, keep its `Co-Authored-By` trailer. If another AI tool generated or substantially assisted the commit, add `Generated-By: <tool> (<model>)` in addition to any Claude trailer, not instead of it. If multiple tools contributed, add one `Generated-By:` line per tool/model.
-14. **MANDATORY: Never check physical validation / `HW:` tasks** — Never check off hardware-dependent validation or tasks prefixed with `HW:` without explicit confirmation and test results from the user on real hardware.
+6. **Documentation sync** — every finished task validates against all docs (`MANUAL.md`, `BEHAVIOR.md`, etc.). Code parameter renames MUST update everywhere in docs.
+7. **Runtime tunables live in `config.ini`** — no tuning defaults only in firmware C headers. Add keys to `config.ini`/`config.ini.example`, wire through `scripts/gen_config.py` into `tune.h`, consume `CONF_*` in firmware.
+8. **Runtime tunable protocol parity** — for any runtime/serial tunable, verify the full surface together: `SET:` handler, matching `GET:` handler, `scripts/flare_cmd.py --dump` entry (if it belongs in live dumps), and docs. Don't stop after `SET:`.
+9. **Regression impact for new features** — unless user asks to change behavior, every new feature needs code-level impact review of affected flows (preload, load, unload, toolchange, sync, RELOAD, persistence, protocol, docs) and validation they stay intact.
+10. **Prefer Git MCP for git ops when available** — `status`, `diff`, `add`, `commit`, `log`, `show`, `branch`, `checkout`. Fall back to non-interactive shell git when Git MCP is unavailable, lacks the op, fails, or for push/remotes.
+11. **Do NOT commit local AI config** — never commit `.agents/`, `.claude/`, or `skills-lock.json`. AI config stays global per `AI.md`.
+12. **Never check physical validation / `HW:` tasks** — never check off hardware-dependent tasks (or `HW:`-prefixed) without explicit user confirmation + real-hardware test results.
 
 ## Commit Format
-
-Every commit must follow this format exactly:
 
 ```
 <short description>
 
-<body — what changed and why, as many lines as needed>
+<body — what changed and why>
 
-Generated-By: <Your Agent Name> (<Model>)
+Generated-By: <Agent Name> (<Model>)
 ```
 
-Example:
-
-```
-reload: tighten follow timeout handling
-
-Keep RELOAD failure behavior deterministic after the buffer-only rewrite.
-If follow exceeds its allowed window, stop the lane and surface a clear
-toolchange error instead of leaving the state machine half-active.
-
-Generated-By: Gemini 3.1 Pro (High)
-```
-
-Rules:
-- Subject: lowercase, imperative, no period, ≤ 72 chars
-- Body: explain *why*, not just what
-- **Always include model in `Generated-By`:** `Generated-By: <Agent Name> (<Model>)`. Examples: `GitHub Copilot (Claude Haiku 4.5)`, `Gemini 3.1 Pro (High)`. Creates audit trail.
-- If Claude produced or substantially assisted the commit, retain the Claude `Co-Authored-By:` trailer. Other AI tool attribution uses `Generated-By:` lines in addition to the Claude trailer. Multi-tool commits get one `Generated-By:` line per tool/model.
-- Push immediately after every commit: `git push`
-- Use Git MCP first for add / commit when available; use shell git as fallback. Use shell git for `git push` unless a reliable push-capable MCP is explicitly available.
-
-## OpenSpec Workflow — Required Before Writing Any Code
-
-Context windows finite. Research then code without writing down = risk losing
-everything mid-task. **Write first in OpenSpec artifacts.**
-
-### Before touching any file:
-
-1. **Research phase** — read relevant source, grep symbols, understand current
-   state. For substantial work, write findings into
-   `openspec/changes/<change-id>/design.md`. Include what read, what learned,
-   and constraints.
-
-2. **Plan phase** — draft the implementation plan in the OpenSpec change or
-   design note before opening editor. For every file to modify, write:
-   - File path
-   - Exactly what changes and why
-   - Any risk or invariant to watch
-
-   Example entry:
-   ```
-   ### firmware/src/protocol.c + firmware/src/settings_store.c
-   - Add GET/SET plumbing for JOIN_RATE so reload approach speed is tunable
-   - Wire the runtime value through the persistence helpers in settings_store.c
-   - Risk: keep config.ini, MANUAL.md, and generated tune.h in sync
-   ```
-
-   If the task changes durable behavior or project workflow, also create or
-   update the relevant OpenSpec artifact (`openspec/specs` or
-   `openspec/changes`) before implementation.
-
-3. **Implement** — work through plan file by file. After each durable unit is
-   done, update the OpenSpec task list/design note with completed steps,
-   validation, and commit SHA, then commit + push immediately.
-
-   For new features, explicitly note which existing flows could regress and how to validate they stay correct.
-
-4. **Never hold more than one file's worth of changes in memory** before committing. Small commits safe; large in-memory plans not.
-
-5. **Preserve `tasks.md` history** — Never empty, truncate, or delete the task
-   list for an active change. When completing work, mark the existing task lines
-   `[x]` and append dated validation notes beneath them. Task history must
-   remain reconstructable at archive time.
-
-Protects against most common failure: agent hits context limit between planning and implementation, next session has no idea what was intended.
+- Subject: lowercase, imperative, no period, ≤ 72 chars. Body: explain *why*.
+- **Always include model in `Generated-By`:** e.g. `GitHub Copilot (Claude Haiku 4.5)`, `Gemini 3.1 Pro (High)`, `Antigravity (Gemini 3.1 Flash)`. Audit trail; no need to repeat in chat.
+- **Preserve attribution.** If Claude produced/substantially assisted, keep its `Co-Authored-By:` trailer. Other tools add `Generated-By:` lines *in addition*, not instead. Multi-tool commit = one `Generated-By:` line per tool/model.
+- Push immediately: `git push` (shell git unless a reliable push-capable MCP exists).
 
 ---
 
 ## Current Work
 
-The repo no longer uses root `TASK.md`. Use these sources instead:
-
-- `openspec/changes/` for active spec-driven work.
-- `openspec/specs/` for durable behavior contracts.
-- git history for old long-form task ledgers and migrated phase prose.
-
-If no active change exists, run `git log --oneline -20`, read relevant specs,
-and ask or infer the active task from the user prompt.
+No root `TASK.md`. Sources: `openspec/changes/` (active spec-driven work), `openspec/specs/` (durable contracts), git history (old ledgers, migrated phase prose). If no active change: run `git log --oneline -20`, read relevant specs, infer/ask the active task.
