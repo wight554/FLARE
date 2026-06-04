@@ -14,11 +14,11 @@ ninja -C build_local
 echo "=== Python Syntax ==="
 python3 -m py_compile scripts/*.py
 
-echo "=== Config Generator Self-Test ==="
-python3 scripts/test_gen_config.py
+echo "=== Python Unit Test Suite ==="
+python3 -m unittest discover -s scripts -p "test_*.py"
 
-echo "=== Live Tuner Self-Test ==="
-python3 scripts/test_flare_live_tuner.py
+echo "=== Mock MMU Status Self-Test ==="
+python3 scripts/test_flare_mmu_status.py
 
 echo "=== Diff Hygiene ==="
 git diff --check
