@@ -55,6 +55,7 @@ FLARE = cooperative firmware for RP2040, no RTOS. Main loop calls non-blocking m
 - **Tuning Workflow:** [TUNING.md](./TUNING.md)
 - **Detailed Behavior:** [BEHAVIOR.md](./BEHAVIOR.md)
 - **Command Reference:** [MANUAL.md](./MANUAL.md)
+- **Coding Style Standards:** [STYLE.md](file:///Users/Volodymyr_Zhdanov/playground/FLARE/STYLE.md)
 - **Klipper Integration:** [KLIPPER.md](./KLIPPER.md)
 
 ---

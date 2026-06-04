@@ -77,6 +77,7 @@ Durable design history + behavioral contracts live in `openspec/`. Context windo
 | `HARDWARE.md` | Board pinout, sensor wiring |
 | `BUILD_FLASH.md` | Build + flash instructions |
 | `scripts/flare_cmd.py` | Single-command serial helper for Klipper shell integration |
+| `STYLE.md` | [STYLE.md](file:///Users/Volodymyr_Zhdanov/playground/FLARE/STYLE.md) | Coding style, naming standards, formatting, linting guide |
 | `openspec/specs/` | Current OpenSpec behavioral contracts |
 
 ---
