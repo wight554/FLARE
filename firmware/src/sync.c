@@ -2506,15 +2506,7 @@ void sync_tick(uint32_t now_ms) {
         if (s == BUF_TENSION) {
             g_tension_floor_sps += (float)SYNC_TENSION_PROBE_UP_SPS_PER_S * tick_dt_s;
         } else if (s == BUF_COMPRESSION) {
-            /* Ease the floor toward demand, but never below the live estimate:
-             * over-leaking past demand leaves COMPRESSION under-fed and the
-             * buffer then drains into TENSION (the compression->tension lean).
-             * Clamping at EST keeps the back-off overshoot on the safe
-             * (compression) side and lets a genuine demand drop still leak the
-             * floor down as the drain crossing re-lowers EST. */
             g_tension_floor_sps -= (float)SYNC_TENSION_PROBE_DOWN_SPS_PER_S * tick_dt_s;
-            if (g_tension_floor_sps < extruder_est_sps)
-                g_tension_floor_sps = extruder_est_sps;
         }
         if (g_tension_floor_sps > (float)SYNC_TENSION_PROBE_MAX_SPS)
             g_tension_floor_sps = (float)SYNC_TENSION_PROBE_MAX_SPS;
