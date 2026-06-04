@@ -488,22 +488,29 @@ int main(void) {
     prev_lane1_in_present = lane_in_present(&g_lane_l1);
     prev_lane2_in_present = lane_in_present(&g_lane_l2);
 
-    // Boot buffer neutralization is deferred into the main loop (see below):
-    // firing it here, at ~boot time, ran before USB/the loop/motor path were
-    // fully alive — the single motor command issued at arm time was effectively
-    // lost and the stabilize then timed out against a motionless buffer. Arm it a
-    // short, settled time into the loop instead, so motors step and the
-    // BUF_STAB:* events are observable over USB.
-    bool boot_stab_armed = false;
+    // Boot buffer neutralization is deferred + retried inside the main loop. A
+    // single boot-time attempt proved unreliable: an early/transient abort (the
+    // buffer pinned at the rail) left the buffer stuck with no recovery, while a
+    // later manual BS from the identical state always worked. Re-fire boot
+    // stabilize every BOOT_STAB_RETRY_MS while not already stabilizing and the
+    // buffer is not yet at goal, until BOOT_STAB_DEADLINE_MS. Once at goal
+    // (buf_state_raw() == BUF_NEUTRAL) start_internal no-ops, so retries are safe.
+    bool boot_stab_done = false;
+    uint32_t boot_stab_last_ms = 0;
+    const uint32_t BOOT_STAB_RETRY_MS = 1500;
+    const uint32_t BOOT_STAB_DEADLINE_MS = 12000;
 
     while (true) {
         g_now_ms = to_ms_since_boot(get_absolute_time());
 
-        // Deferred one-shot boot stabilize: once the loop is up and the
-        // controller is idle, neutralize the buffer to goal.
-        if (!boot_stab_armed && active_lane != 0 && g_now_ms >= 750) {
-            boot_stab_armed = true;
-            boot_stabilize_start(g_now_ms);
+        if (!boot_stab_done && active_lane != 0 && g_now_ms >= 750 &&
+            !g_boot_stabilizing && (g_now_ms - boot_stab_last_ms) >= BOOT_STAB_RETRY_MS) {
+            if (buf_state_raw() == BUF_NEUTRAL || g_now_ms >= BOOT_STAB_DEADLINE_MS) {
+                boot_stab_done = true;        // at goal, or gave up
+            } else {
+                boot_stab_last_ms = g_now_ms;
+                boot_stabilize_start(g_now_ms);
+            }
         }
 
         // Inputs
