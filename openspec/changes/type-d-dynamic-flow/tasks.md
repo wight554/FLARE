@@ -143,7 +143,40 @@ loud always; the decaying floor is loud only for ~1.5 s after each touch.
     `bash scripts/validate_regression.sh`, `python3 -m py_compile scripts/*.py`,
     `python3 scripts/test_*.py`, and
     `openspec validate type-d-dynamic-flow --strict`.
-- [ ] 5.7 HW: fast-step print → 1 TENSION touch per step, no burst, recovery
-  fast; brief COMPRESSION pulse acceptable. Sweep `SYNC_TENSION_RECOVERY_FLOOR`
-  (high enough to cover infill demand) and `SYNC_TENSION_RECOVERY_MS` (long
-  enough to bridge until EST converges, short enough to stay quiet between steps).
+- [x] 5.7 HW (2026-06-04): decaying floor swept FLOOR 1400/2000/2400 ×
+  MS 1500/2500/3000/∞. **Cannot win** — decay-to-zero always returns feed to the
+  low wall baseline → touch-2; no MS fits all slow-fast-slow intervals; a held
+  floor (MS 60000) needs FLOOR 2000 to kill tension but then pins COMPRESSION
+  (9900 ms, EST−MM −411) = loud walls. Pivoted to §6.
+
+## 6. Pivot: AIMD probe latch (replaces decaying floor) — commit `e947354`
+
+The decaying floor has two coupled structural failures (see §5.7 + design.md
+"Pivot 2026-06-04"). Replacement: a **held feed-floor latch hunted by symmetric
+AIMD, no clock**. COMPRESSION (not a timeout) is the recovery-done signal.
+
+- [x] 6.1 `firmware/src/sync.c`: `g_tension_floor_sps` → `float`, drop
+  `g_tension_floor_set_ms`. On `NEUTRAL→TENSION` snap `floor = max(floor, EST)`
+  (raise-only). Remove `type_d_tension_recovery_floor_sps` decay helper.
+- [x] 6.2 In `sync_tick`, per-tick AIMD on the latch: `BUF_TENSION` →
+  `floor += PROBE_UP·dt`; `BUF_COMPRESSION` → `floor -= PROBE_DOWN·dt`;
+  `BUF_NEUTRAL` → hold; clamp `[0, PROBE_MAX]`; apply only in NEUTRAL.
+- [x] 6.3 Retire knobs `SYNC_TENSION_RECOVERY_FLOOR` / `_MS`; add
+  `SYNC_TENSION_PROBE_MAX` (3000 mm/min), `_UP` (3000 mm/min/s), `_DOWN`
+  (600 mm/min/s) across header/main/settings/protocol/flare_cmd/gen_config/
+  config.ini(.example)/param-width test/docs. Non-persisted, no SETTINGS_VERSION
+  bump. Build + param-width test green.
+- [x] 6.4 HW MILESTONE (2026-06-04, default knobs, live-print captures):
+  **TENSION burst COLLAPSED** — 2-3 tension events per ~60-85 s capture (was
+  TPX→12 clusters). Goal met. Cost: floor parks ~250-330 sps compression-side
+  (EST−MM −256..−332, BP mean +3.9..+4.3, compression rate ~0.31/s, pin ~13 %,
+  max pin 800 ms = brief/draining, not a jam). PROBE_DOWN sweep 600/1200/1800:
+  **no resolvable effect** once time-normalized (raw counts were over unequal
+  windows — 84.5/58.4/64.5 s — so the earlier "U-shape" was an artifact). The
+  compression-park is the type-D structural floor (zero-skip ⇒ compression-noisy;
+  see `typed-stepskip-floor-fix`), not a DOWN tunable. Live captures are
+  noise-dominated (same config 3↔11 touches/segment).
+- [ ] 6.5 PENDING — proper A/B: **fixed sliced print, fixed/equal duration**,
+  2-3 runs averaged (square-wave macro or identical print). Decide final
+  `SYNC_TENSION_PROBE_DOWN` default (currently 600; 600-1200 indistinguishable on
+  noisy live data). Until then defaults ship as-is.
