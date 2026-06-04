@@ -14,6 +14,41 @@ Known working motor and TMC profiles are collected in [MOTOR_PARAMS.md](MOTOR_PA
 
 ---
 
+## 🔌 Step-by-Step Wiring Guide
+
+To set up FLARE on your FYSETC ERB v2.0 board, connect your steppers, lane switches, and buffer sensors according to the guide below.
+
+### 1. Stepper Motors
+Connect your stepper motors to the 4-pin JST-XH connectors labeled **MOTOR X** (Lane 1) and **MOTOR Y** (Lane 2).
+- **Lane 1 (Left / Standby spool)**: Connect to the **MOTOR X** connector.
+- **Lane 2 (Right / Primary spool)**: Connect to the **MOTOR Y** connector.
+
+### 2. Filament Lane Sensors (In/Out)
+For each lane, you need an **IN** sensor (detects when filament is inserted at the entrance) and an **OUT** sensor (detects when filament reaches the drive gear). Wire them to the following endstop header pins (Sig, GND, 5V/3.3V):
+- **Lane 1 entrance sensor (IN)**: Connect to **GPIO 2** (Net label: X-MIN / X-STOP).
+- **Lane 2 entrance sensor (IN)**: Connect to **GPIO 4** (Net label: Y-MIN / Y-STOP).
+- **Lane 1 drive-gear sensor (OUT)**: Connect to **GPIO 3** (Net label: X-MAX / X-STOP).
+- **Lane 2 drive-gear sensor (OUT)**: Connect to **GPIO 5** (Net label: Y-MAX / Y-STOP).
+
+### 3. Buffer Sensors (Type-D or Type-P)
+FLARE supports two different buffer designs:
+
+#### Path A: Type-D (Dual-Endstop Switch Buffer)
+Uses two simple limit switches (microswitches) to detect when the spring trolley has hit the tension wall or compression wall.
+- **Tension Sensor** (triggered when extruder pulls filament tight): Connect to **GPIO 18** (No named net on ERB, accessible on the pin header row above GPIO 12).
+- **Compression Sensor** (triggered when filament pushes and trolley compresses the spring): Connect to **GPIO 12** (Net label: PRE_GATE_0).
+
+#### Path B: Type-P (Analog/Hall-Effect Proportional Buffer)
+Uses a Hall-effect sensor or analog potentiometer to read the exact trolley position.
+- **Signal wire**: Connect to **GPIO 26** (ADC0 / Net label: GPIO_26_ADC0) or other configured ADC pin.
+
+### 4. Servo Cutter (Optional)
+If your MMU has an automated servo cutter:
+- Connect the servo signal line to **GPIO 23** (Net label: SERVO).
+
+---
+
+
 ## GPIO Map (verified from schematic)
 
 | GPIO | Net label      | Function                        |
