@@ -589,8 +589,17 @@ hardware. Run it, then drive `MMU_LOAD` / `MMU_UNLOAD` / a cut.
 - Unified both Type-D (digital) and Type-P (analog) buffers under the exact same polarity convention where Tension is negative and Compression is positive inside both the C-firmware and the host-side daemon, permanently eliminating all host-side telemetry negations. (Commit: `a95ccd6`)
 
 ## Phase 41: Fix Host-Side Event Parsing and Delimiter Handling
-- [ ] 41.1 Fix `scripts/flare_daemon.py` event parser to split `EV:` messages by colon `:` instead of comma `,` to correctly parse and track `TC:DONE`, `TC:ERROR`, `LOADED`, and `UNLOADED` events.
-- [ ] 41.2 Verify that `MMU_STATS` success rates and counts are updated and persistent.
-- [ ] 41.3 Add `sync_feedback_bias` property to `klipper/mmu.py`'s `get_status` method (pointing to `self.sync_feedback`) to fix the static buffer piston visualization in Fluidd/Mainsail.
-- [ ] 41.4 Fix `scripts/webui/app.js` buffer telemetry chart scaling and polarity for Type-P (analog/proportional) sensors by dynamic range checking and inverting drawing offset to align with unified polarity (Tension is negative/up, Compression is positive/down).
-- [ ] 41.5 Run static python checks (`python3 -m py_compile scripts/*.py klipper/*.py`) and confirm everything builds cleanly.
+- [x] 41.1 Fix `scripts/flare_daemon.py` event parser to split `EV:` messages by colon `:` instead of comma `,` to correctly parse and track `TC:DONE`, `TC:ERROR`, `LOADED`, and `UNLOADED` events.
+- [x] 41.2 Verify that `MMU_STATS` success rates and counts are updated and persistent.
+- [x] 41.3 Add `sync_feedback_bias` property to `klipper/mmu.py`'s `get_status` method (pointing to `self.sync_feedback`) to fix the static buffer piston visualization in Fluidd/Mainsail.
+- [x] 41.4 Fix `scripts/webui/app.js` buffer telemetry chart scaling and polarity for Type-P (analog/proportional) sensors by dynamic range checking and inverting drawing offset to align with unified polarity (Tension is negative/up, Compression is positive/down).
+- [x] 41.5 Run static python checks (`python3 -m py_compile scripts/*.py klipper/*.py`) and confirm everything builds cleanly.
+
+### Validation Notes — 2026-06-05 (Fix Host Event Delimiters and WebUI Telemetry Scaling)
+- Verified that event splitting in `flare_daemon.py` splits by `:` to correctly parse `TC:DONE` and update `MMU_STATS`.
+- Added `sync_feedback_bias` to `klipper/mmu.py`'s `get_status` pointing to `self.sync_feedback` to fix the Fluidd buffer piston animation.
+- Updated `app.js` to dynamically scale buffer telemetry to `[-1.0, 1.0]` for Type-P and `[-12.5, 12.5]` for Type-D.
+- Corrected drawing polarity offset in WebUI to map Tension (negative) upwards and Compression (positive) downwards.
+- Ran static Python compiler validation check successfully.
+- Verified that both local Ninja builds compile clean.
+

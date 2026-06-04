@@ -7,6 +7,7 @@ let lastTelemetryData = null;
 let bufferHistory = []; // circular buffer of {time, pos}
 const MAX_HISTORY = 300;
 let bypassActive = false;
+let bufSensorType = 0;
 
 // Canvas setup
 const canvas = document.getElementById('buffer-chart');
@@ -106,6 +107,7 @@ function updateUIOffline() {
 
 function updateUIState(data) {
     lastTelemetryData = data;
+    bufSensorType = data.buf_sensor_type !== undefined ? data.buf_sensor_type : 0;
     // 1. Board status & headers
     const statusDot = document.getElementById('connection-dot');
     const statusLabel = document.getElementById('connection-status');
@@ -546,16 +548,16 @@ function drawChart() {
         ctx.stroke();
     }
     
-    // g_buf_pos is signed: 0 = neutral, + = tension (up), - = compression (down).
-    // Clamps to +/- BUF_MAX_TRAVEL_MM/2 (default 12.5mm); state thresholds at
-    // +/- BUF_SWITCH_SPAN_MM/2 (default 5.0mm). Map 0 to vertical center.
-    const HALF_RANGE_MM = 12.5;
-    const THRESHOLD_MM = 5.0;
+    // g_buf_pos is signed: 0 = neutral, - = tension (up), + = compression (down).
+    // Clamps to +/- HALF_RANGE (12.5 for Type-D, 1.0 for Type-P); state thresholds at
+    // +/- THRESHOLD (5.0 for Type-D, 0.5 for Type-P). Map 0 to vertical center.
+    const HALF_RANGE = bufSensorType === 1 ? 1.0 : 12.5;
+    const THRESHOLD = bufSensorType === 1 ? 0.5 : 5.0;
     const mmToY = (mm) => {
         const padding = 30;
         const usable = (h - padding * 2) / 2;
-        const clamped = Math.max(-HALF_RANGE_MM, Math.min(HALF_RANGE_MM, mm));
-        return h / 2 - (clamped / HALF_RANGE_MM) * usable;
+        const clamped = Math.max(-HALF_RANGE, Math.min(HALF_RANGE, mm));
+        return h / 2 + (clamped / HALF_RANGE) * usable;
     };
 
     // Draw boundary markers
@@ -568,18 +570,18 @@ function drawChart() {
     ctx.lineTo(w, mmToY(0));
     ctx.stroke();
 
-    // Tension boundary (top, +threshold)
+    // Tension boundary (top, -threshold)
     ctx.strokeStyle = 'rgba(255, 74, 96, 0.08)';
     ctx.beginPath();
-    ctx.moveTo(0, mmToY(THRESHOLD_MM));
-    ctx.lineTo(w, mmToY(THRESHOLD_MM));
+    ctx.moveTo(0, mmToY(-THRESHOLD));
+    ctx.lineTo(w, mmToY(-THRESHOLD));
     ctx.stroke();
 
-    // Compression boundary (bottom, -threshold)
+    // Compression boundary (bottom, +threshold)
     ctx.strokeStyle = 'rgba(255, 74, 96, 0.08)';
     ctx.beginPath();
-    ctx.moveTo(0, mmToY(-THRESHOLD_MM));
-    ctx.lineTo(w, mmToY(-THRESHOLD_MM));
+    ctx.moveTo(0, mmToY(THRESHOLD));
+    ctx.lineTo(w, mmToY(THRESHOLD));
     ctx.stroke();
     
     // If no history, don't draw line

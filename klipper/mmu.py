@@ -1470,6 +1470,7 @@ class MMUMock:
             'toolhead_sensor': self.toolhead_sensor,
             'sync_feedback': self.sync_feedback,
             'sync_feedback_state': self.sync_feedback_state,
+            'sync_feedback_bias': self.sync_feedback,
             'sync_feedback_bias_modelled': self.sync_feedback,
             'sync_feedback_enabled': self.sync_feedback_enabled,
             'print_job_state': self.print_job_state,

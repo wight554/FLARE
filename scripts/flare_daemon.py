@@ -71,6 +71,7 @@ status_cache = {
     "toolhead": 0, "y_split": 0,
     "sync_enabled": 0,
     "reload_mode": 0,
+    "buf_sensor_type": 0,
     "timestamp": 0.0
 }
 
@@ -610,8 +611,17 @@ def serial_reader(port_name, baud):
                 # Check for asynchronous Event stream
                 if line.startswith("EV:"):
                     evt_body = line[3:]
-                    evt_type = evt_body.split(",")[0] if "," in evt_body else evt_body
-                    evt_data = evt_body.split(",", 1)[1] if "," in evt_body else ""
+                    parts = evt_body.split(":")
+                    if len(parts) > 1:
+                        if parts[0] in ("TC", "CUT", "FAULT", "BL", "BUF_STAB", "SYNC") and len(parts) >= 2:
+                            evt_type = f"{parts[0]}:{parts[1]}"
+                            evt_data = ":".join(parts[2:])
+                        else:
+                            evt_type = parts[0]
+                            evt_data = ":".join(parts[1:])
+                    else:
+                        evt_type = evt_body
+                        evt_data = ""
                     print(f"flare_daemon Event: {line}")
                     add_event_to_history(evt_type, evt_data)
                     record_event_stats(evt_type, evt_data)
