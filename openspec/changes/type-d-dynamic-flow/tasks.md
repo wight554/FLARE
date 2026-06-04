@@ -185,3 +185,13 @@ AIMD, no clock**. COMPRESSION (not a timeout) is the recovery-done signal.
   shows. No fast-case regression (burst stays collapsed). **Baked
   `SYNC_TENSION_PROBE_DOWN` default 600 → 1200.** Audibly indistinguishable but
   measurably quieter.
+- [x] 6.6 COMPRESSION back-off clamp at EST (2026-06-04): operator saw an
+  occasional **compression→tension lean** (not a double-click) — the floor
+  ramped DOWN past demand during a long compression dwell, left COMPRESSION
+  under-fed, then drained into TENSION. Fix: clamp the per-tick down-ramp at the
+  live `extruder_est_sps` (`floor = max(floor - DOWN·dt, EST)`) so back-off eases
+  toward demand but never below it — overshoot stays on the safe (compression)
+  side, a genuine demand drop still leaks down as the drain crossing re-lowers
+  EST. Dissolves the DOWN-vs-lean seesaw so DOWN 1200 (wall-quiet) is kept.
+  Build green. Hard to repro (rare) — shipped as directionally-correct, HW
+  watch pending.
