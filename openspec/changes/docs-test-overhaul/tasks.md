@@ -16,5 +16,5 @@
 
 ## 3. Link Verification & Final Check
 
-- [ ] 3.1 Perform a global repository scan of documentation links and update any broken references
-- [ ] 3.2 Run the static regression validation script (`validate_regression.sh`) to confirm the entire gate remains green
+- [x] 3.1 Perform a global repository scan of documentation links and update any broken references
+- [x] 3.2 Run the static regression validation script (`validate_regression.sh`) to confirm the entire gate remains green
