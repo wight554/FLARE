@@ -2212,6 +2212,9 @@ void sync_tick(uint32_t now_ms) {
                saturation check re-faults on the next tick -> infinite
                FAULT_HOLD <-> RECOVERY <-> AUTO_START loop. */
             g_buf_analog_saturated_since_ms = 0;
+            /* Restart the tension-dwell timer so it counts from activation, not a
+               stale idle value (see the auto-start note below). */
+            sync_tension_pin_since_ms = (g_buf.state == BUF_TENSION) ? now_ms : 0;
             sync_set_state(SYNC_ACTIVE);
             sync_auto_started = true;
             sync_tail_assist_active = !lane_in_present(A) && lane_out_present(A);
@@ -2238,6 +2241,7 @@ void sync_tick(uint32_t now_ms) {
             if (relief_rearm) {
                 if (BUF_SENSOR_TYPE == 0) g_buf_pos = buf_target_reserve_mm();
                 sync_current_sps = sync_bootstrap_sps();
+                sync_tension_pin_since_ms = (g_buf.state == BUF_TENSION) ? now_ms : 0;
                 sync_set_state(SYNC_ACTIVE);
                 sync_auto_started = true;
                 sync_tail_assist_active = !lane_in_present(A) && lane_out_present(A);
@@ -2300,6 +2304,12 @@ void sync_tick(uint32_t now_ms) {
         bool tail_assist = !lane_in_present(A) && lane_out_present(A);
         int startup_sps = sync_bootstrap_sps();
         sync_current_sps = startup_sps;
+        /* Count tension-dwell from activation, not a stale idle value. Because
+           BUF_GOAL is compression-side, the buffer rests in the control TENSION
+           zone while idle, so sync_tension_pin_since_ms (set on the NEUTRAL->TENSION
+           transition, even while sync is OFF) accumulates a large stale dwell. On
+           auto-start the tension-dwell fault would then fire instantly. Restart it. */
+        sync_tension_pin_since_ms = (g_buf.state == BUF_TENSION) ? now_ms : 0;
         sync_set_state(SYNC_ACTIVE);
         sync_auto_started = true;
         sync_tail_assist_active = tail_assist;
