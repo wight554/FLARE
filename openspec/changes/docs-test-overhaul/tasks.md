@@ -10,7 +10,7 @@
 - [x] 2.1 Refactor `README.md` to be user/operator oriented (intro, quick start, features list, simple concept overview)
 - [x] 2.2 Reorganize `BUILD_FLASH.md` to put Precompiled UF2 / simple flashing steps first, moving CMake developer source instructions to the bottom
 - [x] 2.3 Add a step-by-step wiring section in `HARDWARE.md` for human operators to wire up steppers and sensors easily
-- [ ] 2.4 Refactor `KLIPPER.md` to present a clear Fluidd/Mainsail macros copy-paste guide and dashboard setup
+- [x] 2.4 Refactor `KLIPPER.md` to present a clear Fluidd/Mainsail macros copy-paste guide and dashboard setup
 - [ ] 2.5 Restructure `TUNING.md` to show a simple 5-minute tuning checklist first, relocating mathematical analyzer details to an appendix
 - [ ] 2.6 Prepend developer warning banners at the top of `AGENTS.md`, `AI.md`, and `CONTEXT.md` to prevent operator confusion
 
