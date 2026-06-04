@@ -69,13 +69,15 @@
 - [x] 4.2 **Rig**: boot with loaded buffer at the rail → boot-stab drives to goal.
   PASS via deferred + retried boot trigger.
 
-  2026-06-04: a single boot-time `boot_stabilize_start` did not stick (transient
-  early-boot abort / brief spring-back off goal). Moved the trigger into the main
-  loop and made it retry every 1.5s until `buf_state_raw()==BUF_NEUTRAL` or a 12s
-  deadline (`62e82ad`, `0e32360`); `boot_stabilize_start` flipped to
-  `emit_events=true`. Boot now converges to `BP +0.40` in 2-3 nudges and holds.
-  Minor: 2-3 `BUF_STAB:START/DONE` cycles at boot during convergence (benign,
-  finite). A manual `BS` from a settled buffer still lands in one drive.
+  2026-06-04 (final): root cause = the boot-time trigger at ~750ms ran before the
+  motor/TMC + buffer signal had settled, so the first drive was sluggish and hit
+  the rail-break cap (`STAGNANT`). Fix: one-shot deferred boot stabilize at
+  `BOOT_STAB_FIRST_MS = 2500` (`34f3a30`); `boot_stabilize_start` emits events.
+  Single `BUF_STAB:START → DONE`, `BP +0.40`, holds. No retry — a STAGNANT would
+  mean the delay needs raising, kept honest. (Interim retry approach `62e82ad`/
+  `0e32360`/`91038b2`/`8741893` superseded; `boot_stabilize_settled()` left as an
+  unused accessor.) Position-based rail detection (`9afa3fb`) + desaturated-window
+  timer remain required for the cold `−1.0` breakaway.
 - [ ] 4.3 **Rig**: measure breakaway distance (mm fed before `g_buf_pos` leaves
   `−1.0`); set `PSF_STAB_RAIL_BREAK_MS` ≥ that + margin; record value.
 - [ ] 4.4 **Rig**: uncoupled / jammed buffer (won't track) → aborts at the cap
