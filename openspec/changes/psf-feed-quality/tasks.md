@@ -1,9 +1,17 @@
 ## 1. Real-print evidence (gates everything)
 
-- [ ] 1.1 **Rig**: run a real print (or a continuous-feed sequence, not 150 mm
-  burst-then-stop). Stream `g_buf_pos` + events. Confirm: no `FAULT_HOLD` /
-  `cannot_refill` mid-print; record steady-state buffer band and any
-  surface artifacts that correlate with `BS:TENSION`/`COMPRESSION` swings.
+- [x] 1.1 **Rig**: real print (few minutes) + end pause. PASS — no `FAULT_HOLD` /
+  `cannot_refill` the entire print; `SM:1 ST:1` throughout. Buffer hunts
+  `≈ −0.5 … +0.6` (compression-biased ~+0.2), feed surges `MM 100↔2000`, but
+  **never saturates mid-print** → extruder always fed → flow unaffected (hunting is
+  mechanical surge/noise, not a flow defect in this trace). End-of-print: extruder
+  stops → buffer rides to `+1.0` as feed decays to floor → `RELIEF_PAUSE` → settles
+  to goal `+0.40` (correct Layer-3 behavior; brief, feed already at floor). The
+  fault-timer fixes hold under real printing.
+
+  Open: the hunting amplitude is benign for flow here but mechanically active
+  (motor surge). Pursue 2.x only if a print *surface* shows buffer-correlated
+  artifacts; the cleanest damp is a small `KD_PSF` (2.2).
 
 ## 2. Feed hunting / end-burst overshoot
 
