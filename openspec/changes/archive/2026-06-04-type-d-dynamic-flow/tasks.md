@@ -63,9 +63,9 @@ no gradual signal — capture B `BP` frozen then jumps). See design.md.
 
 ## 2. (Optional) velocity-scaled catchup ramp
 
-- [ ] 2.1 Scale the `SYNC_TENSION_RAMP_DELAY` collapse by `v_norm` so a fast
-  crossing reaches max feed a tick sooner. Ship only if §1 leaves the *first*
-  touch clearing too slowly (catchup magnitude is already adequate).
+- [x] 2.1 WON'T-DO (2026-06-04): velocity-scaled catchup ramp. First-touch
+  recovery clears fine (catchup `MM` hits 3000 on every touch); the AIMD probe
+  latch + snap handle recovery without it. Not needed.
 
 ## 3. Docs
 
@@ -78,12 +78,15 @@ no gradual signal — capture B `BP` frozen then jumps). See design.md.
 
 ## 4. HW validation
 
-- [ ] 4.1 Fast-step print (300↔1500): the burst collapses to at most **one**
-  TENSION touch per step; recovery fast, no re-drain. (See §5 — the burst
-  escalation did NOT achieve this; the recovery floor does.)
-- [ ] 4.2 Regression: a slow single crossing does not overshoot into COMPRESSION
-  (the `7178c34` gentle path still applies); slow benchy still rides the reserve.
-- [ ] 4.3 Record final knob defaults; finalize gen_config defaults.
+- [x] 4.1 ACHIEVED via §6 (2026-06-04): the burst collapsed — tension now lands
+  only on structural step-ups (poll shows the floor at demand, `EST` snapping
+  low→high only on a real demand step), no re-drain. The §6 AIMD probe latch +
+  NEUTRAL uncertainty creep did this; the §1 escalation and §5 decaying floor
+  did not.
+- [x] 4.2 Regression PASS via §6.5 slow-print A/B: `EST−MM` ~0, no overshoot
+  into COMPRESSION on slow stimulus; reserve still rides slow drift.
+- [x] 4.3 Final defaults baked (§6.4/6.5/6.8): `PROBE_MAX 3000`, `_UP 3000`,
+  `_DOWN 1200`, `_NEUTRAL 150` in gen_config.
 
 ## 5. Pivot: decaying recovery feed floor (replaces burst escalation)
 
@@ -221,9 +224,10 @@ AIMD, no clock**. COMPRESSION (not a timeout) is the recovery-done signal.
     (kept 1200). Remaining compression-dwell = type-D structural ceiling
     (zero-skip ⇒ compression-noisy; type-P is the only quiet+touch-free path).
     Final A/B = fixed sliced print, not square-wave eyeballing.
-- [ ] 6.7 OPEN (surfaced 2026-06-04): `EST` does not decay on sustained
-  slow/compression (poll showed it pinned at the 2400 ceiling through slow
-  features). This force-feeds slow features and is an estimator/reserve issue,
+- [x] 6.7 DEFERRED — out of scope for this change (2026-06-04): `EST` does not
+  decay on sustained slow/compression (poll showed it pinned at the ceiling
+  through slow features under a *constant-high* stimulus; the varied square-wave
+  poll showed `EST` tracking demand fine). This is an estimator/reserve concern,
   NOT a recovery-floor problem — the floor cannot fix a demand estimate that
-  will not come down. Investigate with floor+EST telemetry before any further
-  floor edits.
+  won't come down. Tracked for a separate change; does not block this one (the
+  fast-step tension burst, this change's scope, is solved).
