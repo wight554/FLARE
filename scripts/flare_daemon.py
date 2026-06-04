@@ -987,6 +987,18 @@ def klipper_syncer(moonraker_url):
             if state.get(k) != last_sync.get(k):
                 changed = True
 
+        # Check if sync_feedback changed significantly to update Mainsail/Fluidd piston
+        stype = state.get("buf_sensor_type", 0)
+        g_buf_pos = state.get("g_buf_pos", 0.0)
+        sync_feedback = max(-1.0, min(1.0, g_buf_pos)) if stype == 1 else max(-1.0, min(1.0, g_buf_pos / 15.0))
+
+        last_stype = last_sync.get("buf_sensor_type", 0)
+        last_g_buf_pos = last_sync.get("g_buf_pos", 0.0)
+        last_sync_feedback = max(-1.0, min(1.0, last_g_buf_pos)) if last_stype == 1 else max(-1.0, min(1.0, last_g_buf_pos / 15.0))
+
+        if abs(sync_feedback - last_sync_feedback) > 0.05:
+            changed = True
+
         # Force full sync every 10 seconds to recover if Klipper/Moonraker restarted
         if time.time() - last_force_sync > 10.0:
             changed = True
@@ -1016,7 +1028,7 @@ def klipper_syncer(moonraker_url):
             sync_feedback = max(-1.0, min(1.0, g_buf_pos))
         else:
             sync_feedback = max(-1.0, min(1.0, g_buf_pos / 15.0))
-        sync_feedback_enabled = 1 if stype == 1 else 0
+        sync_feedback_enabled = 1
         buf_state = state.get("buf_state", "NEUTRAL").lower()
         if buf_state in ["+", "tension"]:
             buf_state = "tension"

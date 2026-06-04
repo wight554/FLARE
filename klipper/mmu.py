@@ -75,7 +75,7 @@ class MMUMock:
         self.board_rev_rate = 50.0
         self.unload_phase_start = 0.0
         self.cut_phase_start = 0.0
-        self.load_phase_start = 0.0
+        self.load_phase_start = None
         self.current_phase = "idle"
         self.tc_state = "UNKNOWN"
         self.th_clear_time = None
@@ -995,10 +995,10 @@ class MMUMock:
                 self.th_clear_time = None
         else:
             self.current_phase = "load"
-            self.load_phase_start = 0.0
+            self.load_phase_start = None
 
         self.cut_phase_start = 0.0
-        self.load_phase_start = 0.0
+        self.load_phase_start = None
 
         try:
             while not self._is_toolhead_sensor_triggered():
@@ -1133,17 +1133,20 @@ class MMUMock:
             if self.current_phase != "unload":
                 self.current_phase = "unload"
                 self.unload_phase_start = now
+                self.load_phase_start = None
                 self.th_clear_time = None
         elif tc_state in ["UNLOAD_WAIT_CUT", "UNLOAD_CUT"]:
             if self.current_phase != "cut":
                 self.current_phase = "cut"
                 self.cut_phase_start = now
+                self.load_phase_start = None
                 self.unload_completed = True
         elif tc_state in ["LOAD_START", "LOAD_WAIT_OUT", "LOAD_WAIT_TH"]:
             if self._is_toolhead_sensor_triggered():
                 self.current_phase = "idle"
+                self.load_phase_start = None
             else:
-                if self.current_phase != "load":
+                if self.current_phase != "load" or self.load_phase_start is None:
                     self.current_phase = "load"
                     self.load_phase_start = now
                     self.unload_completed = False
@@ -1161,15 +1164,18 @@ class MMUMock:
             if is_restage:
                 if self.current_phase != "load":
                     self.current_phase = "idle"
+                    self.load_phase_start = None
             elif action == "Loading":
                 if self._is_toolhead_sensor_triggered():
                     self.current_phase = "idle"
+                    self.load_phase_start = None
                 elif self.current_phase == "unload" and not self.gate_sensor_active:
                     # Tail of an unload with an empty gate: settle at idle rather
                     # than counting up from a stray "Loading" label.
                     self.current_phase = "idle"
+                    self.load_phase_start = None
                 else:
-                    if self.current_phase != "load":
+                    if self.current_phase != "load" or self.load_phase_start is None:
                         self.current_phase = "load"
                         self.load_phase_start = now
                         self.loading_start_time = now
@@ -1397,7 +1403,7 @@ class MMUMock:
                 # Filament is fully unloaded back to the gate/drive gears, hold at 0.0 mm
                 filament_position = 0.0
             elif self.current_phase == "load":
-                elapsed = now - self.load_phase_start if self.load_phase_start > 0.0 else 0.0
+                elapsed = now - self.load_phase_start if self.load_phase_start is not None else 0.0
                 # Count up from 0.0 to path_len (1925 mm) instead of bowden_length (1800 mm)
                 filament_position = min(path_len, elapsed * self.loading_speed)
             else:
