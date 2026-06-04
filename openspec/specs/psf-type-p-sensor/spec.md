@@ -289,12 +289,12 @@ guard (relief jog or tension-dwell block); it SHALL rely on the `UNLOAD_MAX`
 distance limit (`UNLOAD_TIMEOUT`) for the stuck case. The type-D guards (recover
 jog + `UNLOAD_TENSION_BLOCK`) SHALL remain unchanged and gated `BUF_SENSOR_TYPE == 0`.
 
-First-rig finding (supersedes the earlier position-based design): type-P homes at
-the tension rail and relaxes back to it throughout ANY normal retract — mid-tube,
+First-rig finding (supersedes earlier position-based design): type-P homes at
+tension rail and relaxes back to it throughout ANY normal retract — mid-tube,
 deep, or starting from compression — so buffer position is indistinguishable from
-a real extruder-gripping jam (both sit at the rail; only whether OUT eventually
-clears differs). The position-based guard false-fired (relief jog stalled the
-unload at ~0 mm; the dwell block raised spurious `UNLOAD_BLOCKED`).
+real extruder-gripping jam (both sit at rail; only whether OUT eventually
+clears differs). Position-based guard false-fired (relief jog stalled unload at
+~0 mm; dwell block raised spurious `UNLOAD_BLOCKED`).
 
 #### Scenario: Type-P normal retract is not blocked
 - **WHEN** a type-P unload retracts with the buffer resting at the tension rail (mid-tube, deep, or starting from compression)

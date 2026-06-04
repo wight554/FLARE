@@ -47,7 +47,7 @@ The workflow MUST retain manual G-code marker support when UDS or sidecar is una
 ## Historical Rationale and Constraints
 
 ### Stutter Removal
-Sidecar + UDS avoids `RUN_SHELL_COMMAND` latency (stutter). Calibration becomes a passive measurement.
+Sidecar + UDS avoids `RUN_SHELL_COMMAND` latency (stutter). Calibration becomes passive measurement.
 
 ### UDS Contract
 - **Default Paths**: `/tmp/klippy_uds`, `/tmp/klippy.sock`.

@@ -59,11 +59,10 @@ The generated patch MUST include a contributor evidence block for learned values
 ## Historical Rationale and Constants
 
 ### Stability
-Precision weighting (`n/sigma²`) and 5/95 tail trimming replaced the "dominant pick" method to prevent recommendation oscillation across runs.
+Precision weighting (`n/sigma²`) and 5/95 tail trimming replaced "dominant pick" method to prevent recommendation oscillation across runs.
 
 ### Constants and Constraints
 - **Qualifying Set**: Safe mode uses LOCKED buckets ONLY.
 - **Sigma Footer**: `[0.1, 5.0]` mm physical range.
 - **Weight Cap**: Capped at `5 * median(weights)` to prevent single-bucket dominance.
-- **Safe Fallback**: Safe mode is for re-tunes. Aggressive mode is the bootstrap path.
-
+- **Safe Fallback**: Safe mode is for re-tunes. Aggressive mode is bootstrap path.

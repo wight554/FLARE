@@ -55,7 +55,7 @@ The analyzer MUST mark telemetry counters as pending until real log parsing exis
 ## Historical Rationale and Constants
 
 ### Stability
-The shared `recommend_for_subset` path ensures the gate measures real recommendation stability, not raw per-bucket noise.
+Shared `recommend_for_subset` path ensures gate measures real recommendation stability, not raw per-bucket noise.
 
 ### Thresholds and Constants
 - **`MIN_COMPARABLE_BUCKETS = 3`**: Minimum qualifying buckets per run.
@@ -65,5 +65,5 @@ The shared `recommend_for_subset` path ensures the gate measures real recommenda
 - **`RAW_COVERAGE_WARN = 0.80`**: Warning floor for raw NEUTRAL row coverage.
 
 ### Risks and Constraints
-- **Wrapper**: `compute_recommendations` is a thin wrapper to maintain test stability.
-- **Classification**: A minimum of 2 comparable runs is required for consistency reduction.
+- **Wrapper**: `compute_recommendations` is thin wrapper to maintain test stability.
+- **Classification**: Minimum 2 comparable runs required for consistency reduction.

@@ -8,11 +8,10 @@ Defines shared buffer geometry terms so firmware, docs, and tuning guides use th
 Buffer geometry SHALL be configured through exactly two full-range tunables
 with semantics aligned to Happy Hare / EMU Sync:
 
-- `buf_switch_span_mm` — the FULL distance the filament travels between the
-  COMPRESSION switch trip and the TENSION switch trip (the switch-active
-  sensing span).
-- `buf_max_travel_mm` — the FULL mechanical buffer travel (total stroke,
-  including overtravel past the switches).
+- `buf_switch_span_mm` — FULL filament travel between COMPRESSION switch trip
+  and TENSION switch trip (switch-active sensing span).
+- `buf_max_travel_mm` — FULL mechanical buffer travel (total stroke, including
+  overtravel past switches).
 
 Both keys SHALL appear in `config.ini` (and `config.ini.example` if it
 exists) and flow to firmware via generated `CONF_*` macros. The legacy keys

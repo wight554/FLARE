@@ -11,16 +11,16 @@ and exposure SHALL follow that tier:
 
 - **T0 board constant** — pins, sense resistor, lane count. Lives in
   `firmware/include/config.h`. Not in `config.ini`, not persisted, not settable.
-- **T1 hardware limit** — physical motor/driver/wiring facts (a wrong value
+- **T1 hardware limit** — physical motor/driver/wiring facts (wrong value
   mis-drives the mechanism). Full path: `config.ini` → `gen_config.py` →
   `CONF_*` → `settings_t` → `SET:`/`GET:`.
-- **T2 durable tunable** — this-build geometry and operator/print taste with a
+- **T2 durable tunable** — this-build geometry and operator/print taste with
   documented tuning procedure. Same full path as T1.
-- **T3 internal constant** — control-loop constants tuned once against the
+- **T3 internal constant** — control-loop constants tuned once against
   algorithm, with no documented operator procedure. Lives as a compile-time
   constant — a `tune_internal.h` `#define` (unit-independent values) or, where a
   value requires the motor's `mm_per_step` conversion, a `gen_config`-emitted
-  `tune.h` `CONF_*`. NOT in `config.ini.example`, NOT persisted, NOT in the
+  `tune.h` `CONF_*`. NOT in `config.ini.example`, NOT persisted, NOT in
   release `SET:`/`GET:` surface.
 
 #### Scenario: A parameter without an operator procedure is T3

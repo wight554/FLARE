@@ -1,10 +1,10 @@
 # FLARE – Git Workflow
 
-This repo drives real hardware. The workflow goals are simple:
+Repo drives real hardware. Workflow goals:
 
 - `main` stays buildable and flashable
-- experimental work is easy to isolate when needed
-- each commit leaves a clear recovery point
+- experimental work easy to isolate when needed
+- each commit leaves clear recovery point
 
 ---
 
@@ -13,18 +13,18 @@ This repo drives real hardware. The workflow goals are simple:
 ### `main`
 
 - primary development branch
-- expected to stay buildable
-- expected to stay flashable on hardware
+- expected buildable
+- expected flashable on hardware
 
 ### Optional short-lived branches
 
-Use a branch when the work is risky, long-running, or hardware-specific.
+Use branch for risky, long-running, or hardware-specific work.
 
 - `feature/<name>`: new functionality
 - `fix/<name>`: bug fixes
 - `hw/<name>`: board/pin/timing/hardware experiments
 
-For small, validated changes, direct work on `main` is acceptable.
+For small validated changes, direct work on `main` is acceptable.
 
 ---
 
@@ -39,7 +39,7 @@ git pull
 
 ### 2. Decide whether to branch
 
-Stay on `main` for small contained work, or create a branch:
+Stay on `main` for small contained work, or create branch:
 
 ```bash
 git switch -c feature/<name>
@@ -65,12 +65,12 @@ If scripts changed:
 python3 -m py_compile scripts/*.py
 ```
 
-If parameter names, commands, or behavior changed, update the docs in the same pass.
-If new functionality is added, analyze the current affected flows and confirm they remain intact unless the change intentionally redefines them.
+If parameter names, commands, or behavior changed, update docs in same pass.
+If new functionality added, analyze affected flows and confirm they remain intact unless change intentionally redefines them.
 
 ### 4. Commit with the project format
 
-Use shell git commands for staging, committing, and pushing. Do not rely on Git MCP commit helpers.
+Use project commit format:
 
 ```text
 <short description>

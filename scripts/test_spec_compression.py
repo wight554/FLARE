@@ -10,9 +10,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SPEC_GLOB = "openspec/specs/**/spec.md"
-MAX_FILLER_DENSITY_PCT = 16.0
+MAX_FILLER_DENSITY_PCT = 6.0
 PURPOSE_HEADING = "## Purpose"
 WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]*")
+RFC2119_RE = re.compile(r"\b(SHALL|MUST|SHOULD|MAY|REQUIRED)\b")
+SCENARIO_MARKER_RE = re.compile(r"^- \*\*(WHEN|THEN|AND|GIVEN|BUT)\*\*")
 FILLER_WORDS = {
     "a",
     "an",
@@ -95,13 +97,39 @@ def prose_without_protected_regions(text):
         if in_fence:
             continue
         if not stripped:
+            lines.append("")
             continue
         if stripped.startswith("#") or stripped.startswith("|"):
+            lines.append("")
             continue
         if line.startswith("    "):
+            lines.append("")
             continue
         lines.append(line)
-    return "\n".join(lines)
+    return "\n".join(compressible_paragraphs(lines))
+
+
+def compressible_paragraphs(lines):
+    paragraphs = []
+    current = []
+
+    def flush():
+        if not current:
+            return
+        text = "\n".join(current)
+        if not RFC2119_RE.search(text) and not any(
+            SCENARIO_MARKER_RE.match(line.strip()) for line in current
+        ):
+            paragraphs.extend(current)
+        current.clear()
+
+    for line in lines:
+        if not line.strip():
+            flush()
+            continue
+        current.append(line)
+    flush()
+    return paragraphs
 
 
 def words_for_density(text):

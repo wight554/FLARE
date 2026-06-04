@@ -1,14 +1,14 @@
 > [!IMPORTANT]
 > **DEVELOPER AND AI AGENT GUIDE ONLY**
-> This document contains instructions for configuring AI developer environments, skills, and MCP servers. If you are a printer operator, please refer to the operator guides in the [README](README.md) instead.
+> AI developer environment setup: skills, MCP servers, global tool config. Printer operators: use operator guides in the [README](README.md).
 
 # FLARE — AI Assistance & MCP Setup
 
-**Global-First** AI config. Skills and MCP servers at user level — consistent across `claude-code`, `gemini-cli`, `antigravity`, IDE Copilot.
+**Global-first** AI config. Skills and MCP servers live at user level, shared by `claude-code`, `gemini-cli`, `antigravity`, IDE Copilot.
 
 ## Global Configuration Overview
 
-All AI tools use shared env in home dir:
+All AI tools use shared home-dir env:
 
 - **Primary Source**: `~/.gemini/extensions/caveman/`
 - **Claude Integration**: `~/.claude/skills/` (linked to Gemini source)
@@ -65,14 +65,13 @@ Add `cavemem` MCP to `~/.claude/settings.json` and `~/.gemini/settings.json`:
 
 - **No local config commits**: `.agent/`, `.agents/`, `.claude/`, `.codex/`, `.gemini/`, `.github/skills/`, `.github/prompts/`, and `skills-lock.json` must NOT be committed. Relies on global config above.
 - **Model Attribution**: Include `Generated-By: <Agent> (<Model>)` in commit messages.
-- **Workflow**: Follow the OpenSpec workflow in `AGENTS.md` and
-  `openspec/specs/task-workflow/spec.md` for context management.
+- **Workflow**: Follow `AGENTS.md` and `openspec/specs/task-workflow/spec.md`.
 
 ## OpenSpec / OpsX Setup
 
-This repo keeps only project OpenSpec data in `openspec/`. Tool-specific
-OpenSpec/OpsX skills and commands are installed globally so every project can
-reuse the same workflow without committing local agent config.
+Repo keeps only project OpenSpec data in `openspec/`. Tool-specific
+OpenSpec/OpsX skills and commands stay global so every project reuses workflow
+without committed local agent config.
 
 Global OpenSpec skill locations on this machine:
 
@@ -84,7 +83,7 @@ Global OpenSpec skill locations on this machine:
 | Generic agents | `~/.agents/skills/openspec-*`, `~/.agents/workflows/opsx-*.md` |
 | GitHub/Copilot | `~/.github/skills/openspec-*`, `~/.github/prompts/opsx-*.prompt.md` |
 
-To initialize OpenSpec in a project, commit the project spec directory only:
+To initialize OpenSpec in a project, commit project spec dir only:
 
 ```bash
 mkdir -p openspec
@@ -98,13 +97,12 @@ YAML
 ```
 
 Do not copy `.claude/`, `.codex/`, `.gemini/`, `.agent/`, or `.github/skills`
-into the project. If a project needs custom OpenSpec behavior, encode it in
+into project. If project needs custom OpenSpec behavior, encode it in
 `openspec/config.yaml` or committed specs, not tool-local skill folders.
 
-For durable behavioral contracts, prefer `openspec/specs/<area>/spec.md`.
-Future substantial changes should begin in `openspec/changes/<change-id>/`
-with proposal/design/tasks artifacts, then fold durable outcomes back into
-`openspec/specs/`. Do not keep migrated historical phase/task archives in-tree;
-use git history for old prose and implementation prompts.
+Durable behavioral contracts live in `openspec/specs/<area>/spec.md`.
+Substantial changes start in `openspec/changes/<change-id>/` with
+proposal/design/tasks, then fold durable outcomes back into `openspec/specs/`.
+Do not keep migrated historical phase/task archives in-tree; use git history.
 
 See `AGENTS.md` for firmware engineering mandates and full session start protocol.
