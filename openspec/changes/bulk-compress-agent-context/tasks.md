@@ -26,7 +26,7 @@
 - [x] 4.2 Run `openspec validate bulk-compress-agent-context --strict`
 - [x] 4.3 Run `python3 scripts/test_spec_compression.py`
 - [x] 4.4 Run `scripts/validate_regression.sh` if `scripts/test_spec_compression.py` changes
-- [ ] 4.5 Record validation and commit SHA in this task ledger
+- [x] 4.5 Record validation and commit SHA in this task ledger
 
 ## Validation - 2026-06-05
 
@@ -34,3 +34,4 @@
 - `python3 scripts/test_spec_compression.py` PASS.
 - `python3 -m py_compile scripts/*.py` PASS.
 - `scripts/validate_regression.sh` PASS, including generated `tune.h`, firmware build via `ninja -C build_local`, unittest discovery, mock MMU status self-test, and `git diff --check`.
+- Implementation commit: `7b15ef2`.
