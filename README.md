@@ -95,3 +95,11 @@ Where to find details for your project phase:
 > - Keep filament clear of the toolhead path until your basic autoload and unload commands are verified.
 > - Be ready to run the Stop command (`scripts/flare_cmd.py "ST:"`) if any motor behaves unexpectedly.
 > - Do not run autonomous RELOAD mode prints completely unattended until you have verified sensor triggers and path clearance.
+
+---
+
+## AI-Assisted Development
+
+FLARE is implemented using AI coding agents, but is strictly **human-directed and spec-driven**, not "AI slop."
+
+Every change proposal, requirements specification, and design decision is written and reviewed by the human maintainer before code is executed. For AI developer settings and rules, see [AI.md](AI.md) and [AGENTS.md](AGENTS.md).
