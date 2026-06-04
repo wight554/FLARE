@@ -27,9 +27,15 @@
 
 ## 3. BS no-op from mid-tension
 
-- [ ] 3.1 **Capture**: reproduce `BS` from mid-tension (`BP ~ −0.4`, not saturated)
-  while streaming events — determine whether the no-op `BS` emits `BUF_STAB:DONE`
-  (predict-early-stop) or `STAGNANT_TIMEOUT`.
+- [ ] 3.1 **Capture**: reproduce `BS` no-op while streaming events. Could NOT repro
+  via `MV → BS` from mid-tension (BS drove cleanly to goal even from `BP −0.45`/`−0.03`
+  with residual velocity) — so predict-on-residual-velocity is **ruled out**. The
+  original no-op happened **during hand-loading, settled at `−0.4`** (lane/presence
+  in flux). New lead: the cause is likely an **early-return before arming**
+  (controller-not-idle / presence / lane), not predict/stagnant. KEY QUESTION to
+  capture next time: **does the no-op `BS` emit `BUF_STAB:START`?** No START →
+  early-return (check `L1T/L2T/TC` for an active load/preload task at that moment);
+  START-but-no-move → predict/stagnant.
 - [ ] 3.2 If `DONE` instantly: guard the predict-reached so it cannot fire on the
   first tick after `START`, or require a minimum off-start displacement before
   honoring `reached` (residual `g_vel_norm_f` makes `predicted >= goal` spuriously).
