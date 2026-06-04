@@ -193,5 +193,16 @@ AIMD, no clock**. COMPRESSION (not a timeout) is the recovery-done signal.
   toward demand but never below it — overshoot stays on the safe (compression)
   side, a genuine demand drop still leaks down as the drain crossing re-lowers
   EST. Dissolves the DOWN-vs-lean seesaw so DOWN 1200 (wall-quiet) is kept.
-  Build green. Hard to repro (rare) — shipped as directionally-correct, HW
-  watch pending.
+  **REVERTED (2e64ba2):** HW poll showed `EST` pinned at ~2400 (ceiling)
+  through slow features — the frozen-EST type-D limit — so clamping
+  `floor >= EST` pinned the floor high: slow features overfed into long
+  COMPRESSION pins, fast features bang-banged at 2400. The clamp assumed EST
+  tracks demand; between crossings it does not. Restored plain leaky AIMD
+  back-off. The rare compression→tension lean is unsolved and needs floor+EST
+  telemetry to catch, not a blind EST bound.
+- [ ] 6.7 OPEN (surfaced 2026-06-04): `EST` does not decay on sustained
+  slow/compression (poll showed it pinned at the 2400 ceiling through slow
+  features). This force-feeds slow features and is an estimator/reserve issue,
+  NOT a recovery-floor problem — the floor cannot fix a demand estimate that
+  will not come down. Investigate with floor+EST telemetry before any further
+  floor edits.
