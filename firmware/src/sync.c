@@ -2205,6 +2205,13 @@ void sync_tick(uint32_t now_ms) {
             g_buf.state = BUF_NEUTRAL;
             g_buf.entered_ms = now_ms;
             sync_current_sps = sync_bootstrap_sps();
+            /* Type-P: clear the saturation timer so the recovered ACTIVE state gets
+               a fresh PSF_WALL_SAT_MS window for the refill snap to relieve the
+               rail. Without this, a buffer still pinned at -1.0 (extruder kept
+               pulling through the hold) carries a stale, long-expired timer and the
+               saturation check re-faults on the next tick -> infinite
+               FAULT_HOLD <-> RECOVERY <-> AUTO_START loop. */
+            g_buf_analog_saturated_since_ms = 0;
             sync_set_state(SYNC_ACTIVE);
             sync_auto_started = true;
             sync_tail_assist_active = !lane_in_present(A) && lane_out_present(A);
