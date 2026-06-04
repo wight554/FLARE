@@ -154,6 +154,9 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `KD_PSF` | _(runtime only)_ | Type-P derivative gain: velocity damping applied to sync output (units: sps per normalised vel). Not persisted; resets to `0.0` on boot. | 0.0 |
 | `SYNC_PSF_SLEW_PER_MM` | _(runtime only)_ | Type-P feed slew limit: max sps change per mm of filament moved. Lower = gentler feed accel. Not persisted. | 1500 |
 | `SYNC_PSF_FILTER_MM` | _(runtime only)_ | Type-P feed target EMA length in mm (distance-based smoothing). Bigger = smoother. Not persisted. | 25.0 |
+| `PSF_STAB_STAGNANT_MS` | `psf_stab_stagnant_ms` | Type-P buffer-stabilize dry-spin window after leaving a saturated rail. Live-tunable; not persisted. | 200 |
+| `PSF_STAB_STAGNANT_NORM` | `psf_stab_stagnant_norm` | Minimum normalized buffer motion inside the stagnant window before `BUF_STAB:STAGNANT_TIMEOUT`. Live-tunable; not persisted. | 0.03 |
+| `PSF_STAB_RAIL_BREAK_MS` | `psf_stab_rail_break_ms` | Max time type-P buffer-stabilize may drive while the analog signal remains saturated at a rail. Live-tunable; not persisted. | 1500 |
 
 ### Speeds & Rates (mm/min)
 | Parameter | `config.ini` Key | Description | Default |
@@ -324,7 +327,7 @@ after `SS:`; `BL` and `BF` appear with the core sync fields near `SM`.
 | `SYNC` | `AUTO_START\|AUTO_STOP\|FAULT_HOLD\|FAULT_HOLD_RECOVERY\|TENSION_DWELL_WARN\|TENSION_RISK_HIGH` | Automatic sync state transitions. `FAULT_HOLD` fires on tension-dwell timeout or hard-wall critical; recovers automatically after `CONF_SYNC_FAULT_HOLD_RECOVERY_MS`. `TENSION_DWELL_WARN` fires when centering drift reaches a significant threshold. `TENSION_RISK_HIGH` fires when tension-pin density in the rolling window reaches `TENSION_RISK_THR`. |
 | `BUF` | `DRIFT_RESET` | Drift EWMA was reset. Fires when sync stops, `EST_FALLBACK` occurs, or sensor is hot-swapped. Subsequent `BPN` will restart from 0. |
 | `BUF` | `EST_LOW_CF\|EST_FALLBACK` | Buffer estimator events. `EST_LOW_CF` fires when confidence drops; `EST_FALLBACK` fires when sigma exceeds the hard cap. |
-| `BUF_STAB` | `START\|DONE\|TIMEOUT` | Buffer neutralization started, reached `NEUTRAL`, or hit its safety timeout. |
+| `BUF_STAB` | `START\|DONE\|TIMEOUT\|STAGNANT_TIMEOUT` | Buffer neutralization started, reached `NEUTRAL`, hit its safety timeout, or stopped because the buffer did not track the stabilize move. |
 | `BS` | Mode-specific snapshot | Periodic buffer/sync status event used during sync and RELOAD follow. |
 | `TC:*` | Phase-specific | Toolchange progress events such as `TC:UNLOADING`, `TC:SWAPPING`, `TC:LOADING`, `TC:DONE`, `TC:ERROR`. |
 | `RELOAD:*` | Phase-specific | RELOAD progress and fault events such as `RELOAD:SWITCHING`, `RELOAD:JOINING`, `RELOAD:LOADED`, `RELOAD:FAULT`. |

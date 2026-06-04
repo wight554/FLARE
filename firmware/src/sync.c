@@ -904,9 +904,16 @@ void buffer_stabilize_tick(uint32_t now_ms) {
     }
 
     if (BUF_SENSOR_TYPE == 1 && g_boot_stabilizing) {
-        if ((int32_t)(now_ms - g_boot_stabilize_started_ms) >= 200) {
+        if (g_buf_analog_saturated_since_ms != 0) {
+            if ((int32_t)(now_ms - g_boot_stabilize_started_ms) >= PSF_STAB_RAIL_BREAK_MS) {
+                if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "STAGNANT_TIMEOUT");
+                boot_stabilize_stop();
+                return;
+            }
+            g_boot_stabilize_start_pos = g_buf_pos;
+        } else if ((int32_t)(now_ms - g_boot_stabilize_started_ms) >= PSF_STAB_STAGNANT_MS) {
             float change = fabsf(g_buf_pos - g_boot_stabilize_start_pos);
-            if (change < 0.03f) {
+            if (change < PSF_STAB_STAGNANT_NORM) {
                 if (g_buffer_stabilize_emit_events) cmd_event("BUF_STAB", "STAGNANT_TIMEOUT");
                 boot_stabilize_stop();
                 return;

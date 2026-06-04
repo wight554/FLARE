@@ -258,6 +258,17 @@ direct-apply both applied only to non-type-P or were replaced by this path. Both
 knobs are live-tunable (`SET:SYNC_PSF_SLEW_PER_MM` / `SET:SYNC_PSF_FILTER_MM`),
 runtime-only (not persisted; re-seeded from defaults each boot).
 
+#### Type-P buffer-stabilize rail breakaway
+
+`BS` and boot-time stabilize use `BUF_STAB_SPS` to move a type-P buffer toward
+`BUF_GOAL`. If the analog signal is saturated at a rail, the short dry-spin
+guard is deferred while the motor breaks through the rail's mechanical deadband.
+The breakaway is bounded by `PSF_STAB_RAIL_BREAK_MS`; if the signal is still
+saturated past that cap, stabilize emits `BUF_STAB:STAGNANT_TIMEOUT` and stops.
+After the signal desaturates, the normal dry-spin guard applies:
+`PSF_STAB_STAGNANT_MS` with minimum movement `PSF_STAB_STAGNANT_NORM`. These
+three knobs are live-tunable and runtime-only.
+
 #### Type-D Standalone Relay Control Law
 
 For Sync-Feedback Sensor type D (`BUF_SENSOR_TYPE == 0`), FLARE overrides the continuous PI/EKF estimator-driven target with a two-level hysteretic relay control law matched directly to the physical microswitches:

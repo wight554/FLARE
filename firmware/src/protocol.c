@@ -978,6 +978,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "SYNC_PSF_SLEW_PER_MM")) SYNC_PSF_SLEW_PER_MM = clamp_f(fv, 1.0f, 50000.0f);
         else if (!strcmp(base_param, "SYNC_PSF_FILTER_MM")) SYNC_PSF_FILTER_MM = clamp_f(fv, 0.1f, 500.0f);
         else if (!strcmp(base_param, "SYNC_PSF_DECAY_SPS_PER_S")) SYNC_PSF_DECAY_SPS_PER_S = clamp_f(fv, 0.0f, 200000.0f);
+        else if (!strcmp(base_param, "PSF_STAB_STAGNANT_MS")) PSF_STAB_STAGNANT_MS = (iv < 0) ? 0 : iv;
+        else if (!strcmp(base_param, "PSF_STAB_STAGNANT_NORM")) PSF_STAB_STAGNANT_NORM = clamp_f(fv, 0.0f, 1.0f);
+        else if (!strcmp(base_param, "PSF_STAB_RAIL_BREAK_MS")) PSF_STAB_RAIL_BREAK_MS = (iv < 0) ? 0 : iv;
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "SYNC_OVERSHOOT_PCT")) SYNC_OVERSHOOT_PCT = clamp_i(iv, 0, 200);
 #endif
@@ -1175,6 +1178,9 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "SYNC_PSF_SLEW_PER_MM")) snprintf(out, sizeof(out), "SYNC_PSF_SLEW_PER_MM:%.1f", (double)SYNC_PSF_SLEW_PER_MM);
         else if (!strcmp(param, "SYNC_PSF_FILTER_MM")) snprintf(out, sizeof(out), "SYNC_PSF_FILTER_MM:%.2f", (double)SYNC_PSF_FILTER_MM);
         else if (!strcmp(param, "SYNC_PSF_DECAY_SPS_PER_S")) snprintf(out, sizeof(out), "SYNC_PSF_DECAY_SPS_PER_S:%.1f", (double)SYNC_PSF_DECAY_SPS_PER_S);
+        else if (!strcmp(param, "PSF_STAB_STAGNANT_MS")) snprintf(out, sizeof(out), "PSF_STAB_STAGNANT_MS:%d", PSF_STAB_STAGNANT_MS);
+        else if (!strcmp(param, "PSF_STAB_STAGNANT_NORM")) snprintf(out, sizeof(out), "PSF_STAB_STAGNANT_NORM:%.3f", (double)PSF_STAB_STAGNANT_NORM);
+        else if (!strcmp(param, "PSF_STAB_RAIL_BREAK_MS")) snprintf(out, sizeof(out), "PSF_STAB_RAIL_BREAK_MS:%d", PSF_STAB_RAIL_BREAK_MS);
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "SYNC_OVERSHOOT_PCT")) snprintf(out, sizeof(out), "SYNC_OVERSHOOT_PCT:%d", SYNC_OVERSHOOT_PCT);
 #endif

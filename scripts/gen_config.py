@@ -113,6 +113,9 @@ DEFAULTS = {
     "sync_tick_ms": "20",
     "sync_psf_slew_per_mm": "1500",   # type-P feed slew: max sps change per mm filament moved (lower = gentler)
     "sync_psf_filter_mm": "25.0",     # type-P feed target EMA length in mm (bigger = smoother)
+    "psf_stab_stagnant_ms": "200",    # type-P BS dry-spin window after leaving a saturated rail
+    "psf_stab_stagnant_norm": "0.03", # type-P BS min normalized motion inside the dry-spin window
+    "psf_stab_rail_break_ms": "1500", # type-P BS max drive time while still saturated at a rail
     "baseline_rate": "1600",
     "baseline_settle_count": "3",
     "baseline_variance_reject_frac": "0.15",
@@ -519,6 +522,9 @@ def main():
         f"#define CONF_SYNC_TICK_MS       {get('sync_tick_ms')}",
         f"#define CONF_SYNC_PSF_SLEW_PER_MM  {get_float('sync_psf_slew_per_mm')}f",
         f"#define CONF_SYNC_PSF_FILTER_MM {get_float('sync_psf_filter_mm')}f",
+        f"#define CONF_PSF_STAB_STAGNANT_MS {get('psf_stab_stagnant_ms')}",
+        f"#define CONF_PSF_STAB_STAGNANT_NORM {get_float('psf_stab_stagnant_norm')}f",
+        f"#define CONF_PSF_STAB_RAIL_BREAK_MS {get('psf_stab_rail_break_ms')}",
         f"#define CONF_BASELINE_SPS       {mm_min_to_sps(get('baseline_rate'), l1)}",
         f"#define CONF_BASELINE_SETTLE_COUNT {get('baseline_settle_count')}",
         f"#define CONF_BASELINE_VARIANCE_REJECT_FRAC {get_float('baseline_variance_reject_frac')}f",
