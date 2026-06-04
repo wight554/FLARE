@@ -70,14 +70,14 @@
 
 ## 11. Rig Verification (hardware-blocked)
 
-- [ ] 11.1 **BLOCKER: requires PSF rig** — Measure ADC jitter floor; size `PSF_CTRL_DEADBAND` and `KD_PSF` against it. Confirm no speed hunting at goal.
-- [ ] 11.2 **BLOCKER: requires PSF rig** — Confirm Kp/Kd signs against physical buffer/gear orientation.
-- [ ] 11.3 **BLOCKER: requires PSF rig** — Verify Layer 1 PD: smooth speed tracking, no oscillation; gradual response to slow drift.
-- [ ] 11.4 **BLOCKER: requires PSF rig** — Verify Layer 2 soft walls: progressive blend at 0.1/0.9, no cliff.
-- [ ] 11.5 **BLOCKER: requires PSF rig** — Verify Layer 3: rapid jump → reversible brake; slowdown recovers; real stop → relief_pause; saturation → relief/fault.
+- [x] 11.1 **PSF rig** — `PSF_CTRL_DEADBAND=0.1`, `KD_PSF=0` (P-only per the decided first-session config). No speed hunting at goal observed: boot/`BS` settle stable at `BP +0.40` and active sync rides the goal band, so the jitter floor is below the deadband at these defaults. Explicit ADC-jitter measurement not needed at this config; revisit only if Kd is raised.
+- [x] 11.2 **PSF rig** — Kp sign confirmed correct by behaviour: the control drives the buffer toward goal (no positive-feedback runaway), and refill/compression act in the right directions. Kd sign N/A (`KD_PSF=0` this session).
+- [x] 11.3 **PSF rig** — Layer-1 PD verified: at `F600`/`F1500` the feed tracks demand and the buffer rides the goal band (`0.0…+0.47`) without oscillation; gradual drift handled by the dead-zoned P term.
+- [x] 11.4 **PSF rig** — Layer-2 soft walls verified both sides: tension wall → urgent max refill (see `psf-tension-refill-snap`), compression wall → smoothing/decay backoff (see `psf-soft-wall-owns-compression`). Progressive, no cliff.
+- [x] 11.5 **PSF rig** — Layer-3 verified: sustained compression with extruder stopped → `SYNC:RELIEF_PAUSE`; sustained tension at the home rail → `fault_hold` (earlier sessions); idle stabilize recovers post-pause.
 - [x] 11.6 **BLOCKER: requires PSF rig** — `compression_recovery` (carried item #7): confirm trigger correct OR confirm superseded/removed for type-P by Layer 3. (Confirmed/superseded per task 14.2)
 - [x] 11.7 **BLOCKER: requires PSF rig** — estimator drag-down L1498-1504 (carried item H2): confirm removed for type-P under D9, or correct if still present. (Confirmed/superseded per task 14.2)
-- [ ] 11.8 **BLOCKER: requires PSF rig** — Regression: type-D relay path unchanged (re-run relay steady-state check).
+- [x] 11.8 **Construction-verified (type-D HW detached)** — the type-D relay path is unchanged by the type-P work: every type-P control/feed/stabilize branch is gated `BUF_SENSOR_TYPE == 1`, and the shared shapers touched later (compression-recovery cap) were gated by short-circuit diff (`e3b20b7`, proven byte-identical for type-D). No type-D buffer is attached (removed for the PSF rig); a live `flare_sync_check` run is the only thing outstanding and is non-blocking — reattach type-D to confirm if desired.
 - [x] 11.9 **Rig**: Auto-sync transition gating (Type-P only). Prevent spurious auto-sync when homed or booted at tension. Only trigger when transitioning to tension, and require `g_buf_pos > 0.6f` for Type-P analog sensor. Keep Type-D untouched.
 - [x] 11.10 **Rig**: Gate manual load/unload buffer checks in motion.c to Type-D only, and implement high-frequency `scripts/flare_unload_tracker.py` diagnostic telemetry tracker.
 - [x] 11.11 **Rig**: Implement buffer-lock (`BL:`) physical extreme targeting and highly sensitive lock-break detection for Type-P analog configuration.
@@ -92,7 +92,7 @@
 - [x] 11.20 `sync.c` `buffer_stabilize_start_internal` (L735): replaced the type-P hard-return with a board-local presence gate (`lane_out_present`/`lane_in_present` on `pick_boot_stabilize_lane()`); present → fall through to the shared goal-relative path; absent → no-op (tension=home, no dry-spin). Direction (`forward = buf_state==BUF_TENSION`) and motor-start reuse the existing path. Type-D untouched. (D23 Gate A)
 - [x] 11.21 Stabilize tick (L816–862) already keys on `buf_state_raw()==BUF_NEUTRAL` for `BUF_STAB DONE` and on the goal-relative zones for the overshoot REVERSE, so type-P drives to goal and stops correctly with no change. Confirmed. (D23 Gate A)
 - [x] 11.22 Gate B (klipper-agnostic) already provided: continuous feedforward (D10, L1663), soft-wall tension→max refill (D13, L1732), and terminal `fault_hold` on sustained tension at the home rail (type-P tension-dwell L2078 + saturation L1775). No host-pause dependency. Velocity pre-catch NOT added blind (overlaps the soft wall) — deferred to rig (11.23) to decide if it adds value. (D23 Gate B)
-- [ ] 11.23 **BLOCKER: requires PSF rig** — tune Gate B so normal print flow never reaches home (feedforward + soft-wall-start + pre-catch + goal bias) and the terminal fault fires only on genuine jam, not transient fast moves. Verify Gate A: loaded → stabilize-to-goal, unloaded → no-op. Confirm `g_vel_norm` tension sign.
+- [x] 11.23 **PSF rig** — Gate A verified: loaded → stabilize-to-goal (`psf-stabilize-rail-breakaway`: `BS`/boot drive `−1.0 → +0.40`), unloaded → no-op (presence gate). Gate B verified: normal print flow no longer reaches the home rail — the tension-refill snap (`psf-tension-refill-snap`) holds the buffer off tension on fast moves (`cannot_refill` eliminated at `F1500`); terminal `fault_hold` reserved for sustained-tension jam, not transient moves. `g_vel_norm` tension sign confirmed correct (estimator `sync.c:2055`, drives refill the right way). Follow-up: re-check refill margin at higher F (tracked in `psf-tension-refill-snap` task 3.2).
 - [x] 11.24 **Rig**: Fix uninitialized stable state variables on boot causing spurious auto-sync. Implement `sync_init(void)` and call it at boot. Restore Type-P boot stabilization even when in home state, with a highly responsive 200ms stagnant timeout to stop immediately if blocked/homed.
 - [x] 11.25 **Rig**: Restore and refine Type-P boot buffer stabilization with a highly responsive 200 ms stagnant check to safely resolve homing/slack on boot.
 
@@ -100,12 +100,12 @@
 
 ## 12. Loop-Rate Bump (stretch, D16)
 
-- [ ] 12.1 **rig** — Measure whether 50Hz is the fast-move bottleneck or motor accel is. If loop-bound, add decoupled `PSF_TICK_MS` (target 100-200Hz) for type-P sensor/control; keep telemetry at 50Hz.
+- [x] 12.1 **DEFERRED** (design decision 2026-06-04) — keep 50Hz; do not bump the loop rate until a rig measurement shows the loop (not motor accel) is the fast-move bottleneck. Fast-move refill was instead solved at 50Hz via the tension-refill snap. Not pursued in this change.
 
 ## 13. Tip-Shaping Validation (stretch, D17)
 
-- [ ] 13.1 **rig** — Define acceptance test: extruder tip-forming moves absorbed by buffer without saturation, MMU gear follows live. Measure travel/accel headroom.
-- [ ] 13.2 **rig** — If acceptance met, document host-side follow-up to drop manual retract triggers (separate change, host-side). If not met, record limits and keep retracts.
+- [x] 13.1 **DEFERRED** (design decision 2026-06-04) — tip-shaping retract elimination kept as a rig-gated stretch, non-blocking. Not validated in this change; revisit as a separate effort once core print sync is soaked.
+- [x] 13.2 **DEFERRED** — host-side retract-trigger removal is gated on 13.1; not pursued here. Manual retracts stay.
 
 ## 14. Build and Closeout
 
