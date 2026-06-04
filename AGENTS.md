@@ -51,7 +51,9 @@ Durable design history + behavioral contracts live in `openspec/`. Context windo
 4. **Never hold more than one file's worth of changes in memory** before committing.
 5. **Preserve `tasks.md` history** — never empty/truncate/delete the task list of an active change. Mark lines `[x]`, append dated validation notes. Must stay reconstructable at archive.
 
-**Spec reading map:** sync/calibration/tuner/analyzer work → read `openspec/specs/sync-refactor/spec.md` first, then the phase spec (`calibration-workflow`, `bucket-locking`, `analyzer-rigor`, …). Workflow/task rules → `openspec/specs/task-workflow/spec.md`. Firmware architecture/gotchas → `openspec/specs/project-architecture/spec.md` + `CONTEXT.md`. Old rationale/prompts → git history.
+**Read specs lazily — do NOT load whole specs.** Specs are large dense contracts; reading one in full burns context for one edit. Instead: read the spec's `## Purpose` + the `### Requirement:` headers as an index, then read only the specific requirement/scenario block you are touching (use offset/range reads). Pull more sections only when a task actually needs them.
+
+**Spec reading map:** sync/calibration/tuner/analyzer work → start at `openspec/specs/sync-refactor/spec.md` (Purpose + headers), then the relevant phase spec (`calibration-workflow`, `bucket-locking`, `analyzer-rigor`, …). Workflow/task rules → `openspec/specs/task-workflow/spec.md`. Firmware architecture/gotchas → `openspec/specs/project-architecture/spec.md` + `CONTEXT.md`. Old rationale/prompts → git history.
 
 ---
 
