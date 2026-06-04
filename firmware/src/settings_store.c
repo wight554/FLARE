@@ -171,6 +171,7 @@ void settings_defaults(void) {
     SYNC_TENSION_PROBE_MAX_SPS = clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(6000.0f));
     SYNC_TENSION_PROBE_UP_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
     SYNC_TENSION_PROBE_DOWN_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+    SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
     
     SYNC_COMPRESSION_BIAS_FRAC = clamp_f(CONF_SYNC_COMPRESSION_BIAS_FRAC, 0.0f, 0.7f);
     flow_schedule_reset_runtime();
@@ -429,6 +430,7 @@ void settings_load(void) {
     SYNC_TENSION_PROBE_MAX_SPS = clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(6000.0f));
     SYNC_TENSION_PROBE_UP_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
     SYNC_TENSION_PROBE_DOWN_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+    SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
 
     SYNC_COMPRESSION_BIAS_FRAC = clamp_f(s->sync_compression_bias_frac, 0.0f, 0.7f);
     flow_schedule_reset_runtime();

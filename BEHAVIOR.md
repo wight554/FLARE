@@ -297,7 +297,11 @@ feed-side **held floor latch** up to the freshly-raised `EST`, applied only
 while the buffer is back in `BUF_NEUTRAL`. The latch then hunts by symmetric
 AIMD with no clock: `BUF_TENSION` probes it up at `SYNC_TENSION_PROBE_UP`
 (capped at `SYNC_TENSION_PROBE_MAX`), `BUF_COMPRESSION` eases it down at
-`SYNC_TENSION_PROBE_DOWN`, `BUF_NEUTRAL` holds. Hitting `BUF_COMPRESSION` — not
+`SYNC_TENSION_PROBE_DOWN`, and `BUF_NEUTRAL` — the uncertain state, where the
+buffer may drift to either rail and only a click resolves it — **creeps** the
+floor up gently at `SYNC_TENSION_PROBE_NEUTRAL` so the uncertainty resolves into
+a safe COMPRESSION click rather than a metastable `feed == demand` drift into
+TENSION (`0` restores the plain hold). Hitting `BUF_COMPRESSION` — not
 a timeout — is the recovery-complete signal, so no slow-fast-slow interval is
 guessed. The latch does not modify `extruder_est_sps`, so recovery-cycle
 fill/drain estimator samples cannot pull it down; it converges to ~demand,

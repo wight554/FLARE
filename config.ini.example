@@ -106,6 +106,8 @@ run_current:
                                     # mm/min, clamp 0..6000.
 # sync_tension_probe_up: 3000       # Floor probe-up rate while TENSION; mm/min per s.
 # sync_tension_probe_down: 1200     # Floor ease-off rate while COMPRESSION; mm/min per s.
+# sync_tension_probe_neutral: 300   # Floor uncertainty-creep rate while NEUTRAL (toward the
+                                    # safe COMPRESSION rail); mm/min per s. 0 = hold (no creep).
 # sync_relay_trim_step_sps: 300       # Type-D residual trim step; lower = slower correction,
                                       # rarer plateau clicks.
 # sync_relay_trim_clamp_sps: 2000     # Type-D residual trim anti-windup clamp.

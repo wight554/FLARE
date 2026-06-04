@@ -2507,6 +2507,15 @@ void sync_tick(uint32_t now_ms) {
             g_tension_floor_sps += (float)SYNC_TENSION_PROBE_UP_SPS_PER_S * tick_dt_s;
         } else if (s == BUF_COMPRESSION) {
             g_tension_floor_sps -= (float)SYNC_TENSION_PROBE_DOWN_SPS_PER_S * tick_dt_s;
+        } else {
+            /* NEUTRAL is the uncertain state: the buffer may be drifting to
+             * either rail and only a click resolves it. Creep the floor up
+             * (gently) so uncertainty always resolves into a COMPRESSION click
+             * (safe, drains) rather than a metastable drift into TENSION (a
+             * starve). The longer the dwell, the more we lean — uncertainty
+             * grows with time since the last crossing. COMPRESSION then backs
+             * it off, so this is a bounded, compression-biased sawtooth. */
+            g_tension_floor_sps += (float)SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S * tick_dt_s;
         }
         if (g_tension_floor_sps > (float)SYNC_TENSION_PROBE_MAX_SPS)
             g_tension_floor_sps = (float)SYNC_TENSION_PROBE_MAX_SPS;

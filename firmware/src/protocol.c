@@ -114,6 +114,7 @@ static bool live_tune_locked_param(const char *param) {
            !strcmp(param, "SYNC_TENSION_PROBE_MAX") ||
            !strcmp(param, "SYNC_TENSION_PROBE_UP") ||
            !strcmp(param, "SYNC_TENSION_PROBE_DOWN") ||
+           !strcmp(param, "SYNC_TENSION_PROBE_NEUTRAL") ||
            !strcmp(param, "RELAY_MIN_FLIP_MM") ||
            !strcmp(param, "RELAY_COLLAPSE_DELAY_MS") ||
            !strcmp(param, "RELAY_COLLAPSE_RAMP_MULT") ||
@@ -1015,6 +1016,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(base_param, "SYNC_TENSION_PROBE_MAX")) SYNC_TENSION_PROBE_MAX_SPS = clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(6000.0f));
         else if (!strcmp(base_param, "SYNC_TENSION_PROBE_UP")) SYNC_TENSION_PROBE_UP_SPS_PER_S = clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(12000.0f));
         else if (!strcmp(base_param, "SYNC_TENSION_PROBE_DOWN")) SYNC_TENSION_PROBE_DOWN_SPS_PER_S = clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(12000.0f));
+        else if (!strcmp(base_param, "SYNC_TENSION_PROBE_NEUTRAL")) SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S = clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(12000.0f));
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(base_param, "RELAY_MIN_FLIP_MM")) RELAY_MIN_FLIP_MM = clamp_f(fv, 0.0f, 100.0f);
         else if (!strcmp(base_param, "RELAY_COLLAPSE_DELAY_MS")) RELAY_COLLAPSE_DELAY_MS = clamp_i(iv, 0, 5000);
@@ -1210,6 +1212,7 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         else if (!strcmp(param, "SYNC_TENSION_PROBE_MAX")) snprintf(out, sizeof(out), "SYNC_TENSION_PROBE_MAX:%.1f", (double)sps_to_mm_per_min_idx(SYNC_TENSION_PROBE_MAX_SPS, idx));
         else if (!strcmp(param, "SYNC_TENSION_PROBE_UP")) snprintf(out, sizeof(out), "SYNC_TENSION_PROBE_UP:%.1f", (double)sps_to_mm_per_min_idx(SYNC_TENSION_PROBE_UP_SPS_PER_S, idx));
         else if (!strcmp(param, "SYNC_TENSION_PROBE_DOWN")) snprintf(out, sizeof(out), "SYNC_TENSION_PROBE_DOWN:%.1f", (double)sps_to_mm_per_min_idx(SYNC_TENSION_PROBE_DOWN_SPS_PER_S, idx));
+        else if (!strcmp(param, "SYNC_TENSION_PROBE_NEUTRAL")) snprintf(out, sizeof(out), "SYNC_TENSION_PROBE_NEUTRAL:%.1f", (double)sps_to_mm_per_min_idx(SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, idx));
 #ifdef FLARE_DEV_TUNING
         else if (!strcmp(param, "RELAY_MIN_FLIP_MM")) snprintf(out, sizeof(out), "RELAY_MIN_FLIP_MM:%.3f", (double)RELAY_MIN_FLIP_MM);
         else if (!strcmp(param, "RELAY_COLLAPSE_DELAY_MS")) snprintf(out, sizeof(out), "RELAY_COLLAPSE_DELAY_MS:%d", RELAY_COLLAPSE_DELAY_MS);

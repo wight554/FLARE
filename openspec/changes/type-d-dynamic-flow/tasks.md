@@ -200,6 +200,18 @@ AIMD, no clock**. COMPRESSION (not a timeout) is the recovery-done signal.
   tracks demand; between crossings it does not. Restored plain leaky AIMD
   back-off. The rare compression→tension lean is unsolved and needs floor+EST
   telemetry to catch, not a blind EST bound.
+- [x] 6.8 NEUTRAL uncertainty creep (2026-06-04): operator note — the AIMD
+  held in NEUTRAL, but NEUTRAL is the *uncertain* state (buffer may drift to
+  either rail; only a click resolves it). Poll showed the floor leaking to
+  `feed == demand` exactly → metastable → slow noise drift into a TENSION click
+  (the bad rail). Added a gentle NEUTRAL up-creep `floor += PROBE_NEUTRAL·dt`
+  toward the safe COMPRESSION rail, so uncertainty always resolves into a
+  compression click (drains) not a tension starve; dwell-based, needs no
+  dead-reckon (distinct from the dropped position lean) and guarantees a rail
+  (unlike a fixed `RELAY_NEUTRAL_FRAC` offset). New knob
+  `SYNC_TENSION_PROBE_NEUTRAL` (default 300 mm/min/s, gentle; 0 = old hold).
+  Build + param-width green. HW watch pending — ship behind knob, observe poll
+  before baking; risk = over-compression if too high.
 - [ ] 6.7 OPEN (surfaced 2026-06-04): `EST` does not decay on sustained
   slow/compression (poll showed it pinned at the 2400 ceiling through slow
   features). This force-feeds slow features and is an estimator/reserve issue,

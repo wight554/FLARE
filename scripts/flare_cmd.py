@@ -129,6 +129,7 @@ DUMP_PARAMS = [
     ("SYNC_TENSION_PROBE_MAX", "sync_tension_probe_max", False),
     ("SYNC_TENSION_PROBE_UP", "sync_tension_probe_up", False),
     ("SYNC_TENSION_PROBE_DOWN", "sync_tension_probe_down", False),
+    ("SYNC_TENSION_PROBE_NEUTRAL", "sync_tension_probe_neutral", False),
     ("RELAY_MIN_FLIP_MM", "relay_min_flip_mm",         False),
     ("RELAY_COLLAPSE_DELAY_MS", "relay_collapse_delay_ms", False),
     ("RELAY_COLLAPSE_RAMP_MULT", "relay_collapse_ramp_mult", False),

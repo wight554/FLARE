@@ -151,6 +151,7 @@ DEFAULTS = {
     "sync_tension_probe_max": "3000",   # mm/min, latch ceiling
     "sync_tension_probe_up": "3000",    # mm/min per s, probe up while TENSION
     "sync_tension_probe_down": "1200",  # mm/min per s, ease off while COMPRESSION
+    "sync_tension_probe_neutral": "300", # mm/min per s, uncertainty creep toward COMPRESSION while NEUTRAL
     # Drift Observer
 
     # Adaptive Sync
@@ -546,6 +547,7 @@ def main():
         f"#define CONF_SYNC_TENSION_PROBE_MAX_SPS {mm_min_to_sps(get('sync_tension_probe_max'), l1)}",
         f"#define CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S {mm_min_to_sps(get('sync_tension_probe_up'), l1)}",
         f"#define CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S {mm_min_to_sps(get('sync_tension_probe_down'), l1)}",
+        f"#define CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S {mm_min_to_sps(get('sync_tension_probe_neutral'), l1)}",
         f"#define CONF_ZONE_BIAS_BASE_SPS   {mm_min_to_sps(get('zone_bias_base_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_RAMP_SPS_S {mm_min_to_sps(get('zone_bias_ramp_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_MAX_SPS    {mm_min_to_sps(get('zone_bias_max_rate'), l1)}",
