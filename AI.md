@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> **DEVELOPER AND AI AGENT GUIDE ONLY**
+> This document contains instructions for configuring AI developer environments, skills, and MCP servers. If you are a printer operator, please refer to the operator guides in the [README](README.md) instead.
+
 # FLARE — AI Assistance & MCP Setup
 
 **Global-First** AI config. Skills and MCP servers at user level — consistent across `claude-code`, `gemini-cli`, `antigravity`, IDE Copilot.

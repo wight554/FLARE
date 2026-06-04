@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> **DEVELOPER AND AI AGENT GUIDE ONLY**
+> This document contains internal developer guidelines, codebase navigation tips, and firmware structural contexts designed for developers and AI agents. If you are a printer operator, please refer to the operator guides in the [README](README.md) instead.
+
 # FLARE — Project Context
 
 Quick ref for firmware work. The validated architecture contract lives in

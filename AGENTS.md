@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> **DEVELOPER AND AI AGENT GUIDE ONLY**
+> This document contains technical onboarding rules, session startup protocols, and constraints meant specifically for developers and autonomous coding assistants (such as Claude or Gemini). If you are a printer operator looking to wire, build, or configure FLARE, please refer to the operator guides listed in the [README](README.md) instead.
+
 # FLARE — Agent Onboarding
 
 For AI agents (Claude, Gemini, Codex, Opus, Copilot, etc.). Read first, then
