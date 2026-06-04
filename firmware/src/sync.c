@@ -2618,6 +2618,18 @@ void sync_tick(uint32_t now_ms) {
     }
 
     if (fast_brake_active) { sync_current_sps = 0; g_psf_target_filt = 0.0f; }
+    else if (BUF_SENSOR_TYPE == 1 &&
+             buf_pos_norm() < -CONF_PSF_SOFT_WALL_START &&
+             target_sps > sync_current_sps) {
+        /* Urgent refill: the buffer is starved into the TENSION soft-wall zone and
+           the distance-EMA below is far too slow to ramp feed before it slams the
+           rail (cannot_refill). Feed-up into tension is the safe+urgent direction
+           (worst case is a brief overfeed once recovered, which COMPRESSION-side
+           smoothing handles), so snap straight to the soft-wall target. Once the
+           buffer climbs back out of the wall, the smoothing path resumes. */
+        sync_current_sps = target_sps;
+        g_psf_target_filt = (float)target_sps;
+    }
     else if (BUF_SENSOR_TYPE == 1) {
         /* Type-P distance-based smoothing (Happy-Hare-style). Both the target
            EMA and the slew limit are keyed to filament distance moved this tick,
