@@ -14,7 +14,7 @@ before touching anything.
 ## Session Start Protocol
 
 Before anything else:
-1. Activate `caveman` skill (intensity: full).
+1. Use caveman-full chat style per `openspec/COMMS.md` (tool-agnostic; no Claude-only skill required).
 2. Proactively use `cavemem` MCP (or similar persistent memory tools) for cross-session context.
 3. Post in chat:
 
@@ -49,6 +49,9 @@ Two modes via `RELOAD_MODE`:
 FLARE keeps durable design history and current behavioral contracts in
 `openspec/`.
 
+- Author OpenSpec spec/change artifact prose compressed per
+  `openspec/COMPRESSION.md`, while preserving RFC-2119 clauses and
+  requirement/scenario structure exactly.
 - Current specs live under `openspec/specs/`.
 - New substantial work should start in `openspec/changes/<change-id>/` with
   `proposal.md`, `design.md`, and `tasks.md` before implementation.

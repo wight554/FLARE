@@ -16,10 +16,17 @@ context: |
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - Author OpenSpec prose compressed per openspec/COMPRESSION.md.
+    - Preserve RFC-2119 clauses and requirement/scenario structure exactly.
+  design:
+    - Author OpenSpec prose compressed per openspec/COMPRESSION.md.
+    - Preserve code blocks, inline code, paths, commands, and technical terms exactly.
+  specs:
+    - Author OpenSpec prose compressed per openspec/COMPRESSION.md.
+    - Preserve SHALL/MUST/SHOULD/MAY/REQUIRED clauses exactly; do not drop, merge, split, or reorder normative clauses.
+    - Preserve Requirement and Scenario headings plus WHEN/THEN structure exactly.
+  tasks:
+    - Author OpenSpec prose compressed per openspec/COMPRESSION.md.
+    - Keep task checkboxes and task history reconstructable.

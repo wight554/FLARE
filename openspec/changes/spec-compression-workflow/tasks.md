@@ -1,13 +1,13 @@
 ## 1. Portable compressor
 
-- [ ] 1.1 Create `openspec/COMPRESSION.md`: port the `caveman-compress` SKILL.md rules (source: `~/.claude/plugins/marketplaces/caveman/caveman-compress/SKILL.md` lines 38-112) — Remove / Preserve EXACTLY / Preserve Structure / Compress / CRITICAL code-block rule / Boundaries / Pattern examples
-- [ ] 1.2 Add the RFC-2119 contract guard section: never alter SHALL/MUST/SHOULD/MAY/REQUIRED, never drop/merge/reorder a normative clause, treat `### Requirement:`/`#### Scenario:` and WHEN/THEN as read-only structure
-- [ ] 1.3 State scope explicitly: applies to `openspec/specs/**` and `openspec/changes/**` artifact prose; no Claude-only tool required
+- [x] 1.1 Create `openspec/COMPRESSION.md`: port the `caveman-compress` SKILL.md rules (source: `~/.claude/plugins/marketplaces/caveman/caveman-compress/SKILL.md` lines 38-112) — Remove / Preserve EXACTLY / Preserve Structure / Compress / CRITICAL code-block rule / Boundaries / Pattern examples
+- [x] 1.2 Add the RFC-2119 contract guard section: never alter SHALL/MUST/SHOULD/MAY/REQUIRED, never drop/merge/reorder a normative clause, treat `### Requirement:`/`#### Scenario:` and WHEN/THEN as read-only structure
+- [x] 1.3 State scope explicitly: applies to `openspec/specs/**` and `openspec/changes/**` artifact prose; no Claude-only tool required
 
 ## 2. Cross-UI authoring directive
 
-- [ ] 2.1 Add a directive line + pointer to `AGENTS.md` (near the OpenSpec Workflow section): author spec/change bodies compressed per `openspec/COMPRESSION.md`
-- [ ] 2.2 Uncomment and extend the `rules:` block in `openspec/config.yaml` with per-artifact compression rules so the OpenSpec CLI injects the directive at artifact-creation time
+- [x] 2.1 Add a directive line + pointer to `AGENTS.md` (near the OpenSpec Workflow section): author spec/change bodies compressed per `openspec/COMPRESSION.md`
+- [x] 2.2 Uncomment and extend the `rules:` block in `openspec/config.yaml` with per-artifact compression rules so the OpenSpec CLI injects the directive at artifact-creation time
 
 ## 3. Regression tripwire
 
@@ -17,9 +17,9 @@
 
 ## 4. Caveman comms default (cross-UI)
 
-- [ ] 4.1 Create `openspec/COMMS.md`: port the caveman comms rules (source: `~/.claude/rules/caveman.md` + caveman skill) — drop articles/filler/pleasantries/hedging, fragments OK, exact technical terms, code blocks unchanged, intensity full
-- [ ] 4.2 Add the exclusions section to `openspec/COMMS.md`: commits/PRs, code + comments, user-facing docs (README/onboarding/operator guides), security warnings + irreversible-action confirmations stay normal prose
-- [ ] 4.3 Reword `AGENTS.md` session-start line ("Activate `caveman` skill (intensity: full)") into a tool-agnostic directive pointing to `openspec/COMMS.md`, so Codex/Gemini/Copilot get the actual rules, not an unloadable skill name
+- [x] 4.1 Create `openspec/COMMS.md`: port the caveman comms rules (source: `~/.claude/rules/caveman.md` + caveman skill) — drop articles/filler/pleasantries/hedging, fragments OK, exact technical terms, code blocks unchanged, intensity full
+- [x] 4.2 Add the exclusions section to `openspec/COMMS.md`: commits/PRs, code + comments, user-facing docs (README/onboarding/operator guides), security warnings + irreversible-action confirmations stay normal prose
+- [x] 4.3 Reword `AGENTS.md` session-start line ("Activate `caveman` skill (intensity: full)") into a tool-agnostic directive pointing to `openspec/COMMS.md`, so Codex/Gemini/Copilot get the actual rules, not an unloadable skill name
 
 ## 5. Verify
 
