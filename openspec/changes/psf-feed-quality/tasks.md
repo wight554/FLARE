@@ -15,14 +15,15 @@
 
 ## 2. Feed hunting / end-burst overshoot
 
-- [ ] 2.1 If 1.1 shows buffer-driven artifacts: moderate the tension-refill snap —
-  target `extruder_est × ~1.3` instead of `max_sps` (`sync.c` snap branch). Re-test;
-  watch for re-starvation if the demand estimate lags.
-- [ ] 2.2 Alternatively / additionally: enable a small `KD_PSF` to damp swing
-  velocity. Measure ADC jitter first (was deferred P-only); size Kd against it.
-- [ ] 2.3 End-burst overshoot to `+1.0` → `RELIEF_PAUSE`: confirm it only occurs at
-  genuine full stops (not mid-print). If it bites at pauses, check the wall-clock
-  decay (`SYNC_PSF_DECAY_SPS_PER_S`) drops feed fast enough on demand-stop.
+- [x] 2.1 **ACCEPTED — no action.** Multi-pause real print came out clean (operator
+  confirmed surface); the compression-biased hunting never saturates mid-print and
+  does not affect flow. Snap-moderation not needed.
+- [x] 2.2 **ACCEPTED — `KD_PSF` stays 0.** No buffer-driven artifacts on the printed
+  surface, so no derivative damping required. Revisit only if a future print shows
+  banding tracking the buffer swings.
+- [x] 2.3 **CONFIRMED.** End-burst `+1.0` → `RELIEF_PAUSE` occurs only at genuine
+  full stops (pauses / end of print), recovers to goal, and re-arms correctly on
+  resume across repeated pauses. Not a mid-print issue.
 
 ## 3. BS no-op from mid-tension
 
@@ -38,22 +39,18 @@
 
 ## 4. Auto-start trigger sensitivity
 
-- [ ] 4.1 The type-P auto-start gate requires `g_buf_pos < -0.6` AND
-  (`g_sync_tension_transitioned` || `g_vel_norm < -0.1`) (D18). A static buffer in
-  shallow tension (e.g. `-0.4`) does NOT auto-start by design. Decide on real-print
-  evidence whether `-0.6` is too conservative (sync engages late → a tension
-  excursion before feed catches).
-- [ ] 4.2 If an easier trigger is wanted: options — (a) make the `-0.6` threshold a
-  tunable knob; (b) tie it goal-relative (`goal_norm - margin`) instead of a fixed
-  `-0.6`; (c) lower it but keep the velocity term to preserve the D18 anti-spurious
-  intent (a static home rest must still not auto-start). Verify it does not
-  reintroduce boot/idle spurious auto-sync (the whole reason for D18 + the stale-
-  timer fixes).
-- [ ] 4.3 Cross-check with the `BS` no-op (section 3) and the `-0.4` idle rest: a
-  buffer resting at `-0.4` instead of goal `+0.40` is itself off-nominal — confirm
-  stabilize/`BS` reliably parks at goal so the auto-start band is rarely the
-  resting point anyway.
+- [x] 4.1 **ACCEPTED — `-0.6` gate kept.** Real print: auto-start re-armed correctly
+  on every pause-resume (buffer dives past `-0.6` under demand → `SM:1 ST:1`). The
+  threshold is not too conservative in practice; no late-engage starvation observed.
+- [x] 4.2 **No action.** No easier trigger needed (4.1). The `-0.6` + velocity gate
+  is doing its job without the boot/idle spurious auto-sync the D18 + stale-timer
+  fixes exist to prevent. Revisit only if a real workflow shows it engaging late.
+- [x] 4.3 **CONFIRMED.** Stabilize/`BS` parks at goal `+0.40` (not `-0.4`) in normal
+  operation, so the shallow-tension band is not the resting point. (The `-0.4`
+  resting case ties to the BS no-op below, not the auto-start gate.)
 
 ## 5. Closeout
 
-- [ ] 5.1 Resolve or consciously accept each item; archive.
+- [ ] 5.1 Only the **BS no-op (section 3)** remains open — needs a captured repro
+  (DONE vs STAGNANT) before a fix. Hunting / auto-start items accepted per the real
+  print. Archive once 3.x is resolved.
