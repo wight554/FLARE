@@ -339,7 +339,7 @@ latch then hunts by symmetric AIMD, with **no clock**:
   click (safe, drains) instead of letting `feed == demand` sit metastable and
   drift into a TENSION click (a starve). The longer the dwell, the more it
   leans — uncertainty grows with time since the last crossing. Gentle relative
-  to the up-ramp (≈300 vs 3000), so compression clicks stay rare/quiet. `0` =
+  to the up-ramp (≈150 vs 3000), so compression clicks stay rare/quiet. `0` =
   hold (old behaviour). Distinct from a position lean (no dead-reckon needed)
   and from `RELAY_NEUTRAL_FRAC` (a fixed offset can still be metastable; a
   creep *guarantees* the buffer reaches a rail).
@@ -373,7 +373,7 @@ SYNC_TENSION_FAST_MM_S   = 2.0  # full snap threshold for fast TENSION crossings
 SYNC_TENSION_PROBE_MAX   = 3000 # mm/min, recovery feed-floor latch ceiling
 SYNC_TENSION_PROBE_UP    = 3000 # mm/min per s, probe floor up while TENSION
 SYNC_TENSION_PROBE_DOWN  = 1200 # mm/min per s, ease floor down while COMPRESSION
-SYNC_TENSION_PROBE_NEUTRAL = 300 # mm/min per s, uncertainty creep toward COMPRESSION in NEUTRAL
+SYNC_TENSION_PROBE_NEUTRAL = 150 # mm/min per s, uncertainty creep toward COMPRESSION in NEUTRAL
 SYNC_COMPRESSION_DRAIN_FRAC      = 0.4  # 0.4 = fuller buffer / more tension margin (vs 0.2)
 SYNC_COMPRESSION_DRAIN_BUDGET_MM = 3.0
 ```

@@ -212,6 +212,15 @@ AIMD, no clock**. COMPRESSION (not a timeout) is the recovery-done signal.
   `SYNC_TENSION_PROBE_NEUTRAL` (default 300 mm/min/s, gentle; 0 = old hold).
   Build + param-width green. HW watch pending — ship behind knob, observe poll
   before baking; risk = over-compression if too high.
+  - HW (2026-06-04): creep WORKS — poll shows NEUTRAL feed actively climbing to
+    a COMPRESSION click; **tension now only on structural step-ups** (floor sits
+    at demand, EST snaps low→high only when demand actually steps), metastable
+    slow-drift-to-tension gone. Swept 300→150: 150 overshoots less (high-demand
+    floor ~1789 vs ~2083 over demand ~810, −22 %) → shorter compression drains,
+    no regression. **Baked default 300 → 150.** DOWN 2400 vs 1200 was ~no-op
+    (kept 1200). Remaining compression-dwell = type-D structural ceiling
+    (zero-skip ⇒ compression-noisy; type-P is the only quiet+touch-free path).
+    Final A/B = fixed sliced print, not square-wave eyeballing.
 - [ ] 6.7 OPEN (surfaced 2026-06-04): `EST` does not decay on sustained
   slow/compression (poll showed it pinned at the 2400 ceiling through slow
   features). This force-feeds slow features and is an estimator/reserve issue,
