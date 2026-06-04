@@ -591,4 +591,5 @@ hardware. Run it, then drive `MMU_LOAD` / `MMU_UNLOAD` / a cut.
 ## Phase 41: Fix Host-Side Event Parsing and Delimiter Handling
 - [ ] 41.1 Fix `scripts/flare_daemon.py` event parser to split `EV:` messages by colon `:` instead of comma `,` to correctly parse and track `TC:DONE`, `TC:ERROR`, `LOADED`, and `UNLOADED` events.
 - [ ] 41.2 Verify that `MMU_STATS` success rates and counts are updated and persistent.
-- [ ] 41.3 Run static python checks (`python3 -m py_compile scripts/*.py`) and confirm everything builds cleanly.
+- [ ] 41.3 Add `sync_feedback_bias` property to `klipper/mmu.py`'s `get_status` method (pointing to `self.sync_feedback`) to fix the static buffer piston visualization in Fluidd/Mainsail.
+- [ ] 41.4 Run static python checks (`python3 -m py_compile scripts/*.py klipper/*.py`) and confirm everything builds cleanly.
