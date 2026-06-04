@@ -312,7 +312,7 @@ stimulus is fixed — the same config can read 3 vs 11 tension touches on differ
 print segments. Use an identical repeatable stimulus (same sliced file/segment,
 or a fixed `_FLARE_STEP_TEST` square-wave macro) before trusting a knob A/B.
 
-### Fast-step recovery: EST snap + recovery floor
+### Fast-step recovery: EST snap + AIMD probe floor
 
 A two-switch type-D buffer cannot observe a demand jump while the arm is still
 inside `BUF_NEUTRAL`. One `BUF_TENSION` touch on a slow→fast step is therefore a
@@ -322,13 +322,25 @@ immediately instead of letting the buffer re-drain over several repeat touches.
 `SYNC_TENSION_FAST_MM_S` maps arm velocity to snap strength. A slow/no-travel
 single crossing keeps the gentle `feed_avg * 1.15` fallback that protects slow
 drift. A fast crossing snaps toward measured demand (`feed_avg + drain_rate`) at
-high alpha. The crossing also sets `SYNC_TENSION_RECOVERY_FLOOR`, a feed-side
-lower bound applied only in `BUF_NEUTRAL` and decayed over
-`SYNC_TENSION_RECOVERY_MS`. The floor is independent of `EST`, so recovery-cycle
-fill/drain samples cannot lower it between touches. If it overshoots into
-`BUF_COMPRESSION`, the floor stops applying and the COMPRESSION drain/true-stop
-path stabilizes the buffer. Set `SYNC_TENSION_RECOVERY_FLOOR:0` to disable this
-recovery floor for A/B tests.
+high alpha.
+
+The TENSION touch also snaps up a **held feed-floor latch** (the demand
+"confidence") to the freshly-raised `EST`, applied only in `BUF_NEUTRAL`. The
+latch then hunts by symmetric AIMD, with **no clock**:
+
+- `BUF_TENSION` (still starved) → probe the floor **up** at
+  `SYNC_TENSION_PROBE_UP` (mm/min per s), capped at `SYNC_TENSION_PROBE_MAX`.
+- `BUF_COMPRESSION` (overfed) → ease the floor **down** at
+  `SYNC_TENSION_PROBE_DOWN`. COMPRESSION is the recovery-done signal — *not* a
+  timeout, so no interval is guessed (no value fits all slow-fast-slow spacings).
+- `BUF_NEUTRAL` → hold the found level.
+
+Because the latch is feed-side and held, the recovery-cycle fill/drain samples
+that re-lower `EST` cannot pull it down. It converges to ~demand, parks slightly
+compression-side (the safe overshoot direction), and the COMPRESSION back-off is
+what lets it leak down on a long wall → quiet between steps (a static
+`SYNC_MIN_RATE` cannot). Set `SYNC_TENSION_PROBE_UP:0` to freeze the probe (snap
++ hold only) for A/B tests.
 
 High `SYNC_MIN_RATE` remains the optional loud zero-touch mode: it prefeeds slow
 sections near the fast-segment rate, which can prevent even the first TENSION
@@ -348,9 +360,10 @@ SYNC_RAMP_DECEL       = 700     # drop feed fast on step-downs (cuts compression
 RELAY_NEUTRAL_FRAC    = 1.0     # demand-match; do NOT raise for step-skip
 RELAY_CATCHUP_FRAC    = 1.3
 SYNC_EST_ATTACK_ALPHA = 0.8     # fast EST attack on rising demand
-SYNC_TENSION_FAST_MM_S      = 2.0  # full snap threshold for fast TENSION crossings
-SYNC_TENSION_RECOVERY_FLOOR = 2400 # mm/min NEUTRAL feed floor after TENSION touch
-SYNC_TENSION_RECOVERY_MS    = 1500 # decay window for the recovery floor
+SYNC_TENSION_FAST_MM_S   = 2.0  # full snap threshold for fast TENSION crossings
+SYNC_TENSION_PROBE_MAX   = 3000 # mm/min, recovery feed-floor latch ceiling
+SYNC_TENSION_PROBE_UP    = 3000 # mm/min per s, probe floor up while TENSION
+SYNC_TENSION_PROBE_DOWN  = 600  # mm/min per s, ease floor down while COMPRESSION
 SYNC_COMPRESSION_DRAIN_FRAC      = 0.4  # 0.4 = fuller buffer / more tension margin (vs 0.2)
 SYNC_COMPRESSION_DRAIN_BUDGET_MM = 3.0
 ```

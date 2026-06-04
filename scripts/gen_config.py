@@ -144,10 +144,13 @@ DEFAULTS = {
     # Type-D rising-demand estimator attack. Bypasses EST_ALPHA_MAX only on up-steps.
     "sync_est_attack_alpha": "0.8",
     # Type-D fast TENSION recovery. Fast crossings snap EST toward measured demand;
-    # each TENSION touch also arms a decaying NEUTRAL feed floor.
+    # each TENSION touch snaps a held feed floor up to measured demand; a
+    # per-tick probe ramps it up while starved and backs it off in COMPRESSION
+    # (symmetric AIMD hunt, no clock — COMPRESSION is the recovery-done signal).
     "sync_tension_fast_mm_s": "2.0",
-    "sync_tension_recovery_floor": "2400",
-    "sync_tension_recovery_ms": "1500",
+    "sync_tension_probe_max": "3000",   # mm/min, latch ceiling
+    "sync_tension_probe_up": "3000",    # mm/min per s, probe up while TENSION
+    "sync_tension_probe_down": "600",   # mm/min per s, ease off while COMPRESSION
     # Drift Observer
 
     # Adaptive Sync
@@ -540,8 +543,9 @@ def main():
         f"#define CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM {get_float('sync_compression_drain_budget_mm')}f",
         f"#define CONF_SYNC_EST_ATTACK_ALPHA {get_float('sync_est_attack_alpha')}f",
         f"#define CONF_SYNC_TENSION_FAST_MM_S {get_float('sync_tension_fast_mm_s')}f",
-        f"#define CONF_SYNC_TENSION_RECOVERY_FLOOR_SPS {mm_min_to_sps(get('sync_tension_recovery_floor'), l1)}",
-        f"#define CONF_SYNC_TENSION_RECOVERY_MS {get('sync_tension_recovery_ms')}",
+        f"#define CONF_SYNC_TENSION_PROBE_MAX_SPS {mm_min_to_sps(get('sync_tension_probe_max'), l1)}",
+        f"#define CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S {mm_min_to_sps(get('sync_tension_probe_up'), l1)}",
+        f"#define CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S {mm_min_to_sps(get('sync_tension_probe_down'), l1)}",
         f"#define CONF_ZONE_BIAS_BASE_SPS   {mm_min_to_sps(get('zone_bias_base_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_RAMP_SPS_S {mm_min_to_sps(get('zone_bias_ramp_rate'), l1)}",
         f"#define CONF_ZONE_BIAS_MAX_SPS    {mm_min_to_sps(get('zone_bias_max_rate'), l1)}",

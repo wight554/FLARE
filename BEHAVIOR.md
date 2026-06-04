@@ -292,16 +292,20 @@ For `BUF_NEUTRAL -> BUF_TENSION`, type-D tension recovery is more aggressive
 than generic rising-demand attack. Firmware scales the crossing sample by arm
 velocity: a slow/no-velocity crossing keeps the softened `feed_avg * 1.15`
 fallback, while a fast crossing snaps toward measured demand
-`feed_avg + drain_rate` with alpha up to `1.0`. Each TENSION touch also arms a
-feed-side `SYNC_TENSION_RECOVERY_FLOOR` lower bound that applies only while the
-buffer is back in `BUF_NEUTRAL`; it decays to zero over
-`SYNC_TENSION_RECOVERY_MS`. This floor does not modify `extruder_est_sps`, so
-recovery-cycle fill/drain estimator samples cannot pull it down. If the
-aggressive floor overshoots into `BUF_COMPRESSION`, it stops applying and the
-existing COMPRESSION drain/true-stop path stabilizes the buffer. This is only
-for type-D tension recovery; type-P remains byte-identical. The target is to
-collapse fast-step bursts to one positioning touch, not to eliminate all
-fast-step touches.
+`feed_avg + drain_rate` with alpha up to `1.0`. Each TENSION touch also snaps a
+feed-side **held floor latch** up to the freshly-raised `EST`, applied only
+while the buffer is back in `BUF_NEUTRAL`. The latch then hunts by symmetric
+AIMD with no clock: `BUF_TENSION` probes it up at `SYNC_TENSION_PROBE_UP`
+(capped at `SYNC_TENSION_PROBE_MAX`), `BUF_COMPRESSION` eases it down at
+`SYNC_TENSION_PROBE_DOWN`, `BUF_NEUTRAL` holds. Hitting `BUF_COMPRESSION` — not
+a timeout — is the recovery-complete signal, so no slow-fast-slow interval is
+guessed. The latch does not modify `extruder_est_sps`, so recovery-cycle
+fill/drain estimator samples cannot pull it down; it converges to ~demand,
+parks slightly compression-side (the safe overshoot direction), and the
+COMPRESSION back-off leaks it down on long walls so it stays quiet between
+steps. This is only for type-D tension recovery; type-P remains byte-identical.
+The target is to collapse fast-step bursts to one positioning touch, not to
+eliminate all fast-step touches.
 
 Zero feed in `BUF_COMPRESSION` does not deadlock the relay: the flip out keys on the physical `NEUTRAL` crossing (extruder draw), and `relay_min_flip_mm` defaults to `0` (time-based hysteresis).
 

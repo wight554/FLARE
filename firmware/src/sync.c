@@ -124,8 +124,10 @@ static float g_bp_drift_correction_applied_mm = 0.0f;
 static uint32_t g_tension_pin_ts[TENSION_PIN_WINDOW_LEN] = {0};
 static int g_tension_pin_ts_idx = 0;
 static uint32_t g_tension_risk_emit_ms = 0;
-static int g_tension_floor_sps = 0;
-static uint32_t g_tension_floor_set_ms = 0;
+/* Type-D tension-recovery feed floor: a held latch (the demand "confidence").
+ * Snapped up to measured demand on a TENSION touch, probed up per-tick while
+ * still starved, backed off per-tick while in COMPRESSION. No clock. */
+static float g_tension_floor_sps = 0.0f;
 static float g_relay_flip_travel_since_mm = 0.0f;
 static float g_relay_neutral_trim_sps = 0.0f;
 static uint32_t g_relay_trim_last_leak_ms = 0;
@@ -1267,10 +1269,15 @@ estimator_done:
         relay_neutral_trim_clamp();
     }
 
-    if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL && new_state == BUF_TENSION &&
-        SYNC_TENSION_RECOVERY_FLOOR_SPS > 0) {
-        g_tension_floor_sps = SYNC_TENSION_RECOVERY_FLOOR_SPS;
-        g_tension_floor_set_ms = now_ms;
+    if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL && new_state == BUF_TENSION) {
+        /* Recovery latch: snap the floor up to the freshly-raised demand
+         * estimate. Feed-side and held, so the later fill/drain crossings that
+         * re-lower EST cannot pull it back down; the per-tick probe ramp
+         * polishes from here and COMPRESSION backs it off. Raise-only. */
+        if ((float)extruder_est_sps > g_tension_floor_sps)
+            g_tension_floor_sps = (float)extruder_est_sps;
+        if (g_tension_floor_sps > (float)SYNC_TENSION_PROBE_MAX_SPS)
+            g_tension_floor_sps = (float)SYNC_TENSION_PROBE_MAX_SPS;
     }
 
     history_push(g_buf.state, prev_dwell);
@@ -1411,24 +1418,6 @@ static int sync_neutral_anti_tension_floor_sps(buf_state_t s, lane_t *A,
     if (assist_floor_sps <= SYNC_MIN_SPS) return 0;
 
     return assist_floor_sps;
-}
-
-static int type_d_tension_recovery_floor_sps(buf_state_t s, uint32_t now_ms) {
-    if (BUF_SENSOR_TYPE != 0 || s != BUF_NEUTRAL || g_tension_floor_sps <= 0) return 0;
-    if (SYNC_TENSION_RECOVERY_MS <= 0) {
-        g_tension_floor_sps = 0;
-        return 0;
-    }
-
-    uint32_t age_ms = now_ms - g_tension_floor_set_ms;
-    if (age_ms >= (uint32_t)SYNC_TENSION_RECOVERY_MS) {
-        g_tension_floor_sps = 0;
-        return 0;
-    }
-
-    float decay = 1.0f - ((float)age_ms / (float)SYNC_TENSION_RECOVERY_MS);
-    int floor_sps = (int)((float)g_tension_floor_sps * decay);
-    return (floor_sps > 0) ? floor_sps : 0;
 }
 
 int sync_clamp_max_sps(int requested_sps) {
@@ -1814,8 +1803,7 @@ void sync_disable(bool reset_estimator) {
     memset(g_tension_pin_ts, 0, sizeof(g_tension_pin_ts));
     g_tension_pin_ts_idx = 0;
     g_tension_risk_emit_ms = 0;
-    g_tension_floor_sps = 0;
-    g_tension_floor_set_ms = 0;
+    g_tension_floor_sps = 0.0f;
     g_relay_flip_travel_since_mm = 0.0f;
     g_relay_neutral_trim_sps = 0.0f;
     g_relay_trim_last_leak_ms = 0;
@@ -2509,9 +2497,25 @@ void sync_tick(uint32_t now_ms) {
         target_sps = type_d_neutral_relay_floor_sps;
     }
 
-    int tension_recovery_floor_sps = type_d_tension_recovery_floor_sps(s, now_ms);
-    if (tension_recovery_floor_sps > 0 && target_sps < tension_recovery_floor_sps) {
-        target_sps = tension_recovery_floor_sps;
+    /* Type-D tension recovery: symmetric AIMD hunt on a held feed floor.
+     * TENSION = still starved -> probe up; COMPRESSION = overfed -> ease down;
+     * NEUTRAL = hold the found level. COMPRESSION (not a timeout) is the
+     * recovery-complete signal, so no value of any interval is guessed. */
+    if (BUF_SENSOR_TYPE == 0) {
+        float tick_dt_s = (float)SYNC_TICK_MS / 1000.0f;
+        if (s == BUF_TENSION) {
+            g_tension_floor_sps += (float)SYNC_TENSION_PROBE_UP_SPS_PER_S * tick_dt_s;
+        } else if (s == BUF_COMPRESSION) {
+            g_tension_floor_sps -= (float)SYNC_TENSION_PROBE_DOWN_SPS_PER_S * tick_dt_s;
+        }
+        if (g_tension_floor_sps > (float)SYNC_TENSION_PROBE_MAX_SPS)
+            g_tension_floor_sps = (float)SYNC_TENSION_PROBE_MAX_SPS;
+        if (g_tension_floor_sps < 0.0f) g_tension_floor_sps = 0.0f;
+
+        if (s == BUF_NEUTRAL) {
+            int floor_sps = (int)g_tension_floor_sps;
+            if (floor_sps > SYNC_MIN_SPS && target_sps < floor_sps) target_sps = floor_sps;
+        }
     }
 
     bool compression_wall_critical = false;

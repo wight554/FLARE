@@ -196,3 +196,38 @@ brief COMPRESSION pulse during the recovery window is acceptable for fast
 recovery. Knobs: `SYNC_TENSION_RECOVERY_FLOOR` (≈2400 mm/min), `RECOVERY_MS`
 (≈1500). The §1.2 escalation + its knobs are removed; velocity-snap raise-only
 (§1.1) may stay as a benign nudge. See tasks §5.
+
+## Pivot (2026-06-04): AIMD probe latch replaces decaying floor
+
+HW swept the decaying floor (FLOOR 1400/2000/2400 × MS 1500/2500/3000/∞) — it
+cannot win. Two coupled failures, both structural to the decay model:
+- **Decay-to-zero always returns feed to the low baseline.** When the floor
+  decays past demand the buffer re-drains → TENSION touch-2. No `RECOVERY_MS`
+  fixes it: there is no interval that fits all slow-fast-slow spacings (operator
+  point). A held floor (`MS 60000`) collapsed tension to 1 — but only at
+  `FLOOR 2000`, which then pins COMPRESSION (9900 ms, EST−MM −411) = loud walls.
+  A static floor cannot be both high enough to kill tension and low enough to
+  stay quiet.
+- The floor magnitude is a guess; `FLOOR 1400 < peak demand (~1800)` still
+  double-touched.
+
+Replacement: a **held feed-floor latch hunted by symmetric AIMD, no clock.**
+- On `NEUTRAL→TENSION`: snap `g_tension_floor_sps = max(floor, EST)` (measured
+  demand, raise-only).
+- Per tick: `BUF_TENSION` → `floor += PROBE_UP·dt` (probe up, still starved);
+  `BUF_COMPRESSION` → `floor -= PROBE_DOWN·dt` (ease off, overfed); `BUF_NEUTRAL`
+  → hold. Clamp `[0, PROBE_MAX]`. Applied only in NEUTRAL.
+
+Why it wins where decay can't: hitting **COMPRESSION is the recovery-done
+signal**, not a timeout — the probe drives feed up until the buffer tips, so no
+interval is guessed and demand magnitude is found, not configured. The latch is
+feed-side and held, so fill/drain EST re-lowering can't pull it down (the
+escalation-failure mode). It converges to ~demand, parks slightly
+compression-side (safe overshoot), and the COMPRESSION back-off leaks it down on
+a long wall → quiet between steps (a static floor / `SYNC_MIN_RATE` cannot).
+"Confidence" = the held latch value carried to the next step; "probing" = the
+up-ramp that restarts whenever the held level proves too low (TENSION again).
+
+Knobs (replace FLOOR/MS): `SYNC_TENSION_PROBE_MAX` (≈3000 mm/min ceiling),
+`SYNC_TENSION_PROBE_UP` (≈3000 mm/min/s), `SYNC_TENSION_PROBE_DOWN`
+(≈600 mm/min/s, asymmetric — rise fast, fall slow). HW §5.7 validation PENDING.
