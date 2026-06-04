@@ -28,6 +28,24 @@
   registers — re-check `g_stab_stagnant_since_ms` init / the 0.03 threshold at this
   position.
 
-## 4. Closeout
+## 4. Auto-start trigger sensitivity
 
-- [ ] 4.1 Resolve or consciously accept each item; archive.
+- [ ] 4.1 The type-P auto-start gate requires `g_buf_pos < -0.6` AND
+  (`g_sync_tension_transitioned` || `g_vel_norm < -0.1`) (D18). A static buffer in
+  shallow tension (e.g. `-0.4`) does NOT auto-start by design. Decide on real-print
+  evidence whether `-0.6` is too conservative (sync engages late → a tension
+  excursion before feed catches).
+- [ ] 4.2 If an easier trigger is wanted: options — (a) make the `-0.6` threshold a
+  tunable knob; (b) tie it goal-relative (`goal_norm - margin`) instead of a fixed
+  `-0.6`; (c) lower it but keep the velocity term to preserve the D18 anti-spurious
+  intent (a static home rest must still not auto-start). Verify it does not
+  reintroduce boot/idle spurious auto-sync (the whole reason for D18 + the stale-
+  timer fixes).
+- [ ] 4.3 Cross-check with the `BS` no-op (section 3) and the `-0.4` idle rest: a
+  buffer resting at `-0.4` instead of goal `+0.40` is itself off-nominal — confirm
+  stabilize/`BS` reliably parks at goal so the auto-start band is rarely the
+  resting point anyway.
+
+## 5. Closeout
+
+- [ ] 5.1 Resolve or consciously accept each item; archive.
