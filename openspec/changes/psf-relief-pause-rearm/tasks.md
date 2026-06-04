@@ -28,10 +28,18 @@
 
 ## 3. Rig Verification
 
-- [ ] 3.1 **Rig**: drive a feed burst that ends in relief-pause (`ST:3`, buffer
+- [x] 3.1 **Rig**: drive a feed burst that ends in relief-pause (`ST:3`, buffer
   pinned compression `BP +1.0`, extruder stopped). Then command extruder demand
   (buffer sweeps toward tension) → confirm **auto-start** (`SM:1 ST:1`), feed
-  resumes. Reproduces the failing `--poll` log; must now recover.
+  resumes. Reproduces the failing `--poll` log; must now recover. PASS.
+
+  2026-06-04: Klipper `M83; G1 E40 F1500; G4 P7000; G1 E40 F1500`. Each burst:
+  `SYNC:AUTO_START` → buffer cycles → `SYNC:RELIEF_PAUSE` → `BUF_STAB` neutralizes
+  → second burst → **`SYNC:AUTO_START`** again. Sync recovers from relief-pause on
+  new demand (pre-fix it stayed `ST:3` forever). Note: this run also exposed a
+  separate type-P feed-keepup issue at F1500 (`cannot_refill` / `TENSION_RISK_HIGH`
+  — buffer starves to tension before feed ramps) — tracked separately, not this
+  change.
 - [ ] 3.2 **Rig**: from relief-pause with the buffer at a **static home rest**
   (`BP −1.0`, no motion) → confirm it does **NOT** auto-restart (D18/D3 preserved).
 - [ ] 3.3 **Rig**: confirm no relief-pause ↔ active oscillation at the threshold
