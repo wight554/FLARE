@@ -132,6 +132,10 @@ typedef struct {
 
 static manual_unload_ctx_t g_manual_unload = {0};
 
+// ============================================================================
+// Command helpers — parsing, replies/events, activity gating, manual unload
+// ============================================================================
+
 bool manual_unload_active(void) {
     return g_manual_unload.state != MANUAL_UNLOAD_IDLE;
 }
@@ -374,6 +378,10 @@ static void manual_unload_tick(uint32_t now_ms) {
 
 char g_marker_tag[MARKER_TAG_LEN] = {0};
 uint16_t g_marker_seq = 0;
+
+// ============================================================================
+// GET handlers — report runtime tunables (grouped by domain)
+// ============================================================================
 
 static bool cmd_get_motion_params(const char *param, int idx, char *out, size_t out_len) {
     if (!strcmp(param, "FEED_RATE"))
@@ -771,6 +779,10 @@ static void cmd_handle_get(const char *p, uint32_t now_ms) {
 }
 
 typedef enum { CMD_SET_UNHANDLED, CMD_SET_HANDLED, CMD_SET_REPLIED } cmd_set_result_t;
+
+// ============================================================================
+// SET handlers — apply/persist runtime tunables (grouped by domain)
+// ============================================================================
 
 static bool cmd_set_motion_params(const char *base_param, int iv, float fv) {
     if (!strcmp(base_param, "FEED_RATE"))
@@ -1223,6 +1235,10 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
     } else
         cmd_reply("ER", "SET:UNKNOWN_PARAM");
 }
+
+// ============================================================================
+// Command handlers & dispatch — cutter, unload, load, motion, sensor, system
+// ============================================================================
 
 static bool cmd_handle_cutter(const char *cmd, const char *p, uint32_t now_ms) {
     if (!strcmp(cmd, "CU")) {
@@ -1809,6 +1825,10 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
         cmd_reply("ER", "UNKNOWN");
     }
 }
+
+// ============================================================================
+// Serial poll — accumulate a line from USB CDC and dispatch it
+// ============================================================================
 
 void cmd_poll(uint32_t now_ms) {
     manual_unload_tick(now_ms);

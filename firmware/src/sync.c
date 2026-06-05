@@ -139,6 +139,10 @@ uint32_t g_last_baseline_update_ms = 0;
 float g_last_baseline_update_mm = 0.0f;
 float g_sync_mmu_total_mm = 0.0f;
 
+// ============================================================================
+// Boot & buffer stabilization — park the buffer at goal before/after printing
+// ============================================================================
+
 void sync_init(uint32_t now_ms) {
     buf_state_t raw = buf_state_raw();
     buf_force_stable_state(raw, now_ms);
@@ -403,6 +407,10 @@ void buffer_stabilize_tick(uint32_t now_ms) {
     }
 }
 
+// ============================================================================
+// Flow schedule — map estimated extruder demand to per-segment control params
+// ============================================================================
+
 void flow_schedule_refresh_scalar(void) {
     g_flow_sched_len = 1;
     g_flow_sched_runtime[0].flow_sps = g_baseline_target_sps;
@@ -523,6 +531,10 @@ int flow_sched_len_clamped(void) {
     return g_flow_sched_len;
 }
 
+// ============================================================================
+// Baseline & neutral-band floors — learned resting feed and anti-starve floors
+// ============================================================================
+
 void baseline_update_on_settle(uint32_t neutral_dwell_ms, uint32_t now_ms) {
     if (neutral_dwell_ms <= BASELINE_SETTLE_MIN_DWELL_MS) {
         g_settle_history_count = 0;
@@ -636,6 +648,10 @@ int sync_neutral_anti_tension_floor_sps(buf_state_t s, lane_t *lane, float error
     return assist_floor_sps;
 }
 
+// ============================================================================
+// Sync state & retract-assist control — enable/disable, mode, assist gating
+// ============================================================================
+
 int sync_clamp_max_sps(int requested_sps) {
     return motion_clamp_rate_sps(requested_sps);
 }
@@ -714,6 +730,10 @@ void sync_bl_clear_autostart_suppress(void) {
 bool sync_retract_assist_enabled(void) {
     return g_sync_state == SYNC_RETRACT_ASSIST;
 }
+
+// ============================================================================
+// Buffer lock service (BL:) — drive the buffer to a rail then follow on
+// ============================================================================
 
 void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate_mmpm,
                           uint32_t now_ms) {
@@ -960,6 +980,10 @@ void sync_buffer_lock_tick(lane_t *lane, uint32_t now_ms) {
     g_bl_last_tick_ms = now_ms;
 }
 
+// ============================================================================
+// Sync enable / disable / fault — lifecycle and bootstrap of the controller
+// ============================================================================
+
 void sync_relief_pause(void) {
     sync_set_state(SYNC_RELIEF_PAUSE);
     sync_current_sps = 0;
@@ -1056,6 +1080,10 @@ int sync_bootstrap_sps(void) {
     sync_continuous_compression_since_ms = 0;
     return res;
 }
+
+// ============================================================================
+// Sync controller — per-tick target calculation, gating, and rate application
+// ============================================================================
 
 int sync_effective_kp_sps(buf_state_t s) {
     int baseline_ref_sps = baseline_control_floor_sps();
@@ -1839,6 +1867,10 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
         cmd_event("BS", ev);
     }
 }
+
+// ============================================================================
+// Sync main tick & state queries — entry point called every main loop pass
+// ============================================================================
 
 void sync_tick(uint32_t now_ms) {
     lane_t *lane = lane_ptr(active_lane);

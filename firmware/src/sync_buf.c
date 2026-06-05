@@ -94,6 +94,10 @@ uint32_t g_buf_pending_since_ms = 0;
 float g_sync_refill_effort_mm = 0.0f;
 float g_sync_relieve_effort_mm = 0.0f;
 
+// ============================================================================
+// Buffer geometry — thresholds, reserve targets, deadbands
+// ============================================================================
+
 const char *buf_state_name(buf_state_t s) {
     switch (s) {
     case BUF_NEUTRAL:
@@ -174,6 +178,10 @@ float buf_virtual_deadband_mm(void) {
     return deadband;
 }
 
+// ============================================================================
+// Virtual position model — Type-D dead-reckoned buffer position from net travel
+// ============================================================================
+
 void buf_anchor_virtual_position(buf_state_t old_state, buf_state_t new_state) {
     if (BUF_SENSOR_TYPE != 0)
         return;
@@ -246,6 +254,10 @@ float extruder_motion_mm_s(lane_t *lane) {
         idx = 0;
     return extruder_est_sps * MM_PER_STEP[idx];
 }
+
+// ============================================================================
+// Compression wall, neutral creep & demand scaling
+// ============================================================================
 
 float sync_compression_wall_remaining_mm(void) {
     if (g_buf_signal.kind != BUF_SRC_VIRTUAL_ENDSTOP)
@@ -337,6 +349,10 @@ int sync_apply_scaling(int base_sps, float target_norm, float pos_norm) {
     return target;
 }
 
+// ============================================================================
+// Zone-dwell history & tension prediction
+// ============================================================================
+
 void history_push(buf_state_t zone, uint32_t dwell_ms) {
     g_history[g_hist_idx].zone = zone;
     g_history[g_hist_idx].dwell_ms = dwell_ms;
@@ -357,6 +373,10 @@ bool predict_tension_coming(void) {
     }
     return neutral_count > 0 && (short_count * 2 >= neutral_count);
 }
+
+// ============================================================================
+// Analog read & normalized position/target (Type-P)
+// ============================================================================
 
 void buf_analog_update(void) {
     adc_select_input(PIN_PSF - ADC_PIN_BASE);
@@ -537,6 +557,10 @@ void buf_force_stable_state(buf_state_t state, uint32_t now_ms) {
         }
     }
 }
+
+// ============================================================================
+// Extruder-demand estimator — infer demand from switch-crossing travel (Type-D)
+// ============================================================================
 
 float clamp_est_sps(float est_sps) {
     float max_est_sps = (float)GLOBAL_MAX_SPS;
@@ -758,6 +782,10 @@ static void buf_update_trim_and_floor(buf_state_t old, buf_state_t new_state) {
             g_tension_floor_sps = (float)SYNC_TENSION_PROBE_MAX_SPS;
     }
 }
+
+// ============================================================================
+// Buffer state update & signal publish — per-tick sensing entry points
+// ============================================================================
 
 void buf_update(buf_state_t new_state, uint32_t now_ms) {
     if (new_state == g_buf.state)
