@@ -687,48 +687,9 @@ static void cmd_handle_get(const char *p, uint32_t now_ms) {
         cmd_reply("ER", "GET:UNKNOWN_PARAM");
 }
 
-static void cmd_handle_set(const char *p, uint32_t now_ms) {
-    char param[CMD_PARAM_MAX];
-    char val_str[32];
-    if (sscanf(p, "%63[^:]:%31s", param, val_str) != 2) {
-        cmd_reply("ER", "SET:ARG");
-        return;
-    }
-    int iv = atoi(val_str);
-    float fv = (float)atof(val_str);
-    bool handled = true;
+typedef enum { CMD_SET_UNHANDLED, CMD_SET_HANDLED, CMD_SET_REPLIED } cmd_set_result_t;
 
-    int lane_mask = 3;
-    char base_param[CMD_PARAM_MAX];
-    strncpy(base_param, param, sizeof(base_param));
-    base_param[sizeof(base_param) - 1] = '\0';
-    size_t len = strlen(param);
-    if (len > 3 && !strcmp(param + len - 3, "_L1")) {
-        lane_mask = 1;
-        base_param[len - 3] = '\0';
-    } else if (len > 3 && !strcmp(param + len - 3, "_L2")) {
-        lane_mask = 2;
-        base_param[len - 3] = '\0';
-    }
-
-    if (!strcmp(base_param, "LIVE_TUNE_LOCK")) {
-        g_live_tune_lock = (iv != 0);
-        cmd_reply("OK", "LIVE_TUNE_LOCK");
-        return;
-    }
-    if (g_live_tune_lock && live_tune_locked_param(base_param)) {
-        cmd_reply("ER", "LIVE_TUNE_LOCKED");
-        return;
-    }
-
-#define SET_LANE(BLOCK)                                                                            \
-    for (int l = 1; l <= NUM_LANES; l++)                                                           \
-        if (lane_mask & (1 << (l - 1))) {                                                          \
-            int idx = l - 1;                                                                       \
-            BLOCK;                                                                                 \
-            sync_tmc_settings(l);                                                                  \
-        }
-
+static bool cmd_set_motion_params(const char *base_param, int iv, float fv) {
     if (!strcmp(base_param, "FEED_RATE"))
         FEED_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
     else if (!strcmp(base_param, "REV_RATE"))
@@ -771,7 +732,13 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
     else if (!strcmp(base_param, "BUF_PREDICT_THR_MS"))
         BUF_PREDICT_THR_MS = clamp_i(iv, 0, 10000);
 #endif
-    else if (!strcmp(base_param, "AUTO_PRELOAD"))
+    else
+        return false;
+    return true;
+}
+
+static bool cmd_set_reload_motion_params(const char *base_param, int iv, float fv) {
+    if (!strcmp(base_param, "AUTO_PRELOAD"))
         AUTO_PRELOAD = (iv != 0);
     else if (!strcmp(base_param, "RETRACT_MM"))
         AUTOLOAD_RETRACT_MM = clamp_i(iv, 0, 50);
@@ -786,8 +753,6 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "POST_PRINT_STAB_MS"))
         POST_PRINT_STAB_DELAY_MS = clamp_i(iv, 0, 300000);
-#endif
-#ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "RELOAD_Y_MS"))
         RELOAD_Y_TIMEOUT_MS = clamp_i(iv, 100, 30000);
 #endif
@@ -832,7 +797,21 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
     else if (!strcmp(base_param, "RELOAD_LEAN"))
         RELOAD_LEAN_FACTOR = clamp_f(fv, 0.0f, 5.0f);
 #endif
-    else if (!strcmp(base_param, "RUN_CURRENT_MA")) {
+    else
+        return false;
+    return true;
+}
+
+static bool cmd_set_lane_params(const char *base_param, int lane_mask, int iv, float fv) {
+#define SET_LANE(BLOCK)                                                                            \
+    for (int l = 1; l <= NUM_LANES; l++)                                                           \
+        if (lane_mask & (1 << (l - 1))) {                                                          \
+            int idx = l - 1;                                                                       \
+            BLOCK;                                                                                 \
+            sync_tmc_settings(l);                                                                  \
+        }
+
+    if (!strcmp(base_param, "RUN_CURRENT_MA")) {
         SET_LANE({ TMC_RUN_CURRENT_MA[idx] = clamp_i(iv, 0, 2000); });
     } else if (!strcmp(base_param, "HOLD_CURRENT_MA")) {
         SET_LANE({ TMC_HOLD_CURRENT_MA[idx] = clamp_i(iv, 0, 2000); });
@@ -858,7 +837,17 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
         SET_LANE({ TMC_HEND[idx] = clamp_i(iv, -3, 12); });
     } else if (!strcmp(base_param, "FOLLOW_MS")) {
         SET_LANE({ FOLLOW_TIMEOUT_MS[idx] = clamp_i(iv, 1000, 60000); });
-    } else if (!strcmp(base_param, "BASELINE_RATE")) {
+    } else {
+#undef SET_LANE
+        return false;
+    }
+
+#undef SET_LANE
+    return true;
+}
+
+static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, float fv) {
+    if (!strcmp(base_param, "BASELINE_RATE")) {
         int baseline_sps = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
         g_baseline_target_sps = baseline_sps;
         g_baseline_sps = baseline_sps;
@@ -872,7 +861,7 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
         if (sync_enabled || tc_state() != TC_IDLE || g_lane_l1.task != TASK_IDLE ||
             g_lane_l2.task != TASK_IDLE) {
             cmd_reply("ER", "BUSY");
-            return;
+            return CMD_SET_REPLIED;
         }
         BUF_SENSOR_TYPE = clamp_i(iv, 0, 1);
         sync_disable(false);
@@ -925,8 +914,14 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
         flow_schedule_refresh_scalar();
     } else if (!strcmp(base_param, "SYNC_AUTO_STOP"))
         SYNC_AUTO_STOP_MS = clamp_i(iv, 0, 30000);
+    else
+        return CMD_SET_UNHANDLED;
+    return CMD_SET_HANDLED;
+}
+
+static bool cmd_set_sync_advanced_params(const char *base_param, int iv, float fv) {
 #ifdef FLARE_DEV_TUNING
-    else if (!strcmp(base_param, "NEUTRAL_CREEP_TIMEOUT_MS"))
+    if (!strcmp(base_param, "NEUTRAL_CREEP_TIMEOUT_MS"))
         NEUTRAL_CREEP_TIMEOUT_MS = clamp_i(iv, 0, 60000);
     else if (!strcmp(base_param, "NEUTRAL_CREEP_RATE") ||
              !strcmp(base_param, "NEUTRAL_CREEP_RATE_SPS_PER_S"))
@@ -954,14 +949,18 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
         SYNC_RESERVE_INTEGRAL_DECAY_MS = clamp_i(iv, 0, 60000);
     else if (!strcmp(base_param, "EST_SIGMA_CAP"))
         EST_SIGMA_HARD_CAP_MM = clamp_f(fv, 0.5f, 5.0f);
-#endif
-#ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "EST_LOW_CF_THR"))
         EST_LOW_CF_WARN_THRESHOLD = clamp_f(fv, 0.0f, 1.0f);
     else if (!strcmp(base_param, "EST_FALLBACK_THR"))
         EST_FALLBACK_CF_THRESHOLD = clamp_f(fv, 0.0f, 0.5f);
+    else
 #endif
-    else if (!strcmp(base_param, "RELAY_CATCHUP_FRAC"))
+        return false;
+    return true;
+}
+
+static bool cmd_set_sync_relay_probe_params(const char *base_param, int iv, float fv) {
+    if (!strcmp(base_param, "RELAY_CATCHUP_FRAC"))
         RELAY_CATCHUP_FRAC = clamp_f(fv, 0.5f, 3.0f);
     else if (!strcmp(base_param, "RELAY_NEUTRAL_FRAC"))
         RELAY_NEUTRAL_FRAC = clamp_f(fv, 0.5f, 3.0f);
@@ -997,8 +996,6 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
         RELAY_COLLAPSE_RAMP_MULT = clamp_i(iv, 1, 16);
     else if (!strcmp(base_param, "RELAY_COLLAPSE_CAP_MS"))
         RELAY_COLLAPSE_CAP_MS = clamp_i(iv, 0, 5000);
-#endif
-#ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "BUF_DRIFT_TAU_MS"))
         BUF_DRIFT_EWMA_TAU_MS = clamp_i(iv, 5000, 600000);
     else if (!strcmp(base_param, "BUF_DRIFT_MIN_SMP"))
@@ -1009,20 +1006,22 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
         BUF_DRIFT_CLAMP_MM = clamp_f(fv, 0.0f, BUF_DRIFT_CLAMP_LIMIT_MM);
     else if (!strcmp(base_param, "BUF_DRIFT_MIN_CF"))
         BUF_DRIFT_APPLY_MIN_CF = clamp_f(fv, 0.0f, 1.0f);
-#endif
-#ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "TENSION_RISK_WINDOW"))
         TENSION_RISK_WINDOW_MS = clamp_i(iv, 5000, 300000);
     else if (!strcmp(base_param, "TENSION_RISK_THR"))
         TENSION_RISK_THRESHOLD = clamp_i(iv, 0, 1000);
-#endif
-#ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "TS_BUF_MS"))
         TS_BUF_FALLBACK_MS = clamp_i(iv, 0, 30000);
     else if (!strcmp(base_param, "STARTUP_MS"))
         MOTION_STARTUP_MS = clamp_i(iv, 0, 30000);
 #endif
-    else if (!strcmp(base_param, "SERVO_OPEN"))
+    else
+        return false;
+    return true;
+}
+
+static bool cmd_set_cutter_params(const char *base_param, int iv, float fv) {
+    if (!strcmp(base_param, "SERVO_OPEN"))
         SERVO_OPEN_US = clamp_i(iv, 400, 2700);
     else if (!strcmp(base_param, "SERVO_CLOSE"))
         SERVO_CLOSE_US = clamp_i(iv, 400, 2700);
@@ -1055,11 +1054,68 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
         TC_TIMEOUT_Y_MS = clamp_i(iv, 0, 30000);
 #endif
     else
-        handled = false;
+        return false;
+    return true;
+}
 
-#undef SET_LANE
+static cmd_set_result_t cmd_apply_set_param(const char *base_param, int lane_mask, int iv,
+                                            float fv) {
+    if (cmd_set_motion_params(base_param, iv, fv) ||
+        cmd_set_reload_motion_params(base_param, iv, fv) ||
+        cmd_set_lane_params(base_param, lane_mask, iv, fv)) {
+        return CMD_SET_HANDLED;
+    }
 
-    if (handled) {
+    cmd_set_result_t buffer_result = cmd_set_buffer_params(base_param, iv, fv);
+    if (buffer_result != CMD_SET_UNHANDLED) {
+        return buffer_result;
+    }
+
+    if (cmd_set_sync_advanced_params(base_param, iv, fv) ||
+        cmd_set_sync_relay_probe_params(base_param, iv, fv) ||
+        cmd_set_cutter_params(base_param, iv, fv)) {
+        return CMD_SET_HANDLED;
+    }
+    return CMD_SET_UNHANDLED;
+}
+
+static void cmd_handle_set(const char *p, uint32_t now_ms) {
+    char param[CMD_PARAM_MAX];
+    char val_str[32];
+    if (sscanf(p, "%63[^:]:%31s", param, val_str) != 2) {
+        cmd_reply("ER", "SET:ARG");
+        return;
+    }
+    int iv = atoi(val_str);
+    float fv = (float)atof(val_str);
+    int lane_mask = 3;
+    char base_param[CMD_PARAM_MAX];
+    strncpy(base_param, param, sizeof(base_param));
+    base_param[sizeof(base_param) - 1] = '\0';
+    size_t len = strlen(param);
+    if (len > 3 && !strcmp(param + len - 3, "_L1")) {
+        lane_mask = 1;
+        base_param[len - 3] = '\0';
+    } else if (len > 3 && !strcmp(param + len - 3, "_L2")) {
+        lane_mask = 2;
+        base_param[len - 3] = '\0';
+    }
+
+    if (!strcmp(base_param, "LIVE_TUNE_LOCK")) {
+        g_live_tune_lock = (iv != 0);
+        cmd_reply("OK", "LIVE_TUNE_LOCK");
+        return;
+    }
+    if (g_live_tune_lock && live_tune_locked_param(base_param)) {
+        cmd_reply("ER", "LIVE_TUNE_LOCKED");
+        return;
+    }
+
+    cmd_set_result_t result = cmd_apply_set_param(base_param, lane_mask, iv, fv);
+    if (result == CMD_SET_REPLIED) {
+        return;
+    }
+    if (result == CMD_SET_HANDLED) {
         motion_limit_runtime_rates(true);
         cmd_reply("OK", NULL);
     } else
