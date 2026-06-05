@@ -510,29 +510,8 @@ void blend_extruder_est_sps_direct(float sample_sps, float alpha, uint32_t now_m
     extruder_est_last_update_ms = now_ms;
 }
 
-void buf_update(buf_state_t new_state, uint32_t now_ms) {
-    if (new_state == g_buf.state)
-        return;
-
-    uint32_t prev_dwell = now_ms - g_buf.entered_ms;
-    g_buf.dwell_ms = prev_dwell;
-    lane_t *lane = lane_ptr(active_lane);
-    int mmu_now_sps = lane_motion_sps(lane);
-
-    float mmu_avg_sps = 0.0f;
-    if (g_buf.mmu_sps_dwell_samples > 0) {
-        mmu_avg_sps = (float)g_buf.mmu_sps_dwell_sum / (float)g_buf.mmu_sps_dwell_samples;
-    } else {
-        mmu_avg_sps = (float)(g_buf.mmu_sps_at_entry + mmu_now_sps) / 2.0f;
-    }
-
+static float buf_update_transition_geometry(buf_state_t old, buf_state_t new_state, float threshold, float max_transition_mm) {
     float travel_mm = 0.0f;
-    buf_state_t old = g_buf.state;
-    float threshold = buf_threshold_mm();
-    float max_transition_mm = threshold * 2.0f;
-
-    g_buf.arm_vel_mm_s = 0.0f;
-
     if (old == BUF_NEUTRAL) {
         if (new_state == BUF_TENSION)
             travel_mm = -threshold - g_buf_physical_entry_pos_mm;
@@ -562,7 +541,10 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
         else if (old == BUF_COMPRESSION)
             g_buf_physical_entry_pos_mm = threshold;
     }
+    return travel_mm;
+}
 
+static void buf_update_estimator(buf_state_t old, buf_state_t new_state, float travel_mm, float threshold, float prev_dwell, float mmu_avg_sps, uint32_t now_ms) {
     bool neutral_fill_sample = (old == BUF_NEUTRAL && new_state == BUF_COMPRESSION);
     bool neutral_drain_sample = (old == BUF_NEUTRAL && new_state == BUF_TENSION);
     bool compression_drain_sample = (old == BUF_COMPRESSION && new_state == BUF_NEUTRAL);
@@ -583,7 +565,7 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
             idx = 0;
         float mm_per_step = MM_PER_STEP[idx];
         if (mm_per_step <= 1e-6f)
-            goto estimator_done;
+            return;
 
         float est_sps = 0.0f;
         float alpha = 0.0f;
@@ -616,9 +598,7 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
                 float v_mm_s = fabsf(g_buf.arm_vel_mm_s);
                 float v_norm = clamp_f(v_mm_s / SYNC_TENSION_FAST_MM_S, 0.0f, 1.0f);
                 float drain_sps = has_known_travel ? (v_mm_s / mm_per_step) : 0.0f;
-                float demand_slow =
-                    feed_avg_sps * 1.15f; // softened from 1.5f to prevent EST overshooting spikes
-                                          // during physical drift
+                float demand_slow = feed_avg_sps * 1.15f;
                 float demand_fast = feed_avg_sps + drain_sps;
                 est_sps = demand_slow + v_norm * (demand_fast - demand_slow);
                 sample_valid = type_d_sample_demand_bounds(&est_sps);
@@ -644,8 +624,6 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
             alpha = clamp_f(fabsf(g_buf.arm_vel_mm_s) / estimator_norm_mm_s, EST_ALPHA_MIN,
                             EST_ALPHA_MAX);
 
-            /* If the model was way off (e.g. at one end but hit the other), trust the new estimate
-             * more. */
             if (fabsf(travel_mm) > threshold * 1.5f && alpha < 0.5f) {
                 alpha = 0.5f;
             }
@@ -655,8 +633,6 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
         if (sample_valid) {
             float prev_est_sps = extruder_est_sps;
             if (neutral_drain_sample) {
-                /* TENSION means starvation: let the snap raise EST, but never
-                 * lower it back to a buffer-limited sample. */
                 blend_extruder_est_sps_direct(est_sps, alpha, now_ms);
                 if (extruder_est_sps < prev_est_sps)
                     extruder_est_sps = prev_est_sps;
@@ -671,11 +647,10 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
                 relay_neutral_trim_clamp();
             }
         }
-    estimator_done:;
     }
+}
 
-    /* Residual observer — measure pre-snap virtual/physical mismatch.
-     * Record on both endstops to capture both positive and negative drift correctly. */
+static void buf_update_residual_observer(buf_state_t old, buf_state_t new_state, float threshold, uint32_t now_ms) {
     if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL &&
         (new_state == BUF_TENSION || new_state == BUF_COMPRESSION)) {
         float switch_pos_mm = (new_state == BUF_TENSION) ? -threshold : threshold;
@@ -699,7 +674,9 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
         if (g_bp_drift_samples < 65535u)
             g_bp_drift_samples++;
     }
+}
 
+static void buf_update_trim_and_floor(buf_state_t old, buf_state_t new_state) {
     if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL && new_state == BUF_TENSION &&
         SYNC_RELAY_TRIM_STEP_SPS > 0 && SYNC_RELAY_TRIM_CLAMP_SPS > 0) {
         g_relay_neutral_trim_sps += (float)SYNC_RELAY_TRIM_STEP_SPS;
@@ -707,15 +684,42 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
     }
 
     if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL && new_state == BUF_TENSION) {
-        /* Recovery latch: snap the floor up to the freshly-raised demand
-         * estimate. Feed-side and held, so the later fill/drain crossings that
-         * re-lower EST cannot pull it back down; the per-tick probe ramp
-         * polishes from here and COMPRESSION backs it off. Raise-only. */
         if ((float)extruder_est_sps > g_tension_floor_sps)
             g_tension_floor_sps = (float)extruder_est_sps;
         if (g_tension_floor_sps > (float)SYNC_TENSION_PROBE_MAX_SPS)
             g_tension_floor_sps = (float)SYNC_TENSION_PROBE_MAX_SPS;
     }
+}
+
+void buf_update(buf_state_t new_state, uint32_t now_ms) {
+    if (new_state == g_buf.state)
+        return;
+
+    uint32_t prev_dwell = now_ms - g_buf.entered_ms;
+    g_buf.dwell_ms = prev_dwell;
+    lane_t *lane = lane_ptr(active_lane);
+    int mmu_now_sps = lane_motion_sps(lane);
+
+    float mmu_avg_sps = 0.0f;
+    if (g_buf.mmu_sps_dwell_samples > 0) {
+        mmu_avg_sps = (float)g_buf.mmu_sps_dwell_sum / (float)g_buf.mmu_sps_dwell_samples;
+    } else {
+        mmu_avg_sps = (float)(g_buf.mmu_sps_at_entry + mmu_now_sps) / 2.0f;
+    }
+
+    buf_state_t old = g_buf.state;
+    float threshold = buf_threshold_mm();
+    float max_transition_mm = threshold * 2.0f;
+
+    g_buf.arm_vel_mm_s = 0.0f;
+
+    float travel_mm = buf_update_transition_geometry(old, new_state, threshold, max_transition_mm);
+
+    buf_update_estimator(old, new_state, travel_mm, threshold, (float)prev_dwell, mmu_avg_sps, now_ms);
+
+    buf_update_residual_observer(old, new_state, threshold, now_ms);
+
+    buf_update_trim_and_floor(old, new_state);
 
     history_push(g_buf.state, prev_dwell);
     g_buf.state = new_state;
