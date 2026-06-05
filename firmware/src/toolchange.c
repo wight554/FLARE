@@ -15,6 +15,12 @@
 #define RELOAD_COMPRESSION_HARD_WALL_MS 450.0f
 #define RELOAD_COMPRESSION_HARD_PUSH_MM_S 0.25f
 #define RELOAD_COMPRESSION_HARD_HOLD_MS 250u
+#define RELOAD_APPROACH_LIMIT_MM 2000.0f
+#define RELOAD_TOUCH_FLOOR_PERCENT_DENOM 100
+#define RELOAD_FOLLOW_ABSOLUTE_TIMEOUT_MS 300000u
+#define RELOAD_STATUS_INTERVAL_MS 500u
+#define TC_EVENT_BUF_LEN 8
+#define TC_STATUS_EVENT_BUF_LEN 64
 #include "cutter.h"
 
 tc_state_t tc_state(void) {
@@ -68,7 +74,7 @@ void tc_manual_reload(uint32_t now_ms) {
     if (approach_sps <= 0)
         approach_sps = JOIN_SPS;
 
-    lane_start(lane, TASK_FEED, approach_sps, true, now_ms, 2000.0f);
+    lane_start(lane, TASK_FEED, approach_sps, true, now_ms, RELOAD_APPROACH_LIMIT_MM);
 
     g_tc_ctx.ready_to_join_since_ms = 0;
     g_tc_ctx.reload_tick_ms = now_ms;
@@ -97,7 +103,7 @@ void reload_trigger(int runout_lane, uint32_t now_ms) {
         cmd_event("RELOAD:FAULT", "NO_FILAMENT");
         return;
     }
-    char event[8];
+    char event[TC_EVENT_BUF_LEN];
     snprintf(event, sizeof(event), "%d->%d", runout_lane, other);
     cmd_event("RELOAD:SWITCHING", event);
     g_tc_ctx.target_lane = other;
@@ -268,7 +274,7 @@ static void tc_tick_unload_states(lane_t *lane, uint32_t now_ms, uint32_t age) {
 static void tc_tick_load_states(lane_t *lane, uint32_t now_ms, uint32_t age) {
     switch (g_tc_ctx.state) {
     case TC_SWAP: {
-        char swap_s[8];
+        char swap_s[TC_EVENT_BUF_LEN];
         snprintf(swap_s, sizeof(swap_s), "%d->%d", active_lane, g_tc_ctx.target_lane);
         cmd_event("TC:SWAPPING", swap_s);
         set_active_lane(g_tc_ctx.target_lane);
@@ -355,7 +361,7 @@ static void tc_tick_reload_wait_y(lane_t *lane, uint32_t now_ms, uint32_t age) {
         int approach_sps = FEED_SPS;
         if (approach_sps <= 0)
             approach_sps = JOIN_SPS;
-        lane_start(new_lane, TASK_FEED, approach_sps, true, now_ms, 2000.0f);
+        lane_start(new_lane, TASK_FEED, approach_sps, true, now_ms, RELOAD_APPROACH_LIMIT_MM);
         g_tc_ctx.ready_to_join_since_ms = 0;
         g_tc_ctx.reload_tick_ms = now_ms;
         g_tc_ctx.reload_current_sps = 0;
@@ -416,8 +422,7 @@ static int tc_reload_follow_target_sps(lane_t *lane, uint32_t now_ms, uint32_t f
         target_sps = JOIN_SPS;
     }
 
-    if (g_buf.state != BUF_COMPRESSION &&
-        compression_wall_ms < RELOAD_COMPRESSION_SOFT_WALL_MS) {
+    if (g_buf.state != BUF_COMPRESSION && compression_wall_ms < RELOAD_COMPRESSION_SOFT_WALL_MS) {
         float urgency = (RELOAD_COMPRESSION_SOFT_WALL_MS - compression_wall_ms) /
                         RELOAD_COMPRESSION_SOFT_WALL_MS;
         urgency = clamp_f(urgency, 0.0f, 1.0f);
@@ -430,7 +435,7 @@ static int tc_reload_follow_target_sps(lane_t *lane, uint32_t now_ms, uint32_t f
         target_sps = COMPRESSION_SPS;
     } else if (g_buf.state != BUF_COMPRESSION &&
                follow_age_ms < (uint32_t)(RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS)) {
-        int floor_sps = (PRESS_SPS * RELOAD_TOUCH_FLOOR_PCT) / 100;
+        int floor_sps = (PRESS_SPS * RELOAD_TOUCH_FLOOR_PCT) / RELOAD_TOUCH_FLOOR_PERCENT_DENOM;
         if (floor_sps < COMPRESSION_SPS)
             floor_sps = COMPRESSION_SPS;
         if (target_sps < floor_sps)
@@ -471,7 +476,7 @@ static bool tc_reload_follow_check_jam(lane_t *lane, uint32_t now_ms, uint32_t f
         g_tc_ctx.wall_critical_since_ms = 0;
     }
 
-    if (follow_age_ms > 300000) {
+    if (follow_age_ms > RELOAD_FOLLOW_ABSOLUTE_TIMEOUT_MS) {
         tc_enter_error("FOLLOW_TIMEOUT_ABS");
         lane_stop(lane);
         return true;
@@ -481,8 +486,7 @@ static bool tc_reload_follow_check_jam(lane_t *lane, uint32_t now_ms, uint32_t f
 
 static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
     buf_state_t instant_buf_state = buf_state_raw();
-    if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION ||
-        toolhead_has_filament) {
+    if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION || toolhead_has_filament) {
         if (lane)
             lane_stop(lane);
         set_toolhead_filament(true);
@@ -541,9 +545,9 @@ static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
     }
 
     static uint32_t last_reload_report_ms = 0;
-    if ((now_ms - last_reload_report_ms) >= 500u) {
+    if ((now_ms - last_reload_report_ms) >= RELOAD_STATUS_INTERVAL_MS) {
         last_reload_report_ms = now_ms;
-        char ev[64];
+        char ev[TC_STATUS_EVENT_BUF_LEN];
         snprintf(ev, sizeof(ev), "%s,%.1f,%.2f", buf_state_name(g_buf.state),
                  (double)sps_to_mm_per_min(g_tc_ctx.reload_current_sps), (double)g_buf_pos);
         cmd_event("BS", ev);
