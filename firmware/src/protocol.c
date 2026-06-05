@@ -1364,6 +1364,55 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
 
 
 
+static bool cmd_handle_bl_command(const char *p, uint32_t now_ms) {
+    /* Buffer-lock arm command.
+     *   BL or BL:T → arm TENSION (no follow-on)
+     *   BL:C → arm COMPRESSION (no follow-on)
+     *   BL:T:<follow_mm>:<follow_rate_mmpm> → arm TENSION + follow-on
+     *   BL:C:<follow_mm>:<follow_rate_mmpm> → arm COMPRESSION + follow-on
+     * Follow-on fires concurrent MMU motion (prime direction) on the
+     * first raw transition off the armed extreme — i.e. the moment
+     * the extruder starts filling the buffer. Mass-balances long
+     * extruder retracts that exceed the buffer's mechanical headroom.
+     * BL is allowed to take over from SYNC_ACTIVE and active BS. Reject
+     * only if a non-sync lane task or hard activity is running. */
+    char dir_tok = 'T';
+    float follow_mm = 0.0f;
+    float follow_rate = 0.0f;
+    int n = sscanf(p, "%c:%f:%f", &dir_tok, &follow_mm, &follow_rate);
+    if (n < 1)
+        dir_tok = 'T';
+    if (dir_tok != 'T' && dir_tok != 'C') {
+        cmd_reply("ER", "ARG");
+        return true;
+    }
+    if (n == 2 || (n == 3 && (follow_mm <= 0.0f || follow_rate <= 0.0f))) {
+        cmd_reply("ER", "ARG");
+        return true;
+    }
+    if (controller_hard_activity_in_progress()) {
+        cmd_reply("ER", "BUSY");
+        return true;
+    }
+    buffer_stabilize_cancel();
+    if (sync_enabled) {
+        sync_disable(false);
+        lane_t *lane = lane_ptr(active_lane);
+        if (lane && lane->task == TASK_FEED)
+            lane_stop(lane);
+    } else if (g_sync_state != SYNC_OFF && g_sync_state != SYNC_RETRACT_ASSIST) {
+        sync_disable(false);
+    }
+    if (controller_activity_in_progress()) {
+        cmd_reply("ER", "BUSY");
+    } else {
+        buf_state_t target = (dir_tok == 'C') ? BUF_COMPRESSION : BUF_TENSION;
+        sync_buffer_lock_arm(target, follow_mm, follow_rate, now_ms);
+        cmd_reply("OK", NULL);
+    }
+    return true;
+}
+
 static bool cmd_handle_sensor_status(const char *cmd, const char *p, uint32_t now_ms) {
     if (!strcmp(cmd, "ST")) {
         tc_abort();
@@ -1445,52 +1494,7 @@ static bool cmd_handle_sensor_status(const char *cmd, const char *p, uint32_t no
         cmd_reply("ER", "CMD");
         return true;
     } else if (!strcmp(cmd, "BL")) {
-        /* Buffer-lock arm command.
-         *   BL or BL:T → arm TENSION (no follow-on)
-         *   BL:C → arm COMPRESSION (no follow-on)
-         *   BL:T:<follow_mm>:<follow_rate_mmpm> → arm TENSION + follow-on
-         *   BL:C:<follow_mm>:<follow_rate_mmpm> → arm COMPRESSION + follow-on
-         * Follow-on fires concurrent MMU motion (prime direction) on the
-         * first raw transition off the armed extreme — i.e. the moment
-         * the extruder starts filling the buffer. Mass-balances long
-         * extruder retracts that exceed the buffer's mechanical headroom.
-         * BL is allowed to take over from SYNC_ACTIVE and active BS. Reject
-         * only if a non-sync lane task or hard activity is running. */
-        char dir_tok = 'T';
-        float follow_mm = 0.0f;
-        float follow_rate = 0.0f;
-        int n = sscanf(p, "%c:%f:%f", &dir_tok, &follow_mm, &follow_rate);
-        if (n < 1)
-            dir_tok = 'T';
-        if (dir_tok != 'T' && dir_tok != 'C') {
-            cmd_reply("ER", "ARG");
-            return true;
-        }
-        if (n == 2 || (n == 3 && (follow_mm <= 0.0f || follow_rate <= 0.0f))) {
-            cmd_reply("ER", "ARG");
-            return true;
-        }
-        if (controller_hard_activity_in_progress()) {
-            cmd_reply("ER", "BUSY");
-            return true;
-        }
-        buffer_stabilize_cancel();
-        if (sync_enabled) {
-            sync_disable(false);
-            lane_t *lane = lane_ptr(active_lane);
-            if (lane && lane->task == TASK_FEED)
-                lane_stop(lane);
-        } else if (g_sync_state != SYNC_OFF && g_sync_state != SYNC_RETRACT_ASSIST) {
-            sync_disable(false);
-        }
-        if (controller_activity_in_progress()) {
-            cmd_reply("ER", "BUSY");
-        } else {
-            buf_state_t target = (dir_tok == 'C') ? BUF_COMPRESSION : BUF_TENSION;
-            sync_buffer_lock_arm(target, follow_mm, follow_rate, now_ms);
-            cmd_reply("OK", NULL);
-        }
-        return true;
+        return cmd_handle_bl_command(p, now_ms);
     } else if (!strcmp(cmd, "SM")) {
         int v = atoi(p);
         if (v == 0 || v == 1) {
