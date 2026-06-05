@@ -38,6 +38,7 @@
 
 ## 5. Doc-comments + gate
 
-- [ ] 5.1 Normalize function/struct/macro doc-comments to `STYLE.md` format; preserve all rationale/tuning-history comments verbatim in meaning
+- [x] 5.1 Normalize function/struct/macro doc-comments to `STYLE.md` format; preserve all rationale/tuning-history comments verbatim in meaning
+  - 2026-06-05 validation: normalized API-facing struct/macro/shared-interface comments in public/internal headers to `/// @brief` / `///<` form; retained `.c` algorithm/hardware/tuning rationale block comments in meaning. `ninja -C build_local` passed. Commit: `07bca8b`.
 - [ ] 5.2 Re-run `clang-tidy`; resolve or justified-suppress remaining findings
 - [ ] 5.3 Final `ninja -C build_local` pass; confirm zero behavior/protocol/config/tunable change across the change
