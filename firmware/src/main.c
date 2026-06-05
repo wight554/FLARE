@@ -199,24 +199,24 @@ bool g_shadow_ihold_irun_valid[NUM_LANES] = {false, false};
 bool g_shadow_vsense[NUM_LANES] = {true, true};
 
 // ===================== Helpers =====================
-int clamp_i(int v, int lo, int hi) {
-    if (v < lo)
+int clamp_i(int value, int lo, int hi) {
+    if (value < lo)
         return lo;
-    if (v > hi)
+    if (value > hi)
         return hi;
-    return v;
+    return value;
 }
 
-float clamp_f(float v, float lo, float hi) {
-    if (v < lo)
+float clamp_f(float value, float lo, float hi) {
+    if (value < lo)
         return lo;
-    if (v > hi)
+    if (value > hi)
         return hi;
-    return v;
+    return value;
 }
 
-int lane_to_idx(int ln) {
-    return (ln == 1) ? 0 : 1;
+int lane_to_idx(int lane) {
+    return (lane == 1) ? 0 : 1;
 }
 
 static int cs_to_ma(uint8_t cs, bool vsense) {
@@ -245,8 +245,8 @@ uint32_t build_ihold_irun_reg(int run_ma, int hold_ma, bool vsense) {
     return ((uint32_t)ihold) | ((uint32_t)irun << 8) | (8u << 16);
 }
 
-void sync_currents_from_ihold_irun(int ln, uint32_t reg) {
-    int idx = lane_to_idx(ln);
+void sync_currents_from_ihold_irun(int lane, uint32_t reg) {
+    int idx = lane_to_idx(lane);
     uint8_t ihold = (uint8_t)(reg & 0x1Fu);
     uint8_t irun = (uint8_t)((reg >> 8) & 0x1Fu);
     bool vsense = g_shadow_vsense[idx];
@@ -294,11 +294,11 @@ void set_toolhead_filament(bool present) {
 }
 
 static int detect_active_lane_from_out(void) {
-    bool l1 = lane_out_present(&g_lane_l1);
-    bool l2 = lane_out_present(&g_lane_l2);
-    if (l1 && !l2)
+    bool lane1_present = lane_out_present(&g_lane_l1);
+    bool lane2_present = lane_out_present(&g_lane_l2);
+    if (lane1_present && !lane2_present)
         return 1;
-    if (l2 && !l1)
+    if (lane2_present && !lane1_present)
         return 2;
     return 0;
 }
@@ -446,8 +446,8 @@ static void neopixel_tick(uint32_t now_ms) {
         break;
     case LED_CUTTING: {
         uint8_t phase = (uint8_t)((now_ms / 32u) & 0x0Fu);
-        uint8_t v = (phase < 8u) ? (uint8_t)(phase * 32u) : (uint8_t)((15u - phase) * 32u);
-        neopixel_set(v, v, v);
+        uint8_t brightness = (phase < 8u) ? (uint8_t)(phase * 32u) : (uint8_t)((15u - phase) * 32u);
+        neopixel_set(brightness, brightness, brightness);
         break;
     }
     }
@@ -458,15 +458,15 @@ int main(void) {
     stdio_init_all();
     sleep_ms(200);
 
-    motor_t l1;
-    motor_t l2;
-    motor_init(&l1, PIN_L1_EN, PIN_L1_DIR, PIN_L1_STEP, CONF_L1_DIR_INVERT);
-    motor_init(&l2, PIN_L2_EN, PIN_L2_DIR, PIN_L2_STEP, CONF_L2_DIR_INVERT);
+    motor_t motor_l1;
+    motor_t motor_l2;
+    motor_init(&motor_l1, PIN_L1_EN, PIN_L1_DIR, PIN_L1_STEP, CONF_L1_DIR_INVERT);
+    motor_init(&motor_l2, PIN_L2_EN, PIN_L2_DIR, PIN_L2_STEP, CONF_L2_DIR_INVERT);
     tmc_init(&g_tmc_l1, PIN_L1_UART_TX, PIN_L1_UART_RX, 0);
     tmc_init(&g_tmc_l2, PIN_L2_UART_TX, PIN_L2_UART_RX, 0);
 
-    lane_setup(&g_lane_l1, PIN_L1_IN, PIN_L1_OUT, l1, 1, &g_tmc_l1);
-    lane_setup(&g_lane_l2, PIN_L2_IN, PIN_L2_OUT, l2, 2, &g_tmc_l2);
+    lane_setup(&g_lane_l1, PIN_L1_IN, PIN_L1_OUT, motor_l1, 1, &g_tmc_l1);
+    lane_setup(&g_lane_l2, PIN_L2_IN, PIN_L2_OUT, motor_l2, 2, &g_tmc_l2);
 
     debounced_input_init(&g_y_split, PIN_Y_SPLIT);
     debounced_input_init(&g_buf_tension_din, PIN_BUF_TENSION);

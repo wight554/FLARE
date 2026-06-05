@@ -39,59 +39,59 @@ uint8_t tmc_crc8(const uint8_t *data, uint8_t len) {
     return crc;
 }
 
-bool tmc_init(tmc_t *t, uint tx_pin, uint rx_pin, uint8_t addr) {
-    t->tx_pin = tx_pin;
-    t->rx_pin = rx_pin; // Note: For ERB v2.0 hardware, tx_pin is single-wire bidirectional. rx_pin
+bool tmc_init(tmc_t *tmc, uint tx_pin, uint rx_pin, uint8_t address) {
+    tmc->tx_pin = tx_pin;
+    tmc->rx_pin = rx_pin; // Note: For ERB v2.0 hardware, tx_pin is single-wire bidirectional. rx_pin
                         // is typically unused or DIAG.
-    t->addr = addr;
-    t->pio = pio0;
+    tmc->addr = address;
+    tmc->pio = pio0;
 
-    int pidx = pio_block_index(t->pio);
+    int pidx = pio_block_index(tmc->pio);
     tmc_pio_cache_t *cache = &pio_cache[pidx];
 
     if (!cache->loaded) {
-        if (pio_can_add_program(t->pio, &tmc_uart_tx_program) &&
-            pio_can_add_program(t->pio, &tmc_uart_rx_program)) {
-            cache->offset_tx = pio_add_program(t->pio, &tmc_uart_tx_program);
-            cache->offset_rx = pio_add_program(t->pio, &tmc_uart_rx_program);
+        if (pio_can_add_program(tmc->pio, &tmc_uart_tx_program) &&
+            pio_can_add_program(tmc->pio, &tmc_uart_rx_program)) {
+            cache->offset_tx = pio_add_program(tmc->pio, &tmc_uart_tx_program);
+            cache->offset_rx = pio_add_program(tmc->pio, &tmc_uart_rx_program);
             cache->loaded = true;
         } else {
             return false;
         }
     }
 
-    t->offset_tx = cache->offset_tx;
-    t->offset_rx = cache->offset_rx;
+    tmc->offset_tx = cache->offset_tx;
+    tmc->offset_rx = cache->offset_rx;
 
-    t->sm_tx = pio_claim_unused_sm(t->pio, true);
-    t->sm_rx = pio_claim_unused_sm(t->pio, true);
+    tmc->sm_tx = pio_claim_unused_sm(tmc->pio, true);
+    tmc->sm_rx = pio_claim_unused_sm(tmc->pio, true);
 
-    tmc_uart_tx_program_init(t->pio, t->sm_tx, t->offset_tx, t->tx_pin, TMC_BAUD);
-    tmc_uart_rx_program_init(t->pio, t->sm_rx, t->offset_rx, t->tx_pin, TMC_BAUD);
+    tmc_uart_tx_program_init(tmc->pio, tmc->sm_tx, tmc->offset_tx, tmc->tx_pin, TMC_BAUD);
+    tmc_uart_rx_program_init(tmc->pio, tmc->sm_rx, tmc->offset_rx, tmc->tx_pin, TMC_BAUD);
 
-    pio_sm_set_enabled(t->pio, t->sm_tx,
+    pio_sm_set_enabled(tmc->pio, tmc->sm_tx,
                        true); // Keep TX SM enabled permanently to manage pin state
-    pio_sm_set_enabled(t->pio, t->sm_rx,
+    pio_sm_set_enabled(tmc->pio, tmc->sm_rx,
                        true); // Keep RX SM enabled permanently to autonomously track line state
 
     // MUST enable internal pull-up so that when we switch to INPUT during reads,
     // the line is held HIGH (if TMC2209 pdn_disable=1 turns off its internal pull-down)
-    gpio_pull_up(t->tx_pin);
+    gpio_pull_up(tmc->tx_pin);
 
     // Guarantee the pin is actively driven HIGH (OUTPUT) while idle
-    pio_sm_set_consecutive_pindirs(t->pio, t->sm_tx, t->tx_pin, 1, true);
+    pio_sm_set_consecutive_pindirs(tmc->pio, tmc->sm_tx, tmc->tx_pin, 1, true);
 
     return true;
 }
 
-static void tmc_uart_send_bytes(tmc_t *t, const uint8_t *buf, size_t len) {
+static void tmc_uart_send_bytes(tmc_t *tmc, const uint8_t *buffer, size_t len) {
     for (size_t i = 0; i < len; i++) {
-        pio_sm_put_blocking(t->pio, t->sm_tx, buf[i]);
+        pio_sm_put_blocking(tmc->pio, tmc->sm_tx, buffer[i]);
     }
 
     // Wait for FIFO to empty
     uint64_t timeout_us = time_us_64() + 2000;
-    while (!pio_sm_is_tx_fifo_empty(t->pio, t->sm_tx) && time_us_64() < timeout_us)
+    while (!pio_sm_is_tx_fifo_empty(tmc->pio, tmc->sm_tx) && time_us_64() < timeout_us)
         tight_loop_contents();
 
     // Wait for the state machine to stall at the 'pull' instruction (offset_tx).
@@ -100,97 +100,97 @@ static void tmc_uart_send_bytes(tmc_t *t, const uint8_t *buf, size_t len) {
     // the stop bit actually finishes on the wire. We add a mandatory 30us inter-frame
     // gap here so back-to-back calls never collide on the bus.
     timeout_us = time_us_64() + 2000;
-    while (pio_sm_get_pc(t->pio, t->sm_tx) != t->offset_tx && time_us_64() < timeout_us)
+    while (pio_sm_get_pc(tmc->pio, tmc->sm_tx) != tmc->offset_tx && time_us_64() < timeout_us)
         tight_loop_contents();
     busy_wait_us_32(30); // inter-frame gap: ensures stop bit fully clears the wire
 }
 
-bool tmc_write(tmc_t *t, uint8_t reg, uint32_t val) {
-    uint8_t buf[8];
+bool tmc_write(tmc_t *tmc, uint8_t reg, uint32_t value) {
+    uint8_t buffer[8];
 
-    buf[0] = 0x05;
-    buf[1] = t->addr;
-    buf[2] = reg | 0x80;
-    buf[3] = (uint8_t)((val >> 24) & 0xFFu);
-    buf[4] = (uint8_t)((val >> 16) & 0xFFu);
-    buf[5] = (uint8_t)((val >> 8) & 0xFFu);
-    buf[6] = (uint8_t)(val & 0xFFu);
-    buf[7] = tmc_crc8(buf, 7);
+    buffer[0] = 0x05;
+    buffer[1] = tmc->addr;
+    buffer[2] = reg | 0x80;
+    buffer[3] = (uint8_t)((value >> 24) & 0xFFu);
+    buffer[4] = (uint8_t)((value >> 16) & 0xFFu);
+    buffer[5] = (uint8_t)((value >> 8) & 0xFFu);
+    buffer[6] = (uint8_t)(value & 0xFFu);
+    buffer[7] = tmc_crc8(buffer, 7);
 
-    tmc_uart_send_bytes(t, buf, 8);
+    tmc_uart_send_bytes(tmc, buffer, 8);
     return true;
 }
 
 // Perform the bus turnaround and receive 8 bytes from the TMC2209.
 // Returns the number of bytes received (0-8).
-static int tmc_read_bytes(tmc_t *t, uint8_t reg, uint8_t *buf) {
-    uint8_t req[4];
-    req[0] = 0x05;
-    req[1] = t->addr;
-    req[2] = reg & 0x7Fu;
-    req[3] = tmc_crc8(req, 3);
+static int tmc_read_bytes(tmc_t *tmc, uint8_t reg, uint8_t *buffer) {
+    uint8_t request[4];
+    request[0] = 0x05;
+    request[1] = tmc->addr;
+    request[2] = reg & 0x7Fu;
+    request[3] = tmc_crc8(request, 3);
 
     // Force-restart the RX SM so it is cleanly waiting for a start bit.
     // The RX SM runs permanently and may have been triggered by noise or
     // DIAG glitches on the shared pin, leaving it stuck neutral-frame in bitloop
     // or wait_high.  A simple FIFO clear doesn't fix a stuck PC.
-    pio_sm_set_enabled(t->pio, t->sm_rx, false);
-    pio_sm_clear_fifos(t->pio, t->sm_rx);
-    pio_sm_exec(t->pio, t->sm_rx, pio_encode_mov(pio_isr, pio_null));
-    pio_sm_exec(t->pio, t->sm_rx, pio_encode_jmp(t->offset_rx));
-    pio_sm_set_enabled(t->pio, t->sm_rx, true);
+    pio_sm_set_enabled(tmc->pio, tmc->sm_rx, false);
+    pio_sm_clear_fifos(tmc->pio, tmc->sm_rx);
+    pio_sm_exec(tmc->pio, tmc->sm_rx, pio_encode_mov(pio_isr, pio_null));
+    pio_sm_exec(tmc->pio, tmc->sm_rx, pio_encode_jmp(tmc->offset_rx));
+    pio_sm_set_enabled(tmc->pio, tmc->sm_rx, true);
 
-    tmc_uart_send_bytes(t, req, 4);
+    tmc_uart_send_bytes(tmc, request, 4);
 
     // tmc_uart_send_bytes includes a 30us inter-frame gap covering the stop bit.
     // Add 10 more us to ensure the RX SM has pushed the final echo byte to FIFO.
     busy_wait_us_32(10);
 
     // Completely drain the RX FIFO of all echo bytes (4 bytes) and any preceding garbage
-    while (!pio_sm_is_rx_fifo_empty(t->pio, t->sm_rx)) {
-        pio_sm_get(t->pio, t->sm_rx);
+    while (!pio_sm_is_rx_fifo_empty(tmc->pio, tmc->sm_rx)) {
+        pio_sm_get(tmc->pio, tmc->sm_rx);
     }
 
     // Now release the pin to INPUT so the TMC2209 can reply.
     // (Requires internal pull-up and pdn_disable=1 so it stays HIGH during idle)
-    pio_sm_set_consecutive_pindirs(t->pio, t->sm_tx, t->tx_pin, 1, false);
+    pio_sm_set_consecutive_pindirs(tmc->pio, tmc->sm_tx, tmc->tx_pin, 1, false);
 
     uint64_t timeout_us = time_us_64() + 5000;
-    int received = 0;
+    int bytes_received = 0;
 
-    while (received < 8 && time_us_64() < timeout_us) {
-        if (!pio_sm_is_rx_fifo_empty(t->pio, t->sm_rx)) {
-            buf[received++] = (uint8_t)(pio_sm_get(t->pio, t->sm_rx) >> 24);
+    while (bytes_received < 8 && time_us_64() < timeout_us) {
+        if (!pio_sm_is_rx_fifo_empty(tmc->pio, tmc->sm_rx)) {
+            buffer[bytes_received++] = (uint8_t)(pio_sm_get(tmc->pio, tmc->sm_rx) >> 24);
         }
     }
 
     // Restore pin to OUTPUT HIGH
-    pio_sm_set_consecutive_pindirs(t->pio, t->sm_tx, t->tx_pin, 1, true);
+    pio_sm_set_consecutive_pindirs(tmc->pio, tmc->sm_tx, tmc->tx_pin, 1, true);
 
-    return received;
+    return bytes_received;
 }
 
-bool tmc_read(tmc_t *t, uint8_t reg, uint32_t *out) {
-    uint8_t rep[8];
+bool tmc_read(tmc_t *tmc, uint8_t reg, uint32_t *out_value) {
+    uint8_t reply[8];
 
     for (int attempt = 0; attempt < 2; attempt++) {
-        int n = tmc_read_bytes(t, reg, rep);
-        if (n < 8)
+        int bytes_read = tmc_read_bytes(tmc, reg, reply);
+        if (bytes_read < 8)
             continue;
-        if (rep[0] != 0x05 || rep[1] != 0xFF || (rep[2] & 0x7Fu) != reg)
+        if (reply[0] != 0x05 || reply[1] != 0xFF || (reply[2] & 0x7Fu) != reg)
             continue;
-        if (tmc_crc8(rep, 7) != rep[7])
+        if (tmc_crc8(reply, 7) != reply[7])
             continue;
 
-        *out = ((uint32_t)rep[3] << 24) | ((uint32_t)rep[4] << 16) | ((uint32_t)rep[5] << 8) |
-               (uint32_t)rep[6];
+        *out_value = ((uint32_t)reply[3] << 24) | ((uint32_t)reply[4] << 16) | ((uint32_t)reply[5] << 8) |
+                     (uint32_t)reply[6];
         return true;
     }
     return false;
 }
 
-int tmc_read_raw(tmc_t *t, uint8_t reg, uint8_t *buf_out) {
-    return tmc_read_bytes(t, reg, buf_out);
+int tmc_read_raw(tmc_t *tmc, uint8_t reg, uint8_t *buffer_out) {
+    return tmc_read_bytes(tmc, reg, buffer_out);
 }
 
 static uint8_t calculate_cs(int ma, bool vsense) {
@@ -213,7 +213,7 @@ static uint8_t calculate_cs(int ma, bool vsense) {
     return (uint8_t)cs;
 }
 
-bool tmc_set_run_current_ma(tmc_t *t, int run_ma, int hold_ma) {
+bool tmc_set_run_current_ma(tmc_t *tmc, int run_ma, int hold_ma) {
     // Klipper-style vsense toggling: use high sensitivity (vsense=1, 0.180V) up to 0.98A
     // and low sensitivity (vsense=0, 0.325V) above that for better resolution at lower currents.
     bool vsense = (run_ma <= 980);
@@ -222,21 +222,21 @@ bool tmc_set_run_current_ma(tmc_t *t, int run_ma, int hold_ma) {
     uint8_t ihold = calculate_cs(hold_ma, vsense);
 
     // Update CHOPCONF if vsense bit (bit 17) needs to change
-    uint32_t current_vsense = (t->chopconf >> 17) & 1u;
+    uint32_t current_vsense = (tmc->chopconf >> 17) & 1u;
     if (current_vsense != (uint32_t)vsense) {
         if (vsense) {
-            t->chopconf |= (1u << 17);
+            tmc->chopconf |= (1u << 17);
         } else {
-            t->chopconf &= ~(1u << 17);
+            tmc->chopconf &= ~(1u << 17);
         }
-        tmc_write(t, TMC_REG_CHOPCONF, t->chopconf);
+        tmc_write(tmc, TMC_REG_CHOPCONF, tmc->chopconf);
     }
 
     uint32_t reg = ((uint32_t)ihold) | ((uint32_t)irun << 8) | (8u << 16);
-    return tmc_write(t, TMC_REG_IHOLD_IRUN, reg);
+    return tmc_write(tmc, TMC_REG_IHOLD_IRUN, reg);
 }
 
-bool tmc_setup_chopconf(tmc_t *t, int microsteps, int toff, int tbl, int hstrt, int hend,
+bool tmc_setup_chopconf(tmc_t *tmc, int microsteps, int toff, int tbl, int hstrt, int hend,
                         bool intpol) {
     int mres;
     switch (microsteps) {
@@ -286,35 +286,35 @@ bool tmc_setup_chopconf(tmc_t *t, int microsteps, int toff, int tbl, int hstrt, 
     if (intpol) {
         chop |= (1u << 28);
     }
-    t->chopconf = chop;
-    return tmc_write(t, TMC_REG_CHOPCONF, chop);
+    tmc->chopconf = chop;
+    return tmc_write(tmc, TMC_REG_CHOPCONF, chop);
 }
 
-bool tmc_set_spreadcycle(tmc_t *t, bool spreadcycle) {
+bool tmc_set_spreadcycle(tmc_t *tmc, bool spreadcycle) {
     uint32_t gconf = 0;
     if (spreadcycle)
         gconf |= (1u << 2);
     gconf |= (1u << 6);
     gconf |= (1u << 7);
     gconf |= (1u << 8);
-    return tmc_write(t, TMC_REG_GCONF, gconf);
+    return tmc_write(tmc, TMC_REG_GCONF, gconf);
 }
 
-bool tmc_set_stealthchop_sps(tmc_t *t, int sps, int microsteps) {
+bool tmc_set_stealthchop_sps(tmc_t *tmc, int sps, int microsteps) {
     uint32_t gconf = (1u << 6) | (1u << 7) | (1u << 8);
     if (sps <= 0) {
         // Always SpreadCycle
         gconf |= (1u << 2);
-        tmc_write(t, TMC_REG_GCONF, gconf);
+        tmc_write(tmc, TMC_REG_GCONF, gconf);
         busy_wait_us_32(100);
-        tmc_write(t, TMC_REG_TPWMTHRS, 0);
+        tmc_write(tmc, TMC_REG_TPWMTHRS, 0);
         busy_wait_us_32(100);
-        tmc_write(t, TMC_REG_TCOOLTHRS, 0);
+        tmc_write(tmc, TMC_REG_TCOOLTHRS, 0);
     } else {
         // StealthChop enabled, switching to SpreadCycle above threshold_sps
-        tmc_set_pwmconf(t);
+        tmc_set_pwmconf(tmc);
         busy_wait_us_32(100);
-        tmc_write(t, TMC_REG_GCONF, gconf);
+        tmc_write(tmc, TMC_REG_GCONF, gconf);
         busy_wait_us_32(100);
 
         // TSTEP is measured in units of internal 256-microsteps.
@@ -326,40 +326,40 @@ bool tmc_set_stealthchop_sps(tmc_t *t, int sps, int microsteps) {
         if (tpwmthrs > 0xFFFFF)
             tpwmthrs = 0xFFFFF;
 
-        tmc_write(t, TMC_REG_TPWMTHRS, tpwmthrs);
+        tmc_write(tmc, TMC_REG_TPWMTHRS, tpwmthrs);
         busy_wait_us_32(100);
 
         // Ensure TCOOLTHRS is 0 so it doesn't force SpreadCycle early
-        tmc_write(t, TMC_REG_TCOOLTHRS, 0);
+        tmc_write(tmc, TMC_REG_TCOOLTHRS, 0);
     }
     return true;
 }
 
-bool tmc_set_pwmconf(tmc_t *t) {
-    uint32_t val = 0;
-    val |= (36u & 0xFFu);
-    val |= (14u & 0xFFu) << 8;
-    val |= (1u & 0x03u) << 16;
-    val |= (1u << 18);
-    val |= (1u << 19);
-    val |= (8u & 0x0Fu) << 24;
-    val |= (12u & 0x0Fu) << 28;
-    return tmc_write(t, TMC_REG_PWMCONF, val);
+bool tmc_set_pwmconf(tmc_t *tmc) {
+    uint32_t value = 0;
+    value |= (36u & 0xFFu);
+    value |= (14u & 0xFFu) << 8;
+    value |= (1u & 0x03u) << 16;
+    value |= (1u << 18);
+    value |= (1u << 19);
+    value |= (8u & 0x0Fu) << 24;
+    value |= (12u & 0x0Fu) << 28;
+    return tmc_write(tmc, TMC_REG_PWMCONF, value);
 }
 
-bool tmc_set_sgthrs(tmc_t *t, uint8_t sgthrs) {
-    return tmc_write(t, TMC_REG_SGTHRS, (uint32_t)sgthrs);
+bool tmc_set_sgthrs(tmc_t *tmc, uint8_t sgthrs) {
+    return tmc_write(tmc, TMC_REG_SGTHRS, (uint32_t)sgthrs);
 }
 
-bool tmc_set_tcoolthrs(tmc_t *t, uint32_t v) {
-    return tmc_write(t, TMC_REG_TCOOLTHRS, v);
+bool tmc_set_tcoolthrs(tmc_t *tmc, uint32_t value) {
+    return tmc_write(tmc, TMC_REG_TCOOLTHRS, value);
 }
 
-bool tmc_read_sg_result(tmc_t *t, uint16_t *out) {
-    uint32_t v = 0;
-    if (!tmc_read(t, TMC_REG_SG_RESULT, &v)) {
+bool tmc_read_sg_result(tmc_t *tmc, uint16_t *out_value) {
+    uint32_t value = 0;
+    if (!tmc_read(tmc, TMC_REG_SG_RESULT, &value)) {
         return false;
     }
-    *out = (uint16_t)(v & 0x03FFu);
+    *out_value = (uint16_t)(value & 0x03FFu);
     return true;
 }

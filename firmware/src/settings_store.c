@@ -313,15 +313,15 @@ void settings_save(void) {
 
 void sync_tmc_settings(int lane) {
     int idx = lane_to_idx(lane);
-    tmc_t *t = (lane == 1) ? &g_tmc_l1 : &g_tmc_l2;
+    tmc_t *tmc = (lane == 1) ? &g_tmc_l1 : &g_tmc_l2;
 
     MM_PER_STEP[idx] = TMC_ROTATION_DISTANCE[idx] /
                        (float)(TMC_FULL_STEPS[idx] * TMC_GEAR_RATIO[idx] * TMC_MICROSTEPS[idx]);
 
-    tmc_setup_chopconf(t, TMC_MICROSTEPS[idx], TMC_TOFF[idx], TMC_TBL[idx], TMC_HSTRT[idx],
+    tmc_setup_chopconf(tmc, TMC_MICROSTEPS[idx], TMC_TOFF[idx], TMC_TBL[idx], TMC_HSTRT[idx],
                        TMC_HEND[idx], TMC_INTERPOLATE[idx]);
-    tmc_set_stealthchop_sps(t, TMC_STEALTHCHOP_SPS[idx], TMC_MICROSTEPS[idx]);
-    tmc_set_run_current_ma(t, TMC_RUN_CURRENT_MA[idx], TMC_HOLD_CURRENT_MA[idx]);
+    tmc_set_stealthchop_sps(tmc, TMC_STEALTHCHOP_SPS[idx], TMC_MICROSTEPS[idx]);
+    tmc_set_run_current_ma(tmc, TMC_RUN_CURRENT_MA[idx], TMC_HOLD_CURRENT_MA[idx]);
 
     // Synchronize shadow state for protocol reporting
     g_shadow_vsense[idx] = (TMC_RUN_CURRENT_MA[idx] <= 980);
