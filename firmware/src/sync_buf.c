@@ -510,7 +510,8 @@ void blend_extruder_est_sps_direct(float sample_sps, float alpha, uint32_t now_m
     extruder_est_last_update_ms = now_ms;
 }
 
-static float buf_update_transition_geometry(buf_state_t old, buf_state_t new_state, float threshold, float max_transition_mm) {
+static float buf_update_transition_geometry(buf_state_t old, buf_state_t new_state, float threshold,
+                                            float max_transition_mm) {
     float travel_mm = 0.0f;
     if (old == BUF_NEUTRAL) {
         if (new_state == BUF_TENSION)
@@ -544,7 +545,28 @@ static float buf_update_transition_geometry(buf_state_t old, buf_state_t new_sta
     return travel_mm;
 }
 
-static void buf_update_estimator(buf_state_t old, buf_state_t new_state, float travel_mm, float threshold, float prev_dwell, float mmu_avg_sps, uint32_t now_ms) {
+static void buf_apply_estimator_sample(bool neutral_drain_sample, float est_sps, float alpha,
+                                       uint32_t now_ms) {
+    float prev_est_sps = extruder_est_sps;
+    if (neutral_drain_sample) {
+        blend_extruder_est_sps_direct(est_sps, alpha, now_ms);
+        if (extruder_est_sps < prev_est_sps)
+            extruder_est_sps = prev_est_sps;
+    } else {
+        blend_extruder_est_sps(est_sps, alpha, now_ms);
+    }
+    float reset_threshold_sps = fmaxf((float)SYNC_RELAY_TRIM_STEP_SPS, 100.0f);
+    if (fabsf(extruder_est_sps - prev_est_sps) >= reset_threshold_sps) {
+        g_relay_neutral_trim_sps *= 0.25f;
+        if (fabsf(g_relay_neutral_trim_sps) < 1.0f)
+            g_relay_neutral_trim_sps = 0.0f;
+        relay_neutral_trim_clamp();
+    }
+}
+
+static void buf_update_estimator(buf_state_t old, buf_state_t new_state, float travel_mm,
+                                 float threshold, float prev_dwell, float mmu_avg_sps,
+                                 uint32_t now_ms) {
     bool neutral_fill_sample = (old == BUF_NEUTRAL && new_state == BUF_COMPRESSION);
     bool neutral_drain_sample = (old == BUF_NEUTRAL && new_state == BUF_TENSION);
     bool compression_drain_sample = (old == BUF_COMPRESSION && new_state == BUF_NEUTRAL);
@@ -631,26 +653,13 @@ static void buf_update_estimator(buf_state_t old, buf_state_t new_state, float t
         }
 
         if (sample_valid) {
-            float prev_est_sps = extruder_est_sps;
-            if (neutral_drain_sample) {
-                blend_extruder_est_sps_direct(est_sps, alpha, now_ms);
-                if (extruder_est_sps < prev_est_sps)
-                    extruder_est_sps = prev_est_sps;
-            } else {
-                blend_extruder_est_sps(est_sps, alpha, now_ms);
-            }
-            float reset_threshold_sps = fmaxf((float)SYNC_RELAY_TRIM_STEP_SPS, 100.0f);
-            if (fabsf(extruder_est_sps - prev_est_sps) >= reset_threshold_sps) {
-                g_relay_neutral_trim_sps *= 0.25f;
-                if (fabsf(g_relay_neutral_trim_sps) < 1.0f)
-                    g_relay_neutral_trim_sps = 0.0f;
-                relay_neutral_trim_clamp();
-            }
+            buf_apply_estimator_sample(neutral_drain_sample, est_sps, alpha, now_ms);
         }
     }
 }
 
-static void buf_update_residual_observer(buf_state_t old, buf_state_t new_state, float threshold, uint32_t now_ms) {
+static void buf_update_residual_observer(buf_state_t old, buf_state_t new_state, float threshold,
+                                         uint32_t now_ms) {
     if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL &&
         (new_state == BUF_TENSION || new_state == BUF_COMPRESSION)) {
         float switch_pos_mm = (new_state == BUF_TENSION) ? -threshold : threshold;
@@ -715,7 +724,8 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
 
     float travel_mm = buf_update_transition_geometry(old, new_state, threshold, max_transition_mm);
 
-    buf_update_estimator(old, new_state, travel_mm, threshold, (float)prev_dwell, mmu_avg_sps, now_ms);
+    buf_update_estimator(old, new_state, travel_mm, threshold, (float)prev_dwell, mmu_avg_sps,
+                         now_ms);
 
     buf_update_residual_observer(old, new_state, threshold, now_ms);
 
