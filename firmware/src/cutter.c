@@ -84,14 +84,14 @@ static uint32_t cut_feed_ms_for_mm(int mm, int idx) {
     return (uint32_t)(secs * 1000.0f);
 }
 
-uint32_t cutter_expected_ms(lane_t *L, bool enable_feed) {
+uint32_t cutter_expected_ms(lane_t *lane, bool enable_feed) {
     int repeats = CUT_AMOUNT;
     if (repeats < 1)
         repeats = 1;
 
     uint32_t feed_ms = 0;
-    if (L && enable_feed) {
-        int idx = L->lane_id - 1;
+    if (lane && enable_feed) {
+        int idx = lane->lane_id - 1;
         if (idx < 0 || idx >= NUM_LANES)
             idx = 0;
         feed_ms = cut_feed_ms_for_mm(CUT_FEED_MM, idx);
@@ -126,16 +126,16 @@ void cutter_init(void) {
     g_cut.phase_start_ms = to_ms_since_boot(get_absolute_time());
 }
 
-void cutter_start(lane_t *L, bool enable_feed, uint32_t now_ms) {
+void cutter_start(lane_t *lane, bool enable_feed, uint32_t now_ms) {
     if (g_cut.state != CUT_IDLE && g_cut.state != CUT_BOOT_PARK)
         return;
 
-    g_cut.lane = L;
+    g_cut.lane = lane;
     g_cut.repeats_done = 0;
     g_cut.failed = false;
 
-    if (L && enable_feed) {
-        int idx = L->lane_id - 1;
+    if (lane && enable_feed) {
+        int idx = lane->lane_id - 1;
         g_cut.feed_initial_ms = cut_feed_ms_for_mm(CUT_FEED_MM, idx);
         g_cut.feed_repeat_ms = cut_feed_ms_for_mm(CUT_LENGTH_MM, idx);
     } else {
@@ -146,8 +146,8 @@ void cutter_start(lane_t *L, bool enable_feed, uint32_t now_ms) {
     g_cut.phase_start_ms = now_ms;
     g_cut.state = CUT_OPENING;
 
-    if (L) {
-        char lane_s[2] = {(char)('0' + L->lane_id), 0};
+    if (lane) {
+        char lane_s[2] = {(char)('0' + lane->lane_id), 0};
         cmd_event("TC:CUTTING", lane_s);
     } else {
         cmd_event("TC:CUTTING", "BARE");

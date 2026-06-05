@@ -18,7 +18,7 @@
 
 - [x] 3.1 Rename cryptic types/identifiers in `controller_shared.h` (`din_t`→`debounced_input_t`, `motor_t` fields `en/dir/step`→clear names, etc.); build-verify
 - [x] 3.2 Rename locals in `sync.c` (`A`/`L`→`lane`, `m`→`motor`, opaque temporaries); keep domain abbreviations; build-verify
-- [ ] 3.3 Rename locals in `motion.c`, `toolchange.c`, `cutter.c`; build-verify each
+- [x] 3.3 Rename locals in `motion.c`, `toolchange.c`, `cutter.c`; build-verify each
 - [ ] 3.4 Rename locals in `protocol.c`, `settings_store.c`, `tmc2209.c`, `main.c`, `neopixel.c`; build-verify each
 - [ ] 3.5 Sync renamed identifiers across docs (`MANUAL.md`, `BEHAVIOR.md`, `CONTEXT.md`, `AGENTS.md`) per AGENTS.md rule 6
 - [ ] 3.6 Confirm protocol/`SET:`/`GET:`/`config.ini`/`tune.h` surfaces unchanged (rules 7,8)

@@ -9,15 +9,15 @@
 
 #include "protocol.h"
 
-static bool lane_tail_in_transit(lane_t *L) {
-    return !lane_in_present(L) && !lane_out_present(L) &&
-           ((L->task_dist_mm - L->dist_at_in_clear_mm) < ((float)DIST_IN_OUT * 1.2f));
+static bool lane_tail_in_transit(lane_t *lane) {
+    return !lane_in_present(lane) && !lane_out_present(lane) &&
+           ((lane->task_dist_mm - lane->dist_at_in_clear_mm) < ((float)DIST_IN_OUT * 1.2f));
 }
 
-static bool lane_tail_runout_ready(lane_t *L) {
-    if (!lane_out_present(L))
+static bool lane_tail_runout_ready(lane_t *lane) {
+    if (!lane_out_present(lane))
         return true;
-    return (L->task_dist_mm - L->dist_at_in_clear_mm) >= ((float)DIST_IN_OUT * 1.2f);
+    return (lane->task_dist_mm - lane->dist_at_in_clear_mm) >= ((float)DIST_IN_OUT * 1.2f);
 }
 
 int motion_clamp_rate_sps(int sps) {
@@ -50,13 +50,13 @@ void motion_limit_runtime_rates(bool refresh_active_motors) {
 
     lane_t *lanes[] = {&g_lane_l1, &g_lane_l2};
     for (size_t i = 0; i < NUM_LANES; i++) {
-        lane_t *L = lanes[i];
-        L->target_sps = motion_clamp_rate_sps(L->target_sps);
-        L->current_sps = motion_clamp_rate_sps(L->current_sps);
-        if (L->target_sps > 0 && L->current_sps > L->target_sps)
-            L->current_sps = L->target_sps;
-        if (refresh_active_motors && L->task != TASK_IDLE && L->current_sps > 0) {
-            motor_set_rate_sps(&L->m, L->current_sps);
+        lane_t *lane = lanes[i];
+        lane->target_sps = motion_clamp_rate_sps(lane->target_sps);
+        lane->current_sps = motion_clamp_rate_sps(lane->current_sps);
+        if (lane->target_sps > 0 && lane->current_sps > lane->target_sps)
+            lane->current_sps = lane->target_sps;
+        if (refresh_active_motors && lane->task != TASK_IDLE && lane->current_sps > 0) {
+            motor_set_rate_sps(&lane->m, lane->current_sps);
         }
     }
 }
@@ -162,141 +162,141 @@ void motor_stop(motor_t *m) {
     motor_enable(m, false);
 }
 
-void lane_setup(lane_t *L, uint pin_in, uint pin_out, motor_t m, int lane_id, tmc_t *tmc) {
-    debounced_input_init(&L->in_sw, pin_in);
-    debounced_input_init(&L->out_sw, pin_out);
-    L->m = m;
-    L->task = TASK_IDLE;
-    L->task_limit_mm = 0.0f;
-    L->target_sps = 0;
-    L->current_sps = 0;
-    L->ramp_last_tick_ms = 0;
-    L->fault = FAULT_NONE;
-    L->tmc = tmc;
-    L->motion_started_ms = 0;
-    L->task_started_ms = 0;
-    L->dry_spin_ms = 0;
-    L->fault = FAULT_NONE;
-    L->lane_id = lane_id;
-    L->runout_block_until_ms = 0;
-    L->retract_deadline_ms = 0;
-    L->unload_sensor_latch = false;
-    L->buf_tension_since_ms = 0;
-    L->dist_at_in_clear_mm = 0.0f;
-    L->task_forward = false;
-    L->prev_in = false;
-    L->unload_to_in = false;
-    L->suppress_unloaded_event = false;
-    L->load_completed = false;
-    L->move_ignore_buffer = false;
+void lane_setup(lane_t *lane, uint pin_in, uint pin_out, motor_t m, int lane_id, tmc_t *tmc) {
+    debounced_input_init(&lane->in_sw, pin_in);
+    debounced_input_init(&lane->out_sw, pin_out);
+    lane->m = m;
+    lane->task = TASK_IDLE;
+    lane->task_limit_mm = 0.0f;
+    lane->target_sps = 0;
+    lane->current_sps = 0;
+    lane->ramp_last_tick_ms = 0;
+    lane->fault = FAULT_NONE;
+    lane->tmc = tmc;
+    lane->motion_started_ms = 0;
+    lane->task_started_ms = 0;
+    lane->dry_spin_ms = 0;
+    lane->fault = FAULT_NONE;
+    lane->lane_id = lane_id;
+    lane->runout_block_until_ms = 0;
+    lane->retract_deadline_ms = 0;
+    lane->unload_sensor_latch = false;
+    lane->buf_tension_since_ms = 0;
+    lane->dist_at_in_clear_mm = 0.0f;
+    lane->task_forward = false;
+    lane->prev_in = false;
+    lane->unload_to_in = false;
+    lane->suppress_unloaded_event = false;
+    lane->load_completed = false;
+    lane->move_ignore_buffer = false;
 }
 
-void lane_stop(lane_t *L) {
-    L->task = TASK_IDLE;
-    L->task_started_ms = 0;
-    L->dry_spin_ms = 0;
-    L->unload_sensor_latch = false;
-    L->unload_buf_recover_done = false;
-    L->retract_deadline_ms = 0;
-    L->buf_tension_since_ms = 0;
-    L->reload_tail_ms = 0;
-    L->suppress_unloaded_event = false;
-    L->task_forward = false;
-    L->move_ignore_buffer = false;
-    L->current_sps = 0;
-    L->target_sps = 0;
-    motor_stop(&L->m);
-    int idx = L->lane_id - 1;
-    tmc_set_stealthchop_sps(L->tmc, TMC_STEALTHCHOP_SPS[idx], TMC_MICROSTEPS[idx]);
+void lane_stop(lane_t *lane) {
+    lane->task = TASK_IDLE;
+    lane->task_started_ms = 0;
+    lane->dry_spin_ms = 0;
+    lane->unload_sensor_latch = false;
+    lane->unload_buf_recover_done = false;
+    lane->retract_deadline_ms = 0;
+    lane->buf_tension_since_ms = 0;
+    lane->reload_tail_ms = 0;
+    lane->suppress_unloaded_event = false;
+    lane->task_forward = false;
+    lane->move_ignore_buffer = false;
+    lane->current_sps = 0;
+    lane->target_sps = 0;
+    motor_stop(&lane->m);
+    int idx = lane->lane_id - 1;
+    tmc_set_stealthchop_sps(lane->tmc, TMC_STEALTHCHOP_SPS[idx], TMC_MICROSTEPS[idx]);
 }
 
-void lane_start(lane_t *L, task_t t, int sps, bool forward, uint32_t now_ms, float limit_mm) {
-    L->task = t;
-    L->fault = FAULT_NONE;
-    L->last_dist_tick_ms = now_ms;
-    L->task_dist_mm = 0.0f;
-    L->dist_at_out_mm = 0.0f;
-    L->unload_sensor_latch = false;
-    L->retract_deadline_ms = 0;
-    L->dist_at_in_clear_mm = 0.0f;
-    L->suppress_unloaded_event = false;
-    L->load_completed = false;
-    L->task_forward = forward;
-    L->move_ignore_buffer = false;
+void lane_start(lane_t *lane, task_t t, int sps, bool forward, uint32_t now_ms, float limit_mm) {
+    lane->task = t;
+    lane->fault = FAULT_NONE;
+    lane->last_dist_tick_ms = now_ms;
+    lane->task_dist_mm = 0.0f;
+    lane->dist_at_out_mm = 0.0f;
+    lane->unload_sensor_latch = false;
+    lane->retract_deadline_ms = 0;
+    lane->dist_at_in_clear_mm = 0.0f;
+    lane->suppress_unloaded_event = false;
+    lane->load_completed = false;
+    lane->task_forward = forward;
+    lane->move_ignore_buffer = false;
 
-    L->task_limit_mm = limit_mm;
+    lane->task_limit_mm = limit_mm;
 
-    L->target_sps = motion_clamp_rate_sps(sps);
-    L->current_sps = motion_clamp_rate_sps(RAMP_STEP_SPS);
-    if (L->current_sps > L->target_sps)
-        L->current_sps = L->target_sps;
-    L->ramp_last_tick_ms = now_ms;
-    L->motion_started_ms = now_ms;
-    if (L->task_started_ms == 0)
-        L->task_started_ms = now_ms;
+    lane->target_sps = motion_clamp_rate_sps(sps);
+    lane->current_sps = motion_clamp_rate_sps(RAMP_STEP_SPS);
+    if (lane->current_sps > lane->target_sps)
+        lane->current_sps = lane->target_sps;
+    lane->ramp_last_tick_ms = now_ms;
+    lane->motion_started_ms = now_ms;
+    if (lane->task_started_ms == 0)
+        lane->task_started_ms = now_ms;
 
-    motor_enable(&L->m, true);
-    motor_set_dir(&L->m, forward);
-    motor_set_rate_sps(&L->m, L->current_sps);
-    int idx = L->lane_id - 1;
-    tmc_set_stealthchop_sps(L->tmc, TMC_STEALTHCHOP_SPS[idx], TMC_MICROSTEPS[idx]);
-    tmc_set_run_current_ma(L->tmc, TMC_RUN_CURRENT_MA[idx], TMC_HOLD_CURRENT_MA[idx]);
+    motor_enable(&lane->m, true);
+    motor_set_dir(&lane->m, forward);
+    motor_set_rate_sps(&lane->m, lane->current_sps);
+    int idx = lane->lane_id - 1;
+    tmc_set_stealthchop_sps(lane->tmc, TMC_STEALTHCHOP_SPS[idx], TMC_MICROSTEPS[idx]);
+    tmc_set_run_current_ma(lane->tmc, TMC_RUN_CURRENT_MA[idx], TMC_HOLD_CURRENT_MA[idx]);
 }
 
-void lane_tick(lane_t *L, uint32_t now_ms) {
-    char lane_s[2] = {(char)('0' + L->lane_id), 0};
+void lane_tick(lane_t *lane, uint32_t now_ms) {
+    char lane_s[2] = {(char)('0' + lane->lane_id), 0};
 
-    bool in_p = lane_in_present(L);
-    if (L->prev_in && !in_p) {
-        L->dist_at_in_clear_mm = L->task_dist_mm;
+    bool in_p = lane_in_present(lane);
+    if (lane->prev_in && !in_p) {
+        lane->dist_at_in_clear_mm = lane->task_dist_mm;
     }
-    L->prev_in = in_p;
+    lane->prev_in = in_p;
 
-    if (L->task != TASK_IDLE && L->current_sps < L->target_sps) {
-        if ((int32_t)(now_ms - L->ramp_last_tick_ms) >= RAMP_TICK_MS) {
-            L->ramp_last_tick_ms = now_ms;
-            L->current_sps += RAMP_STEP_SPS;
-            if (L->current_sps > L->target_sps)
-                L->current_sps = L->target_sps;
-            motor_set_rate_sps(&L->m, L->current_sps);
+    if (lane->task != TASK_IDLE && lane->current_sps < lane->target_sps) {
+        if ((int32_t)(now_ms - lane->ramp_last_tick_ms) >= RAMP_TICK_MS) {
+            lane->ramp_last_tick_ms = now_ms;
+            lane->current_sps += RAMP_STEP_SPS;
+            if (lane->current_sps > lane->target_sps)
+                lane->current_sps = lane->target_sps;
+            motor_set_rate_sps(&lane->m, lane->current_sps);
         }
     }
 
-    uint32_t dt_ms = now_ms - L->last_dist_tick_ms;
+    uint32_t dt_ms = now_ms - lane->last_dist_tick_ms;
     if (dt_ms > 0) {
-        int idx = lane_to_idx(L->lane_id);
-        L->task_dist_mm += (float)L->current_sps * ((float)dt_ms / 1000.0f) * MM_PER_STEP[idx];
-        L->last_dist_tick_ms = now_ms;
+        int idx = lane_to_idx(lane->lane_id);
+        lane->task_dist_mm += (float)lane->current_sps * ((float)dt_ms / 1000.0f) * MM_PER_STEP[idx];
+        lane->last_dist_tick_ms = now_ms;
     }
 
-    if (L->task == TASK_AUTOLOAD) {
-        if (lane_out_present(L)) {
+    if (lane->task == TASK_AUTOLOAD) {
+        if (lane_out_present(lane)) {
             if (AUTOLOAD_RETRACT_MM > 0) {
                 float secs =
-                    (float)AUTOLOAD_RETRACT_MM / ((float)REV_SPS * MM_PER_STEP[L->lane_id - 1]);
+                    (float)AUTOLOAD_RETRACT_MM / ((float)REV_SPS * MM_PER_STEP[lane->lane_id - 1]);
                 if (secs < 0.05f)
                     secs = 0.05f;
-                L->dist_at_out_mm = L->task_dist_mm;
-                L->retract_deadline_ms = now_ms + (uint32_t)(secs * 1000.0f);
-                L->task = TASK_UNLOAD;
-                motor_set_dir(&L->m, false);
-                L->target_sps = REV_SPS;
-                L->current_sps = RAMP_STEP_SPS;
-                L->ramp_last_tick_ms = now_ms;
-                motor_set_rate_sps(&L->m, L->current_sps);
+                lane->dist_at_out_mm = lane->task_dist_mm;
+                lane->retract_deadline_ms = now_ms + (uint32_t)(secs * 1000.0f);
+                lane->task = TASK_UNLOAD;
+                motor_set_dir(&lane->m, false);
+                lane->target_sps = REV_SPS;
+                lane->current_sps = RAMP_STEP_SPS;
+                lane->ramp_last_tick_ms = now_ms;
+                motor_set_rate_sps(&lane->m, lane->current_sps);
             } else {
-                lane_stop(L);
+                lane_stop(lane);
             }
-        } else if (L->task_dist_mm > (float)DIST_IN_OUT * 1.5f) {
-            lane_stop(L);
+        } else if (lane->task_dist_mm > (float)DIST_IN_OUT * 1.5f) {
+            lane_stop(lane);
             tc_enter_error("PRELOAD_JAM");
-        } else if (L->task_limit_mm > 0 && L->task_dist_mm >= L->task_limit_mm) {
-            lane_stop(L);
+        } else if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+            lane_stop(lane);
         }
     }
 
-    if (L->task == TASK_UNLOAD) {
-        if (L->retract_deadline_ms == 0) {
+    if (lane->task == TASK_UNLOAD) {
+        if (lane->retract_deadline_ms == 0) {
             /* Type-D recover: buffer hits TENSION mid-retract -> brief forward jog
                to relieve, then resume. Type-D ONLY. Type-P homes at the tension
                rail and relaxes back to it throughout ANY normal retract (mid-tube,
@@ -306,55 +306,55 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                the stuck case. */
             bool buf_recover_due = (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION);
 
-            if (L->unload_sensor_latch && !L->unload_to_in) {
-                float moved_mm = L->task_dist_mm - L->dist_at_out_mm;
+            if (lane->unload_sensor_latch && !lane->unload_to_in) {
+                float moved_mm = lane->task_dist_mm - lane->dist_at_out_mm;
                 if (moved_mm >= BUF_SWITCH_SPAN_HALF_MM) {
-                    L->task_dist_mm = L->dist_at_out_mm;
-                    L->unload_sensor_latch = false;
+                    lane->task_dist_mm = lane->dist_at_out_mm;
+                    lane->unload_sensor_latch = false;
 
-                    motor_stop(&L->m);
-                    L->target_sps = REV_SPS;
-                    L->current_sps = REV_SPS;
-                    L->ramp_last_tick_ms = now_ms;
-                    motor_enable(&L->m, true);
-                    motor_set_dir(&L->m, false);
-                    motor_set_rate_sps(&L->m, L->current_sps);
+                    motor_stop(&lane->m);
+                    lane->target_sps = REV_SPS;
+                    lane->current_sps = REV_SPS;
+                    lane->ramp_last_tick_ms = now_ms;
+                    motor_enable(&lane->m, true);
+                    motor_set_dir(&lane->m, false);
+                    motor_set_rate_sps(&lane->m, lane->current_sps);
                 }
-            } else if (!L->unload_to_in && !L->unload_buf_recover_done && buf_recover_due) {
-                motor_stop(&L->m);
-                L->unload_buf_recover_done = true;
-                L->unload_sensor_latch = true;
-                L->dist_at_out_mm = L->task_dist_mm;
+            } else if (!lane->unload_to_in && !lane->unload_buf_recover_done && buf_recover_due) {
+                motor_stop(&lane->m);
+                lane->unload_buf_recover_done = true;
+                lane->unload_sensor_latch = true;
+                lane->dist_at_out_mm = lane->task_dist_mm;
 
-                L->target_sps = BUF_STAB_SPS;
-                L->current_sps = BUF_STAB_SPS;
-                L->ramp_last_tick_ms = now_ms;
-                motor_enable(&L->m, true);
-                motor_set_dir(&L->m, true);
-                motor_set_rate_sps(&L->m, L->current_sps);
-            } else if (lane_out_present(L)) {
-            } else if (L->unload_to_in && lane_in_present(L)) {
-                if (!L->unload_sensor_latch) {
-                    L->unload_sensor_latch = true;
-                    L->dist_at_out_mm = L->task_dist_mm;
+                lane->target_sps = BUF_STAB_SPS;
+                lane->current_sps = BUF_STAB_SPS;
+                lane->ramp_last_tick_ms = now_ms;
+                motor_enable(&lane->m, true);
+                motor_set_dir(&lane->m, true);
+                motor_set_rate_sps(&lane->m, lane->current_sps);
+            } else if (lane_out_present(lane)) {
+            } else if (lane->unload_to_in && lane_in_present(lane)) {
+                if (!lane->unload_sensor_latch) {
+                    lane->unload_sensor_latch = true;
+                    lane->dist_at_out_mm = lane->task_dist_mm;
                 }
-                float dist_since_out = L->task_dist_mm - L->dist_at_out_mm;
+                float dist_since_out = lane->task_dist_mm - lane->dist_at_out_mm;
                 if (dist_since_out > (float)DIST_IN_OUT * 2.0f) {
-                    lane_stop(L);
+                    lane_stop(lane);
                     tc_enter_error("UNLOAD_JAM");
                 }
             } else {
-                if (L->unload_to_in) {
-                    lane_stop(L);
+                if (lane->unload_to_in) {
+                    lane_stop(lane);
                     cmd_event("UNLOADED", lane_s);
                 } else {
-                    L->dist_at_out_mm = L->task_dist_mm;
-                    L->retract_deadline_ms = now_ms + 30000;
+                    lane->dist_at_out_mm = lane->task_dist_mm;
+                    lane->retract_deadline_ms = now_ms + 30000;
                 }
             }
 
-            if (L->task_limit_mm > 0 && L->task_dist_mm >= L->task_limit_mm) {
-                lane_stop(L);
+            if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+                lane_stop(lane);
                 cmd_event("UNLOAD_TIMEOUT", NULL);
             }
 
@@ -364,59 +364,59 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                Exception: when BOTH OUT sensors are active (double-load recovery)
                the buffer tension is caused by the OTHER lane being printed, not
                by the printer blocking THIS lane.  Skip the check in that case. */
-            if (BUF_SENSOR_TYPE == 0 && UNLOAD_TENSION_BLOCK_MS > 0 && !L->unload_to_in &&
+            if (BUF_SENSOR_TYPE == 0 && UNLOAD_TENSION_BLOCK_MS > 0 && !lane->unload_to_in &&
                 !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
                 if (g_buf.state == BUF_TENSION) {
-                    if (L->buf_tension_since_ms == 0)
-                        L->buf_tension_since_ms = now_ms;
-                    else if ((int32_t)(now_ms - L->buf_tension_since_ms) >=
+                    if (lane->buf_tension_since_ms == 0)
+                        lane->buf_tension_since_ms = now_ms;
+                    else if ((int32_t)(now_ms - lane->buf_tension_since_ms) >=
                              UNLOAD_TENSION_BLOCK_MS) {
-                        lane_stop(L);
+                        lane_stop(lane);
                         cmd_event("UNLOAD_BLOCKED", NULL);
                     }
                 } else {
-                    L->buf_tension_since_ms = 0;
+                    lane->buf_tension_since_ms = 0;
                 }
             }
         } else {
             bool done;
-            if (!L->unload_to_in) {
-                float retracted = L->task_dist_mm - L->dist_at_out_mm;
+            if (!lane->unload_to_in) {
+                float retracted = lane->task_dist_mm - lane->dist_at_out_mm;
                 done = retracted >= (float)AUTOLOAD_RETRACT_MM ||
-                       (int32_t)(now_ms - L->retract_deadline_ms) >= 0;
+                       (int32_t)(now_ms - lane->retract_deadline_ms) >= 0;
             } else {
-                done = (int32_t)(now_ms - L->retract_deadline_ms) >= 0;
+                done = (int32_t)(now_ms - lane->retract_deadline_ms) >= 0;
             }
             if (done) {
-                bool suppress_event = L->suppress_unloaded_event;
-                lane_stop(L);
+                bool suppress_event = lane->suppress_unloaded_event;
+                lane_stop(lane);
                 if (!suppress_event)
                     cmd_event("UNLOADED", lane_s);
             }
         }
     }
 
-    if (L->task == TASK_LOAD_FULL) {
-        if (lane_out_present(L) && !L->unload_sensor_latch) {
-            L->unload_sensor_latch = true;
-            L->dist_at_out_mm = L->task_dist_mm;
+    if (lane->task == TASK_LOAD_FULL) {
+        if (lane_out_present(lane) && !lane->unload_sensor_latch) {
+            lane->unload_sensor_latch = true;
+            lane->dist_at_out_mm = lane->task_dist_mm;
         }
 
-        if (TS_BUF_FALLBACK_MS > 0 && L->unload_sensor_latch) {
+        if (TS_BUF_FALLBACK_MS > 0 && lane->unload_sensor_latch) {
             if (g_buf.state == BUF_COMPRESSION) {
-                if (L->buf_tension_since_ms == 0)
-                    L->buf_tension_since_ms = now_ms;
-                else if ((int32_t)(now_ms - L->buf_tension_since_ms) >= TS_BUF_FALLBACK_MS)
+                if (lane->buf_tension_since_ms == 0)
+                    lane->buf_tension_since_ms = now_ms;
+                else if ((int32_t)(now_ms - lane->buf_tension_since_ms) >= TS_BUF_FALLBACK_MS)
                     set_toolhead_filament(true);
             } else {
-                L->buf_tension_since_ms = 0;
+                lane->buf_tension_since_ms = 0;
             }
         }
 
         bool buf_tension_sane = (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION);
         bool buf_compression_sane = false;
-        if (L->unload_sensor_latch) {
-            float dist_since_out = L->task_dist_mm - L->dist_at_out_mm;
+        if (lane->unload_sensor_latch) {
+            float dist_since_out = lane->task_dist_mm - lane->dist_at_out_mm;
             float threshold =
                 (float)DIST_OUT_Y + (float)DIST_Y_BUF + (float)BUF_MAX_TRAVEL_MM / 2.0f;
             bool distance_passed = (dist_since_out >= threshold * 0.8f);
@@ -445,8 +445,8 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
         bool loaded = toolhead_has_filament || buf_tension_sane || buf_compression_sane;
 
         if (loaded) {
-            L->load_completed = true;
-            lane_stop(L);
+            lane->load_completed = true;
+            lane_stop(lane);
             cmd_event("LOADED", lane_s);
             if (AUTO_MODE && BUF_SENSOR_TYPE == 0) {
                 /* Type-D: engage sync immediately on load completion. Type-P: do
@@ -464,91 +464,91 @@ void lane_tick(lane_t *L, uint32_t now_ms) {
                    i.e. not actually coupled, so we stop rather than dry-spin. */
                 buffer_stabilize_request(now_ms);
             }
-        } else if (!lane_in_present(L) && (int32_t)(now_ms - L->task_started_ms) >= 1000) {
-            if (lane_out_present(L)) {
-                L->reload_tail_ms = now_ms;
-            } else if (lane_tail_in_transit(L)) {
+        } else if (!lane_in_present(lane) && (int32_t)(now_ms - lane->task_started_ms) >= 1000) {
+            if (lane_out_present(lane)) {
+                lane->reload_tail_ms = now_ms;
+            } else if (lane_tail_in_transit(lane)) {
             } else {
-                lane_stop(L);
+                lane_stop(lane);
                 cmd_event("RUNOUT", lane_s);
                 if (RELOAD_MODE && tc_state() == TC_IDLE)
-                    reload_trigger(L->lane_id, now_ms);
+                    reload_trigger(lane->lane_id, now_ms);
             }
-        } else if (!L->unload_sensor_latch && (int32_t)(now_ms - L->motion_started_ms) >= 10000) {
-            lane_stop(L);
+        } else if (!lane->unload_sensor_latch && (int32_t)(now_ms - lane->motion_started_ms) >= 10000) {
+            lane_stop(lane);
             cmd_event("RUNOUT", lane_s);
-        } else if (L->task_limit_mm > 0 && L->task_dist_mm >= L->task_limit_mm) {
-            lane_stop(L);
+        } else if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+            lane_stop(lane);
             cmd_event("LOAD_TIMEOUT", lane_s);
         }
     }
 
-    if (L->task == TASK_MOVE) {
-        if (!L->move_ignore_buffer && BUF_SENSOR_TYPE == 0) {
-            if (L->task_forward && g_buf.state == BUF_COMPRESSION) {
-                lane_stop(L);
-                L->fault = FAULT_BUF;
+    if (lane->task == TASK_MOVE) {
+        if (!lane->move_ignore_buffer && BUF_SENSOR_TYPE == 0) {
+            if (lane->task_forward && g_buf.state == BUF_COMPRESSION) {
+                lane_stop(lane);
+                lane->fault = FAULT_BUF;
                 cmd_event("FAULT:MOVE_COMPRESSION", lane_s);
-            } else if (!L->task_forward && g_buf.state == BUF_TENSION) {
-                lane_stop(L);
-                L->fault = FAULT_BUF;
+            } else if (!lane->task_forward && g_buf.state == BUF_TENSION) {
+                lane_stop(lane);
+                lane->fault = FAULT_BUF;
                 cmd_event("FAULT:MOVE_TENSION", lane_s);
             }
         }
 
-        if (L->task == TASK_MOVE && L->task_limit_mm > 0 && L->task_dist_mm >= L->task_limit_mm) {
-            lane_stop(L);
+        if (lane->task == TASK_MOVE && lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+            lane_stop(lane);
             cmd_event("MOVE_DONE", lane_s);
         }
     }
 
-    if ((L->task == TASK_FEED || L->task == TASK_AUTOLOAD) && !lane_in_present(L)) {
-        if ((int32_t)(now_ms - L->task_started_ms) >= 1000 &&
-            (int32_t)(now_ms - L->runout_block_until_ms) >= 0) {
-            if (lane_out_present(L)) {
-                L->reload_tail_ms = now_ms;
-                L->runout_block_until_ms = now_ms + 30000u;
-            } else if (lane_tail_in_transit(L)) {
+    if ((lane->task == TASK_FEED || lane->task == TASK_AUTOLOAD) && !lane_in_present(lane)) {
+        if ((int32_t)(now_ms - lane->task_started_ms) >= 1000 &&
+            (int32_t)(now_ms - lane->runout_block_until_ms) >= 0) {
+            if (lane_out_present(lane)) {
+                lane->reload_tail_ms = now_ms;
+                lane->runout_block_until_ms = now_ms + 30000u;
+            } else if (lane_tail_in_transit(lane)) {
             } else {
                 cmd_event("RUNOUT", lane_s);
-                L->runout_block_until_ms = now_ms + (uint32_t)RUNOUT_COOLDOWN_MS;
-                if (L->task == TASK_FEED)
+                lane->runout_block_until_ms = now_ms + (uint32_t)RUNOUT_COOLDOWN_MS;
+                if (lane->task == TASK_FEED)
                     set_toolhead_filament(false);
-                lane_stop(L);
-                if (RELOAD_MODE && L->task == TASK_FEED && tc_state() == TC_IDLE)
-                    reload_trigger(L->lane_id, now_ms);
+                lane_stop(lane);
+                if (RELOAD_MODE && lane->task == TASK_FEED && tc_state() == TC_IDLE)
+                    reload_trigger(lane->lane_id, now_ms);
             }
         }
     }
 
-    if (L->task != TASK_IDLE && !lane_in_present(L) && !lane_out_present(L) &&
+    if (lane->task != TASK_IDLE && !lane_in_present(lane) && !lane_out_present(lane) &&
         g_buf.state != BUF_TENSION) {
-        if (L->dry_spin_ms == 0)
-            L->dry_spin_ms = now_ms;
-        if ((int32_t)(now_ms - L->dry_spin_ms) > 8000) {
-            lane_stop(L);
-            L->fault = FAULT_DRY_SPIN;
+        if (lane->dry_spin_ms == 0)
+            lane->dry_spin_ms = now_ms;
+        if ((int32_t)(now_ms - lane->dry_spin_ms) > 8000) {
+            lane_stop(lane);
+            lane->fault = FAULT_DRY_SPIN;
             cmd_event("FAULT:DRY_SPIN", lane_s);
         }
     } else {
-        L->dry_spin_ms = 0;
+        lane->dry_spin_ms = 0;
     }
 
-    if (L->reload_tail_ms != 0 &&
-        (L->task == TASK_FEED || L->task == TASK_LOAD_FULL || L->task == TASK_AUTOLOAD)) {
-        if (lane_tail_runout_ready(L)) {
-            bool tail_assist_finished = sync_tail_assist_active && L->task == TASK_FEED;
+    if (lane->reload_tail_ms != 0 &&
+        (lane->task == TASK_FEED || lane->task == TASK_LOAD_FULL || lane->task == TASK_AUTOLOAD)) {
+        if (lane_tail_runout_ready(lane)) {
+            bool tail_assist_finished = sync_tail_assist_active && lane->task == TASK_FEED;
             if (tail_assist_finished)
                 sync_disable(true);
-            L->reload_tail_ms = 0;
-            L->runout_block_until_ms = now_ms + (uint32_t)RUNOUT_COOLDOWN_MS;
+            lane->reload_tail_ms = 0;
+            lane->runout_block_until_ms = now_ms + (uint32_t)RUNOUT_COOLDOWN_MS;
             cmd_event("RUNOUT", lane_s);
-            if (L->task == TASK_FEED)
+            if (lane->task == TASK_FEED)
                 set_toolhead_filament(false);
-            bool was_reload = (RELOAD_MODE && L->task == TASK_FEED && tc_state() == TC_IDLE);
-            lane_stop(L);
+            bool was_reload = (RELOAD_MODE && lane->task == TASK_FEED && tc_state() == TC_IDLE);
+            lane_stop(lane);
             if (was_reload)
-                reload_trigger(L->lane_id, now_ms);
+                reload_trigger(lane->lane_id, now_ms);
         }
     }
 }
@@ -558,10 +558,10 @@ void stop_all(void) {
     lane_stop(&g_lane_l2);
 }
 
-void lane_fault(lane_t *L, fault_t f) {
-    motor_stop(&L->m);
-    L->task = TASK_IDLE;
-    L->current_sps = 0;
-    L->target_sps = 0;
-    L->fault = f;
+void lane_fault(lane_t *lane, fault_t f) {
+    motor_stop(&lane->m);
+    lane->task = TASK_IDLE;
+    lane->current_sps = 0;
+    lane->target_sps = 0;
+    lane->fault = f;
 }
