@@ -53,7 +53,6 @@ static uint g_servo_chan = 0;
 #define SERVO_PWM_PERIOD_US 20000u
 #define SERVO_MIN_PULSE_US 400u
 #define SERVO_MAX_PULSE_US 2700u
-#define MS_PER_SECOND_F 1000.0f
 #define CUTTER_WATCHDOG_SLACK_MS 1000u
 
 // Hobby-servo PWM: standard 50 Hz frame (20 ms), position set by pulse width
@@ -164,7 +163,8 @@ void cutter_start(lane_t *lane, bool enable_feed, uint32_t now_ms) {
     g_cut.state = CUT_OPENING;
 
     if (lane) {
-        char lane_s[2] = {(char)('0' + lane->lane_id), 0};
+        char lane_s[2];
+        lane_id_str(lane_s, lane->lane_id);
         cmd_event("TC:CUTTING", lane_s);
     } else {
         cmd_event("TC:CUTTING", "BARE");

@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "config.h"
+#include "firmware_constants.h"
 #include "pico/stdlib.h"
 #include "tmc2209.h"
 
@@ -160,6 +161,13 @@ static inline bool lane_in_present(lane_t *L) {
 
 static inline bool lane_out_present(lane_t *L) {
     return on_al(&L->out_sw);
+}
+
+/// @brief Write a single-lane-id digit ('1'/'2') plus NUL into a 2-char buffer,
+///        for the many cmd_event() payloads that report a lane number.
+static inline void lane_id_str(char out[2], int lane_id) {
+    out[0] = (char)('0' + lane_id);
+    out[1] = '\0';
 }
 
 extern int FEED_SPS;

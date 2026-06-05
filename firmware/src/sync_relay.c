@@ -17,7 +17,6 @@
 static const uint16_t TYPE_D_SAMPLE_ROLLOVER_COUNT = 10000u;
 static const uint32_t TYPE_D_SAMPLE_DECAY_DIVISOR = 2u;
 static const float RELAY_TRIM_LEAK_MIN_SPS_S = 25.0f;
-static const float MS_PER_SECOND_F = 1000.0f;
 
 float g_tension_floor_sps = 0.0f;
 float g_relay_flip_travel_since_mm = 0.0f;

@@ -23,7 +23,6 @@
 #define PWM_MIN_WRAP 10u
 #define PWM_MAX_WRAP 65535u
 #define AUTOLOAD_MIN_RETRACT_S 0.05f
-#define MS_PER_SECOND_F 1000.0f
 #define PRELOAD_JAM_MARGIN_FRAC 1.5f
 #define UNLOAD_TO_IN_JAM_MARGIN_FRAC 2.0f
 #define UNLOAD_RETRACT_TIMEOUT_MS 30000u
@@ -575,7 +574,8 @@ static void lane_tick_dry_spin_tail(lane_t *lane, uint32_t now_ms, const char *l
 //   4. run the handler for the active task (autoload/unload/load/move/feed)
 //   5. always run the dry-spin + tail-runout watchdog
 void lane_tick(lane_t *lane, uint32_t now_ms) {
-    char lane_s[2] = {(char)('0' + lane->lane_id), 0};
+    char lane_s[2];
+    lane_id_str(lane_s, lane->lane_id);
 
     bool in_p = lane_in_present(lane);
     if (lane->prev_in && !in_p) {

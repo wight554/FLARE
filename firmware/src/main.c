@@ -37,7 +37,6 @@
 #include <math.h>
 
 #define SECONDS_PER_MINUTE_F 60.0f
-#define HALF_F 0.5f
 #define ROUND_TO_NEAREST_F 0.5f
 #define DISPLAY_ROUNDING_OFFSET_F 0.05f
 #define TMC_RSENSE_SERIES_OHM 0.020f
@@ -353,7 +352,8 @@ void set_active_lane(int lane) {
     }
     active_lane = lane;
     if (lane == 1 || lane == 2) {
-        char lane_s[2] = {(char)('0' + lane), 0};
+        char lane_s[2];
+        lane_id_str(lane_s, lane);
         cmd_event("ACTIVE", lane_s);
     } else {
         cmd_event("ACTIVE", "NONE");

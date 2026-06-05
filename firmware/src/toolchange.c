@@ -77,7 +77,8 @@ void tc_manual_reload(uint32_t now_ms) {
     g_tc_ctx.from_lane = active_lane;
     set_toolhead_filament(false);
 
-    char lane_s[2] = {(char)('0' + active_lane), 0};
+    char lane_s[2];
+    lane_id_str(lane_s, active_lane);
     cmd_event("RELOAD:JOINING", lane_s);
 
     int approach_sps = FEED_SPS;
@@ -231,7 +232,8 @@ static void tc_tick_unload_states(lane_t *lane, uint32_t now_ms, uint32_t age) {
         break;
 
     case TC_UNLOAD_REVERSE: {
-        char lane_s[2] = {(char)('0' + active_lane), 0};
+        char lane_s[2];
+        lane_id_str(lane_s, active_lane);
         cmd_event("TC:UNLOADING", lane_s);
         if (!lane_out_present(lane)) {
             if (!g_tc_ctx.unload_cut_done)
@@ -298,7 +300,8 @@ static void tc_tick_load_states(lane_t *lane, uint32_t now_ms, uint32_t age) {
             tc_enter_error("HUB_NOT_CLEAR");
             break;
         }
-        char lane_s[2] = {(char)('0' + active_lane), 0};
+        char lane_s[2];
+        lane_id_str(lane_s, active_lane);
         cmd_event("TC:LOADING", lane_s);
         set_toolhead_filament(false);
         lane_start(lane, TASK_LOAD_FULL, FEED_SPS, true, now_ms, (float)LOAD_MAX_MM);
@@ -327,7 +330,8 @@ static void tc_tick_load_states(lane_t *lane, uint32_t now_ms, uint32_t age) {
         break;
 
     case TC_LOAD_DONE: {
-        char lane_s[2] = {(char)('0' + active_lane), 0};
+        char lane_s[2];
+        lane_id_str(lane_s, active_lane);
         cmd_event("TC:DONE", lane_s);
         g_tc_ctx.state = TC_IDLE;
         break;
@@ -366,7 +370,8 @@ static void tc_tick_reload_wait_y(lane_t *lane, uint32_t now_ms, uint32_t age) {
          (now_ms - g_tc_ctx.ready_to_join_since_ms) >= (uint32_t)RELOAD_JOIN_DELAY_MS);
 
     if (tail_cleared && y_cleared && join_delay_elapsed) {
-        char lane_s[2] = {(char)('0' + g_tc_ctx.target_lane), 0};
+        char lane_s[2];
+        lane_id_str(lane_s, g_tc_ctx.target_lane);
         set_active_lane(g_tc_ctx.target_lane);
         lane_t *new_lane = lane_ptr(active_lane);
         if (from_lane_ptr && from_lane_ptr->task != TASK_IDLE)
@@ -511,7 +516,8 @@ static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
         if (lane)
             lane_stop(lane);
         set_toolhead_filament(true);
-        char lane_s[2] = {(char)('0' + active_lane), 0};
+        char lane_s[2];
+        lane_id_str(lane_s, active_lane);
         cmd_event("RELOAD:LOADED", lane_s);
         g_tc_ctx.state = TC_IDLE;
         return;
@@ -521,7 +527,8 @@ static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
         if (lane)
             lane_stop(lane);
         set_toolhead_filament(true);
-        char lane_s[2] = {(char)('0' + active_lane), 0};
+        char lane_s[2];
+        lane_id_str(lane_s, active_lane);
         cmd_event("RELOAD:LOADED", lane_s);
         g_tc_ctx.state = TC_IDLE;
         return;

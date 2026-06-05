@@ -15,7 +15,6 @@
 static const uint32_t DEFAULT_TENSION_RISK_WINDOW_MS = 60000u;
 static const float COMPRESSION_WALL_MIN_MM_S = 0.05f;
 static const float COMPRESSION_WALL_UNREACHABLE_MS = 1000000000.0f;
-static const float MS_PER_SECOND_F = 1000.0f;
 
 float g_psf_target_filt = 0.0f;
 float sync_reserve_integral_mm = 0.0f;

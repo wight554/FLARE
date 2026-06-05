@@ -34,8 +34,6 @@ enum {
 };
 
 static const float TYPE_P_RAIL_NORM = 0.99f;
-static const float HALF_F = 0.5f;
-static const float MS_PER_SECOND_F = 1000.0f;
 static const float SECONDS_PER_MINUTE_F = 60.0f;
 static const float ROUND_TO_NEAREST_F = 0.5f;
 static const float BASELINE_MIN_MEAN_SPS = 0.1f;

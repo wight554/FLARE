@@ -28,10 +28,8 @@ enum {
     DRIFT_SAMPLE_MAX = 65535u,
 };
 
-static const float HALF_F = 0.5f;
 static const float AVERAGE_PAIR_DIVISOR_F = 2.0f;
 static const float FULL_TRANSITION_SPAN_MULT = 2.0f;
-static const float MS_PER_SECOND_F = 1000.0f;
 static const float MIN_PHYSICAL_HALF_TRAVEL_MM = 1.0f;
 static const float RESERVE_PCT_DIVISOR_F = 100.0f;
 static const float FLOW_BIAS_MILLI_DIVISOR_F = 1000.0f;
