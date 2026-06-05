@@ -1201,66 +1201,51 @@ static bool cmd_handle_unload(const char *cmd, const char *p, uint32_t now_ms) {
     return false;
 }
 
-static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
-    if (!strcmp(cmd, "UL") || !strcmp(cmd, "UM")) {
-        return cmd_handle_unload(cmd, p, now_ms);
+static bool cmd_handle_mv_command(const char *p, uint32_t now_ms) {
+    lane_t *lane = get_active_lane_and_clear_error();
+    if (!lane)
+        return true;
+    float mm = 0.0f;
+    float feed_mm_min = 0.0f;
+    char dir_tok[8] = {0};
+    char ignore_tok[8] = {0};
+    int n = sscanf(p, "%f:%f:%7[^:]:%7s", &mm, &feed_mm_min, dir_tok, ignore_tok);
+    if ((n < 2 || n > 4) || feed_mm_min <= 0.0f) {
+        cmd_reply("ER", "ARG");
+        return true;
     }
-    if (!strcmp(cmd, "CU") || !strcmp(cmd, "CX") || !strcmp(cmd, "CP")) {
-        return cmd_handle_cutter(cmd, p, now_ms);
+    int idx = lane_to_idx(active_lane);
+    int sps = (int)(feed_mm_min / 60.0f / MM_PER_STEP[idx] + 0.5f);
+    if (sps < 200)
+        sps = 200;
+    sps = motion_clamp_rate_sps(sps);
+
+    bool forward = (mm >= 0.0f);
+    bool ignore_buffer = false;
+
+    if ((n >= 3 && !parse_mv_option(dir_tok, &forward, &ignore_buffer)) ||
+        (n == 4 && !parse_mv_option(ignore_tok, &forward, &ignore_buffer))) {
+        cmd_reply("ER", "ARG");
+        return true;
     }
 
-    if (!strcmp(cmd, "TC")) {
-        int ln = atoi(p);
-        if (ln == 1 || ln == 2) {
-            if (active_lane != 1 && active_lane != 2) {
-                cmd_reply("ER", "NO_ACTIVE_LANE");
-                return true;
-            }
-            /* Double-load guard: if both OUT sensors are triggered the hub is
-               stuck with two filaments.  Reject TC before touching anything so
-               the caller can use T: to select a lane and UL: to clear it. */
-            if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
-                cmd_reply("ER", "DOUBLE_LOAD");
-                return true;
-            }
-            sync_retract_assist_set(false);
-            sync_set_state(SYNC_OFF);
-            tc_start(ln, now_ms);
-            cmd_reply("OK", NULL);
-        } else {
-            cmd_reply("ER", "ARG");
-        }
+    float limit = mm < 0.0f ? -mm : mm;
+    if (limit <= 0.0f) {
+        cmd_reply("ER", "ARG");
         return true;
-    } else if (!strcmp(cmd, "T")) {
-        int ln = atoi(p);
-        if (ln == 1 || ln == 2) {
-            /* Double-load recovery: both OUT sensors active means the hub is
-               stuck with two filaments.  Abort any in-progress TC state machine
-               and stop all motion, then do a bare lane select so the operator
-               can follow up with UL: to clear the faulty lane manually. */
-            if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
-                tc_abort();
-                /* Stop any in-flight feed on the current lane before switching.
-                   Do not use RETRACT_ASSIST: UL: calls sync_disable anyway and
-                   the RA state is superfluous here. */
-                {
-                    lane_t *_Aold = lane_ptr(active_lane);
-                    if (_Aold && _Aold->task == TASK_FEED)
-                        lane_stop(_Aold);
-                }
-                sync_disable(false);
-                set_active_lane(ln);
-                cmd_reply("OK", NULL);
-            } else {
-                sync_retract_assist_set(false);
-                set_active_lane(ln);
-                cmd_reply("OK", NULL);
-            }
-        } else {
-            cmd_reply("ER", "ARG");
-        }
-        return true;
-    } else if (!strcmp(cmd, "LO")) {
+    }
+
+    sync_retract_assist_set(false);
+    sync_set_state(SYNC_OFF);
+    sync_disable(false);
+    lane_start(lane, TASK_MOVE, sps, forward, now_ms, limit);
+    lane->move_ignore_buffer = ignore_buffer;
+    cmd_reply("OK", NULL);
+    return true;
+}
+
+static bool cmd_handle_load_commands(const char *cmd, const char *p, uint32_t now_ms) {
+    if (!strcmp(cmd, "LO")) {
         lane_t *lane = get_active_lane_and_clear_error();
         if (!lane)
             return true;
@@ -1314,6 +1299,75 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
         tc_manual_reload(now_ms);
         cmd_reply("OK", NULL);
         return true;
+    }
+    return false;
+}
+
+static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
+    if (!strcmp(cmd, "UL") || !strcmp(cmd, "UM")) {
+        return cmd_handle_unload(cmd, p, now_ms);
+    }
+    if (!strcmp(cmd, "CU") || !strcmp(cmd, "CX") || !strcmp(cmd, "CP")) {
+        return cmd_handle_cutter(cmd, p, now_ms);
+    }
+    if (!strcmp(cmd, "LO") || !strcmp(cmd, "FL") || !strcmp(cmd, "RL")) {
+        return cmd_handle_load_commands(cmd, p, now_ms);
+    }
+    if (!strcmp(cmd, "MV")) {
+        return cmd_handle_mv_command(p, now_ms);
+    }
+
+    if (!strcmp(cmd, "TC")) {
+        int ln = atoi(p);
+        if (ln == 1 || ln == 2) {
+            if (active_lane != 1 && active_lane != 2) {
+                cmd_reply("ER", "NO_ACTIVE_LANE");
+                return true;
+            }
+            /* Double-load guard: if both OUT sensors are triggered the hub is
+               stuck with two filaments.  Reject TC before touching anything so
+               the caller can use T: to select a lane and UL: to clear it. */
+            if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
+                cmd_reply("ER", "DOUBLE_LOAD");
+                return true;
+            }
+            sync_retract_assist_set(false);
+            sync_set_state(SYNC_OFF);
+            tc_start(ln, now_ms);
+            cmd_reply("OK", NULL);
+        } else {
+            cmd_reply("ER", "ARG");
+        }
+        return true;
+    } else if (!strcmp(cmd, "T")) {
+        int ln = atoi(p);
+        if (ln == 1 || ln == 2) {
+            /* Double-load recovery: both OUT sensors active means the hub is
+               stuck with two filaments.  Abort any in-progress TC state machine
+               and stop all motion, then do a bare lane select so the operator
+               can follow up with UL: to clear the faulty lane manually. */
+            if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
+                tc_abort();
+                /* Stop any in-flight feed on the current lane before switching.
+                   Do not use RETRACT_ASSIST: UL: calls sync_disable anyway and
+                   the RA state is superfluous here. */
+                {
+                    lane_t *_Aold = lane_ptr(active_lane);
+                    if (_Aold && _Aold->task == TASK_FEED)
+                        lane_stop(_Aold);
+                }
+                sync_disable(false);
+                set_active_lane(ln);
+                cmd_reply("OK", NULL);
+            } else {
+                sync_retract_assist_set(false);
+                set_active_lane(ln);
+                cmd_reply("OK", NULL);
+            }
+        } else {
+            cmd_reply("ER", "ARG");
+        }
+        return true;
     } else if (!strcmp(cmd, "FD")) {
         lane_t *lane = get_active_lane_and_clear_error();
         if (!lane)
@@ -1332,47 +1386,6 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
         sync_retract_assist_set(false);
         sync_set_state(SYNC_OFF);
         lane_start(lane, TASK_FEED, FEED_SPS, true, now_ms, 0);
-        cmd_reply("OK", NULL);
-        return true;
-    } else if (!strcmp(cmd, "MV")) {
-        lane_t *lane = get_active_lane_and_clear_error();
-        if (!lane)
-            return true;
-        float mm = 0.0f;
-        float feed_mm_min = 0.0f;
-        char dir_tok[8] = {0};
-        char ignore_tok[8] = {0};
-        int n = sscanf(p, "%f:%f:%7[^:]:%7s", &mm, &feed_mm_min, dir_tok, ignore_tok);
-        if ((n < 2 || n > 4) || feed_mm_min <= 0.0f) {
-            cmd_reply("ER", "ARG");
-            return true;
-        }
-        int idx = lane_to_idx(active_lane);
-        int sps = (int)(feed_mm_min / 60.0f / MM_PER_STEP[idx] + 0.5f);
-        if (sps < 200)
-            sps = 200;
-        sps = motion_clamp_rate_sps(sps);
-
-        bool forward = (mm >= 0.0f);
-        bool ignore_buffer = false;
-
-        if ((n >= 3 && !parse_mv_option(dir_tok, &forward, &ignore_buffer)) ||
-            (n == 4 && !parse_mv_option(ignore_tok, &forward, &ignore_buffer))) {
-            cmd_reply("ER", "ARG");
-            return true;
-        }
-
-        float limit = mm < 0.0f ? -mm : mm;
-        if (limit <= 0.0f) {
-            cmd_reply("ER", "ARG");
-            return true;
-        }
-
-        sync_retract_assist_set(false);
-        sync_set_state(SYNC_OFF);
-        sync_disable(false);
-        lane_start(lane, TASK_MOVE, sps, forward, now_ms, limit);
-        lane->move_ignore_buffer = ignore_buffer;
         cmd_reply("OK", NULL);
         return true;
     }
