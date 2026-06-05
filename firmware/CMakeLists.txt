@@ -28,6 +28,9 @@ add_executable(flare_controller
   src/main.c
   src/motion.c
   src/sync.c
+  src/sync_buf.c
+  src/sync_relay.c
+  src/sync_analog.c
   src/toolchange.c
   src/cutter.c
   src/protocol.c
