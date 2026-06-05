@@ -131,3 +131,19 @@ Validation:
 - Focused `clang-tidy --checks=-*,readability-function-size firmware/src/*.c` produced no size warnings after final extraction.
 - Same tidy command still exits on host-header lookup errors (`assert.h`, `sys/cdefs.h`, standard C headers); keep for task 5.2 lint-host fix/suppression.
 - Commits: `73fc340`, `0fc36d6`, `a83d61e`, `3dd6635`, `c4e91fd`, `7317137`, `cb196ea`.
+
+## Task 4.4 Implementation Notes (2026-06-05)
+
+Completed source-local magic-number naming pass:
+- `toolchange.c`, `cutter.c`, `main.c`, `motion.c`, `neopixel.c`: named timing, conversion, clamp, PWM, and protocol-buffer constants.
+- `controller_shared.h`/shared headers plus `protocol.c`, `protocol_status.c`, `protocol_tmc.c`: named command parser/reply sizes, GET/SET bounds, TMC protocol register/byte limits, and status formatting thresholds.
+- `settings_store.c`: named flash-buffer, CRC, clamp, reserve, and TMC vsense thresholds without changing `settings_t` size, layout, or `SETTINGS_VERSION`.
+- `tmc2209.c`: named UART frame indexes, masks, bit shifts, current scaling, microstep mapping, and write/read timing constants.
+- `sync.c`, `sync_buf.c`, `sync_analog.c`, `sync_relay.c`: named estimator, buffer geometry, Type-P rail/confidence, Type-D dwell/sample, warning-rate, and drift-control thresholds.
+
+Validation:
+- `ninja -C build_local` passed before each code commit.
+- Focused `clang-tidy --checks=-*,readability-magic-numbers -p build_local firmware/src/*.c` has no project-file magic-number warnings.
+- The same tidy invocations still emit host-header lookup errors; task 5.2 owns the lint-host fix or justified suppression.
+- No protocol/config/runtime tunable or persisted settings layout change intended; no `SETTINGS_VERSION` bump required.
+- Commits: `348c014`, `9201ed7`, `2f380cf`, `b54cd91`, `52114f4`, `ef47a7c`, `62705e3`, `43ee850`, `357cab2`, `1eb518b`, `da83a4a`, `b3b8e86`, `c83642e`, `ae9ce98`, `01333c7`.

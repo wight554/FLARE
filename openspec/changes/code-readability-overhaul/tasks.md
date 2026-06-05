@@ -30,7 +30,9 @@
 - [x] 4.3 Extract over-long functions flagged by `readability-function-size`; build-verify
   - 2026-06-05 validation: extracted helpers through `protocol.c`, `cutter.c`, `main.c`, `sync.c`, and `sync_buf.c`; `ninja -C build_local` passed after each committed unit. Focused `clang-tidy --checks=-*,readability-function-size firmware/src/*.c` reports no function-size warnings; current clang-tidy invocation still exits on host-header lookup errors (`assert.h`, `sys/cdefs.h`, standard C headers), to be handled in 5.2.
   - Commits: `73fc340`, `0fc36d6`, `a83d61e`, `3dd6635`, `c4e91fd`, `7317137`, `cb196ea`.
-- [ ] 4.4 Replace residual magic numbers with named constants or config-backed tunables (config→`tune.h`→`CONF_*` path for runtime-tunable); build-verify
+- [x] 4.4 Replace residual magic numbers with named constants or config-backed tunables (config→`tune.h`→`CONF_*` path for runtime-tunable); build-verify
+  - 2026-06-05 validation: replaced opaque control/protocol/persistence/estimator literals with named constants across `toolchange.c`, shared headers, `cutter.c`, `main.c`, `motion.c`, `neopixel.c`, `protocol.c`, `settings_store.c`, split protocol/sync units, `tmc2209.c`, `sync.c`, and `sync_buf.c`; no new runtime tunables or `settings_t` layout changes were introduced. `ninja -C build_local` passed before each code commit. Focused `clang-tidy --checks=-*,readability-magic-numbers -p build_local firmware/src/*.c` shows no project-file magic-number warnings; current invocation still reports host-header lookup errors, tracked for 5.2.
+  - Commits: `348c014`, `9201ed7`, `2f380cf`, `b54cd91`, `52114f4`, `ef47a7c`, `62705e3`, `43ee850`, `357cab2`, `1eb518b`, `da83a4a`, `b3b8e86`, `c83642e`, `ae9ce98`, `01333c7`.
 - [ ] 4.5 Update file map in `AGENTS.md` Key Files + `project-architecture` spec for new units
 
 ## 5. Doc-comments + gate
