@@ -192,15 +192,8 @@ static uint32_t tc_cut_watchdog_ms(lane_t *lane) {
     return (configured_ms > expected_ms) ? configured_ms : expected_ms;
 }
 
-void tc_tick(uint32_t now_ms) {
-    uint32_t age = now_ms - g_tc_ctx.phase_start_ms;
-    lane_t *lane = lane_ptr(active_lane);
-
+static void tc_tick_unload_states(lane_t *lane, uint32_t now_ms, uint32_t age) {
     switch (g_tc_ctx.state) {
-    case TC_IDLE:
-    case TC_ERROR:
-        return;
-
     case TC_UNLOAD_CUT:
         cutter_start(lane, true, now_ms);
         g_tc_ctx.phase_start_ms = now_ms;
@@ -267,6 +260,13 @@ void tc_tick(uint32_t now_ms) {
         g_tc_ctx.state = TC_SWAP;
         break;
 
+    default:
+        break;
+    }
+}
+
+static void tc_tick_load_states(lane_t *lane, uint32_t now_ms, uint32_t age) {
+    switch (g_tc_ctx.state) {
     case TC_SWAP: {
         char swap_s[8];
         snprintf(swap_s, sizeof(swap_s), "%d->%d", active_lane, g_tc_ctx.target_lane);
@@ -310,227 +310,268 @@ void tc_tick(uint32_t now_ms) {
         }
         break;
 
-    case TC_RELOAD_WAIT_Y: {
-        lane_t *from_lane_ptr = lane_ptr(g_tc_ctx.from_lane);
-        if (from_lane_ptr && lane_out_present(from_lane_ptr)) {
-            if (from_lane_ptr->task != TASK_FEED)
-                lane_start(from_lane_ptr, TASK_FEED, COMPRESSION_SPS, true, now_ms, 0);
-        } else if (from_lane_ptr && from_lane_ptr->task == TASK_FEED) {
-            lane_stop(from_lane_ptr);
-        }
-
-        bool tail_cleared = (!from_lane_ptr || !lane_out_present(from_lane_ptr));
-        bool y_cleared = (!on_al(&g_y_split) || RELOAD_Y_TIMEOUT_MS == 0);
-        if (tail_cleared && y_cleared) {
-            if (g_tc_ctx.ready_to_join_since_ms == 0)
-                g_tc_ctx.ready_to_join_since_ms = now_ms;
-        } else {
-            g_tc_ctx.ready_to_join_since_ms = 0;
-        }
-
-        bool join_delay_elapsed =
-            (RELOAD_JOIN_DELAY_MS <= 0) ||
-            (g_tc_ctx.ready_to_join_since_ms != 0 &&
-             (now_ms - g_tc_ctx.ready_to_join_since_ms) >= (uint32_t)RELOAD_JOIN_DELAY_MS);
-
-        if (tail_cleared && y_cleared && join_delay_elapsed) {
-            char lane_s[2] = {(char)('0' + g_tc_ctx.target_lane), 0};
-            set_active_lane(g_tc_ctx.target_lane);
-            lane_t *new_lane = lane_ptr(active_lane);
-            if (from_lane_ptr && from_lane_ptr->task != TASK_IDLE)
-                lane_stop(from_lane_ptr);
-            cmd_event("RELOAD:JOINING", lane_s);
-            int approach_sps = FEED_SPS;
-            if (approach_sps <= 0)
-                approach_sps = JOIN_SPS;
-            lane_start(new_lane, TASK_FEED, approach_sps, true, now_ms, 2000.0f);
-            g_tc_ctx.ready_to_join_since_ms = 0;
-            g_tc_ctx.reload_tick_ms = now_ms;
-            g_tc_ctx.reload_current_sps = 0;
-            g_tc_ctx.last_compression_ms = 0;
-            g_tc_ctx.phase_start_ms = now_ms;
-            g_tc_ctx.state = TC_RELOAD_APPROACH;
-        } else if ((!tail_cleared || !y_cleared) && age > (uint32_t)RELOAD_Y_TIMEOUT_MS) {
-            tc_enter_error("RELOAD_Y_TIMEOUT");
-        }
-        break;
-    }
-
-    case TC_RELOAD_APPROACH: {
-        if (lane && lane->task == TASK_IDLE) {
-            tc_enter_error("RELOAD_APPROACH_FAULT");
-            break;
-        }
-
-        bool contacted = false;
-        if (BUF_SENSOR_TYPE == 1) {
-            contacted = (g_buf_pos < PSF_HOME_DEVIATION_THRESHOLD_NORM);
-        } else {
-            contacted = (g_buf.state == BUF_COMPRESSION);
-        }
-
-        if (lane && lane->task_limit_mm > 0.0f && lane->task_dist_mm >= lane->task_limit_mm) {
-            lane_stop(lane);
-            tc_enter_error("RELOAD_APPROACH_TIMEOUT");
-            break;
-        }
-
-        if (contacted) {
-            if (lane) {
-                lane_stop(lane);
-            }
-            g_tc_ctx.reload_current_sps = COMPRESSION_SPS;
-            g_tc_ctx.last_compression_ms = (g_buf.state == BUF_COMPRESSION) ? now_ms : 0;
-            g_tc_ctx.wall_critical_since_ms = 0;
-            g_tc_ctx.reload_tick_ms = now_ms;
-            g_tc_ctx.phase_start_ms = now_ms;
-            g_tc_ctx.state = TC_RELOAD_FOLLOW;
-        } else if (lane->task == TASK_IDLE) {
-            tc_enter_error("RELOAD_APPROACH_TIMEOUT");
-        }
-        break;
-    }
-
-    case TC_RELOAD_FOLLOW: {
-        buf_state_t instant_buf_state = buf_state_raw();
-        if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION ||
-            toolhead_has_filament) {
-            if (lane)
-                lane_stop(lane);
-            set_toolhead_filament(true);
-            char lane_s[2] = {(char)('0' + active_lane), 0};
-            cmd_event("RELOAD:LOADED", lane_s);
-            g_tc_ctx.state = TC_IDLE;
-            break;
-        }
-
-        if (lane->task_dist_mm >= (float)LOAD_MAX_MM) {
-            if (lane)
-                lane_stop(lane);
-            set_toolhead_filament(true);
-            char lane_s[2] = {(char)('0' + active_lane), 0};
-            cmd_event("RELOAD:LOADED", lane_s);
-            g_tc_ctx.state = TC_IDLE;
-            break;
-        }
-
-        if ((now_ms - g_tc_ctx.reload_tick_ms) < (uint32_t)SYNC_TICK_MS)
-            break;
-        g_tc_ctx.reload_tick_ms = now_ms;
-
-        uint32_t follow_age_ms = now_ms - g_tc_ctx.phase_start_ms;
-        float compression_wall_ms = sync_compression_wall_time_ms(lane);
-        float compression_push_mm_s = sync_compression_wall_velocity_mm_s(lane);
-
-        // We must OVER-feed to close the gap and maintain pressure on the old tail.
-        // Under-feeding creates a gap because the MMU pushes slower than the extruder pulls!
-        int target_sps = (int)(extruder_est_sps * RELOAD_LEAN_FACTOR);
-        if (target_sps < PRESS_SPS) {
-            target_sps = PRESS_SPS;
-        }
-        if (g_buf.state == BUF_COMPRESSION) {
-            target_sps = COMPRESSION_SPS;
-        } else if (g_buf.state == BUF_TENSION) {
-            target_sps = JOIN_SPS;
-        }
-
-        if (g_buf.state != BUF_COMPRESSION &&
-            compression_wall_ms < RELOAD_COMPRESSION_SOFT_WALL_MS) {
-            float urgency = (RELOAD_COMPRESSION_SOFT_WALL_MS - compression_wall_ms) /
-                            RELOAD_COMPRESSION_SOFT_WALL_MS;
-            urgency = clamp_f(urgency, 0.0f, 1.0f);
-            int wall_trim = (int)(urgency * (float)(target_sps - COMPRESSION_SPS));
-            target_sps -= wall_trim;
-        }
-        target_sps = clamp_i(target_sps, COMPRESSION_SPS, JOIN_SPS);
-
-        if (follow_age_ms < (uint32_t)RELOAD_TOUCH_SETTLE_MS) {
-            target_sps = COMPRESSION_SPS;
-        } else if (g_buf.state != BUF_COMPRESSION &&
-                   follow_age_ms < (uint32_t)(RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS)) {
-            int floor_sps = (PRESS_SPS * RELOAD_TOUCH_FLOOR_PCT) / 100;
-            if (floor_sps < COMPRESSION_SPS)
-                floor_sps = COMPRESSION_SPS;
-            if (target_sps < floor_sps)
-                target_sps = floor_sps;
-        }
-
-        if (g_tc_ctx.reload_current_sps > target_sps)
-            g_tc_ctx.reload_current_sps -= SYNC_RAMP_DN_SPS;
-        else if (g_tc_ctx.reload_current_sps < target_sps)
-            g_tc_ctx.reload_current_sps += SYNC_RAMP_UP_SPS;
-        g_tc_ctx.reload_current_sps = clamp_i(g_tc_ctx.reload_current_sps, 0, PRESS_SPS);
-
-        if (lane) {
-            if (g_tc_ctx.reload_current_sps > 0) {
-                if (lane->task != TASK_FEED && lane->fault == FAULT_NONE) {
-                    lane_start(lane, TASK_FEED, g_tc_ctx.reload_current_sps, true, now_ms, 0);
-                } else if (lane->task == TASK_FEED) {
-                    lane->current_sps = g_tc_ctx.reload_current_sps;
-                    lane->target_sps = g_tc_ctx.reload_current_sps;
-                    motor_enable(&lane->m, true);
-                    motor_set_dir(&lane->m, true);
-                    motor_set_rate_sps(&lane->m, g_tc_ctx.reload_current_sps);
-                }
-            } else if (lane->task == TASK_FEED) {
-                motor_stop(&lane->m);
-                lane->current_sps = 0;
-                lane->target_sps = 0;
-                int idx = lane->lane_id - 1;
-                tmc_set_stealthchop_sps(lane->tmc, TMC_STEALTHCHOP_SPS[idx], TMC_MICROSTEPS[idx]);
-            }
-        }
-
-        if (g_buf.state == BUF_COMPRESSION) {
-            if (g_tc_ctx.last_compression_ms == 0)
-                g_tc_ctx.last_compression_ms = now_ms;
-            bool wall_critical = compression_push_mm_s > RELOAD_COMPRESSION_HARD_PUSH_MM_S &&
-                                 compression_wall_ms < RELOAD_COMPRESSION_HARD_WALL_MS;
-            if (wall_critical) {
-                if (g_tc_ctx.wall_critical_since_ms == 0)
-                    g_tc_ctx.wall_critical_since_ms = now_ms;
-                else if ((now_ms - g_tc_ctx.wall_critical_since_ms) >=
-                         RELOAD_COMPRESSION_HARD_HOLD_MS) {
-                    tc_enter_error("FOLLOW_JAM");
-                    lane_stop(lane);
-                    break;
-                }
-            } else {
-                g_tc_ctx.wall_critical_since_ms = 0;
-            }
-            if ((now_ms - g_tc_ctx.last_compression_ms) >
-                (uint32_t)FOLLOW_TIMEOUT_MS[lane_to_idx(lane->lane_id)]) {
-                tc_enter_error("FOLLOW_JAM");
-                lane_stop(lane);
-                break;
-            }
-        } else {
-            g_tc_ctx.last_compression_ms = 0;
-            g_tc_ctx.wall_critical_since_ms = 0;
-        }
-
-        if ((now_ms - g_tc_ctx.phase_start_ms) > 300000) {
-            tc_enter_error("FOLLOW_TIMEOUT_ABS");
-            lane_stop(lane);
-            break;
-        }
-
-        static uint32_t last_reload_report_ms = 0;
-        if ((now_ms - last_reload_report_ms) >= 500u) {
-            last_reload_report_ms = now_ms;
-            char ev[64];
-            snprintf(ev, sizeof(ev), "%s,%.1f,%.2f", buf_state_name(g_buf.state),
-                     (double)sps_to_mm_per_min(g_tc_ctx.reload_current_sps), (double)g_buf_pos);
-            cmd_event("BS", ev);
-        }
-        break;
-    }
-
     case TC_LOAD_DONE: {
         char lane_s[2] = {(char)('0' + active_lane), 0};
         cmd_event("TC:DONE", lane_s);
         g_tc_ctx.state = TC_IDLE;
         break;
     }
+
+    default:
+        break;
+    }
+}
+
+static void tc_tick_reload_wait_y(lane_t *lane, uint32_t now_ms, uint32_t age) {
+    lane_t *from_lane_ptr = lane_ptr(g_tc_ctx.from_lane);
+    if (from_lane_ptr && lane_out_present(from_lane_ptr)) {
+        if (from_lane_ptr->task != TASK_FEED)
+            lane_start(from_lane_ptr, TASK_FEED, COMPRESSION_SPS, true, now_ms, 0);
+    } else if (from_lane_ptr && from_lane_ptr->task == TASK_FEED) {
+        lane_stop(from_lane_ptr);
+    }
+
+    bool tail_cleared = (!from_lane_ptr || !lane_out_present(from_lane_ptr));
+    bool y_cleared = (!on_al(&g_y_split) || RELOAD_Y_TIMEOUT_MS == 0);
+    if (tail_cleared && y_cleared) {
+        if (g_tc_ctx.ready_to_join_since_ms == 0)
+            g_tc_ctx.ready_to_join_since_ms = now_ms;
+    } else {
+        g_tc_ctx.ready_to_join_since_ms = 0;
+    }
+
+    bool join_delay_elapsed =
+        (RELOAD_JOIN_DELAY_MS <= 0) ||
+        (g_tc_ctx.ready_to_join_since_ms != 0 &&
+         (now_ms - g_tc_ctx.ready_to_join_since_ms) >= (uint32_t)RELOAD_JOIN_DELAY_MS);
+
+    if (tail_cleared && y_cleared && join_delay_elapsed) {
+        char lane_s[2] = {(char)('0' + g_tc_ctx.target_lane), 0};
+        set_active_lane(g_tc_ctx.target_lane);
+        lane_t *new_lane = lane_ptr(active_lane);
+        if (from_lane_ptr && from_lane_ptr->task != TASK_IDLE)
+            lane_stop(from_lane_ptr);
+        cmd_event("RELOAD:JOINING", lane_s);
+        int approach_sps = FEED_SPS;
+        if (approach_sps <= 0)
+            approach_sps = JOIN_SPS;
+        lane_start(new_lane, TASK_FEED, approach_sps, true, now_ms, 2000.0f);
+        g_tc_ctx.ready_to_join_since_ms = 0;
+        g_tc_ctx.reload_tick_ms = now_ms;
+        g_tc_ctx.reload_current_sps = 0;
+        g_tc_ctx.last_compression_ms = 0;
+        g_tc_ctx.phase_start_ms = now_ms;
+        g_tc_ctx.state = TC_RELOAD_APPROACH;
+    } else if ((!tail_cleared || !y_cleared) && age > (uint32_t)RELOAD_Y_TIMEOUT_MS) {
+        tc_enter_error("RELOAD_Y_TIMEOUT");
+    }
+}
+
+static void tc_tick_reload_approach(lane_t *lane, uint32_t now_ms, uint32_t age) {
+    if (lane && lane->task == TASK_IDLE) {
+        tc_enter_error("RELOAD_APPROACH_FAULT");
+        return;
+    }
+
+    bool contacted = false;
+    if (BUF_SENSOR_TYPE == 1) {
+        contacted = (g_buf_pos < PSF_HOME_DEVIATION_THRESHOLD_NORM);
+    } else {
+        contacted = (g_buf.state == BUF_COMPRESSION);
+    }
+
+    if (lane && lane->task_limit_mm > 0.0f && lane->task_dist_mm >= lane->task_limit_mm) {
+        lane_stop(lane);
+        tc_enter_error("RELOAD_APPROACH_TIMEOUT");
+        return;
+    }
+
+    if (contacted) {
+        if (lane) {
+            lane_stop(lane);
+        }
+        g_tc_ctx.reload_current_sps = COMPRESSION_SPS;
+        g_tc_ctx.last_compression_ms = (g_buf.state == BUF_COMPRESSION) ? now_ms : 0;
+        g_tc_ctx.wall_critical_since_ms = 0;
+        g_tc_ctx.reload_tick_ms = now_ms;
+        g_tc_ctx.phase_start_ms = now_ms;
+        g_tc_ctx.state = TC_RELOAD_FOLLOW;
+    } else if (lane->task == TASK_IDLE) {
+        tc_enter_error("RELOAD_APPROACH_TIMEOUT");
+    }
+}
+
+static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
+    buf_state_t instant_buf_state = buf_state_raw();
+    if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION ||
+        toolhead_has_filament) {
+        if (lane)
+            lane_stop(lane);
+        set_toolhead_filament(true);
+        char lane_s[2] = {(char)('0' + active_lane), 0};
+        cmd_event("RELOAD:LOADED", lane_s);
+        g_tc_ctx.state = TC_IDLE;
+        return;
+    }
+
+    if (lane->task_dist_mm >= (float)LOAD_MAX_MM) {
+        if (lane)
+            lane_stop(lane);
+        set_toolhead_filament(true);
+        char lane_s[2] = {(char)('0' + active_lane), 0};
+        cmd_event("RELOAD:LOADED", lane_s);
+        g_tc_ctx.state = TC_IDLE;
+        return;
+    }
+
+    if ((now_ms - g_tc_ctx.reload_tick_ms) < (uint32_t)SYNC_TICK_MS)
+        return;
+    g_tc_ctx.reload_tick_ms = now_ms;
+
+    uint32_t follow_age_ms = now_ms - g_tc_ctx.phase_start_ms;
+    float compression_wall_ms = sync_compression_wall_time_ms(lane);
+    float compression_push_mm_s = sync_compression_wall_velocity_mm_s(lane);
+
+    // We must OVER-feed to close the gap and maintain pressure on the old tail.
+    // Under-feeding creates a gap because the MMU pushes slower than the extruder pulls!
+    int target_sps = (int)(extruder_est_sps * RELOAD_LEAN_FACTOR);
+    if (target_sps < PRESS_SPS) {
+        target_sps = PRESS_SPS;
+    }
+    if (g_buf.state == BUF_COMPRESSION) {
+        target_sps = COMPRESSION_SPS;
+    } else if (g_buf.state == BUF_TENSION) {
+        target_sps = JOIN_SPS;
+    }
+
+    if (g_buf.state != BUF_COMPRESSION &&
+        compression_wall_ms < RELOAD_COMPRESSION_SOFT_WALL_MS) {
+        float urgency = (RELOAD_COMPRESSION_SOFT_WALL_MS - compression_wall_ms) /
+                        RELOAD_COMPRESSION_SOFT_WALL_MS;
+        urgency = clamp_f(urgency, 0.0f, 1.0f);
+        int wall_trim = (int)(urgency * (float)(target_sps - COMPRESSION_SPS));
+        target_sps -= wall_trim;
+    }
+    target_sps = clamp_i(target_sps, COMPRESSION_SPS, JOIN_SPS);
+
+    if (follow_age_ms < (uint32_t)RELOAD_TOUCH_SETTLE_MS) {
+        target_sps = COMPRESSION_SPS;
+    } else if (g_buf.state != BUF_COMPRESSION &&
+               follow_age_ms < (uint32_t)(RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS)) {
+        int floor_sps = (PRESS_SPS * RELOAD_TOUCH_FLOOR_PCT) / 100;
+        if (floor_sps < COMPRESSION_SPS)
+            floor_sps = COMPRESSION_SPS;
+        if (target_sps < floor_sps)
+            target_sps = floor_sps;
+    }
+
+    if (g_tc_ctx.reload_current_sps > target_sps)
+        g_tc_ctx.reload_current_sps -= SYNC_RAMP_DN_SPS;
+    else if (g_tc_ctx.reload_current_sps < target_sps)
+        g_tc_ctx.reload_current_sps += SYNC_RAMP_UP_SPS;
+    g_tc_ctx.reload_current_sps = clamp_i(g_tc_ctx.reload_current_sps, 0, PRESS_SPS);
+
+    if (lane) {
+        if (g_tc_ctx.reload_current_sps > 0) {
+            if (lane->task != TASK_FEED && lane->fault == FAULT_NONE) {
+                lane_start(lane, TASK_FEED, g_tc_ctx.reload_current_sps, true, now_ms, 0);
+            } else if (lane->task == TASK_FEED) {
+                lane->current_sps = g_tc_ctx.reload_current_sps;
+                lane->target_sps = g_tc_ctx.reload_current_sps;
+                motor_enable(&lane->m, true);
+                motor_set_dir(&lane->m, true);
+                motor_set_rate_sps(&lane->m, g_tc_ctx.reload_current_sps);
+            }
+        } else if (lane->task == TASK_FEED) {
+            motor_stop(&lane->m);
+            lane->current_sps = 0;
+            lane->target_sps = 0;
+            int idx = lane->lane_id - 1;
+            tmc_set_stealthchop_sps(lane->tmc, TMC_STEALTHCHOP_SPS[idx], TMC_MICROSTEPS[idx]);
+        }
+    }
+
+    if (g_buf.state == BUF_COMPRESSION) {
+        if (g_tc_ctx.last_compression_ms == 0)
+            g_tc_ctx.last_compression_ms = now_ms;
+        bool wall_critical = compression_push_mm_s > RELOAD_COMPRESSION_HARD_PUSH_MM_S &&
+                             compression_wall_ms < RELOAD_COMPRESSION_HARD_WALL_MS;
+        if (wall_critical) {
+            if (g_tc_ctx.wall_critical_since_ms == 0)
+                g_tc_ctx.wall_critical_since_ms = now_ms;
+            else if ((now_ms - g_tc_ctx.wall_critical_since_ms) >=
+                     RELOAD_COMPRESSION_HARD_HOLD_MS) {
+                tc_enter_error("FOLLOW_JAM");
+                lane_stop(lane);
+                return;
+            }
+        } else {
+            g_tc_ctx.wall_critical_since_ms = 0;
+        }
+        if ((now_ms - g_tc_ctx.last_compression_ms) >
+            (uint32_t)FOLLOW_TIMEOUT_MS[lane_to_idx(lane->lane_id)]) {
+            tc_enter_error("FOLLOW_JAM");
+            lane_stop(lane);
+            return;
+        }
+    } else {
+        g_tc_ctx.last_compression_ms = 0;
+        g_tc_ctx.wall_critical_since_ms = 0;
+    }
+
+    if ((now_ms - g_tc_ctx.phase_start_ms) > 300000) {
+        tc_enter_error("FOLLOW_TIMEOUT_ABS");
+        lane_stop(lane);
+        return;
+    }
+
+    static uint32_t last_reload_report_ms = 0;
+    if ((now_ms - last_reload_report_ms) >= 500u) {
+        last_reload_report_ms = now_ms;
+        char ev[64];
+        snprintf(ev, sizeof(ev), "%s,%.1f,%.2f", buf_state_name(g_buf.state),
+                 (double)sps_to_mm_per_min(g_tc_ctx.reload_current_sps), (double)g_buf_pos);
+        cmd_event("BS", ev);
+    }
+}
+
+void tc_tick(uint32_t now_ms) {
+    uint32_t age = now_ms - g_tc_ctx.phase_start_ms;
+    lane_t *lane = lane_ptr(active_lane);
+
+    switch (g_tc_ctx.state) {
+    case TC_IDLE:
+    case TC_ERROR:
+        return;
+
+    case TC_UNLOAD_CUT:
+    case TC_UNLOAD_WAIT_CUT:
+    case TC_UNLOAD_REVERSE:
+    case TC_UNLOAD_WAIT_OUT:
+    case TC_UNLOAD_WAIT_Y:
+    case TC_UNLOAD_WAIT_TH:
+    case TC_UNLOAD_DONE:
+        tc_tick_unload_states(lane, now_ms, age);
+        break;
+
+    case TC_SWAP:
+    case TC_LOAD_START:
+    case TC_LOAD_WAIT_OUT:
+    case TC_LOAD_WAIT_TH:
+    case TC_LOAD_DONE:
+        tc_tick_load_states(lane, now_ms, age);
+        break;
+
+    case TC_RELOAD_WAIT_Y:
+        tc_tick_reload_wait_y(lane, now_ms, age);
+        break;
+
+    case TC_RELOAD_APPROACH:
+        tc_tick_reload_approach(lane, now_ms, age);
+        break;
+
+    case TC_RELOAD_FOLLOW:
+        tc_tick_reload_follow(lane, now_ms, age);
+        break;
     }
 }
