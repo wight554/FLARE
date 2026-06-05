@@ -98,6 +98,22 @@ no firmware unit-test harness; equivalence is structural, established by diff di
   clang-format needs no toolchain; clang-tidy parses via its own frontend using the
   `compile_commands.json` target flags (`--extra-arg` if host-header noise appears).
 
-## Open Questions
+## Plan for Task 4.3 (Extract over-long functions)
+- `protocol.c`: Extract `cmd_execute` (1254 lines) into:
+  - `cmd_handle_motion` (handles `TC`, `T`, `LO`, `UL`, `UM`, `FL`, `RL`, `FD`, `MV` etc.)
+  - `cmd_handle_sensor_status` (handles `ST`, `BS`, `TS`, `RA`, `BL`, `SM`, `CU`, `CX`, `CP` etc.)
+  - `cmd_handle_system` (handles `CAL`, `SV`, `LD`, `RS`, `VR`, `?`, `MARK`, `BOOT` etc.)
+  - `cmd_handle_set` (handles `SET`)
+  - `cmd_handle_get` (handles `GET`)
+- `settings_store.c`: Extract `settings_defaults` (120 lines) into:
+  - `settings_defaults_motion`, `settings_defaults_tmc`, `settings_defaults_servo_cutter`, `settings_defaults_sync_reload`
+  - Extract `settings_load` (109 lines) into:
+    - `settings_load_motion`, `settings_load_tmc`, `settings_load_servo_cutter`, `settings_load_sync_reload`
+- `sync.c`:
+  - Extract `buffer_stabilize_tick` (140 lines) helper `boot_stabilize_tick_type_p` for Type-P analog stabilization.
+  - Extract `sync_buffer_lock_tick` (166 lines) helper `sync_buffer_lock_follow` for the follow-on movement phase.
+  - Extract `sync_tick` (642 lines) into helpers `sync_tick_off`, `sync_tick_retract_assist`, `sync_tick_active`, `sync_tick_auto_start`.
 
-- None.
+## Plan for Task 4.4 (Replace magic numbers)
+- Scan files and replace literals like `10000u`, `500u`, `300000` with named constants or `config.ini` backed variables.
+
