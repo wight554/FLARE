@@ -8,6 +8,50 @@
 #include "protocol.h"
 #include "toolchange.h"
 
+enum {
+    BUFFER_STABILIZE_WINDOW_MS = 10000u,
+    FLOW_BIAS_MILLI_SCALE = 1000,
+    FLOW_BIAS_MILLI_MAX = 700,
+    BASELINE_SETTLE_MIN_DWELL_MS = 500,
+    SETTLE_HISTORY_MAX_COUNT = 16,
+    SETTLE_HISTORY_LAST_INDEX = SETTLE_HISTORY_MAX_COUNT - 1,
+    SYNC_FAST_BRAKE_MS = 250u,
+    SYNC_POST_COMPRESSION_BOOST_MS = 300u,
+    SYNC_MMU_DWELL_SAMPLE_MAX = 10000,
+    SYNC_MMU_DWELL_DECAY_DIVISOR = 2,
+    SYNC_TENSION_DWELL_WARN_INTERVAL_MS = 10000u,
+    SYNC_TENSION_RISK_WARN_INTERVAL_MS = 30000u,
+    SYNC_STATUS_EVENT_INTERVAL_MS = 500u,
+    SYNC_STATUS_EVENT_MAX = 48,
+    SYNC_RECENT_NEGATIVE_RELEASE_MARGIN_MS = 300u,
+};
+
+static const float TYPE_P_RAIL_NORM = 0.99f;
+static const float HALF_F = 0.5f;
+static const float MS_PER_SECOND_F = 1000.0f;
+static const float SECONDS_PER_MINUTE_F = 60.0f;
+static const float ROUND_TO_NEAREST_F = 0.5f;
+static const float BASELINE_MIN_MEAN_SPS = 0.1f;
+static const float TYPE_D_NEUTRAL_DEMAND_MARGIN = 1.05f;
+static const float BL_FALLBACK_TRAVEL_CAP_MM = 25.0f;
+static const float BL_FALLBACK_HALF_TRAVEL_MM = BL_FALLBACK_TRAVEL_CAP_MM * HALF_F;
+static const float BL_FOLLOW_DT_MIN_S = 0.0001f;
+static const float BL_FOLLOW_DT_MAX_S = 0.1f;
+static const float BL_FOLLOW_DT_FALLBACK_S = 0.001f;
+static const float TYPE_P_AUTO_START_POS_NORM = -0.6f;
+static const float TYPE_P_AUTO_START_VEL_NORM = -0.1f;
+static const float DRIFT_WALL_TAPER_MULT = 2.0f;
+static const float DRIFT_WALL_TAPER_MIN_MM = 0.5f;
+static const float DRIFT_CONFIDENCE_BIAS_FRAC = 0.8f;
+static const float RESERVE_INTEGRAL_MIN_CF = 0.7f;
+static const float RESERVE_INTEGRAL_WARN_FRAC = 0.5f;
+static const float VARIANCE_BLEND_REF_MIN_MM = 0.05f;
+static const float VARIANCE_BLEND_REF_FALLBACK_MM = 1.0f;
+static const float BUFFER_THRESHOLD_MIN_MM = 0.001f;
+static const float TYPE_D_DEADBAND_NORM = 0.1f;
+static const float UNCERTAINTY_PROBE_BIAS_SPS = 6.0f;
+static const float PSF_FILTER_MIN_MM = 0.01f;
+
 sync_state_t g_sync_state = SYNC_OFF;
 bool sync_auto_started = false;
 bool sync_tail_assist_active = false;
@@ -175,7 +219,7 @@ bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events,
         return false;
 
     g_boot_stabilizing = true;
-    g_boot_stabilize_deadline_ms = now_ms + 10000u;
+    g_boot_stabilize_deadline_ms = now_ms + BUFFER_STABILIZE_WINDOW_MS;
     g_boot_stabilize_lane = stab_lane;
     g_buffer_stabilize_emit_events = emit_events;
     g_buffer_service_mode = mode;
@@ -225,7 +269,8 @@ static bool boot_stabilize_tick_type_p(uint32_t now_ms) {
         return false;
 
     if (g_boot_stabilizing) {
-        bool at_rail = (g_buf_analog_saturated_since_ms != 0) || (fabsf(g_buf_pos) >= 0.99f);
+        bool at_rail =
+            (g_buf_analog_saturated_since_ms != 0) || (fabsf(g_buf_pos) >= TYPE_P_RAIL_NORM);
         if (at_rail) {
             if ((int32_t)(now_ms - g_boot_stabilize_started_ms) >= PSF_STAB_RAIL_BREAK_MS) {
                 if (g_buffer_stabilize_emit_events)
@@ -317,7 +362,7 @@ void buffer_stabilize_tick(uint32_t now_ms) {
 
         if (raw_state == BUF_TENSION) {
             g_buffer_service_mode = BUFFER_SERVICE_STABILIZE;
-            g_boot_stabilize_deadline_ms = now_ms + 10000u;
+            g_boot_stabilize_deadline_ms = now_ms + BUFFER_STABILIZE_WINDOW_MS;
             motor_enable(&g_boot_stabilize_lane->m, true);
             motor_set_dir(&g_boot_stabilize_lane->m, true);
             motor_set_rate_sps(&g_boot_stabilize_lane->m, BUF_STAB_SPS);
@@ -337,7 +382,7 @@ void buffer_stabilize_tick(uint32_t now_ms) {
         if (g_boot_stabilize_forward != need_forward) {
             motor_set_dir(&g_boot_stabilize_lane->m, need_forward);
             g_boot_stabilize_forward = need_forward;
-            g_boot_stabilize_deadline_ms = now_ms + 10000u;
+            g_boot_stabilize_deadline_ms = now_ms + BUFFER_STABILIZE_WINDOW_MS;
             if (g_buffer_stabilize_emit_events)
                 cmd_event("BUF_STAB", "REVERSE");
         }
@@ -354,8 +399,9 @@ void flow_schedule_refresh_scalar(void) {
     g_flow_sched_len = 1;
     g_flow_sched_runtime[0].flow_sps = g_baseline_target_sps;
     g_flow_sched_runtime[0].baseline_sps = g_baseline_target_sps;
-    g_flow_sched_runtime[0].bias_milli =
-        clamp_i((int)(SYNC_COMPRESSION_BIAS_FRAC * 1000.0f + 0.5f), 0, 700);
+    g_flow_sched_runtime[0].bias_milli = clamp_i(
+        (int)(SYNC_COMPRESSION_BIAS_FRAC * (float)FLOW_BIAS_MILLI_SCALE + ROUND_TO_NEAREST_F), 0,
+        FLOW_BIAS_MILLI_MAX);
     for (int i = 0; i < CONF_FLOW_SCHED_CAP; i++) {
         g_flow_sched_live_delta[i] = 0;
     }
@@ -470,18 +516,18 @@ int flow_sched_len_clamped(void) {
 }
 
 void baseline_update_on_settle(uint32_t neutral_dwell_ms, uint32_t now_ms) {
-    if (neutral_dwell_ms <= 500) {
+    if (neutral_dwell_ms <= BASELINE_SETTLE_MIN_DWELL_MS) {
         g_settle_history_count = 0;
         return;
     }
 
     uint8_t n = CONF_BASELINE_SETTLE_COUNT;
-    if (n > 16)
-        n = 16;
+    if (n > SETTLE_HISTORY_MAX_COUNT)
+        n = SETTLE_HISTORY_MAX_COUNT;
     if (n < 1)
         n = 1;
 
-    for (int i = 15; i > 0; i--) {
+    for (int i = SETTLE_HISTORY_LAST_INDEX; i > 0; i--) {
         g_settle_history[i] = g_settle_history[i - 1];
     }
     g_settle_history[0] = sync_current_sps;
@@ -503,7 +549,8 @@ void baseline_update_on_settle(uint32_t neutral_dwell_ms, uint32_t now_ms) {
         }
 
         float mean_sps = (float)sum_sps / (float)n;
-        float variance_frac = (mean_sps > 0.1f) ? ((float)(max_sps - min_sps) / mean_sps) : 0.0f;
+        float variance_frac =
+            (mean_sps > BASELINE_MIN_MEAN_SPS) ? ((float)(max_sps - min_sps) / mean_sps) : 0.0f;
 
         if (variance_frac <= CONF_BASELINE_VARIANCE_REJECT_FRAC) {
             uint32_t elapsed_ms = now_ms - g_last_baseline_update_ms;
@@ -551,7 +598,7 @@ int sync_neutral_anti_tension_floor_sps(buf_state_t s, lane_t *lane, float error
         if (error_norm >= -deadband_norm)
             return 0;
 
-        int demand_floor_sps = (int)(extruder_est_sps * 1.05f);
+        int demand_floor_sps = (int)(extruder_est_sps * TYPE_D_NEUTRAL_DEMAND_MARGIN);
         if (demand_floor_sps < SYNC_MIN_SPS)
             demand_floor_sps = SYNC_MIN_SPS;
         if (neutral_target_sps > 0 && demand_floor_sps > neutral_target_sps) {
@@ -697,7 +744,8 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
     int prime_sps = (BUF_SENSOR_TYPE == 1) ? sync_clamp_max_sps(BUF_STAB_SPS)
                                            : sync_clamp_max_sps(SYNC_MAX_SPS);
     float mm_per_s = (float)prime_sps * MM_PER_STEP[idx];
-    float max_cap_mm = (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : 25.0f;
+    float max_cap_mm =
+        (BUF_MAX_TRAVEL_MM > 0) ? (float)BUF_MAX_TRAVEL_MM : BL_FALLBACK_TRAVEL_CAP_MM;
     g_bl_prime_start_ms = now_ms;
     g_bl_prime_mm_per_s = mm_per_s;
     g_bl_prime_cap_mm = max_cap_mm;
@@ -710,7 +758,8 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
      * mechanical hard end. If the adjusted distance is ≤ 0, the macro
      * doesn't need a follow-on for such a short move — use passive lock. */
     {
-        float half_travel = (BUF_MAX_TRAVEL_MM > 0) ? ((float)BUF_MAX_TRAVEL_MM * 0.5f) : 12.5f;
+        float half_travel = (BUF_MAX_TRAVEL_MM > 0) ? ((float)BUF_MAX_TRAVEL_MM * HALF_F)
+                                                    : BL_FALLBACK_HALF_TRAVEL_MM;
         float effective_follow_mm =
             (follow_mm > 0.0f && follow_rate_mmpm > 0.0f) ? (follow_mm - half_travel) : 0.0f;
         g_bl_follow_mm = (effective_follow_mm > 0.0f) ? effective_follow_mm : 0.0f;
@@ -760,7 +809,7 @@ static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
     /* Phase 1 — search: outer safety cap fires if switch never triggers */
     float traveled_mm =
         (g_bl_prime_mm_per_s > 0.0f)
-            ? ((float)(now_ms - g_bl_prime_start_ms) / 1000.0f * g_bl_prime_mm_per_s)
+            ? ((float)(now_ms - g_bl_prime_start_ms) / MS_PER_SECOND_F * g_bl_prime_mm_per_s)
             : g_bl_prime_cap_mm;
     bool deadline_hit = (!g_bl_prime_switch_hit && traveled_mm >= g_bl_prime_cap_mm);
 
@@ -773,10 +822,9 @@ static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
     /* Phase 2 — post-click settle: continue (max-span)/2 past the switch */
     bool post_done = false;
     if (g_bl_prime_switch_hit) {
-        float post_mm =
-            (g_bl_prime_mm_per_s > 0.0f)
-                ? ((float)(now_ms - g_bl_prime_post_start_ms) / 1000.0f * g_bl_prime_mm_per_s)
-                : g_bl_prime_post_cap_mm;
+        float post_mm = (g_bl_prime_mm_per_s > 0.0f) ? ((float)(now_ms - g_bl_prime_post_start_ms) /
+                                                        MS_PER_SECOND_F * g_bl_prime_mm_per_s)
+                                                     : g_bl_prime_post_cap_mm;
         post_done = (post_mm >= g_bl_prime_post_cap_mm);
     }
 
@@ -810,7 +858,8 @@ static void sync_buffer_lock_locked(lane_t *lane, uint32_t now_ms) {
 
         if (lock_broken) {
             int idx = lane->lane_id - 1;
-            int follow_sps = (int)(g_bl_follow_rate_mmpm / 60.0f / MM_PER_STEP[idx] + 0.5f);
+            int follow_sps = (int)(g_bl_follow_rate_mmpm / SECONDS_PER_MINUTE_F / MM_PER_STEP[idx] +
+                                   ROUND_TO_NEAREST_F);
             if (follow_sps < 1)
                 follow_sps = 1;
             follow_sps = sync_clamp_max_sps(follow_sps);
@@ -842,11 +891,11 @@ static void sync_buffer_lock_locked(lane_t *lane, uint32_t now_ms) {
 
 static void sync_buffer_lock_follow(lane_t *lane, uint32_t now_ms) {
     int idx = lane->lane_id - 1;
-    float dt_s = (float)(now_ms - g_bl_last_tick_ms) / 1000.0f;
-    if (dt_s < 0.0001f)
-        dt_s = 0.0001f;
-    if (dt_s > 0.1f)
-        dt_s = 0.001f;
+    float dt_s = (float)(now_ms - g_bl_last_tick_ms) / MS_PER_SECOND_F;
+    if (dt_s < BL_FOLLOW_DT_MIN_S)
+        dt_s = BL_FOLLOW_DT_MIN_S;
+    if (dt_s > BL_FOLLOW_DT_MAX_S)
+        dt_s = BL_FOLLOW_DT_FALLBACK_S;
 
     if (BUF_SENSOR_TYPE == 1) {
         bool rail_hit = (g_bl_target_state == BUF_TENSION) ? (g_buf_pos <= -PSF_FOLLOW_RAIL_NORM)
@@ -1041,7 +1090,7 @@ void sync_apply_to_active(void) {
 
 void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t now_ms) {
     if (prev == BUF_TENSION && now_state == BUF_COMPRESSION) {
-        sync_fast_brake_until_ms = now_ms + 250u;
+        sync_fast_brake_until_ms = now_ms + SYNC_FAST_BRAKE_MS;
     }
 
     if (now_state == BUF_TENSION) {
@@ -1066,7 +1115,7 @@ void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t now_ms
             sync_post_compression_boost_until_ms = 0;
         } else if (prev == BUF_COMPRESSION && now_state == BUF_NEUTRAL) {
             if (sync_compression_recovery_active)
-                sync_post_compression_boost_until_ms = now_ms + 300u;
+                sync_post_compression_boost_until_ms = now_ms + SYNC_POST_COMPRESSION_BOOST_MS;
             sync_compression_recovery_active = false;
             sync_continuous_compression_since_ms = 0;
         } else if (now_state == BUF_TENSION) {
@@ -1102,14 +1151,14 @@ static bool sync_tick_type_p_rail_guard(uint32_t now_ms) {
     bool fast_brake_active =
         sync_fast_brake_until_ms != 0 && (int32_t)(sync_fast_brake_until_ms - now_ms) > 0;
     if (fast_brake_active) {
-        if (g_vel_norm < -0.1f) {
+        if (g_vel_norm < TYPE_P_AUTO_START_VEL_NORM) {
             /* Extruder resumed or buffer recovered (moving back off compression,
                toward tension): clear brake, resume PD */
             sync_fast_brake_until_ms = 0;
         }
     } else if (sync_fast_brake_until_ms != 0 && (int32_t)(now_ms - sync_fast_brake_until_ms) >= 0) {
         sync_fast_brake_until_ms = 0;
-        if (g_buf_pos >= 0.99f) {
+        if (g_buf_pos >= TYPE_P_RAIL_NORM) {
             sync_relief_pause();
             sync_apply_to_active();
             cmd_event("SYNC", "RELIEF_PAUSE");
@@ -1119,12 +1168,12 @@ static bool sync_tick_type_p_rail_guard(uint32_t now_ms) {
 
     if (g_buf_analog_saturated_since_ms != 0 &&
         (now_ms - g_buf_analog_saturated_since_ms) >= CONF_PSF_WALL_SAT_MS) {
-        if (g_buf_pos >= 0.99f) {
+        if (g_buf_pos >= TYPE_P_RAIL_NORM) {
             sync_relief_pause();
             sync_apply_to_active();
             cmd_event("SYNC", "RELIEF_PAUSE");
             return true;
-        } else if (g_buf_pos <= -0.99f) {
+        } else if (g_buf_pos <= -TYPE_P_RAIL_NORM) {
             sync_fault_hold();
             sync_apply_to_active();
             cmd_event("SYNC", "FAULT_HOLD");
@@ -1187,7 +1236,8 @@ static bool sync_tick_gated_checks(lane_t *lane, uint32_t now_ms) {
             bool relief_rearm =
                 (BUF_SENSOR_TYPE == 0)
                     ? (s == BUF_TENSION || (s == BUF_NEUTRAL && lane->task == TASK_FEED))
-                    : ((g_buf_pos < -0.6f) && (g_sync_tension_transitioned || g_vel_norm < -0.1f));
+                    : ((g_buf_pos < TYPE_P_AUTO_START_POS_NORM) &&
+                       (g_sync_tension_transitioned || g_vel_norm < TYPE_P_AUTO_START_VEL_NORM));
             if (relief_rearm) {
                 if (BUF_SENSOR_TYPE == 0)
                     g_buf_pos = buf_target_reserve_mm();
@@ -1235,7 +1285,8 @@ static bool sync_tick_auto_start_stop(lane_t *lane, uint32_t now_ms, buf_state_t
        vel~0, so this stays gated there (D18). */
     bool is_tension_active =
         (BUF_SENSOR_TYPE == 1)
-            ? ((g_buf_pos < -0.6f) && (g_sync_tension_transitioned || g_vel_norm < -0.1f))
+            ? ((g_buf_pos < TYPE_P_AUTO_START_POS_NORM) &&
+               (g_sync_tension_transitioned || g_vel_norm < TYPE_P_AUTO_START_VEL_NORM))
             : (s == BUF_TENSION);
     if (AUTO_MODE && !sync_enabled && auto_start_allowed && is_tension_active &&
         !g_bl_autostart_suppressed && any_lane_loaded && !both_loaded) {
@@ -1310,9 +1361,9 @@ static float sync_apply_drift_correction(buf_state_t s, float thr, float reserve
             clamp_f((float)g_bp_drift_samples / (float)drift_min_samples, 0.0f, 1.0f);
         drift_correction_mm =
             clamp_f(g_bp_drift_ewma_mm, -BUF_DRIFT_CLAMP_MM, BUF_DRIFT_CLAMP_MM) * sample_frac;
-        float wall_taper_mm = reserve_deadband_mm * 2.0f;
-        if (wall_taper_mm < 0.5f)
-            wall_taper_mm = 0.5f;
+        float wall_taper_mm = reserve_deadband_mm * DRIFT_WALL_TAPER_MULT;
+        if (wall_taper_mm < DRIFT_WALL_TAPER_MIN_MM)
+            wall_taper_mm = DRIFT_WALL_TAPER_MIN_MM;
 
         if (drift_correction_mm < 0.0f) {
             float dist_from_tension_mm = g_buf_pos + thr;
@@ -1340,7 +1391,8 @@ static float sync_apply_drift_correction(buf_state_t s, float thr, float reserve
          * When blend is active (BLEND_FRAC > 0), confidence-bias is
          * redundant. Gate it off in that case. */
         if (BUF_VARIANCE_BLEND_FRAC <= 0.0f) {
-            float uncertainty_shift_mm = (1.0f - g_buf_signal.confidence) * (thr * 0.8f);
+            float uncertainty_shift_mm =
+                (1.0f - g_buf_signal.confidence) * (thr * DRIFT_CONFIDENCE_BIAS_FRAC);
             bp_eff -= uncertainty_shift_mm;
         }
 
@@ -1352,7 +1404,7 @@ static float sync_apply_drift_correction(buf_state_t s, float thr, float reserve
 }
 
 static int sync_apply_type_d_probe_floor(buf_state_t s, int target_sps) {
-    float tick_dt_s = (float)SYNC_TICK_MS / 1000.0f;
+    float tick_dt_s = (float)SYNC_TICK_MS / MS_PER_SECOND_F;
     if (s == BUF_TENSION) {
         g_tension_floor_sps += (float)SYNC_TENSION_PROBE_UP_SPS_PER_S * tick_dt_s;
     } else if (s == BUF_COMPRESSION) {
@@ -1437,9 +1489,9 @@ static int sync_apply_compression_recovery_cap(buf_state_t s, int target_sps, ui
 static void sync_sample_mmu_dwell(lane_t *lane) {
     if (lane && (lane->task == TASK_FEED || lane->task == TASK_IDLE) && lane->fault == FAULT_NONE &&
         g_sync_state == SYNC_ACTIVE) {
-        if (g_buf.mmu_sps_dwell_samples >= 10000) {
-            g_buf.mmu_sps_dwell_sum /= 2;
-            g_buf.mmu_sps_dwell_samples /= 2;
+        if (g_buf.mmu_sps_dwell_samples >= SYNC_MMU_DWELL_SAMPLE_MAX) {
+            g_buf.mmu_sps_dwell_sum /= SYNC_MMU_DWELL_DECAY_DIVISOR;
+            g_buf.mmu_sps_dwell_samples /= SYNC_MMU_DWELL_DECAY_DIVISOR;
         }
         g_buf.mmu_sps_dwell_sum += (uint32_t)lane_motion_sps(lane);
         g_buf.mmu_sps_dwell_samples++;
@@ -1449,10 +1501,10 @@ static void sync_sample_mmu_dwell(lane_t *lane) {
 static float sync_effective_reserve_target(buf_state_t s, float bp_eff, float raw_target,
                                            uint32_t now_ms) {
     bool integral_active = (s == BUF_NEUTRAL) && (SYNC_RESERVE_INTEGRAL_GAIN > 0.0f) &&
-                           (g_buf_signal.confidence >= 0.7f);
+                           (g_buf_signal.confidence >= RESERVE_INTEGRAL_MIN_CF);
     if (integral_active) {
         float raw_error = bp_eff - raw_target;
-        float dt_s = (float)SYNC_TICK_MS / 1000.0f;
+        float dt_s = (float)SYNC_TICK_MS / MS_PER_SECOND_F;
         sync_reserve_integral_mm -= SYNC_RESERVE_INTEGRAL_GAIN * raw_error * dt_s;
         sync_reserve_integral_mm =
             clamp_f(sync_reserve_integral_mm, -SYNC_RESERVE_INTEGRAL_CLAMP_MM,
@@ -1460,9 +1512,9 @@ static float sync_effective_reserve_target(buf_state_t s, float bp_eff, float ra
     }
     /* TENSION_DWELL_WARN: integral saturated toward tension side — rate-limited 10 s */
     if (sync_enabled && SYNC_RESERVE_INTEGRAL_GAIN > 0.0f &&
-        sync_reserve_integral_mm < -(SYNC_RESERVE_INTEGRAL_CLAMP_MM * 0.5f)) {
+        sync_reserve_integral_mm < -(SYNC_RESERVE_INTEGRAL_CLAMP_MM * RESERVE_INTEGRAL_WARN_FRAC)) {
         if (g_buf_tension_dwell_warn_emit_ms == 0 ||
-            (now_ms - g_buf_tension_dwell_warn_emit_ms) >= 10000u) {
+            (now_ms - g_buf_tension_dwell_warn_emit_ms) >= SYNC_TENSION_DWELL_WARN_INTERVAL_MS) {
             g_buf_tension_dwell_warn_emit_ms = now_ms;
             cmd_event("SYNC", "TENSION_DWELL_WARN");
         }
@@ -1478,15 +1530,17 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
     g_buf_pos_raw_status = g_buf_pos;
     /* Variance-aware position blend (default OFF) */
     if (BUF_VARIANCE_BLEND_FRAC > 0.0f && g_buf_sigma_mm > 0.0f) {
-        float sigma_ref = (BUF_VARIANCE_BLEND_REF_MM > 0.05f) ? BUF_VARIANCE_BLEND_REF_MM : 1.0f;
+        float sigma_ref = (BUF_VARIANCE_BLEND_REF_MM > VARIANCE_BLEND_REF_MIN_MM)
+                              ? BUF_VARIANCE_BLEND_REF_MM
+                              : VARIANCE_BLEND_REF_FALLBACK_MM;
         float distrust = clamp_f(g_buf_sigma_mm / sigma_ref, 0.0f, 1.0f);
         float blend = distrust * BUF_VARIANCE_BLEND_FRAC;
         g_buf_pos = (1.0f - blend) * g_buf_pos + blend * raw_target;
     }
 
     float thr = buf_threshold_mm();
-    if (thr < 0.001f)
-        thr = 0.001f;
+    if (thr < BUFFER_THRESHOLD_MIN_MM)
+        thr = BUFFER_THRESHOLD_MIN_MM;
 
     /* Effective buffer position with drift correction (default OFF) */
     float bp_eff = sync_apply_drift_correction(s, thr, reserve_deadband_mm);
@@ -1496,7 +1550,8 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
     float pos_norm = (BUF_SENSOR_TYPE == 1) ? g_buf_pos : (bp_eff / thr);
     float target_norm = (BUF_SENSOR_TYPE == 1) ? psf_goal_norm() : (effective_target / thr);
     float error_norm = pos_norm - target_norm;
-    float deadband_norm = (BUF_SENSOR_TYPE == 1) ? 0.1f : (reserve_deadband_mm / thr);
+    float deadband_norm =
+        (BUF_SENSOR_TYPE == 1) ? TYPE_D_DEADBAND_NORM : (reserve_deadband_mm / thr);
 
     if (BUF_SENSOR_TYPE == 0) {
         type_d_neutral_feed_sample(s, pos_norm, target_norm, deadband_norm);
@@ -1517,7 +1572,7 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
      * we gravitate toward the safe compression wall rather than drifting toward tension. */
     if (g_buf_signal.confidence < 1.0f && s == BUF_NEUTRAL) {
         float uncertainty = 1.0f - g_buf_signal.confidence;
-        target_sps += (int)(uncertainty * 6.0f);
+        target_sps += (int)(uncertainty * UNCERTAINTY_PROBE_BIAS_SPS);
     }
 
     target_sps = sync_check_tension_dwell_and_ramp(s, target_sps, now_ms);
@@ -1529,7 +1584,8 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
     if (TENSION_RISK_THRESHOLD > 0) {
         int tpx = sync_tension_pin_window_count(now_ms);
         if (tpx >= TENSION_RISK_THRESHOLD) {
-            if (g_tension_risk_emit_ms == 0 || (now_ms - g_tension_risk_emit_ms) >= 30000u) {
+            if (g_tension_risk_emit_ms == 0 ||
+                (now_ms - g_tension_risk_emit_ms) >= SYNC_TENSION_RISK_WARN_INTERVAL_MS) {
                 g_tension_risk_emit_ms = now_ms;
                 cmd_event("SYNC", "TENSION_RISK_HIGH");
             }
@@ -1581,7 +1637,7 @@ static int sync_apply_type_p_smoothing(int target_sps, float dt_s) {
     float move = fabsf(extruder_est_sps) * MM_PER_STEP[idx] * dt_s;
 
     /* 1. EMA the target over distance: alpha = 1 - exp(-move/L). */
-    float L = (SYNC_PSF_FILTER_MM > 0.01f) ? SYNC_PSF_FILTER_MM : 0.01f;
+    float L = (SYNC_PSF_FILTER_MM > PSF_FILTER_MIN_MM) ? SYNC_PSF_FILTER_MM : PSF_FILTER_MIN_MM;
     float alpha = 1.0f - expf(-move / L);
     g_psf_target_filt += alpha * ((float)target_sps - g_psf_target_filt);
 
@@ -1617,7 +1673,7 @@ static int sync_apply_type_p_smoothing(int target_sps, float dt_s) {
                 g_psf_target_filt = cur;
         }
     }
-    return (int)(cur + 0.5f);
+    return (int)(cur + ROUND_TO_NEAREST_F);
 }
 
 static bool sync_check_continuous_compression(buf_state_t s, uint32_t now_ms) {
@@ -1739,7 +1795,7 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
            overshooting into COMPRESSION. */
         g_psf_target_filt = extruder_est_sps;
     } else if (BUF_SENSOR_TYPE == 1) {
-        float dt_s = (float)SYNC_TICK_MS / 1000.0f;
+        float dt_s = (float)SYNC_TICK_MS / MS_PER_SECOND_F;
         sync_current_sps = sync_apply_type_p_smoothing(target_sps, dt_s);
     } else if (sync_current_sps > target_sps) {
         sync_current_sps -= ramp_dn_sps;
@@ -1759,9 +1815,9 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
 
     sync_apply_to_active();
 
-    if ((now_ms - sync_last_evt_ms) >= 500u) {
+    if ((now_ms - sync_last_evt_ms) >= SYNC_STATUS_EVENT_INTERVAL_MS) {
         sync_last_evt_ms = now_ms;
-        char ev[48];
+        char ev[SYNC_STATUS_EVENT_MAX];
         snprintf(ev, sizeof(ev), "%s,%.1f,%.2f", buf_state_name(s),
                  (double)sps_to_mm_per_min(sync_current_sps), (double)g_buf_pos);
         cmd_event("BS", ev);
@@ -1817,12 +1873,13 @@ bool sync_is_positive_relaunch_damped(void) {
     // Release damping 300 ms before the window expires to avoid a sharp step.
     uint32_t window_start_ms = sync_recent_negative_until_ms - SYNC_RECENT_NEGATIVE_HOLD_MS;
     uint32_t elapsed_in_window = now_ms - window_start_ms;
-    if (elapsed_in_window >= (uint32_t)(SYNC_RECENT_NEGATIVE_HOLD_MS - 300u))
+    if (elapsed_in_window >=
+        (uint32_t)(SYNC_RECENT_NEGATIVE_HOLD_MS - SYNC_RECENT_NEGATIVE_RELEASE_MARGIN_MS))
         return false;
 
     // If reserve error is clearly positive the buffer is already refilling —
     // stop damping so the correction can run at full strength.
-    if (sync_reserve_error_mm() < -buf_virtual_deadband_mm() * 0.5f)
+    if (sync_reserve_error_mm() < -buf_virtual_deadband_mm() * HALF_F)
         return false;
 
     return true;
