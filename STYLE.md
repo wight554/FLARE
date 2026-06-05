@@ -41,10 +41,12 @@ hardening `atoi`/`sscanf` parsing can change accepted payload syntax and belongs
 protocol change.
 The header filter is limited to `firmware/src` and `firmware/include` so generated Pico/PIO headers
 under `build_local/` are not lint-owned by this project.
-Uppercase runtime globals such as `FEED_SPS` are exempt from the `g_` prefix rule because they mirror
-the documented config/protocol tunable names and preserve the config -> runtime -> SET/GET surface.
-Legacy shared globals are also exempt in `.clang-tidy`; renaming them is a broad API/symbol migration
-and should be done only in a dedicated behavior-preserving rename change.
+All firmware global variables use the `g_lower_case` convention, including config-backed runtime
+tunables (`g_feed_sps`, `g_buf_goal`). The `g_` prefix is enforced by `.clang-tidy` (no blanket
+`GlobalVariableIgnoredRegexp`). The C identifier is independent of the wire surface: the `SET:`/`GET:`
+protocol param strings and `config.ini` keys remain `UPPER_CASE` (e.g. `"BUF_GOAL"`) and are
+unaffected by the identifier rename. `UPPER_CASE` file-scope constants (`static const`) are preserved
+via `Global/StaticConstantCase: UPPER_CASE`.
 `bugprone-easily-swappable-parameters` is disabled because existing firmware APIs intentionally pass
 adjacent hardware pins, timestamps, and rates of similar C types; replacing those with wrapper structs
 would be API churn outside this readability gate.
@@ -62,17 +64,18 @@ All identifiers must be intention-revealing. No single-letter or opaque identifi
 - **Macros / Enum Constants**: `UPPER_CASE`
 
 ### Global Naming Categories
-Firmware globals fall into three name-distinguished categories. Read the name to know
-what a symbol is:
+All firmware globals use `g_lower_case`. Read the name to know what a symbol is:
 
-- `UPPER_CASE` (e.g. `FEED_SPS`, `BUF_SENSOR_TYPE`): a **runtime-mutable, config-backed
-  tunable** — an `extern` variable that mirrors a `config.ini` key, is settable via
-  `SET:`/`GET:`, and is persisted in flash. Despite the constant-looking case, these
-  are NOT compile-time constants; the casing is kept to match the protocol/config name.
-- `g_lower_case` (e.g. `g_buf`, `g_lane_l1`): **internal module/runtime state**, not a
-  tunable and not part of the config/protocol surface.
-- `CONF_*` (e.g. `CONF_FEED_SPS`): a **generated compile-time default** from
-  `tune.h` (built from `config.ini`); seeds the matching `UPPER_CASE` tunable at boot.
+- `g_lower_case`, config-backed **tunable** (e.g. `g_feed_sps`, `g_buf_goal`): an
+  `extern` variable seeded from `CONF_*`, settable via `SET:`/`GET:`, persisted in flash.
+- `g_lower_case`, internal **state** (e.g. `g_buf`, `g_lane_l1`): runtime state, not a
+  tunable and not on the config/protocol surface.
+- Distinguish the two by **location**, not casing: tunables are declared in the
+  `controller_shared.h` tunables block and mirrored in `settings_t`; state is not.
+- `UPPER_CASE` **strings/keys** (e.g. `"BUF_GOAL"` in `SET:`/`GET:`, `config.ini` keys):
+  the wire/config surface. Independent of the C identifier — never renamed by the `g_` rule.
+- `CONF_*` (e.g. `CONF_FEED_SPS`): a **generated compile-time default** from `tune.h`
+  (built from `config.ini`); seeds the matching `g_` tunable at boot.
 
 ### Domain Vocabulary Whitelist
 The following domain-specific abbreviations are allowed and documented:
