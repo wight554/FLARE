@@ -216,7 +216,7 @@ DEFAULTS = {
 
 
 def read_flat_ini(path):
-    with open(path, "r") as f:
+    with open(path) as f:
         content = f.read()
     first_content = ""
     for line in content.splitlines():
@@ -291,7 +291,7 @@ def main():
 
     if not os.path.exists(config_path):
         print(f"Error: {config_path} not found.")
-        print(f"  Copy config.ini.example to config.ini and fill in your values.")
+        print("  Copy config.ini.example to config.ini and fill in your values.")
         sys.exit(1)
 
     raw, cfg = read_flat_ini(config_path)
@@ -325,7 +325,8 @@ def main():
             # 1. Check for suffixed override (e.g. run_current_l1)
             suffix = f"_l{lane_idx+1}"
             v = get(f"{key}{suffix}")
-            if v: return v
+            if v:
+                return v
 
             # 2. Check for global comma-separated list (e.g. run_current: 0.8, 0.9)
             #    Resolution order:
@@ -358,7 +359,7 @@ def main():
         mm_per_step = rotation_distance / (full_steps * microsteps * gear_ratio) if rotation_distance > 0 else 0.0125
         stealthchop_threshold_mm_min = float(gm("stealthchop_threshold", "0"))
         stealthchop_sps = int(round(stealthchop_threshold_mm_min / 60.0 / mm_per_step)) if stealthchop_threshold_mm_min > 0 else 0
-        
+
         # Direction
         dir_invert = int(gm("dir_invert", "0"))
         follow_timeout_ms = int(gm("follow_timeout_ms", "10000"))
@@ -390,13 +391,15 @@ def main():
 
     def mm_min_to_sps(mm_min_str, m_params):
         mm_min = float(mm_min_str)
-        if mm_min <= 0: return 0
+        if mm_min <= 0:
+            return 0
         return int(round(mm_min / 60.0 / m_params["mm_per_step"]))
 
     def accel_to_step_sps(accel_mm_s2_str, tick_ms_str, m_params):
         accel = float(accel_mm_s2_str)
         tick_s = float(tick_ms_str) / 1000.0
-        if accel <= 0 or tick_s <= 0: return 0
+        if accel <= 0 or tick_s <= 0:
+            return 0
         return int(round(accel * tick_s / m_params["mm_per_step"]))
 
     def parse_flow_schedule():

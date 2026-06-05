@@ -10,10 +10,9 @@ Usage:
 
 import argparse
 import glob
+import statistics
 import sys
 import time
-import math
-import statistics
 
 try:
     import serial
@@ -51,11 +50,11 @@ def parse_status(line):
             line = line[line.find("OK:"):]
         else:
             return None
-    
+
     parts = line.strip().split(":")
     if len(parts) < 2:
         return None
-    
+
     payload = parts[1]
     kv_pairs = payload.split(",")
     data = {}
@@ -69,7 +68,7 @@ def parse_status(line):
             data[sub_parts[0]] = sub_parts[1]
         else:
             # Standard comma-separated K:V pairs
-            kv = pair.split(":") if ":" in pair else pair.split("=")
+            pair.split(":") if ":" in pair else pair.split("=")
             # standard parsing
             if len(pair.split(":")) == 2:
                 k, v = pair.split(":")
@@ -77,7 +76,7 @@ def parse_status(line):
             else:
                 # search for first colon or comma
                 pass
-    
+
     # Clean fallback standard parsing
     data_clean = {}
     for item in kv_pairs:
@@ -94,26 +93,26 @@ def parse_status(line):
 def draw_ascii_plot(positions, timestamps):
     if not positions:
         return
-    
+
     print("\n" + "="*80)
     print(" LIVE BUFFER RETRACT PATH GRAPH (-1.0 = Compression, 1.0 = Tension)")
     print("="*80)
-    
+
     width = 60
     min_pos = -1.0
     max_pos = 1.0
     span = max_pos - min_pos
-    
+
     for t, pos in zip(timestamps, positions):
         # Normalize position to width
         norm_pos = (pos - min_pos) / span
         norm_pos = max(0.0, min(1.0, norm_pos))
         col = int(norm_pos * (width - 1))
-        
+
         # Build line
         line = [" "] * width
         line[width // 2] = "|" # Center neutral marker
-        
+
         if col < width // 2:
             for i in range(col, width // 2):
                 line[i] = "-"
@@ -124,7 +123,7 @@ def draw_ascii_plot(positions, timestamps):
             line[col] = ">"
         else:
             line[col] = "O"
-            
+
         rel_time = t - timestamps[0]
         print(f"[{rel_time:5.2f}s] {''.join(line)}  ({pos:+.2f})")
     print("="*80)
@@ -160,20 +159,19 @@ def main():
     print("# Waiting for UNLOAD task to begin... (Trigger via UI/Klipper if not using --trigger)")
     active_lane = 1
     recording = False
-    
+
     positions = []
     velocities = []
     timestamps = []
-    
-    last_poll_ms = 0
+
     poll_interval_s = 0.02 # 50Hz
-    
+
     try:
         while True:
             now = time.time()
             # Send status command ?: at high frequency
             send_cmd(ser, "?:")
-            
+
             # Read response
             resp_line = ""
             deadline = time.time() + 0.1
@@ -181,23 +179,23 @@ def main():
                 if ser.in_waiting:
                     resp_line = ser.readline().decode(errors='ignore').strip()
                     break
-            
+
             if not resp_line:
                 continue
-            
+
             data = parse_status(resp_line)
             if not data:
                 continue
-            
+
             # Extract active lane and its task
             lane_str = data.get("LN", "1")
             active_lane = int(lane_str)
             task_key = "L1T" if active_lane == 1 else "L2T"
             task = data.get(task_key, "IDLE")
-            
+
             g_buf_pos = float(data.get("BP", "0.0"))
             arm_vel = float(data.get("AV", "0.0"))
-            
+
             if task == "UNLOAD":
                 if not recording:
                     print("\n# >>> UNLOAD TASK STARTED! Recording telemetry... Press Ctrl+C to abort.")
@@ -205,22 +203,22 @@ def main():
                     positions.clear()
                     velocities.clear()
                     timestamps.clear()
-                
+
                 positions.append(g_buf_pos)
                 velocities.append(arm_vel)
                 timestamps.append(now)
-                
+
                 # Live single-line status
                 sys.stdout.write(f"\rRecording... Time: {now - timestamps[0]:5.2f}s | Pos: {g_buf_pos:+.2f} | Vel: {arm_vel:+.2f}  ")
                 sys.stdout.flush()
-                
+
             else:
                 if recording:
                     print(f"\n# <<< UNLOAD TASK FINISHED! (Status: {task})")
                     break
-                
+
             time.sleep(poll_interval_s)
-            
+
     except KeyboardInterrupt:
         print("\n# Stopped by user.")
         if recording:
@@ -236,7 +234,7 @@ def main():
     p_mean = statistics.mean(positions)
     p_min = min(positions)
     p_max = max(positions)
-    
+
     # Calculate position vibration (Standard Deviation)
     if len(positions) > 1:
         p_std = statistics.stdev(positions)
@@ -254,7 +252,7 @@ def main():
     print(f"Arm Position Mean:  {p_mean:+.2f}")
     print(f"Position Jitter (StdDev):  {p_std:5.4f}  <-- MAIN RESEARCH METRIC")
     print(f"Velocity Jitter (StdDev):  {v_std:5.4f}")
-    
+
     # Diagnostic recommendation
     print("-"*80)
     print("DIAGNOSTIC RECOMMENDATION:")

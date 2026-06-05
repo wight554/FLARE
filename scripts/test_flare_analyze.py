@@ -14,7 +14,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import flare_analyze as analyze
 
-
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 FIELD_CSV_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "scatter_field_csv.csv")
 FIELD_STATE_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "scatter_field_state.json")
@@ -389,7 +388,7 @@ def test_bias_only_from_qualifying_buckets():
 
 
 def test_field_oscillation_repro():
-    with open(FIELD_STATE_FIXTURE) as fh:
+    with open(FIELD_STATE_FIXTURE):
         state = analyze.load_state(FIELD_STATE_FIXTURE)
     runs, rows = analyze.read_csv_runs([FIELD_CSV_FIXTURE])
     baselines = []

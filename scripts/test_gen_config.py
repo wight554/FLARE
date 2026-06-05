@@ -7,7 +7,6 @@ import subprocess
 import sys
 import tempfile
 
-
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GEN = os.path.join(REPO, "scripts", "gen_config.py")
 
@@ -31,7 +30,7 @@ def generate(config_text):
         with open(cfg, "w", encoding="utf-8") as fh:
             fh.write(config_text)
         subprocess.run([sys.executable, GEN, cfg, out], check=True, cwd=REPO)
-        with open(out, "r", encoding="utf-8") as fh:
+        with open(out, encoding="utf-8") as fh:
             return fh.read()
 
 

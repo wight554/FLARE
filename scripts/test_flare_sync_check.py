@@ -4,9 +4,9 @@
 Covers the compression-overfeed-stop criteria (purge/regression) plus the
 sync-relief-rearm-hardening analyzers: rearm (D1) and estimator (D2).
 """
-import unittest
-import tempfile
 import os
+import tempfile
+import unittest
 
 import flare_sync_check as fpc
 

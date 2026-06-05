@@ -15,7 +15,6 @@ from bisect import bisect_right
 from collections import deque
 from typing import Dict, List, Optional
 
-
 ETX = b"\x03"
 DEFAULT_UDS_PATH = "/tmp/klippy_uds"
 Z_GUARD_MM = 0.5

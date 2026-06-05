@@ -45,7 +45,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Dict, Optional
 
-from path_utils import normalize_output, resolve_input, PathError
+from path_utils import PathError, normalize_output, resolve_input
 
 try:
     import serial
@@ -417,7 +417,7 @@ class Tuner:
             data = migrate_state_data(data)
         except (OSError, json.JSONDecodeError, ValueError):
             data = {"_schema": SCHEMA_VERSION}
-            
+
         machine_meta = data.get(self.machine_id, {}).get("_meta")
         data["_schema"] = SCHEMA_VERSION
         machine_data = {
@@ -454,7 +454,7 @@ class Tuner:
         if machine_meta is not None:
             machine_data["_meta"] = machine_meta
         data[self.machine_id] = machine_data
-        
+
         tmp = self.state_path + ".tmp"
         with open(tmp, "w") as fh:
             json.dump(data, fh, indent=2, sort_keys=True)
@@ -481,7 +481,7 @@ class Tuner:
             self.ser.write((line + "\n").encode())
         except serial.SerialException:
             if not self._reopen_serial():
-                raise SystemExit(2)
+                raise SystemExit(2) from None
             self.ser.write((line + "\n").encode())
         if count_rate and line.startswith("SET:"):
             self.recent_sets.append(self.now_fn())
@@ -1001,22 +1001,30 @@ def bucket_wait_reason(b: Bucket, total_print_neutral_s: float = 0.0) -> str:
         ratio = noise_ratio(b)
         if ratio > NOISE_RATIO_THR:
             return f"noise sigma/x={ratio:.2f}"
-    
+
     reasons_A = []
-    if b.n < N_MIN_SAMPLES_CUMULATIVE: reasons_A.append(f"samples {b.n}/{N_MIN_SAMPLES_CUMULATIVE}")
-    if b.runs_seen < N_MIN_RUNS: reasons_A.append(f"runs {b.runs_seen}/{N_MIN_RUNS}")
-    if b.layers_seen < N_MIN_LAYERS: reasons_A.append(f"layers {b.layers_seen}/{N_MIN_LAYERS}")
-    if b.cumulative_neutral_s < MIN_NEUTRAL_TIME_S: reasons_A.append(f"neutral_time {b.cumulative_neutral_s:.0f}/{MIN_NEUTRAL_TIME_S:.0f}s")
-    
+    if b.n < N_MIN_SAMPLES_CUMULATIVE:
+        reasons_A.append(f"samples {b.n}/{N_MIN_SAMPLES_CUMULATIVE}")
+    if b.runs_seen < N_MIN_RUNS:
+        reasons_A.append(f"runs {b.runs_seen}/{N_MIN_RUNS}")
+    if b.layers_seen < N_MIN_LAYERS:
+        reasons_A.append(f"layers {b.layers_seen}/{N_MIN_LAYERS}")
+    if b.cumulative_neutral_s < MIN_NEUTRAL_TIME_S:
+        reasons_A.append(f"neutral_time {b.cumulative_neutral_s:.0f}/{MIN_NEUTRAL_TIME_S:.0f}s")
+
     reasons_B = []
-    if b.n < N_SINGLE_PRINT_SAMPLES: reasons_B.append(f"samples {b.n}/{N_SINGLE_PRINT_SAMPLES}")
-    if b.layers_seen < N_SINGLE_PRINT_LAYERS: reasons_B.append(f"layers {b.layers_seen}/{N_SINGLE_PRINT_LAYERS}")
-    if b.cumulative_neutral_s < MIN_NEUTRAL_TIME_S: reasons_B.append(f"neutral_time {b.cumulative_neutral_s:.0f}/{MIN_NEUTRAL_TIME_S:.0f}s")
-    if total_print_neutral_s < MIN_PRINT_NEUTRAL_S: reasons_B.append(f"total_neutral {total_print_neutral_s:.0f}/{MIN_PRINT_NEUTRAL_S:.0f}s")
-    
+    if b.n < N_SINGLE_PRINT_SAMPLES:
+        reasons_B.append(f"samples {b.n}/{N_SINGLE_PRINT_SAMPLES}")
+    if b.layers_seen < N_SINGLE_PRINT_LAYERS:
+        reasons_B.append(f"layers {b.layers_seen}/{N_SINGLE_PRINT_LAYERS}")
+    if b.cumulative_neutral_s < MIN_NEUTRAL_TIME_S:
+        reasons_B.append(f"neutral_time {b.cumulative_neutral_s:.0f}/{MIN_NEUTRAL_TIME_S:.0f}s")
+    if total_print_neutral_s < MIN_PRINT_NEUTRAL_S:
+        reasons_B.append(f"total_neutral {total_print_neutral_s:.0f}/{MIN_PRINT_NEUTRAL_S:.0f}s")
+
     if not reasons_A or not reasons_B:
         return "stable"
-    
+
     return reasons_A[0] if len(reasons_A) <= len(reasons_B) else reasons_B[0]
 
 
@@ -1064,16 +1072,17 @@ def print_state_info(
     total_n = 0
     total_neutral_s = 0.0
     for label, raw in sorted(buckets.items()):
-        if label.startswith("_"): continue
+        if label.startswith("_"):
+            continue
         b = bucket_from_raw(label, raw)
         age_s = max(0.0, now - b.last_seen) if b.last_seen else 0.0
         if b.last_seen < cutoff and not include_stale:
             continue
-        
+
         st = state_label(raw)
         if b.last_seen < cutoff:
             st += " STALE"
-            
+
         if "LOCKED" in st:
             locked += 1
         n = int(raw.get("n", 0))
@@ -1292,7 +1301,7 @@ def run_loop(args) -> None:
     try:
         if args.klipper_log:
             try:
-                klipper_log = open(args.klipper_log, "r")
+                klipper_log = open(args.klipper_log)
                 klipper_log.seek(0, os.SEEK_END)
                 print(f"[tuner] tailing Klipper log: {args.klipper_log}", file=sys.stderr)
             except OSError as exc:
@@ -1389,31 +1398,32 @@ def do_recommend_recheck(state_path: str, machine_id: str) -> None:
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(f"[recommend-recheck] error reading state: {exc}")
         sys.exit(0)
-    
+
     machine_data = data.get(machine_id, {})
     meta = machine_data.get("_meta", {})
-    
+
     total_samples = 0
     locked_buckets = []
     for k, v in machine_data.items():
-        if k.startswith("_"): continue
+        if k.startswith("_"):
+            continue
         total_samples += v.get("n", 0)
         if v.get("locked") or v.get("state") == "LOCKED":
             locked_buckets.append(v)
-            
+
     last_commit_vals = meta.get("last_commit_values", {})
     last_commit_samples = meta.get("last_commit_sample_total", 0)
-    
+
     config_applied_ats = [v["applied_at"] for v in last_commit_vals.values() if v.get("source") == "config.ini" and v.get("applied_at")]
     last_commit_at = max(config_applied_ats) if config_applied_ats else 0
-    
+
     now_ts = time.time()
     days_since = (now_ts - last_commit_at) / 86400.0 if last_commit_at else 0.0
-    
+
     new_locked = [b for b in locked_buckets if b.get("last_seen", 0) > last_commit_at]
     sample_diff = total_samples - last_commit_samples
     sample_pct = (sample_diff / max(1, last_commit_samples)) * 100.0
-    
+
     drift_count = 0
     baseline_val = last_commit_vals.get("baseline_rate", {})
     if baseline_val.get("source") == "config.ini" and baseline_val.get("value"):
@@ -1426,20 +1436,20 @@ def do_recommend_recheck(state_path: str, machine_id: str) -> None:
 
     reasons = []
     if len(new_locked) >= RECHECK_NEW_LOCKED:
-        reasons.append(f"new LOCKED")
+        reasons.append("new LOCKED")
     if sample_pct >= RECHECK_SAMPLE_PCT and sample_diff > 0:
-        reasons.append(f"sample mass")
+        reasons.append("sample mass")
     if drift_count >= 1:
-        reasons.append(f"drift")
+        reasons.append("drift")
     if last_commit_at and days_since >= RECHECK_AGE_DAYS:
-        reasons.append(f"age")
-        
+        reasons.append("age")
+
     date_str = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(last_commit_at)) if last_commit_at else "never"
     print(f"[recommend-recheck] last commit: {date_str} ({days_since:.1f} days ago)")
     print(f"[recommend-recheck] sample mass since commit: +{sample_diff} ({sample_pct:.1f}%)")
     print(f"[recommend-recheck] new LOCKED buckets since commit: {len(new_locked)}")
     print(f"[recommend-recheck] flagged buckets (drift > 1σ from committed): {drift_count}")
-    
+
     if reasons:
         print("[recommend-recheck] RECOMMEND: yes — re-run analyze")
     else:
@@ -1457,28 +1467,29 @@ def do_prune_stale(state_path: str, machine_id: str) -> None:
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(f"[prune-stale] error reading state: {exc}")
         return
-    
+
     machine_data = data.get(machine_id)
     if not machine_data:
         print("[prune-stale] no buckets for machine")
         return
-        
+
     now_ts = time.time()
     cutoff = now_ts - STALE_AGE_DAYS * 86400
-    
+
     to_remove = []
     for k, v in machine_data.items():
-        if k.startswith("_"): continue
+        if k.startswith("_"):
+            continue
         if v.get("last_seen", 0) < cutoff:
             to_remove.append(k)
-            
+
     if not to_remove:
         print("[prune-stale] no stale buckets found")
         return
-        
+
     for k in to_remove:
         del machine_data[k]
-        
+
     tmp = state_path + ".tmp"
     with open(tmp, "w") as fh:
         json.dump(data, fh, indent=2, sort_keys=True)

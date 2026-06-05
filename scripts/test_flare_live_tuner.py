@@ -16,7 +16,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 import flare_live_tuner as tuner_mod
 import gcode_marker
 
-
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 ORCA_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "orca_sample.gcode")
 CHATTER_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "chatter.json")
@@ -390,7 +389,7 @@ def test_schema2_to_4_migration_preserves_buckets():
         assert b.locked is True, b.locked
         assert b.state == "LOCKED", b.state
         assert b.rollback_count == 3, b.rollback_count
-        
+
         t._persist()
         with open(state_path) as fh:
             migrated = json.load(fh)
@@ -429,7 +428,7 @@ def test_schema_chain_1_to_4():
         b = t.buckets["PERIMETER_v40"]
         assert b.x == 1820.0, b
         assert b.resid_var_ewma == tuner_mod.R_BASE, b.resid_var_ewma
-        
+
         t._persist()
         with open(state_path) as fh:
             migrated = json.load(fh)
@@ -448,7 +447,7 @@ def test_schema_too_new_refused():
         except SystemExit as exc:
             assert exc.code == 1, exc.code
             return "schema 99 refused"
-        assert False, "expected SystemExit"
+        raise AssertionError("expected SystemExit")
 
 def test_existing_production_state_loads():
     return "skipped (no production state file in dev)"
@@ -722,14 +721,14 @@ def test_prune_stale_removes_old_buckets():
                     "_meta": {}
                 }
             }, fh)
-        
+
         out = StringIO()
         with redirect_stdout(out), redirect_stderr(out):
             tuner_mod.do_prune_stale(state_path, "test")
-            
+
         with open(state_path) as fh:
             data = json.load(fh)
-            
+
         assert "stale_v20" not in data["test"], data
         assert "fresh_v10" in data["test"], data
         assert "_meta" in data["test"], data
@@ -742,7 +741,7 @@ def test_daemon_does_not_exit_on_finish():
         args = SimpleNamespace(commit_on_finish=True, observe_daemon=True, state=t.state_path, machine_id=t.machine_id, recommend_recheck=False)
         t.finish_seen = True
         t.seen_print_activity = True
-        
+
         # Simulate run_loop logic
         if args.commit_on_finish and t.finish_seen and t.seen_print_activity:
             if getattr(args, "observe_daemon", False):
@@ -752,8 +751,8 @@ def test_daemon_does_not_exit_on_finish():
                 t.idle_since = 0.0
                 t.total_print_neutral_s = 0.0
             else:
-                assert False, "Should not exit"
-        
+                raise AssertionError("Should not exit")
+
         assert t.finish_seen is False, "daemon should reset finish_seen"
         assert t.seen_print_activity is False, "daemon should reset seen_print_activity"
         return "daemon mode resets flags instead of exiting on finish"
@@ -1018,7 +1017,7 @@ def test_csv_out_writes_rows():
             clock.step(1.0)
             t.on_status(status(est=1800 + i))
         t.csv_emitter.close()
-        
+
         with open(csv_path) as fh:
             lines = fh.readlines()
         assert len(lines) == 6, lines
@@ -1036,12 +1035,12 @@ def test_csv_out_appends_across_runs():
         t1.csv_emitter = tuner_mod.CsvEmitter(csv_path)
         t1.on_status(status(est=1800))
         t1.csv_emitter.close()
-        
+
         t2, fake2 = make_tuner(state_path, clock)
         t2.csv_emitter = tuner_mod.CsvEmitter(csv_path)
         t2.on_status(status(est=1801))
         t2.csv_emitter.close()
-        
+
         with open(csv_path) as fh:
             lines = fh.readlines()
         assert len(lines) == 3, lines

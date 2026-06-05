@@ -7,7 +7,6 @@ import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
-
 REPO = Path(__file__).resolve().parents[1]
 SPEC_GLOB = "openspec/specs/**/spec.md"
 MAX_FILLER_DENSITY_PCT = 6.0

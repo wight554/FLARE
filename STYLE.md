@@ -128,3 +128,19 @@ Use triple-slash `///` comments for documenting functions, structs, and macros.
 
 ### Rationale Preservation
 Existing comments explaining hardware behavior, physics, timings, or tuning history must be preserved verbatim in meaning during any refactoring.
+
+---
+
+## 6. Host Tooling (Python)
+
+Firmware C is linted with clang-format/clang-tidy; the Python host tooling under
+`scripts/` is linted with **ruff** (config in `pyproject.toml` `[tool.ruff]`).
+
+- Rules: `select = E, F, W, I, N, UP, B`, `line-length = 100`, `target-version = py39`.
+- `E501` and the PEP 585/604 typing rewrites (`UP006/UP007/UP035`) are intentionally in
+  `ignore`: line wrapping is left to a future `ruff format` reflow, and typing stays
+  portable because the tooling may run under an older (3.9) Klipper Python.
+- Framework/domain exceptions live in `[tool.ruff.lint.per-file-ignores]` (http.server
+  handler names, pyserial-compat stub names, Kalman-filter matrix notation).
+- Run `ruff check scripts/`; it is part of `scripts/validate_regression.sh`.
+- Keep host tooling pure stdlib + pyserial (ruff is a dev-time tool, not a runtime dep).

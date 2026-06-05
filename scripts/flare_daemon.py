@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-flare_daemon.py — persistent background serial multiplexer, telemetry caching, 
+flare_daemon.py — persistent background serial multiplexer, telemetry caching,
 and EventSource (SSE) host server for FLARE.
 
 Exposes:
@@ -10,16 +10,16 @@ Exposes:
   - GET / : Serves the integrated HTML5/Canvas dashboard UI
 """
 
-import os
-import sys
-import time
-import math
 import argparse
-import threading
-import queue
-import json
 import glob
+import json
+import math
+import os
+import queue
 import sqlite3
+import sys
+import threading
+import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
@@ -261,7 +261,7 @@ def _push_gate_map_to_klipper(gate, fields):
     if not inner:
         return False
     map_literal = repr({int(gate): inner})
-    gcode = 'MMU_GATE_MAP MAP="%s"' % map_literal
+    gcode = f'MMU_GATE_MAP MAP="{map_literal}"'
     try:
         payload = json.dumps({"script": gcode}).encode("utf-8")
         req = urllib.request.Request(
@@ -485,18 +485,18 @@ def parse_status_line(line):
     """
     if line.startswith("OK:"):
         line = line[3:]
-    
+
     parts = line.strip().split(",")
     new_data = {}
     raw_fields = {}
-    
+
     for part in parts:
         if ":" not in part:
             continue
         # Split at first colon only
         key, val = part.split(":", 1)
         raw_fields[key.strip()] = val.strip()
-        
+
         try:
             if key == "LN":
                 val_int = int(val)
@@ -563,7 +563,7 @@ def parse_status_line(line):
                 new_data["rev_rate_mms"] = float(val) / 60.0
         except ValueError:
             pass # ignore malformed metrics
-            
+
     if new_data:
         new_data["raw_status"] = raw_fields
         new_data["board_online"] = True
@@ -587,27 +587,27 @@ def broadcast_telemetry(data):
 
 def serial_reader(port_name, baud):
     global serial_port, command_reply, current_executing_command
-    
+
     while True:
         print(f"flare_daemon: connecting to {port_name}...")
         try:
             with serial_lock:
                 serial_port = serial.Serial(port_name, baud, timeout=1.0)
                 serial_port.reset_input_buffer()
-            
+
             print(f"flare_daemon: connected to {port_name} successfully")
             with status_lock:
                 status_cache["board_online"] = True
-            
+
             while True:
                 line_bytes = serial_port.readline()
                 if not line_bytes:
                     continue
-                
+
                 line = line_bytes.decode("utf-8", errors="ignore").strip()
                 if not line:
                     continue
-                
+
                 # Check for asynchronous Event stream
                 if line.startswith("EV:"):
                     evt_body = line[3:]
@@ -626,7 +626,7 @@ def serial_reader(port_name, baud):
                     add_event_to_history(evt_type, evt_data)
                     record_event_stats(evt_type, evt_data)
                     broadcast_telemetry({"event_type": evt_type, "event_data": evt_data})
-                    
+
                 # Check for command reply
                 elif line.startswith("OK:") or line.startswith("ER:") or line == "OK":
                     # If it's a status dump response (starts with OK:LN: or OK:LN=)
@@ -634,20 +634,20 @@ def serial_reader(port_name, baud):
                         parse_status_line(line)
                         if current_executing_command and not current_executing_command.startswith("?"):
                             continue
-                    
+
                     command_reply = line
                     command_event.set()
-                
+
                 # Raw status dump line (safety fallback)
                 elif "LN:" in line and "TC:" in line:
                     parse_status_line(line)
-                    
+
         except (serial.SerialException, OSError) as e:
             print(f"flare_daemon connection error: {e}", file=sys.stderr)
             with status_lock:
                 status_cache["board_online"] = False
             broadcast_telemetry({"board_online": False})
-            
+
             with serial_lock:
                 if serial_port:
                     try:
@@ -655,14 +655,14 @@ def serial_reader(port_name, baud):
                     except Exception:
                         pass
                     serial_port = None
-            
+
             time.sleep(2.0)
 
 def status_poller():
     """Background status poller (requests status updates at 5Hz)."""
     while True:
         time.sleep(0.2)
-        
+
         # Only write status poll command if no command execution is active
         with serial_lock:
             if serial_port and serial_port.is_open:
@@ -700,7 +700,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(res.encode("utf-8"))
-            
+
         elif self.path == "/telemetry":
             # Server-Sent Events (SSE) Stream
             self.send_response(200)
@@ -709,26 +709,26 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Connection", "keep-alive")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
-            
+
             # Create a queue for this stream connection
             q = queue.Queue(maxsize=50)
             with sse_queues_lock:
                 active_sse_queues.add(q)
-                
+
             print(f"flare_daemon: SSE telemetry stream client connected (total active: {len(active_sse_queues)})")
-            
+
             try:
                 # Send current initial state immediately
                 with status_lock:
                     initial_payload = json.dumps(status_cache)
-                self.wfile.write(f"data: {initial_payload}\n\n".encode("utf-8"))
+                self.wfile.write(f"data: {initial_payload}\n\n".encode())
                 self.wfile.flush()
-                
+
                 while True:
                     try:
                         # Wait for next broadcast frame
                         payload = q.get(timeout=5.0)
-                        self.wfile.write(f"data: {payload}\n\n".encode("utf-8"))
+                        self.wfile.write(f"data: {payload}\n\n".encode())
                         self.wfile.flush()
                     except queue.Empty:
                         # Heartbeat frame to keep connection alive
@@ -741,7 +741,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                 with sse_queues_lock:
                     active_sse_queues.discard(q)
                 print(f"flare_daemon: SSE telemetry stream client disconnected (remaining: {len(active_sse_queues)})")
-                
+
         elif self.path == "/config":
             data = {}
             for key in ("gate_material", "gate_color", "gate_spool_id",
@@ -777,21 +777,21 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
         if self.path == "/cmd":
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
-            
+
             try:
                 body = json.loads(post_data.decode("utf-8"))
                 cmd_str = body.get("cmd", "").strip()
             except Exception:
                 self.send_error(400, "Invalid JSON payload")
                 return
-            
+
             if not cmd_str:
                 self.send_error(400, "Missing cmd parameter")
                 return
-            
+
             # Send command directly to board with lock
             response = self.execute_serial_command(cmd_str)
-            
+
             if response is None:
                 self.send_response(504) # Gateway Timeout
                 self.send_header("Content-Type", "application/json")
@@ -860,12 +860,12 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
     def serve_static_file(self, filename, content_type):
         webui_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webui")
         filepath = os.path.join(webui_dir, filename)
-        
+
         if not os.path.exists(filepath):
             # Fallback inline creation for first boot / recovery
             self.send_error(404, f"{filename} not found")
             return
-            
+
         try:
             with open(filepath, "rb") as f:
                 content = f.read()
@@ -879,31 +879,31 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
 
     def execute_serial_command(self, cmd_str):
         global command_reply, current_executing_command
-        
+
         # Formatting check
         if not cmd_str.endswith("\n"):
             cmd_str += "\n"
-            
+
         with serial_lock:
             if not serial_port or not serial_port.is_open:
                 return "ER:BOARD_OFFLINE"
-                
+
             command_event.clear()
             command_reply = None
             current_executing_command = cmd_str.strip()
-            
+
             try:
                 serial_port.write(cmd_str.encode("utf-8"))
                 serial_port.flush()
             except Exception as e:
                 current_executing_command = None
                 return f"ER:WRITE_ERROR:{e}"
-                
+
             # Block until event is fired (timeout 10.0s for typical moves)
             # Long commands (FL, UL, TC) execute async and return OK immediately.
             success = command_event.wait(timeout=10.0)
             current_executing_command = None
-            
+
             if success:
                 return command_reply
             else:
@@ -961,7 +961,7 @@ def klipper_syncer(moonraker_url):
 
     while True:
         time.sleep(0.25)
-        
+
         # Check backoff timer
         if backoff > time.time():
             continue
@@ -976,7 +976,7 @@ def klipper_syncer(moonraker_url):
             "buf_state", "in1", "out1", "in2", "out2",
             "toolhead", "y_split", "reload_mode"
         ]
-        
+
         changed = False
         for k in keys:
             if state.get(k) != last_sync.get(k):
@@ -1178,13 +1178,13 @@ def main():
     global MOONRAKER_URL, SPOOLMAN_URL
     MOONRAKER_URL = args.moonraker_url
     SPOOLMAN_URL = args.spoolman_url
-    
+
     # 1. Resolve preferred serial port candidate
     port_name = serial_utils.find_port(args.port)
     if not port_name:
         print("flare_daemon error: no serial devices found matching candidate patterns", file=sys.stderr)
         sys.exit(1)
-        
+
     print(f"flare_daemon: resolved active port candidate -> {port_name}")
 
     # 1.5 Initialise SQLite state store and restore persisted MMU usage statistics
@@ -1194,7 +1194,7 @@ def main():
     # 2. Launch persistent background serial worker thread
     reader_t = threading.Thread(target=serial_reader, args=(port_name, args.baud), daemon=True)
     reader_t.start()
-    
+
     # 3. Launch background status poller thread
     poller_t = threading.Thread(target=status_poller, daemon=True)
     poller_t.start()
@@ -1202,13 +1202,13 @@ def main():
     # 3.1 Launch filament-usage tracker (Spoolman or local; runs without Klipper)
     usage_t = threading.Thread(target=filament_usage_tracker, daemon=True)
     usage_t.start()
-    
+
     # 3.5 Launch Klipper telemetry syncer if enabled
     if not args.no_klipper:
         print(f"flare_daemon: Klipper telemetry syncer enabled targeting {args.moonraker_url}")
         syncer_t = threading.Thread(target=klipper_syncer, args=(args.moonraker_url,), daemon=True)
         syncer_t.start()
-    
+
     # 4. Start HTTP & SSE proxy web server
     try:
         server = ThreadedHTTPServer((args.host, args.api_port), FlareHTTPHandler)

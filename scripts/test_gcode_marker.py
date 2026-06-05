@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 import gcode_marker
 
-
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 ORCA_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "orca_sample.gcode")
 
@@ -152,8 +151,7 @@ def test_cli_default_emit_sidecar():
         proc = subprocess.run(
             [sys.executable, os.path.join(os.path.dirname(__file__), "gcode_marker.py"), src, "--output", out_gcode],
             check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
         )
         assert proc.returncode == 0, proc.stderr

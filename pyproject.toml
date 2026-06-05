@@ -1,0 +1,27 @@
+[tool.ruff]
+# Host tooling under scripts/ (firmware C is linted separately via clang-tidy).
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B"]
+ignore = [
+    # Line wrapping belongs to a future `ruff format` reflow, not this lint pass.
+    "E501",
+    # PEP 585/604 typing rewrites (list[], X | None) are runtime-version-coupled;
+    # host tooling may run under an older (3.9) Klipper Python, so keep typing
+    # portable rather than modernize it here.
+    "UP006",
+    "UP007",
+    "UP035",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# do_GET/do_POST/do_OPTIONS are http.server BaseHTTPRequestHandler overrides
+# (names mandated by the framework); serial_utils is an import-fallback shim that
+# must mirror the serial_utils module name so call sites work either way.
+"scripts/flare_daemon.py" = ["N801", "N802"]
+# Serial / SerialException are a pyserial-compat fallback stub and must mirror the
+# real pyserial API names; K/R/P/Q are standard Kalman-filter matrix notation and
+# ready_A/reasons_A etc. carry the project's lane A/B labels.
+"scripts/flare_live_tuner.py" = ["N802", "N818", "N806"]

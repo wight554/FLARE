@@ -14,6 +14,14 @@ ninja -C build_local
 echo "=== Python Syntax ==="
 python3 -m py_compile scripts/*.py
 
+echo "=== Python Lint (ruff) ==="
+if command -v ruff >/dev/null 2>&1; then
+    ruff check scripts/
+else
+    echo "ruff not found; install it (pip install ruff / brew install ruff)" >&2
+    exit 1
+fi
+
 echo "=== Python Unit Test Suite ==="
 python3 -m unittest discover -s scripts -p "test_*.py"
 

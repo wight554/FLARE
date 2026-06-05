@@ -3,7 +3,6 @@ import subprocess
 import sys
 import tempfile
 
-
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def test_replay_determinism():
@@ -27,7 +26,7 @@ OK: LN:0,BUF:NEUTRAL,EST:1550.0,BP:-4.0,RT:-3.0
 
     # Remove duration line as it depends on time.time()
     def clean(out):
-        lines = [l for l in out.splitlines() if not l.startswith("Duration:")]
+        lines = [ln for ln in out.splitlines() if not ln.startswith("Duration:")]
         return "\n".join(lines)
 
     assert clean(out1) == clean(out2)

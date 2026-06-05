@@ -14,7 +14,7 @@ import re
 import sys
 import tempfile
 
-from path_utils import normalize_output, resolve_input, PathError
+from path_utils import PathError, normalize_output, resolve_input
 
 # Regular expressions
 MOVE_RE = re.compile(r"([Gg][0123])\s*(.*)")
@@ -205,7 +205,7 @@ def build_sidecar(input_path, sidecar_path, dia):
 
             move = move_match.group(1).upper()
             params = _parse_params(raw_line)
-            prev_x, prev_y, prev_z, prev_e = current_x, current_y, current_z, current_e
+            prev_x, prev_y, _prev_z, prev_e = current_x, current_y, current_z, current_e
             if "F" in params:
                 current_f = params["F"]
             end_x = params.get("X", current_x)
@@ -304,7 +304,7 @@ def build_sidecar(input_path, sidecar_path, dia):
 
 
 def _write_sidecar_gcode(input_path, output_path):
-    with open(input_path, "r") as fin, open(output_path, "w") as fout:
+    with open(input_path) as fin, open(output_path, "w") as fout:
         fout.write("M118 NT:START\n")
         for line in fin:
             fout.write(line)

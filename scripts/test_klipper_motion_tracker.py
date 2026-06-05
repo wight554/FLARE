@@ -111,7 +111,7 @@ def test_garbage_disconnect():
             client.poll(0.1)
         except ConnectionResetError:
             return "client raises on socket close with partial frame buffered"
-        assert False, "expected ConnectionResetError"
+        raise AssertionError("expected ConnectionResetError")
     finally:
         client.close()
 

@@ -59,9 +59,9 @@ import json
 import os
 import sys
 import time
-from typing import Dict, List, Optional, Tuple
 import urllib.error
 import urllib.request
+from typing import Dict, List, Optional, Tuple
 
 # Events that signal starvation / degraded estimator (regression watch).
 STARVATION_EVENTS = (
@@ -442,7 +442,7 @@ def analyze_buffer_lock(samples: List[Sample], events) -> Tuple[str, List[str]]:
     n_settle  = sum(1 for (_, e) in events if "BL" in e and ("CATCH_SETTLE" in e or "TIMEOUT" in e))
     n_timeout = sum(1 for (_, e) in events if "EV:BL" in e and "TIMEOUT" in e)
     n_bound   = sum(1 for (_, e) in events if "EV:BL" in e and "PRIME_BOUND" in e)
-    n_mv_fault = sum(1 for (_, e) in events
+    sum(1 for (_, e) in events
                      if "FAULT:MOVE_TENSION" in e or "FAULT:MOVE_COMPRESSION" in e)
 
     report.append(f"  BL PRIME: {n_prime}  LOCKED: {n_locked}  BREAK: {n_break}"
@@ -992,7 +992,7 @@ def run_tune(args) -> int:
     print(f"# bounds: kp ∈ [{kp_min:.0f}, {kp_max:.0f}], "
           f"step ×/{args.tune_kp_step}, max {args.tune_iter_max} iterations")
     print(f"# window {args.tune_window_sec}s, poll {args.poll}ms")
-    print(f"# NOTE: print must be active throughout. Ctrl+C aborts cleanly.")
+    print("# NOTE: print must be active throughout. Ctrl+C aborts cleanly.")
 
     try:
         for i in range(args.tune_iter_max):
@@ -1029,8 +1029,8 @@ def run_tune(args) -> int:
                       f"Try lowering accel and re-run.")
                 return 1
             if s_v == "INCONCLUSIVE" and d_v == "INCONCLUSIVE":
-                print(f"\nINCONCLUSIVE: capture too quiet — extruder idle? "
-                      f"Print harder or raise --tune-window-sec.")
+                print("\nINCONCLUSIVE: capture too quiet — extruder idle? "
+                      "Print harder or raise --tune-window-sec.")
                 return 2
 
             if s_v == "FAIL":
@@ -1178,7 +1178,7 @@ def main() -> int:
     elif args.daemon:
         lines = capture_daemon(args.daemon_url, args.poll, args.duration)
     else:
-        with open(args.log, "r", errors="ignore") as fh:
+        with open(args.log, errors="ignore") as fh:
             lines = fh.readlines()
 
     samples, events = parse_stream(lines)

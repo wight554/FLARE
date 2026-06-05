@@ -8,8 +8,6 @@ Pure stdlib only.
 
 import argparse
 import csv
-import errno
-import glob
 import json
 import math
 import os
@@ -17,7 +15,7 @@ import statistics as stats
 import sys
 from collections import defaultdict
 
-from path_utils import normalize_output, resolve_input, expand_input_paths, PathError
+from path_utils import PathError, expand_input_paths, normalize_output, resolve_input
 
 try:
     from flare_live_tuner import migrate_state_data
@@ -1118,7 +1116,7 @@ def run(args):
             print("Error: --commit-watermark requires --state", file=sys.stderr)
             return 1
         import time
-        with open(args.state, "r") as fh:
+        with open(args.state) as fh:
             data = json.load(fh)
         machine_meta = data.setdefault(args.machine_id, {}).setdefault("_meta", {})
         last_commit = machine_meta.setdefault("last_commit_values", {})

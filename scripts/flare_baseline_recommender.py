@@ -6,12 +6,11 @@ and suggests a persistent baseline_sps at end-of-print. Pure stdlib only.
 """
 
 import argparse
-import os
 import re
 import sys
 import time
 
-from path_utils import resolve_input, PathError
+from path_utils import PathError, resolve_input
 
 try:
     import serial
@@ -49,10 +48,11 @@ class Recommender:
         if "EST" in status and "BUF" in status and status["BUF"] == "NEUTRAL":
             try:
                 est = float(status["EST"])
-                if est <= 0: return
+                if est <= 0:
+                    return
                 self.total_est_sum += est
                 self.total_est_n += 1
-                
+
                 if "BP" in status and "RT" in status:
                     bp = float(status["BP"])
                     rt = float(status["RT"])
@@ -66,7 +66,7 @@ class Recommender:
             baseline = self.total_est_sum / self.total_est_n
             bias = self.total_bias_sum / self.total_bias_n if self.total_bias_n > 0 else 0.4
             bias = max(BIAS_SAFE_MIN, min(BIAS_SAFE_MAX, bias))
-            
+
             print("\n--- Recommendation ---")
             print(f"Suggested baseline_sps: {int(round(baseline))}")
             print(f"Suggested sync_compression_bias_frac: {bias:.3f}")
@@ -90,10 +90,10 @@ def main():
         sys.exit(2)
 
     rec = Recommender()
-    
+
     if args.file:
         try:
-            with open(args.file, "r", errors="ignore") as fh:
+            with open(args.file, errors="ignore") as fh:
                 for line in fh:
                     rec.process_line(line.strip())
             rec.report()
@@ -109,7 +109,8 @@ def main():
             print(f"[*] Listening on {args.port}...")
             while True:
                 line = ser.readline()
-                if not line: continue
+                if not line:
+                    continue
                 try:
                     line_str = line.decode("utf-8", errors="ignore").strip()
                     if line_str:
