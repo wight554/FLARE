@@ -8,6 +8,51 @@
 #include <stdio.h>
 #include <string.h>
 
+enum {
+    NEUTRAL_CREEP_WARN_INTERVAL_MS = 5000u,
+    ADC_PIN_BASE = 26,
+    ADC_SAMPLE_COUNT = 4,
+    ADC_AVERAGE_SHIFT = 2,
+    BUF_HYST_DEBOUNCE_DIVISOR = 2,
+    EFFECTIVE_DWELL_MIN_MS = 5,
+    EST_LOW_CF_WARN_INTERVAL_MS = 5000u,
+    ANALOG_SATURATION_CONFIDENCE_MS = 250u,
+    DRIFT_SAMPLE_MAX = 65535u,
+};
+
+static const float HALF_F = 0.5f;
+static const float AVERAGE_PAIR_DIVISOR_F = 2.0f;
+static const float FULL_TRANSITION_SPAN_MULT = 2.0f;
+static const float MS_PER_SECOND_F = 1000.0f;
+static const float MIN_PHYSICAL_HALF_TRAVEL_MM = 1.0f;
+static const float RESERVE_PCT_DIVISOR_F = 100.0f;
+static const float FLOW_BIAS_MILLI_DIVISOR_F = 1000.0f;
+static const float COMPRESSION_RESERVE_CAP_FRAC = 0.7f;
+static const float TARGET_CENTER_GUARD_MM = 0.5f;
+static const float VIRTUAL_DEADBAND_FRAC = 0.15f;
+static const float VIRTUAL_DEADBAND_MIN_MM = 0.5f;
+static const float VIRTUAL_DEADBAND_MAX_MM = 2.0f;
+static const float TYPE_P_DEADBAND_NORM = 0.1f;
+static const float TAPER_SPAN_MIN_NORM = 0.001f;
+static const float ADC_FULL_SCALE_F = 4095.0f;
+static const float ANALOG_SPAN_MIN_F = 0.001f;
+static const float RELAY_TRIM_RESET_THRESHOLD_SPS = 100.0f;
+static const float RELAY_TRIM_RESET_DAMP_FRAC = 0.25f;
+static const float RELAY_TRIM_ZERO_THRESHOLD_SPS = 1.0f;
+static const float ESTIMATOR_TRAVEL_EPSILON_MM = 0.001f;
+static const float MM_PER_STEP_MIN = 1e-6f;
+static const float NEUTRAL_DRAIN_DEMAND_SLOW_MARGIN = 1.15f;
+static const float ESTIMATOR_NORM_MM_S = 30.0f;
+static const float ESTIMATOR_LONG_TRAVEL_MULT = 1.5f;
+static const float ESTIMATOR_LONG_TRAVEL_ALPHA_MIN = 0.5f;
+static const float DRIFT_EWMA_FALLBACK_TAU_MS = 60000.0f;
+static const float DRIFT_ALPHA_MIN = 0.02f;
+static const float SIGMA_HARD_CAP_MIN_MM = 0.1f;
+static const float SIGMA_HARD_CAP_FALLBACK_MM = 1.5f;
+static const float TYPE_P_RAIL_NORM = 0.99f;
+static const float ANALOG_SATURATED_CONFIDENCE = 0.5f;
+static const float TYPE_P_ESTIMATOR_ALPHA = 0.1f;
+
 // Define the global buffer/sensing variables
 float g_buf_pos = 0.0f;
 float g_buf_pos_prev = 0.0f;
@@ -61,9 +106,9 @@ int g_hist_idx = 0;
 
 float buf_physical_half_travel_mm(void) {
     float physical_half =
-        (BUF_MAX_TRAVEL_MM > 0) ? ((float)BUF_MAX_TRAVEL_MM * 0.5f) : BUF_SWITCH_SPAN_HALF_MM;
-    if (physical_half < 1.0f)
-        physical_half = 1.0f;
+        (BUF_MAX_TRAVEL_MM > 0) ? ((float)BUF_MAX_TRAVEL_MM * HALF_F) : BUF_SWITCH_SPAN_HALF_MM;
+    if (physical_half < MIN_PHYSICAL_HALF_TRAVEL_MM)
+        physical_half = MIN_PHYSICAL_HALF_TRAVEL_MM;
     if (physical_half < BUF_SWITCH_SPAN_HALF_MM)
         physical_half = BUF_SWITCH_SPAN_HALF_MM;
     return physical_half;
@@ -72,8 +117,8 @@ float buf_physical_half_travel_mm(void) {
 float buf_threshold_mm(void) {
     float physical_half = buf_physical_half_travel_mm();
     float threshold = BUF_SWITCH_SPAN_HALF_MM;
-    if (threshold < 1.0f)
-        threshold = 1.0f;
+    if (threshold < MIN_PHYSICAL_HALF_TRAVEL_MM)
+        threshold = MIN_PHYSICAL_HALF_TRAVEL_MM;
     if (threshold > physical_half)
         threshold = physical_half;
     return threshold;
@@ -81,15 +126,16 @@ float buf_threshold_mm(void) {
 
 float buf_target_reserve_mm(void) {
     float threshold = buf_threshold_mm();
-    float pct = (float)SYNC_RESERVE_PCT / 100.0f;
+    float pct = (float)SYNC_RESERVE_PCT / RESERVE_PCT_DIVISOR_F;
     if (BUF_SENSOR_TYPE == 0) {
-        return clamp_f(threshold * pct, 0.0f, threshold * 0.7f);
+        return clamp_f(threshold * pct, 0.0f, threshold * COMPRESSION_RESERVE_CAP_FRAC);
     }
 
     float physical_half = buf_physical_half_travel_mm();
     flow_param_t fp = flow_param((int)extruder_est_sps);
-    float schedule_bias = (float)fp.bias_milli / 1000.0f;
-    float bias = clamp_f(fmaxf(SYNC_COMPRESSION_BIAS_FRAC, schedule_bias), 0.0f, 0.7f);
+    float schedule_bias = (float)fp.bias_milli / FLOW_BIAS_MILLI_DIVISOR_F;
+    float bias = clamp_f(fmaxf(SYNC_COMPRESSION_BIAS_FRAC, schedule_bias), 0.0f,
+                         COMPRESSION_RESERVE_CAP_FRAC);
     float target = (threshold * pct);
     float center_guard_mm = threshold * SYNC_RESERVE_CENTER_GUARD_FRAC;
 
@@ -103,7 +149,7 @@ float buf_target_reserve_mm(void) {
     float bias_pos = fminf(bias, SYNC_RESERVE_BIAS_POS_FRAC_CAP);
     target += bias_pos * threshold;
 
-    float max_target = physical_half - 0.5f;
+    float max_target = physical_half - TARGET_CENTER_GUARD_MM;
     if (target > max_target)
         target = max_target;
     if (target < -threshold)
@@ -112,11 +158,11 @@ float buf_target_reserve_mm(void) {
 }
 
 float buf_virtual_deadband_mm(void) {
-    float deadband = buf_threshold_mm() * 0.15f;
-    if (deadband < 0.5f)
-        deadband = 0.5f;
-    if (deadband > 2.0f)
-        deadband = 2.0f;
+    float deadband = buf_threshold_mm() * VIRTUAL_DEADBAND_FRAC;
+    if (deadband < VIRTUAL_DEADBAND_MIN_MM)
+        deadband = VIRTUAL_DEADBAND_MIN_MM;
+    if (deadband > VIRTUAL_DEADBAND_MAX_MM)
+        deadband = VIRTUAL_DEADBAND_MAX_MM;
     return deadband;
 }
 
@@ -156,7 +202,7 @@ void buf_virtual_position_tick(lane_t *lane, uint32_t elapsed_ms) {
                            g_tc_ctx.state == TC_RELOAD_FOLLOW ||
                            (lane->task == TASK_FEED && lane->fault == FAULT_NONE);
     if (tracking_motion) {
-        float dt_s = (float)elapsed_ms / 1000.0f;
+        float dt_s = (float)elapsed_ms / MS_PER_SECOND_F;
         float mmu_mm_s = (float)lane_motion_sps(lane) * MM_PER_STEP[idx];
         float extruder_mm_s = extruder_est_sps * MM_PER_STEP[idx];
         float net_delta = (mmu_mm_s - extruder_mm_s) * dt_s;
@@ -227,15 +273,16 @@ void neutral_creep_update(buf_state_t s, lane_t *lane, uint32_t now_ms) {
     uint32_t dwell_ms = now_ms - g_neutral_creep_last_tension_ms;
     if (dwell_ms > (uint32_t)NEUTRAL_CREEP_TIMEOUT_MS) {
         uint32_t active_ms = dwell_ms - NEUTRAL_CREEP_TIMEOUT_MS;
-        float active_s = (float)active_ms / 1000.0f;
+        float active_s = (float)active_ms / MS_PER_SECOND_F;
 
-        int max_creep = (int)((extruder_est_sps * (float)NEUTRAL_CREEP_CAP_FRAC) / 100.0f);
+        int max_creep =
+            (int)((extruder_est_sps * (float)NEUTRAL_CREEP_CAP_FRAC) / RESERVE_PCT_DIVISOR_F);
         int raw_creep = (int)(active_s * (float)NEUTRAL_CREEP_RATE_SPS_PER_S);
 
         if (raw_creep >= max_creep) {
             g_neutral_creep_sps = max_creep;
             static uint32_t cap_warn_ms = 0;
-            if (now_ms - cap_warn_ms >= 5000) {
+            if (now_ms - cap_warn_ms >= NEUTRAL_CREEP_WARN_INTERVAL_MS) {
                 cap_warn_ms = now_ms;
                 cmd_event("SYNC", "NEUTRAL_CREEP_CAP");
             }
@@ -250,8 +297,8 @@ void neutral_creep_update(buf_state_t s, lane_t *lane, uint32_t now_ms) {
 int sync_apply_scaling(int base_sps, float target_norm, float pos_norm) {
     int target = base_sps;
 
-    float deadband_norm =
-        (BUF_SENSOR_TYPE == 1) ? 0.1f : (buf_virtual_deadband_mm() / buf_threshold_mm());
+    float deadband_norm = (BUF_SENSOR_TYPE == 1) ? TYPE_P_DEADBAND_NORM
+                                                 : (buf_virtual_deadband_mm() / buf_threshold_mm());
 
     /* Overfeed taper: as the buffer pushes past goal toward the COMPRESSION rail
        (+1 under the new convention), taper feed down toward the compression floor
@@ -261,7 +308,7 @@ int sync_apply_scaling(int base_sps, float target_norm, float pos_norm) {
         float taper_end = 1.0f;
         float taper_span = taper_end - taper_start;
 
-        if (target > COMPRESSION_SPS && taper_span > 0.001f) {
+        if (target > COMPRESSION_SPS && taper_span > TAPER_SPAN_MIN_NORM) {
             float overfill = pos_norm - taper_start;
             float taper_frac = clamp_f(overfill / taper_span, 0.0f, 1.0f);
             int taper_floor_sps = COMPRESSION_SPS;
@@ -304,11 +351,11 @@ bool predict_tension_coming(void) {
 }
 
 void buf_analog_update(void) {
-    adc_select_input(PIN_PSF - 26);
+    adc_select_input(PIN_PSF - ADC_PIN_BASE);
     uint32_t sum = 0;
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < ADC_SAMPLE_COUNT; i++)
         sum += adc_read();
-    float fraction = (float)(sum >> 2) / 4095.0f;
+    float fraction = (float)(sum >> ADC_AVERAGE_SHIFT) / ADC_FULL_SCALE_F;
     g_buf_pos_raw_status = fraction;
 
     bool reversed = (BUF_PSF_MAX_COMP < BUF_PSF_MAX_TENS);
@@ -318,19 +365,19 @@ void buf_analog_update(void) {
     if (reversed) {
         float d_comp = neutral - BUF_PSF_MAX_COMP;
         float d_tens = BUF_PSF_MAX_TENS - neutral;
-        if (d_comp < 0.001f)
-            d_comp = 0.001f;
-        if (d_tens < 0.001f)
-            d_tens = 0.001f;
+        if (d_comp < ANALOG_SPAN_MIN_F)
+            d_comp = ANALOG_SPAN_MIN_F;
+        if (d_tens < ANALOG_SPAN_MIN_F)
+            d_tens = ANALOG_SPAN_MIN_F;
         norm =
             (fraction <= neutral) ? -(neutral - fraction) / d_comp : (fraction - neutral) / d_tens;
     } else {
         float d_comp = BUF_PSF_MAX_COMP - neutral;
         float d_tens = neutral - BUF_PSF_MAX_TENS;
-        if (d_comp < 0.001f)
-            d_comp = 0.001f;
-        if (d_tens < 0.001f)
-            d_tens = 0.001f;
+        if (d_comp < ANALOG_SPAN_MIN_F)
+            d_comp = ANALOG_SPAN_MIN_F;
+        if (d_tens < ANALOG_SPAN_MIN_F)
+            d_tens = ANALOG_SPAN_MIN_F;
         norm =
             (fraction >= neutral) ? -(fraction - neutral) / d_comp : (neutral - fraction) / d_tens;
     }
@@ -338,9 +385,9 @@ void buf_analog_update(void) {
 
     g_buf_pos = BUF_ANALOG_ALPHA * norm + (1.0f - BUF_ANALOG_ALPHA) * g_buf_pos;
 
-    float dt_s = (float)SYNC_TICK_MS / 1000.0f;
-    if (dt_s < 0.001f)
-        dt_s = 0.001f;
+    float dt_s = (float)SYNC_TICK_MS / MS_PER_SECOND_F;
+    if (dt_s < ANALOG_SPAN_MIN_F)
+        dt_s = ANALOG_SPAN_MIN_F;
     float vel = (g_buf_pos - g_buf_pos_prev) / dt_s;
     g_vel_norm = vel;
 
@@ -365,19 +412,19 @@ float psf_goal_norm(void) {
     if (reversed) {
         float d_comp = BUF_PSF_NEUTRAL - BUF_PSF_MAX_COMP;
         float d_tens = BUF_PSF_MAX_TENS - BUF_PSF_NEUTRAL;
-        if (d_comp < 0.001f)
-            d_comp = 0.001f;
-        if (d_tens < 0.001f)
-            d_tens = 0.001f;
+        if (d_comp < ANALOG_SPAN_MIN_F)
+            d_comp = ANALOG_SPAN_MIN_F;
+        if (d_tens < ANALOG_SPAN_MIN_F)
+            d_tens = ANALOG_SPAN_MIN_F;
         goal_norm = (goal_raw <= BUF_PSF_NEUTRAL) ? -(BUF_PSF_NEUTRAL - goal_raw) / d_comp
                                                   : (goal_raw - BUF_PSF_NEUTRAL) / d_tens;
     } else {
         float d_comp = BUF_PSF_MAX_COMP - BUF_PSF_NEUTRAL;
         float d_tens = BUF_PSF_NEUTRAL - BUF_PSF_MAX_TENS;
-        if (d_comp < 0.001f)
-            d_comp = 0.001f;
-        if (d_tens < 0.001f)
-            d_tens = 0.001f;
+        if (d_comp < ANALOG_SPAN_MIN_F)
+            d_comp = ANALOG_SPAN_MIN_F;
+        if (d_tens < ANALOG_SPAN_MIN_F)
+            d_tens = ANALOG_SPAN_MIN_F;
         goal_norm = (goal_raw >= BUF_PSF_NEUTRAL) ? -(goal_raw - BUF_PSF_NEUTRAL) / d_comp
                                                   : (BUF_PSF_NEUTRAL - goal_raw) / d_tens;
     }
@@ -389,8 +436,8 @@ float buf_pos_norm(void) {
         return g_buf_pos;
     } else {
         float thr = buf_threshold_mm();
-        if (thr < 0.001f)
-            thr = 0.001f;
+        if (thr < ANALOG_SPAN_MIN_F)
+            thr = ANALOG_SPAN_MIN_F;
         return clamp_f(g_buf_pos / thr, -1.0f, 1.0f);
     }
 }
@@ -400,8 +447,8 @@ float buf_target_norm(void) {
         return psf_goal_norm();
     } else {
         float thr = buf_threshold_mm();
-        if (thr < 0.001f)
-            thr = 0.001f;
+        if (thr < ANALOG_SPAN_MIN_F)
+            thr = ANALOG_SPAN_MIN_F;
         return clamp_f(buf_target_reserve_mm() / thr, -1.0f, 1.0f);
     }
 }
@@ -555,10 +602,11 @@ static void buf_apply_estimator_sample(bool neutral_drain_sample, float est_sps,
     } else {
         blend_extruder_est_sps(est_sps, alpha, now_ms);
     }
-    float reset_threshold_sps = fmaxf((float)SYNC_RELAY_TRIM_STEP_SPS, 100.0f);
+    float reset_threshold_sps =
+        fmaxf((float)SYNC_RELAY_TRIM_STEP_SPS, RELAY_TRIM_RESET_THRESHOLD_SPS);
     if (fabsf(extruder_est_sps - prev_est_sps) >= reset_threshold_sps) {
-        g_relay_neutral_trim_sps *= 0.25f;
-        if (fabsf(g_relay_neutral_trim_sps) < 1.0f)
+        g_relay_neutral_trim_sps *= RELAY_TRIM_RESET_DAMP_FRAC;
+        if (fabsf(g_relay_neutral_trim_sps) < RELAY_TRIM_ZERO_THRESHOLD_SPS)
             g_relay_neutral_trim_sps = 0.0f;
         relay_neutral_trim_clamp();
     }
@@ -570,23 +618,23 @@ static void buf_update_estimator(buf_state_t old, buf_state_t new_state, float t
     bool neutral_fill_sample = (old == BUF_NEUTRAL && new_state == BUF_COMPRESSION);
     bool neutral_drain_sample = (old == BUF_NEUTRAL && new_state == BUF_TENSION);
     bool compression_drain_sample = (old == BUF_COMPRESSION && new_state == BUF_NEUTRAL);
-    bool has_known_travel = fabsf(travel_mm) > 0.001f;
+    bool has_known_travel = fabsf(travel_mm) > ESTIMATOR_TRAVEL_EPSILON_MM;
 
     if (BUF_SENSOR_TYPE == 0 &&
         (neutral_fill_sample || neutral_drain_sample || compression_drain_sample) &&
         prev_dwell > (uint32_t)BUF_HYST_MS) {
-        uint32_t effective_dwell = prev_dwell - (uint32_t)(BUF_HYST_MS / 2);
-        if (effective_dwell < 5)
-            effective_dwell = 5;
+        uint32_t effective_dwell = prev_dwell - (uint32_t)(BUF_HYST_MS / BUF_HYST_DEBOUNCE_DIVISOR);
+        if (effective_dwell < EFFECTIVE_DWELL_MIN_MS)
+            effective_dwell = EFFECTIVE_DWELL_MIN_MS;
         if (has_known_travel) {
-            g_buf.arm_vel_mm_s = travel_mm / ((float)effective_dwell / 1000.0f);
+            g_buf.arm_vel_mm_s = travel_mm / ((float)effective_dwell / MS_PER_SECOND_F);
         }
 
         int idx = g_buf.lane_idx_at_entry;
         if (idx < 0 || idx >= NUM_LANES)
             idx = 0;
         float mm_per_step = MM_PER_STEP[idx];
-        if (mm_per_step <= 1e-6f)
+        if (mm_per_step <= MM_PER_STEP_MIN)
             return;
 
         float est_sps = 0.0f;
@@ -620,7 +668,7 @@ static void buf_update_estimator(buf_state_t old, buf_state_t new_state, float t
                 float v_mm_s = fabsf(g_buf.arm_vel_mm_s);
                 float v_norm = clamp_f(v_mm_s / SYNC_TENSION_FAST_MM_S, 0.0f, 1.0f);
                 float drain_sps = has_known_travel ? (v_mm_s / mm_per_step) : 0.0f;
-                float demand_slow = feed_avg_sps * 1.15f;
+                float demand_slow = feed_avg_sps * NEUTRAL_DRAIN_DEMAND_SLOW_MARGIN;
                 float demand_fast = feed_avg_sps + drain_sps;
                 est_sps = demand_slow + v_norm * (demand_fast - demand_slow);
                 sample_valid = type_d_sample_demand_bounds(&est_sps);
@@ -642,12 +690,12 @@ static void buf_update_estimator(buf_state_t old, buf_state_t new_state, float t
             float extruder_mm_s = mmu_mm_s - g_buf.arm_vel_mm_s;
             est_sps = extruder_mm_s / mm_per_step;
 
-            const float estimator_norm_mm_s = 30.0f;
-            alpha = clamp_f(fabsf(g_buf.arm_vel_mm_s) / estimator_norm_mm_s, EST_ALPHA_MIN,
+            alpha = clamp_f(fabsf(g_buf.arm_vel_mm_s) / ESTIMATOR_NORM_MM_S, EST_ALPHA_MIN,
                             EST_ALPHA_MAX);
 
-            if (fabsf(travel_mm) > threshold * 1.5f && alpha < 0.5f) {
-                alpha = 0.5f;
+            if (fabsf(travel_mm) > threshold * ESTIMATOR_LONG_TRAVEL_MULT &&
+                alpha < ESTIMATOR_LONG_TRAVEL_ALPHA_MIN) {
+                alpha = ESTIMATOR_LONG_TRAVEL_ALPHA_MIN;
             }
             sample_valid = type_d_sample_demand_bounds(&est_sps);
         }
@@ -666,21 +714,22 @@ static void buf_update_residual_observer(buf_state_t old, buf_state_t new_state,
         float residual = g_buf_pos - switch_pos_mm;
         g_bp_residual_last_mm = residual;
 
-        float tau_ms_f = (BUF_DRIFT_EWMA_TAU_MS > 0) ? (float)BUF_DRIFT_EWMA_TAU_MS : 60000.0f;
+        float tau_ms_f =
+            (BUF_DRIFT_EWMA_TAU_MS > 0) ? (float)BUF_DRIFT_EWMA_TAU_MS : DRIFT_EWMA_FALLBACK_TAU_MS;
         float alpha;
         if (g_bp_drift_samples == 0 || g_bp_drift_last_ms == 0) {
             alpha = 1.0f;
         } else {
             uint32_t dt = now_ms - g_bp_drift_last_ms;
             alpha = 1.0f - expf(-(float)dt / tau_ms_f);
-            if (alpha < 0.02f)
-                alpha = 0.02f;
+            if (alpha < DRIFT_ALPHA_MIN)
+                alpha = DRIFT_ALPHA_MIN;
             if (alpha > 1.0f)
                 alpha = 1.0f;
         }
         g_bp_drift_ewma_mm = alpha * residual + (1.0f - alpha) * g_bp_drift_ewma_mm;
         g_bp_drift_last_ms = now_ms;
-        if (g_bp_drift_samples < 65535u)
+        if (g_bp_drift_samples < DRIFT_SAMPLE_MAX)
             g_bp_drift_samples++;
     }
 }
@@ -713,12 +762,12 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
     if (g_buf.mmu_sps_dwell_samples > 0) {
         mmu_avg_sps = (float)g_buf.mmu_sps_dwell_sum / (float)g_buf.mmu_sps_dwell_samples;
     } else {
-        mmu_avg_sps = (float)(g_buf.mmu_sps_at_entry + mmu_now_sps) / 2.0f;
+        mmu_avg_sps = (float)(g_buf.mmu_sps_at_entry + mmu_now_sps) / AVERAGE_PAIR_DIVISOR_F;
     }
 
     buf_state_t old = g_buf.state;
     float threshold = buf_threshold_mm();
-    float max_transition_mm = threshold * 2.0f;
+    float max_transition_mm = threshold * FULL_TRANSITION_SPAN_MULT;
 
     g_buf.arm_vel_mm_s = 0.0f;
 
@@ -773,10 +822,12 @@ void buf_signal_publish(uint32_t now_ms) {
     float norm;
     if (BUF_SENSOR_TYPE == 0) {
         kind = BUF_SRC_VIRTUAL_ENDSTOP;
-        norm = (half > 0.001f) ? (g_buf_pos / half) : 0.0f;
+        norm = (half > ANALOG_SPAN_MIN_F) ? (g_buf_pos / half) : 0.0f;
         norm = clamp_f(norm, -1.0f, 1.0f);
         {
-            float sigma_cap = (EST_SIGMA_HARD_CAP_MM > 0.1f) ? EST_SIGMA_HARD_CAP_MM : 1.5f;
+            float sigma_cap = (EST_SIGMA_HARD_CAP_MM > SIGMA_HARD_CAP_MIN_MM)
+                                  ? EST_SIGMA_HARD_CAP_MM
+                                  : SIGMA_HARD_CAP_FALLBACK_MM;
             g_buf_sigma_mm = sqrtf(g_buf_pos_sigma_accum_mm) * ENDSTOP_PER_UNIT_SIGMA_MM;
             if (g_buf_sigma_mm > sigma_cap)
                 g_buf_sigma_mm = sigma_cap;
@@ -792,7 +843,8 @@ void buf_signal_publish(uint32_t now_ms) {
                 cmd_event("BUF", "DRIFT_RESET");
             }
             if (sync_enabled && g_buf_confidence < EST_LOW_CF_WARN_THRESHOLD) {
-                if (g_buf_est_low_cf_emit_ms == 0 || (now_ms - g_buf_est_low_cf_emit_ms) >= 5000u) {
+                if (g_buf_est_low_cf_emit_ms == 0 ||
+                    (now_ms - g_buf_est_low_cf_emit_ms) >= EST_LOW_CF_WARN_INTERVAL_MS) {
                     g_buf_est_low_cf_emit_ms = now_ms;
                     cmd_event("BUF", "EST_LOW_CF");
                 }
@@ -806,11 +858,11 @@ void buf_signal_publish(uint32_t now_ms) {
         kind = BUF_SRC_ANALOG;
         norm = g_buf_pos;
         g_buf_analog_last_sample_ms = now_ms;
-        if (fabsf(norm) >= 0.99f) {
+        if (fabsf(norm) >= TYPE_P_RAIL_NORM) {
             if (g_buf_analog_saturated_since_ms == 0)
                 g_buf_analog_saturated_since_ms = now_ms;
-            if ((now_ms - g_buf_analog_saturated_since_ms) > 250u)
-                g_buf_confidence = 0.5f;
+            if ((now_ms - g_buf_analog_saturated_since_ms) > ANALOG_SATURATION_CONFIDENCE_MS)
+                g_buf_confidence = ANALOG_SATURATED_CONFIDENCE;
         } else {
             g_buf_analog_saturated_since_ms = 0;
             g_buf_confidence = 1.0f;
@@ -848,8 +900,8 @@ void buf_sensor_tick(uint32_t now_ms) {
         lane_t *lane = lane_ptr(active_lane);
         if (lane) {
             uint8_t idx = (active_lane == 2) ? 1 : 0;
-            float delta_mm =
-                (float)lane_motion_sps(lane) * ((float)elapsed_ms / 1000.0f) * MM_PER_STEP[idx];
+            float delta_mm = (float)lane_motion_sps(lane) * ((float)elapsed_ms / MS_PER_SECOND_F) *
+                             MM_PER_STEP[idx];
             g_sync_mmu_total_mm += delta_mm;
             g_relay_flip_travel_since_mm += fabsf(delta_mm);
 
@@ -861,7 +913,7 @@ void buf_sensor_tick(uint32_t now_ms) {
                    drain rate is -arm_vel (was +arm_vel under the old +tension sign). */
                 float extruder_mm_s = mmu_mm_s - arm_vel;
                 float est_sps = 0.0f;
-                if (MM_PER_STEP[idx] > 1e-6f) {
+                if (MM_PER_STEP[idx] > MM_PER_STEP_MIN) {
                     est_sps = extruder_mm_s / MM_PER_STEP[idx];
                 }
                 float max_est_sps = (float)GLOBAL_MAX_SPS;
@@ -870,7 +922,7 @@ void buf_sensor_tick(uint32_t now_ms) {
                 if (est_sps > max_est_sps)
                     est_sps = max_est_sps;
 
-                float alpha = 0.1f;
+                float alpha = TYPE_P_ESTIMATOR_ALPHA;
                 extruder_est_sps = alpha * est_sps + (1.0f - alpha) * extruder_est_sps;
                 extruder_est_last_update_ms = now_ms;
             }
