@@ -1379,6 +1379,60 @@ static int sync_apply_type_d_probe_floor(buf_state_t s, int target_sps) {
     return target_sps;
 }
 
+static int sync_check_tension_dwell_and_ramp(buf_state_t s, int target_sps, uint32_t now_ms) {
+    if (s == BUF_TENSION && sync_tension_pin_since_ms != 0) {
+        uint32_t tension_dwell_ms = now_ms - sync_tension_pin_since_ms;
+        /* RELAY: TENSION switch contact is the normal "buffer empty, refill"
+         * signal, not a fault. Only fault-hold on tension dwell in analog
+         * mode; the type-D relay catch-up path refills it. */
+        if (BUF_SENSOR_TYPE != 0 && SYNC_TENSION_DWELL_STOP_MS > 0 &&
+            tension_dwell_ms >= (uint32_t)SYNC_TENSION_DWELL_STOP_MS) {
+            sync_fault_hold();
+            extruder_est_last_update_ms = now_ms;
+            sync_apply_to_active();
+            cmd_event("SYNC", "FAULT_HOLD");
+            return -1;
+        }
+        if (SYNC_TENSION_RAMP_DELAY_MS > 0 &&
+            tension_dwell_ms >= (uint32_t)SYNC_TENSION_RAMP_DELAY_MS) {
+            int max_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
+            if (target_sps < max_sps)
+                target_sps = max_sps;
+        }
+    }
+    return target_sps;
+}
+
+static int sync_apply_compression_recovery_cap(buf_state_t s, int target_sps, uint32_t now_ms) {
+    if (BUF_SENSOR_TYPE == 0 && sync_compression_recovery_active) {
+        uint32_t compression_recovery_ms = now_ms - g_buf.entered_ms;
+        int compression_floor_sps = sync_compression_floor_sps();
+        int kp_window = sync_effective_kp_sps(s);
+        int recovery_cap = (int)extruder_est_sps - kp_window;
+        if (compression_recovery_ms > SYNC_COMPRESSION_COLLAPSE_DELAY_MS) {
+            uint32_t collapse_ms = compression_recovery_ms - SYNC_COMPRESSION_COLLAPSE_DELAY_MS;
+            if (collapse_ms > SYNC_COMPRESSION_COLLAPSE_CAP_MS)
+                collapse_ms = SYNC_COMPRESSION_COLLAPSE_CAP_MS;
+            int extra_trim = (int)(((uint64_t)collapse_ms * (uint64_t)(kp_window + PRE_RAMP_SPS)) /
+                                   (uint64_t)SYNC_COMPRESSION_COLLAPSE_CAP_MS);
+            recovery_cap -= extra_trim;
+        }
+        if (recovery_cap < compression_floor_sps)
+            recovery_cap = compression_floor_sps;
+        /* F1b: collapse braking is for an over-tensioned buffer draining
+         * through COMPRESSION; while still in NEUTRAL it must not starve the
+         * refill below the learned baseline. */
+        if (s == BUF_NEUTRAL) {
+            int neutral_floor = baseline_control_floor_sps();
+            if (recovery_cap < neutral_floor)
+                recovery_cap = neutral_floor;
+        }
+        if (target_sps > recovery_cap)
+            target_sps = recovery_cap;
+    }
+    return target_sps;
+}
+
 static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *lane) {
     if (lane && (lane->task == TASK_FEED || lane->task == TASK_IDLE) && lane->fault == FAULT_NONE &&
         g_sync_state == SYNC_ACTIVE) {
@@ -1457,25 +1511,9 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
         target_sps += (int)(uncertainty * 6.0f);
     }
 
-    if (s == BUF_TENSION && sync_tension_pin_since_ms != 0) {
-        uint32_t tension_dwell_ms = now_ms - sync_tension_pin_since_ms;
-        /* RELAY: TENSION switch contact is the normal "buffer empty, refill"
-         * signal, not a fault. Only fault-hold on tension dwell in analog
-         * mode; the type-D relay catch-up path refills it. */
-        if (BUF_SENSOR_TYPE != 0 && SYNC_TENSION_DWELL_STOP_MS > 0 &&
-            tension_dwell_ms >= (uint32_t)SYNC_TENSION_DWELL_STOP_MS) {
-            sync_fault_hold();
-            extruder_est_last_update_ms = now_ms;
-            sync_apply_to_active();
-            cmd_event("SYNC", "FAULT_HOLD");
-            return -1;
-        }
-        if (SYNC_TENSION_RAMP_DELAY_MS > 0 &&
-            tension_dwell_ms >= (uint32_t)SYNC_TENSION_RAMP_DELAY_MS) {
-            int max_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
-            if (target_sps < max_sps)
-                target_sps = max_sps;
-        }
+    target_sps = sync_check_tension_dwell_and_ramp(s, target_sps, now_ms);
+    if (target_sps < 0) {
+        return -1;
     }
 
     /* TENSION-risk density warning (warn-only, default threshold=4) */
@@ -1504,32 +1542,7 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
         target_sps = neutral_anti_tension_floor_sps;
     }
 
-    if (BUF_SENSOR_TYPE == 0 && sync_compression_recovery_active) {
-        uint32_t compression_recovery_ms = now_ms - g_buf.entered_ms;
-        int compression_floor_sps = sync_compression_floor_sps();
-        int kp_window = sync_effective_kp_sps(s);
-        int recovery_cap = (int)extruder_est_sps - kp_window;
-        if (compression_recovery_ms > SYNC_COMPRESSION_COLLAPSE_DELAY_MS) {
-            uint32_t collapse_ms = compression_recovery_ms - SYNC_COMPRESSION_COLLAPSE_DELAY_MS;
-            if (collapse_ms > SYNC_COMPRESSION_COLLAPSE_CAP_MS)
-                collapse_ms = SYNC_COMPRESSION_COLLAPSE_CAP_MS;
-            int extra_trim = (int)(((uint64_t)collapse_ms * (uint64_t)(kp_window + PRE_RAMP_SPS)) /
-                                   (uint64_t)SYNC_COMPRESSION_COLLAPSE_CAP_MS);
-            recovery_cap -= extra_trim;
-        }
-        if (recovery_cap < compression_floor_sps)
-            recovery_cap = compression_floor_sps;
-        /* F1b: collapse braking is for an over-tensioned buffer draining
-         * through COMPRESSION; while still in NEUTRAL it must not starve the
-         * refill below the learned baseline. */
-        if (s == BUF_NEUTRAL) {
-            int neutral_floor = baseline_control_floor_sps();
-            if (recovery_cap < neutral_floor)
-                recovery_cap = neutral_floor;
-        }
-        if (target_sps > recovery_cap)
-            target_sps = recovery_cap;
-    }
+    target_sps = sync_apply_compression_recovery_cap(s, target_sps, now_ms);
 
     /* Type-D NEUTRAL relay output is the demand estimate plus the configured
      * lean. Preserve it only while reserve is tension-side; once at/above target,
