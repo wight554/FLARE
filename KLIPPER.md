@@ -77,6 +77,25 @@ While FLARE can load and unload filament without a toolhead sensor, having one a
    variable_toolhead_sensor: "toolhead_sensor"
    ```
 
+3. Reconcile the board's toolhead state from the physical sensor at print
+   lifecycle edges by calling `_FLARE_SYNC_TOOLHEAD` from your own macros. This
+   recovers from desyncs where the board's view drifts from reality — e.g. a
+   print cancelled mid-toolchange can leave the board flagged empty while
+   filament is still loaded, which otherwise makes the next `T0` unload a
+   correctly-loaded toolhead.
+
+   ```ini
+   # in your PRINT_START and PRINT_END
+   _FLARE_SYNC_TOOLHEAD
+
+   # in your CANCEL_PRINT (and any error/abort path)
+   _FLARE_SYNC_TOOLHEAD RESET=1   ; also clears a stuck mmu_active
+   ```
+
+   `_FLARE_SYNC_TOOLHEAD` reads the physical sensor, pushes the truth to the
+   board (`TS:1`/`TS:0`), and issues `BS` for buffer safety. Pass `RESET=1` only
+   on cancel/error (never while a toolchange is actually running).
+
 ---
 
 ## 🏎️ Step 5: Calibrate Distances & Tip Forming
