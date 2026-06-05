@@ -117,3 +117,17 @@ no firmware unit-test harness; equivalence is structural, established by diff di
 ## Plan for Task 4.4 (Replace magic numbers)
 - Scan files and replace literals like `10000u`, `500u`, `300000` with named constants or `config.ini` backed variables.
 
+## Task 4.3 Implementation Notes (2026-06-05)
+
+Completed helper extraction for remaining `readability-function-size` warnings:
+- `protocol.c`: split `cmd_handle_get` into GET parameter groups; split buffer GET groups; split `cmd_handle_set` into SET parameter group helpers.
+- `cutter.c`: extracted cutter feed-wait/ramp handling.
+- `main.c`: extracted boot sensor settling.
+- `sync.c`: extracted Type-P rail guard, MMU dwell sampling, reserve-integral handling, and Type-D compression drain target.
+- `sync_buf.c`: extracted estimator sample application.
+
+Validation:
+- `ninja -C build_local` passed after each committed file unit.
+- Focused `clang-tidy --checks=-*,readability-function-size firmware/src/*.c` produced no size warnings after final extraction.
+- Same tidy command still exits on host-header lookup errors (`assert.h`, `sys/cdefs.h`, standard C headers); keep for task 5.2 lint-host fix/suppression.
+- Commits: `73fc340`, `0fc36d6`, `a83d61e`, `3dd6635`, `c4e91fd`, `7317137`, `cb196ea`.

@@ -27,7 +27,9 @@
 
 - [x] 4.1 Split `sync.c` along seams: buffer sensing/position model, type-D relay control, type-P analog control, sync orchestration; shared decls in headers; build-verify
 - [x] 4.2 Split `protocol.c`: command parse / status dump / TMC-advanced; build-verify
-- [ ] 4.3 Extract over-long functions flagged by `readability-function-size`; build-verify
+- [x] 4.3 Extract over-long functions flagged by `readability-function-size`; build-verify
+  - 2026-06-05 validation: extracted helpers through `protocol.c`, `cutter.c`, `main.c`, `sync.c`, and `sync_buf.c`; `ninja -C build_local` passed after each committed unit. Focused `clang-tidy --checks=-*,readability-function-size firmware/src/*.c` reports no function-size warnings; current clang-tidy invocation still exits on host-header lookup errors (`assert.h`, `sys/cdefs.h`, standard C headers), to be handled in 5.2.
+  - Commits: `73fc340`, `0fc36d6`, `a83d61e`, `3dd6635`, `c4e91fd`, `7317137`, `cb196ea`.
 - [ ] 4.4 Replace residual magic numbers with named constants or config-backed tunables (config→`tune.h`→`CONF_*` path for runtime-tunable); build-verify
 - [ ] 4.5 Update file map in `AGENTS.md` Key Files + `project-architecture` spec for new units
 
