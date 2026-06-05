@@ -365,7 +365,7 @@ static bool cmd_get_tmc_params(const char *param, int idx, char *out, size_t out
     return true;
 }
 
-static bool cmd_get_buffer_params(const char *param, int idx, char *out, size_t out_len) {
+static bool cmd_get_buffer_geometry_params(const char *param, int idx, char *out, size_t out_len) {
     if (!strcmp(param, "SYNC_MAX_RATE"))
         snprintf(out, out_len, "SYNC_MAX_RATE:%.1f",
                  (double)sps_to_mm_per_min_idx(SYNC_MAX_SPS, idx));
@@ -420,7 +420,13 @@ static bool cmd_get_buffer_params(const char *param, int idx, char *out, size_t 
     else if (!strcmp(param, "BUF_ALPHA"))
         snprintf(out, out_len, "BUF_ALPHA:%.3f", (double)BUF_ANALOG_ALPHA);
 #endif
-    else if (!strcmp(param, "SYNC_REFILL_MM"))
+    else
+        return false;
+    return true;
+}
+
+static bool cmd_get_sync_control_params(const char *param, int idx, char *out, size_t out_len) {
+    if (!strcmp(param, "SYNC_REFILL_MM"))
         snprintf(out, out_len, "SYNC_REFILL_MM:%d", (int)g_sync_refill_effort_mm);
     else if (!strcmp(param, "SYNC_RELIEVE_MM"))
         snprintf(out, out_len, "SYNC_RELIEVE_MM:%d", (int)g_sync_relieve_effort_mm);
@@ -482,7 +488,13 @@ static bool cmd_get_buffer_params(const char *param, int idx, char *out, size_t 
     else if (!strcmp(param, "EST_FALLBACK_THR"))
         snprintf(out, out_len, "EST_FALLBACK_THR:%.3f", (double)EST_FALLBACK_CF_THRESHOLD);
 #endif
-    else if (!strcmp(param, "RELAY_CATCHUP_FRAC"))
+    else
+        return false;
+    return true;
+}
+
+static bool cmd_get_sync_relay_probe_params(const char *param, int idx, char *out, size_t out_len) {
+    if (!strcmp(param, "RELAY_CATCHUP_FRAC"))
         snprintf(out, out_len, "RELAY_CATCHUP_FRAC:%.3f", (double)RELAY_CATCHUP_FRAC);
     else if (!strcmp(param, "RELAY_NEUTRAL_FRAC"))
         snprintf(out, out_len, "RELAY_NEUTRAL_FRAC:%.3f", (double)RELAY_NEUTRAL_FRAC);
@@ -553,6 +565,12 @@ static bool cmd_get_buffer_params(const char *param, int idx, char *out, size_t 
     else
         return false;
     return true;
+}
+
+static bool cmd_get_buffer_params(const char *param, int idx, char *out, size_t out_len) {
+    return cmd_get_buffer_geometry_params(param, idx, out, out_len) ||
+           cmd_get_sync_control_params(param, idx, out, out_len) ||
+           cmd_get_sync_relay_probe_params(param, idx, out, out_len);
 }
 
 static bool cmd_get_reload_cutter_params(const char *param, int idx, char *out, size_t out_len) {
