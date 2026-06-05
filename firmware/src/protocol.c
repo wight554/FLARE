@@ -290,7 +290,7 @@ static void manual_unload_tick(uint32_t now_ms) {
     }
 }
 
-char g_marker_tag[32] = {0};
+char g_marker_tag[MARKER_TAG_LEN] = {0};
 uint16_t g_marker_seq = 0;
 
 static bool cmd_get_motion_params(const char *param, int idx, char *out, size_t out_len) {

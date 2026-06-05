@@ -14,6 +14,7 @@ typedef struct {
     uint offset_rx;
     uint32_t chopconf;
 } tmc_t;
+#define TMC_RAW_REPLY_LEN 8
 #define TMC_REG_GCONF 0x00
 #define TMC_REG_GSTAT 0x01
 #define TMC_REG_IFCNT 0x02
@@ -38,4 +39,4 @@ bool tmc_set_sgthrs(tmc_t *tmc, uint8_t sgthrs);
 bool tmc_set_tcoolthrs(tmc_t *tmc, uint32_t value);
 bool tmc_set_pwmconf(tmc_t *tmc);
 bool tmc_read_sg_result(tmc_t *tmc, uint16_t *out_value);
-int tmc_read_raw(tmc_t *tmc, uint8_t reg, uint8_t buffer[8]);
+int tmc_read_raw(tmc_t *tmc, uint8_t reg, uint8_t buffer[TMC_RAW_REPLY_LEN]);

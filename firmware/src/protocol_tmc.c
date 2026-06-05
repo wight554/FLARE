@@ -89,7 +89,7 @@ bool cmd_handle_tmc_advanced(const char *cmd, const char *p, uint32_t now_ms) {
             int pos = snprintf(out, sizeof(out), "%d:", ln);
             for (uint8_t a = 0; a < 4; a++) {
                 probe.addr = a;
-                uint8_t buf[8] = {0};
+                uint8_t buf[TMC_RAW_REPLY_LEN] = {0};
                 int n = tmc_read_raw(&probe, TMC_REG_GCONF, buf);
                 pos += snprintf(out + pos, sizeof(out) - pos,
                                 "A%u:N=%d:%02X%02X%02X%02X%02X%02X%02X%02X ", a, n, buf[0], buf[1],

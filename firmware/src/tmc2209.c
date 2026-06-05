@@ -41,8 +41,8 @@ uint8_t tmc_crc8(const uint8_t *data, uint8_t len) {
 
 bool tmc_init(tmc_t *tmc, uint tx_pin, uint rx_pin, uint8_t address) {
     tmc->tx_pin = tx_pin;
-    tmc->rx_pin = rx_pin; // Note: For ERB v2.0 hardware, tx_pin is single-wire bidirectional. rx_pin
-                        // is typically unused or DIAG.
+    tmc->rx_pin = rx_pin; // Note: For ERB v2.0 hardware, tx_pin is single-wire bidirectional.
+                          // rx_pin is typically unused or DIAG.
     tmc->addr = address;
     tmc->pio = pio0;
 
@@ -106,7 +106,7 @@ static void tmc_uart_send_bytes(tmc_t *tmc, const uint8_t *buffer, size_t len) {
 }
 
 bool tmc_write(tmc_t *tmc, uint8_t reg, uint32_t value) {
-    uint8_t buffer[8];
+    uint8_t buffer[TMC_RAW_REPLY_LEN];
 
     buffer[0] = 0x05;
     buffer[1] = tmc->addr;
@@ -171,7 +171,7 @@ static int tmc_read_bytes(tmc_t *tmc, uint8_t reg, uint8_t *buffer) {
 }
 
 bool tmc_read(tmc_t *tmc, uint8_t reg, uint32_t *out_value) {
-    uint8_t reply[8];
+    uint8_t reply[TMC_RAW_REPLY_LEN];
 
     for (int attempt = 0; attempt < 2; attempt++) {
         int bytes_read = tmc_read_bytes(tmc, reg, reply);
@@ -182,8 +182,8 @@ bool tmc_read(tmc_t *tmc, uint8_t reg, uint32_t *out_value) {
         if (tmc_crc8(reply, 7) != reply[7])
             continue;
 
-        *out_value = ((uint32_t)reply[3] << 24) | ((uint32_t)reply[4] << 16) | ((uint32_t)reply[5] << 8) |
-                     (uint32_t)reply[6];
+        *out_value = ((uint32_t)reply[3] << 24) | ((uint32_t)reply[4] << 16) |
+                     ((uint32_t)reply[5] << 8) | (uint32_t)reply[6];
         return true;
     }
     return false;

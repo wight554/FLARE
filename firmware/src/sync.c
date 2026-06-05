@@ -82,7 +82,7 @@ static float g_boot_stabilize_start_pos = 0.0f;
 static buffer_service_mode_t g_buffer_service_mode = BUFFER_SERVICE_STABILIZE;
 static uint32_t g_idle_compression_since_ms = 0;
 
-int g_settle_history[16] = {0};
+int g_settle_history[SETTLE_HISTORY_LEN] = {0};
 uint8_t g_settle_history_count = 0;
 uint32_t g_last_baseline_update_ms = 0;
 float g_last_baseline_update_mm = 0.0f;

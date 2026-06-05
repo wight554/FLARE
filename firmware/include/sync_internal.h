@@ -126,7 +126,7 @@ extern float extruder_est_prev_sps;
 extern uint32_t extruder_est_last_update_ms;
 extern uint32_t last_slope_update_ms;
 
-extern char g_marker_tag[32];
+extern char g_marker_tag[MARKER_TAG_LEN];
 extern uint16_t g_marker_seq;
 
 extern float g_vel_norm;
@@ -140,7 +140,7 @@ extern buf_state_t g_bl_goal_override;
 extern bool g_bl_autostart_suppressed;
 extern bool g_sync_tension_transitioned;
 extern float g_sync_mmu_total_mm;
-extern int g_settle_history[16];
+extern int g_settle_history[SETTLE_HISTORY_LEN];
 extern uint8_t g_settle_history_count;
 extern uint32_t g_last_baseline_update_ms;
 extern float g_last_baseline_update_mm;

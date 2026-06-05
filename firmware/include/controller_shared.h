@@ -19,6 +19,8 @@
    a pin there is a fault only while filament is still present during retract. */
 #define PSF_TENSION_PIN_NORM 0.98f    /* unload: pinned-at-tension fault boundary (rig-tune) */
 #define PSF_UNLOAD_RELIEF_ARM_MS 300u /* unload: pinned dwell before one-shot relief jog */
+#define MARKER_TAG_LEN 32
+#define SETTLE_HISTORY_LEN 16
 
 typedef struct {
     uint pin;
@@ -301,7 +303,7 @@ extern int g_baseline_target_sps;
 extern int g_baseline_sps;
 extern float g_baseline_alpha;
 extern uint32_t sync_fast_brake_until_ms;
-extern char g_marker_tag[32];
+extern char g_marker_tag[MARKER_TAG_LEN];
 extern uint16_t g_marker_seq;
 
 extern buf_tracker_t g_buf;

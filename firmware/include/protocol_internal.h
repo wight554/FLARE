@@ -3,7 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-extern char g_marker_tag[32];
+#include "controller_shared.h"
+
+extern char g_marker_tag[MARKER_TAG_LEN];
 extern uint16_t g_marker_seq;
 extern bool g_live_tune_lock;
 
