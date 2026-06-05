@@ -1059,68 +1059,61 @@ static void cmd_handle_set(const char *p, uint32_t now_ms) {
         cmd_reply("ER", "SET:UNKNOWN_PARAM");
 }
 
-static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
-    if (!strcmp(cmd, "TC")) {
-        int ln = atoi(p);
-        if (ln == 1 || ln == 2) {
-            if (active_lane != 1 && active_lane != 2) {
-                cmd_reply("ER", "NO_ACTIVE_LANE");
-                return true;
-            }
-            /* Double-load guard: if both OUT sensors are triggered the hub is
-               stuck with two filaments.  Reject TC before touching anything so
-               the caller can use T: to select a lane and UL: to clear it. */
-            if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
-                cmd_reply("ER", "DOUBLE_LOAD");
-                return true;
-            }
-            sync_retract_assist_set(false);
-            sync_set_state(SYNC_OFF);
-            tc_start(ln, now_ms);
-            cmd_reply("OK", NULL);
-        } else {
-            cmd_reply("ER", "ARG");
+static bool cmd_handle_cutter(const char *cmd, const char *p, uint32_t now_ms) {
+    if (!strcmp(cmd, "CU")) {
+        if (!ENABLE_CUTTER) {
+            cmd_reply("ER", "CUTTER_DISABLED");
+            return true;
         }
-        return true;
-    } else if (!strcmp(cmd, "T")) {
-        int ln = atoi(p);
-        if (ln == 1 || ln == 2) {
-            /* Double-load recovery: both OUT sensors active means the hub is
-               stuck with two filaments.  Abort any in-progress TC state machine
-               and stop all motion, then do a bare lane select so the operator
-               can follow up with UL: to clear the faulty lane manually. */
-            if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
-                tc_abort();
-                /* Stop any in-flight feed on the current lane before switching.
-                   Do not use RETRACT_ASSIST: UL: calls sync_disable anyway and
-                   the RA state is superfluous here. */
-                {
-                    lane_t *_Aold = lane_ptr(active_lane);
-                    if (_Aold && _Aold->task == TASK_FEED)
-                        lane_stop(_Aold);
-                }
-                sync_disable(false);
-                set_active_lane(ln);
-                cmd_reply("OK", NULL);
-            } else {
-                sync_retract_assist_set(false);
-                set_active_lane(ln);
-                cmd_reply("OK", NULL);
-            }
-        } else {
-            cmd_reply("ER", "ARG");
-        }
-        return true;
-    } else if (!strcmp(cmd, "LO")) {
         lane_t *lane = get_active_lane_and_clear_error();
         if (!lane)
             return true;
+        lane_t *other = (lane == &g_lane_l1) ? &g_lane_l2 : &g_lane_l1;
+        if (!lane_in_present(lane)) {
+            cmd_reply("ER", "NO_FILAMENT");
+            return true;
+        }
+        if (lane_out_present(other)) {
+            cmd_reply("ER", "OTHER_LANE_ACTIVE");
+            return true;
+        }
+        if (lane->task != TASK_IDLE || g_tc_ctx.state != TC_IDLE) {
+            cmd_reply("ER", "BUSY");
+            return true;
+        }
         sync_retract_assist_set(false);
-        sync_set_state(SYNC_OFF);
-        lane_start(lane, TASK_AUTOLOAD, AUTO_SPS, true, now_ms, (float)AUTOLOAD_MAX_MM);
+        cutter_start(lane, true, now_ms);
         cmd_reply("OK", NULL);
         return true;
-    } else if (!strcmp(cmd, "UL")) {
+    } else if (!strcmp(cmd, "CX")) {
+        if (!ENABLE_CUTTER) {
+            cmd_reply("ER", "CUTTER_DISABLED");
+            return true;
+        }
+        sync_retract_assist_set(false);
+        cutter_start(NULL, false, now_ms);
+        cmd_reply("OK", NULL);
+        return true;
+    } else if (!strcmp(cmd, "CP")) {
+        if (!ENABLE_CUTTER) {
+            cmd_reply("ER", "CUTTER_DISABLED");
+            return true;
+        }
+        int us = atoi(p);
+        if (us < 400 || us > 2700) {
+            cmd_reply("ER", "ARG");
+            return true;
+        }
+        sync_retract_assist_set(false);
+        cutter_test_us(us);
+        cmd_reply("OK", NULL);
+        return true;
+    }
+    return false;
+}
+
+static bool cmd_handle_unload(const char *cmd, const char *p, uint32_t now_ms) {
+    if (!strcmp(cmd, "UL")) {
         lane_t *lane = get_active_lane_and_clear_error();
         if (!lane)
             return true;
@@ -1204,6 +1197,78 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
         }
         cmd_reply("OK", NULL);
         return true;
+    }
+    return false;
+}
+
+static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
+    if (!strcmp(cmd, "UL") || !strcmp(cmd, "UM")) {
+        return cmd_handle_unload(cmd, p, now_ms);
+    }
+    if (!strcmp(cmd, "CU") || !strcmp(cmd, "CX") || !strcmp(cmd, "CP")) {
+        return cmd_handle_cutter(cmd, p, now_ms);
+    }
+
+    if (!strcmp(cmd, "TC")) {
+        int ln = atoi(p);
+        if (ln == 1 || ln == 2) {
+            if (active_lane != 1 && active_lane != 2) {
+                cmd_reply("ER", "NO_ACTIVE_LANE");
+                return true;
+            }
+            /* Double-load guard: if both OUT sensors are triggered the hub is
+               stuck with two filaments.  Reject TC before touching anything so
+               the caller can use T: to select a lane and UL: to clear it. */
+            if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
+                cmd_reply("ER", "DOUBLE_LOAD");
+                return true;
+            }
+            sync_retract_assist_set(false);
+            sync_set_state(SYNC_OFF);
+            tc_start(ln, now_ms);
+            cmd_reply("OK", NULL);
+        } else {
+            cmd_reply("ER", "ARG");
+        }
+        return true;
+    } else if (!strcmp(cmd, "T")) {
+        int ln = atoi(p);
+        if (ln == 1 || ln == 2) {
+            /* Double-load recovery: both OUT sensors active means the hub is
+               stuck with two filaments.  Abort any in-progress TC state machine
+               and stop all motion, then do a bare lane select so the operator
+               can follow up with UL: to clear the faulty lane manually. */
+            if (lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2)) {
+                tc_abort();
+                /* Stop any in-flight feed on the current lane before switching.
+                   Do not use RETRACT_ASSIST: UL: calls sync_disable anyway and
+                   the RA state is superfluous here. */
+                {
+                    lane_t *_Aold = lane_ptr(active_lane);
+                    if (_Aold && _Aold->task == TASK_FEED)
+                        lane_stop(_Aold);
+                }
+                sync_disable(false);
+                set_active_lane(ln);
+                cmd_reply("OK", NULL);
+            } else {
+                sync_retract_assist_set(false);
+                set_active_lane(ln);
+                cmd_reply("OK", NULL);
+            }
+        } else {
+            cmd_reply("ER", "ARG");
+        }
+        return true;
+    } else if (!strcmp(cmd, "LO")) {
+        lane_t *lane = get_active_lane_and_clear_error();
+        if (!lane)
+            return true;
+        sync_retract_assist_set(false);
+        sync_set_state(SYNC_OFF);
+        lane_start(lane, TASK_AUTOLOAD, AUTO_SPS, true, now_ms, (float)AUTOLOAD_MAX_MM);
+        cmd_reply("OK", NULL);
+        return true;
     } else if (!strcmp(cmd, "FL")) {
         lane_t *lane = get_active_lane_and_clear_error();
         if (!lane)
@@ -1267,54 +1332,6 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
         sync_retract_assist_set(false);
         sync_set_state(SYNC_OFF);
         lane_start(lane, TASK_FEED, FEED_SPS, true, now_ms, 0);
-        cmd_reply("OK", NULL);
-        return true;
-    } else if (!strcmp(cmd, "CU")) {
-        if (!ENABLE_CUTTER) {
-            cmd_reply("ER", "CUTTER_DISABLED");
-            return true;
-        }
-        lane_t *lane = get_active_lane_and_clear_error();
-        if (!lane)
-            return true;
-        lane_t *other = (lane == &g_lane_l1) ? &g_lane_l2 : &g_lane_l1;
-        if (!lane_in_present(lane)) {
-            cmd_reply("ER", "NO_FILAMENT");
-            return true;
-        }
-        if (lane_out_present(other)) {
-            cmd_reply("ER", "OTHER_LANE_ACTIVE");
-            return true;
-        }
-        if (lane->task != TASK_IDLE || g_tc_ctx.state != TC_IDLE) {
-            cmd_reply("ER", "BUSY");
-            return true;
-        }
-        sync_retract_assist_set(false);
-        cutter_start(lane, true, now_ms);
-        cmd_reply("OK", NULL);
-        return true;
-    } else if (!strcmp(cmd, "CX")) {
-        if (!ENABLE_CUTTER) {
-            cmd_reply("ER", "CUTTER_DISABLED");
-            return true;
-        }
-        sync_retract_assist_set(false);
-        cutter_start(NULL, false, now_ms);
-        cmd_reply("OK", NULL);
-        return true;
-    } else if (!strcmp(cmd, "CP")) {
-        if (!ENABLE_CUTTER) {
-            cmd_reply("ER", "CUTTER_DISABLED");
-            return true;
-        }
-        int us = atoi(p);
-        if (us < 400 || us > 2700) {
-            cmd_reply("ER", "ARG");
-            return true;
-        }
-        sync_retract_assist_set(false);
-        cutter_test_us(us);
         cmd_reply("OK", NULL);
         return true;
     } else if (!strcmp(cmd, "MV")) {
