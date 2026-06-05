@@ -6,6 +6,14 @@
 #include <stdio.h>
 #include <string.h>
 
+enum {
+    STATUS_LINE_MAX = 768,
+    BIAS_MILLI_PER_PERCENT = 10,
+    BIAS_MILLI_ROUND_TO_PERCENT = 5,
+};
+
+static const float BUF_PHYSICAL_THRESHOLD_MM = 0.1f;
+
 static const char *buf_status_label(void) {
     /* Type-P: report the PHYSICAL buffer state (fixed thresholds about the
        mechanical centre), not the control classification — the latter is
@@ -13,9 +21,9 @@ static const char *buf_status_label(void) {
        so it would otherwise mislabel a physically-tensioned buffer. Type-D
        uses switches, already physical. */
     if (BUF_SENSOR_TYPE == 1) {
-        buf_state_t phys = (g_buf_pos < -0.1f)  ? BUF_TENSION
-                           : (g_buf_pos > 0.1f) ? BUF_COMPRESSION
-                                                : BUF_NEUTRAL;
+        buf_state_t phys = (g_buf_pos < -BUF_PHYSICAL_THRESHOLD_MM)  ? BUF_TENSION
+                           : (g_buf_pos > BUF_PHYSICAL_THRESHOLD_MM) ? BUF_COMPRESSION
+                                                                     : BUF_NEUTRAL;
         return buf_state_name(phys);
     }
     return buf_state_name(g_buf.state);
@@ -25,7 +33,7 @@ void cmd_handle_status_dump(void) {
     int idx = (active_lane == 2) ? 1 : 0;
     flow_param_t active_flow_param = flow_param((int)extruder_est_sps);
 
-    char b[768];
+    char b[STATUS_LINE_MAX];
     int blen = snprintf(
         b, sizeof(b),
         "LN:%d,TC:%s,L1T:%s,L2T:%s,"
@@ -57,8 +65,10 @@ void cmd_handle_status_dump(void) {
                  (double)sync_reserve_target_mm(), (unsigned)ad_ms, (unsigned)td_ms,
                  (unsigned)g_buf_signal.kind, (double)g_buf_signal.confidence,
                  (double)sync_buf_sigma_mm(), sync_tension_pin_window_count(now_ms),
-                 (active_flow_param.bias_milli + 5) / 10, (int)(g_buf_pos * 100.0f), g_marker_seq,
-                 g_marker_tag, (int)g_sync_refill_effort_mm, (int)g_sync_relieve_effort_mm,
+                 (active_flow_param.bias_milli + BIAS_MILLI_ROUND_TO_PERCENT) /
+                     BIAS_MILLI_PER_PERCENT,
+                 (int)(g_buf_pos * 100.0f), g_marker_seq, g_marker_tag,
+                 (int)g_sync_refill_effort_mm, (int)g_sync_relieve_effort_mm,
                  (double)g_sync_mmu_total_mm, (double)sps_to_mm_per_min_idx(FEED_SPS, idx),
                  (double)sps_to_mm_per_min_idx(REV_SPS, idx));
     }
