@@ -33,7 +33,8 @@
 - [x] 4.4 Replace residual magic numbers with named constants or config-backed tunables (config→`tune.h`→`CONF_*` path for runtime-tunable); build-verify
   - 2026-06-05 validation: replaced opaque control/protocol/persistence/estimator literals with named constants across `toolchange.c`, shared headers, `cutter.c`, `main.c`, `motion.c`, `neopixel.c`, `protocol.c`, `settings_store.c`, split protocol/sync units, `tmc2209.c`, `sync.c`, and `sync_buf.c`; no new runtime tunables or `settings_t` layout changes were introduced. `ninja -C build_local` passed before each code commit. Focused `clang-tidy --checks=-*,readability-magic-numbers -p build_local firmware/src/*.c` shows no project-file magic-number warnings; current invocation still reports host-header lookup errors, tracked for 5.2.
   - Commits: `348c014`, `9201ed7`, `2f380cf`, `b54cd91`, `52114f4`, `ef47a7c`, `62705e3`, `43ee850`, `357cab2`, `1eb518b`, `da83a4a`, `b3b8e86`, `c83642e`, `ae9ce98`, `01333c7`.
-- [ ] 4.5 Update file map in `AGENTS.md` Key Files + `project-architecture` spec for new units
+- [x] 4.5 Update file map in `AGENTS.md` Key Files + `project-architecture` spec for new units
+  - 2026-06-05 validation: added split sync/protocol units and internal headers to `AGENTS.md`; updated active and durable `project-architecture` specs with split-unit ownership scenarios. Docs/spec-only; no build required. `openspec validate code-readability-overhaul --strict` passed.
 
 ## 5. Doc-comments + gate
 

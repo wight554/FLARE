@@ -22,7 +22,8 @@ main loop calling non-blocking module ticks.
 ### Requirement: Module ownership shall stay explicit
 
 Each firmware module SHALL keep ownership aligned with the documented
-architecture boundaries.
+architecture boundaries. Cohesive split units SHALL keep a single domain owner
+and stay listed in the project file map.
 
 #### Scenario: A change affects toolchange behavior
 
@@ -31,6 +32,21 @@ architecture boundaries.
 - **AND** shared declarations belong in module headers or
   `firmware/include/controller_shared.h`
 - **AND** unrelated modules are touched only for required integration points
+
+#### Scenario: Contributors navigate split sync and protocol units
+
+- **WHEN** a change touches sync or protocol behavior
+- **THEN** `firmware/src/sync.c` owns sync orchestration, buffer lock, and boot
+  stabilization
+- **AND** `firmware/src/sync_buf.c` owns buffer sensing, virtual position, signal
+  publishing, and estimator updates
+- **AND** `firmware/src/sync_relay.c` owns Type-D relay control and neutral feed
+  sampling
+- **AND** `firmware/src/sync_analog.c` owns Type-P analog helper/control metrics
+- **AND** `firmware/src/protocol.c` owns command parsing, motion/system commands,
+  and SET/GET dispatch
+- **AND** `firmware/src/protocol_status.c` owns status dump formatting
+- **AND** `firmware/src/protocol_tmc.c` owns advanced TMC serial commands
 
 ### Requirement: Runtime tunables shall follow the full parameter path
 
