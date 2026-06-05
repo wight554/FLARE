@@ -56,6 +56,10 @@ static uint g_servo_chan = 0;
 #define MS_PER_SECOND_F 1000.0f
 #define CUTTER_WATCHDOG_SLACK_MS 1000u
 
+// Hobby-servo PWM: standard 50 Hz frame (20 ms), position set by pulse width
+// (~0.4-2.7 ms here). clkdiv 125 turns the 125 MHz sysclk into a 1 MHz counter,
+// so 1 count = 1 us: wrap = 20000 gives the 20 ms frame and the channel level is
+// the pulse width in microseconds directly (see servo_set_us).
 static void servo_init(uint pin) {
     gpio_set_function(pin, GPIO_FUNC_PWM);
     g_servo_slice = pwm_gpio_to_slice_num(pin);
@@ -218,6 +222,23 @@ static void cutter_tick_feed_wait(uint32_t now_ms, uint32_t age) {
     }
 }
 
+// cutter_state_t transition map. One cut = open the blade, feed a little filament
+// through, close (the cut), reopen, and repeat CUT_AMOUNT times. Every servo move
+// is a "do it" state that arms the servo, followed by a "_WAIT" state that holds
+// until SERVO_SETTLE_MS (failing on a settle/feed timeout). Any timeout calls
+// cutter_fail() -> sets `failed`, parks the blade, returns to CUT_IDLE.
+//
+//   BOOT_PARK/TEST  settle elapsed                 -> IDLE (one-shot servo park)
+//   OPENING         arm open                       -> OPEN_WAIT
+//   OPEN_WAIT       settled                        -> FEEDING        (timeout -> fail)
+//   FEEDING         start feed motor               -> FEED_WAIT
+//   FEED_WAIT       feed window elapsed            -> CLOSING        (feed timeout -> fail)
+//   CLOSING         arm close (the cut)            -> CLOSE_WAIT
+//   CLOSE_WAIT      settled                        -> REOPENING      (timeout -> fail)
+//   REOPENING       arm open                       -> REOPEN_WAIT
+//   REOPEN_WAIT     settled                        -> REPEAT_CHECK   (timeout -> fail)
+//   REPEAT_CHECK    more repeats? -> FEEDING : DONE
+//   DONE            park blade, settle             -> IDLE (emit CUT:DONE)
 void cutter_tick(uint32_t now_ms) {
     uint32_t age = now_ms - g_cut.phase_start_ms;
 

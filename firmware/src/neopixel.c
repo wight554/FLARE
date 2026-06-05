@@ -20,6 +20,7 @@ static uint g_sm;
 #define WS2812_DATA_HZ 800000.0f
 #define WS2812_TX_SHIFT 8u
 
+// WS2812 LEDs expect color bytes in green-red-blue order on the wire, not RGB.
 static inline uint32_t rgb_to_grb(uint8_t red, uint8_t green, uint8_t blue) {
     return ((uint32_t)green << GRB_GREEN_SHIFT) | ((uint32_t)red << GRB_RED_SHIFT) | (uint32_t)blue;
 }
@@ -50,6 +51,9 @@ void neopixel_init(uint pin) {
 }
 
 void neopixel_set(uint8_t red, uint8_t green, uint8_t blue) {
+    // The PIO program shifts out from the MSB of a 24-bit field; left-justify the
+    // GRB value into the top 24 bits of the 32-bit FIFO word so the first bit clocked
+    // out is green bit 7.
     uint32_t grb = rgb_to_grb(red, green, blue);
     pio_sm_put_blocking(g_pio, g_sm, grb << WS2812_TX_SHIFT);
 }

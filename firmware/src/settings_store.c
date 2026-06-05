@@ -355,11 +355,17 @@ void settings_save(void) {
         s.tmc_hold_current_ma[i] = TMC_HOLD_CURRENT_MA[i];
     }
 
+    // CRC covers every field up to (not including) crc32 itself; settings_load
+    // recomputes it and rejects the sector if it doesn't match (corrupt/partial write).
     s.crc32 = crc32_buf((const uint8_t *)&s, offsetof(settings_t, crc32));
 
     uint8_t buffer[SETTINGS_FLASH_BUFFER_BYTES] = {0};
     memcpy(buffer, &s, sizeof(s));
 
+    // Writing flash on the RP2040 stalls code execution from flash (XIP). Stop all
+    // motion first (no steps will be generated during the write), then disable
+    // interrupts so no ISR tries to run from flash mid-erase. Erase the sector,
+    // then program the buffer. Caller must guarantee we are not mid-motion.
     stop_all();
 
     uint32_t ints = save_and_disable_interrupts();
@@ -513,6 +519,10 @@ static void settings_load_sync_reload(const settings_t *s) {
 }
 
 void settings_load(void) {
+    // Read settings straight from memory-mapped flash (XIP). Three guards must all
+    // pass or we fall back to compiled defaults: magic (is this our sector at all),
+    // version (a firmware change that altered settings_t invalidates old layout -
+    // bump SETTINGS_VERSION to force this path), and CRC (intact, fully-written).
     const settings_t *s = (const settings_t *)(XIP_BASE + SETTINGS_FLASH_OFFSET);
 
     if (s->magic != SETTINGS_MAGIC || s->version != SETTINGS_VERSION) {
