@@ -1,3 +1,9 @@
+/// @file neopixel.c
+/// @brief WS2812 status-LED driver via PIO: packs RGB into the GRB wire order and
+///        clocks it out on the PIO state machine.
+/// @details Used by main.c for status indication only. Color/state mapping lives at
+///          the call sites in main.c.
+
 #include "neopixel.h"
 
 #include "hardware/clocks.h"

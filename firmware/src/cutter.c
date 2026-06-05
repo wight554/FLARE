@@ -1,3 +1,9 @@
+/// @file cutter.c
+/// @brief Filament cutter actuation: servo/blade drive sequencing and the
+///        feed-wait/ramp handling around a cut.
+/// @details Driven by toolchange.c during the unload-cut phase. See spec
+///          toolchange-orchestration and cutter-feed-timeout.
+
 #include "cutter.h"
 
 #include <stdio.h>

@@ -1,3 +1,10 @@
+/// @file settings_store.c
+/// @brief Flash-backed persistence: settings_t defaults, save/load, versioning,
+///        and TMC apply helpers.
+/// @details Activity-gated saves (never write flash mid-motion). Bump
+///          SETTINGS_VERSION whenever a settings_t field is added/removed. See spec
+///          persistence-contract; CONTEXT.md settings pattern.
+
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>

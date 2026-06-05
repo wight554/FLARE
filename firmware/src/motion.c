@@ -1,3 +1,10 @@
+/// @file motion.c
+/// @brief Per-lane motion: debounced IN/OUT sensors, stepper helpers, the
+///        acceleration ramp, and the load/unload/feed/move lane tasks.
+/// @details Distance-based safety limits (not time) bound every task; the ramp
+///          slews target->current SPS each tick. See BEHAVIOR.md "Load commands",
+///          "Unload commands", "Motor acceleration ramp", "Dry Spin Protection".
+
 #include "motion.h"
 
 #include "sync.h"

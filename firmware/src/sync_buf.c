@@ -1,3 +1,11 @@
+/// @file sync_buf.c
+/// @brief Buffer sensing for both sensor types: Type-D dual-endstop state, Type-P
+///        analog/Hall read, virtual dead-reckoned position, signal publishing, and
+///        the switch-crossing extruder-demand estimator.
+/// @details Type-D has no analog position, so position is integrated from net
+///          (MMU - extruder) travel and re-anchored at switch crossings. See spec
+///          sync-refactor / sync-feedback; consumed by sync.c, sync_relay.c, sync_analog.c.
+
 #include "config.h"
 #include "controller_shared.h"
 #include "hardware/adc.h"

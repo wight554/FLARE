@@ -1,3 +1,9 @@
+/// @file protocol_status.c
+/// @brief Status-dump formatting: builds the single-line ST: telemetry response
+///        (lane state, buffer, sync, faults) consumed by host tooling.
+/// @details Read-only snapshot of runtime state; no actuation. Field set must stay
+///          in sync with MANUAL.md and scripts/flare_cmd.py --dump.
+
 #include "controller_shared.h"
 #include "protocol.h"
 #include "protocol_internal.h"

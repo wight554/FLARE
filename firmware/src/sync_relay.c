@@ -1,3 +1,11 @@
+/// @file sync_relay.c
+/// @brief Type-D (dual-endstop) feed law: a two-level/hysteretic relay controller
+///        matched to the COMPRESSION/TENSION microswitches, plus neutral-band feed
+///        sampling for the demand estimator.
+/// @details A continuous PI limit-cycles here because there is no feedback between
+///          crossings; the relay law is the correct controller. Polarity: TENSION =
+///          starved -> feed fast; COMPRESSION = reserve -> feed slow. See spec type-d-dynamic-flow.
+
 #include "config.h"
 #include "controller_shared.h"
 #include "motion.h"

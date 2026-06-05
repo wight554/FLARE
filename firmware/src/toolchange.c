@@ -1,3 +1,11 @@
+/// @file toolchange.c
+/// @brief Toolchange + RELOAD orchestration: the tc_state_t state machine that
+///        sequences cut, unload, swap, load, and the RELOAD WAIT_Y->APPROACH->FOLLOW
+///        runout flow. (Transition map documented at the tc_state_t handler.)
+/// @details One owner of cutter/toolchange/RELOAD transitions. Sync is suppressed
+///          while a toolchange or RELOAD runs. See BEHAVIOR.md "Toolchange - TC:";
+///          spec toolchange-orchestration.
+
 #include "toolchange.h"
 
 #include <stdio.h>

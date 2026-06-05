@@ -1,3 +1,10 @@
+/// @file main.c
+/// @brief Top-level firmware entry: hardware init, runtime globals, autopreload,
+///        status LEDs, and the cooperative main-loop that ticks every subsystem.
+/// @details Non-blocking superloop — each tick polls sensors then advances motion,
+///          toolchange, sync, and protocol without blocking. See BEHAVIOR.md
+///          "Boot sequence" and "Autopreload"; ownership in spec project-architecture.
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

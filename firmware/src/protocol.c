@@ -1,3 +1,11 @@
+/// @file protocol.c
+/// @brief USB-CDC serial protocol: line parsing and the motion/system command
+///        handlers plus SET/GET tunable dispatch. Status dump lives in
+///        protocol_status.c; advanced TMC commands in protocol_tmc.c.
+/// @details Wire format CMD:params\n -> OK:.../ER:... replies, EV: events. Reply
+///          semantics (one OK or ER per command) are a contract. See MANUAL.md;
+///          spec project-architecture (serial protocol).
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

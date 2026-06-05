@@ -1,3 +1,10 @@
+/// @file sync.c
+/// @brief Sync orchestration: the per-tick sync controller, buffer-lock service,
+///        boot stabilization, and sync auto-toggle. Buffer sensing lives in
+///        sync_buf.c; Type-D law in sync_relay.c; Type-P law in sync_analog.c.
+/// @details Drives lane feed so the buffer rests in-band against extruder demand.
+///          See BEHAVIOR.md "Buffer Lock", "Sync mode auto-toggle"; spec sync-refactor.
+
 #include "sync_internal.h"
 #include <math.h>
 #include <stdio.h>

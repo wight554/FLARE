@@ -1,3 +1,9 @@
+/// @file tmc2209.c
+/// @brief TMC2209 stepper-driver UART driver: datagram framing, CRC, register
+///        read/write, and current/microstep configuration helpers.
+/// @details Half-duplex single-wire UART per driver. See HARDWARE.md (driver wiring),
+///          MOTOR_PARAMS.md; advanced serial surface in protocol_tmc.c.
+
 #include "tmc2209.h"
 #include "config.h"
 #include "hardware/gpio.h"

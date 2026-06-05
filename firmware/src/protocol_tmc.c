@@ -1,3 +1,9 @@
+/// @file protocol_tmc.c
+/// @brief Advanced TMC2209 serial commands: register-level read/write and current
+///        configuration exposed over the USB-CDC protocol for tuning/diagnostics.
+/// @details Thin command layer over the tmc2209.c UART driver. See MANUAL.md TMC
+///          commands; driver internals in tmc2209.c.
+
 #include "controller_shared.h"
 #include "protocol.h"
 #include "protocol_internal.h"

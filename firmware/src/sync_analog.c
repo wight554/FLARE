@@ -1,3 +1,9 @@
+/// @file sync_analog.c
+/// @brief Type-P (analog / Hall-effect) feed helpers: PD control metrics, compression
+///        wall distance/velocity, and tension-risk windowing off the analog position.
+/// @details Type-P reads buffer position directly, so it uses a proportional-derivative
+///          law (no demand reconstruction). Homes at the tension rail. See spec psf-type-p-sensor.
+
 #include "config.h"
 #include "controller_shared.h"
 #include "motion.h"
