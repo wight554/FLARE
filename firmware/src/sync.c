@@ -1295,29 +1295,7 @@ static bool sync_tick_auto_start_stop(lane_t *lane, uint32_t now_ms, buf_state_t
     return false;
 }
 
-static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *lane) {
-    if (lane && (lane->task == TASK_FEED || lane->task == TASK_IDLE) && lane->fault == FAULT_NONE &&
-        g_sync_state == SYNC_ACTIVE) {
-        if (g_buf.mmu_sps_dwell_samples >= 10000) {
-            g_buf.mmu_sps_dwell_sum /= 2;
-            g_buf.mmu_sps_dwell_samples /= 2;
-        }
-        g_buf.mmu_sps_dwell_sum += (uint32_t)lane_motion_sps(lane);
-        g_buf.mmu_sps_dwell_samples++;
-    }
-    float raw_target = buf_target_reserve_mm();
-    float reserve_deadband_mm = buf_virtual_deadband_mm();
-
-    g_buf_pos_raw_status = g_buf_pos;
-    /* Variance-aware position blend (default OFF) */
-    if (BUF_VARIANCE_BLEND_FRAC > 0.0f && g_buf_sigma_mm > 0.0f) {
-        float sigma_ref = (BUF_VARIANCE_BLEND_REF_MM > 0.05f) ? BUF_VARIANCE_BLEND_REF_MM : 1.0f;
-        float distrust = clamp_f(g_buf_sigma_mm / sigma_ref, 0.0f, 1.0f);
-        float blend = distrust * BUF_VARIANCE_BLEND_FRAC;
-        g_buf_pos = (1.0f - blend) * g_buf_pos + blend * raw_target;
-    }
-
-    /* Effective buffer position with drift correction (default OFF) */
+static float sync_apply_drift_correction(buf_state_t s, float thr, float reserve_deadband_mm) {
     float bp_eff = g_buf_pos;
     float drift_correction_mm = 0.0f;
     int drift_min_samples = BUF_DRIFT_MIN_SAMPLES;
@@ -1331,7 +1309,6 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
             clamp_f((float)g_bp_drift_samples / (float)drift_min_samples, 0.0f, 1.0f);
         drift_correction_mm =
             clamp_f(g_bp_drift_ewma_mm, -BUF_DRIFT_CLAMP_MM, BUF_DRIFT_CLAMP_MM) * sample_frac;
-        float thr = buf_threshold_mm();
         float wall_taper_mm = reserve_deadband_mm * 2.0f;
         if (wall_taper_mm < 0.5f)
             wall_taper_mm = 0.5f;
@@ -1370,6 +1347,66 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
         bp_eff = clamp_f(bp_eff, -thr, thr);
     }
     g_bp_drift_correction_applied_mm = drift_correction_mm;
+    return bp_eff;
+}
+
+static int sync_apply_type_d_probe_floor(buf_state_t s, int target_sps) {
+    float tick_dt_s = (float)SYNC_TICK_MS / 1000.0f;
+    if (s == BUF_TENSION) {
+        g_tension_floor_sps += (float)SYNC_TENSION_PROBE_UP_SPS_PER_S * tick_dt_s;
+    } else if (s == BUF_COMPRESSION) {
+        g_tension_floor_sps -= (float)SYNC_TENSION_PROBE_DOWN_SPS_PER_S * tick_dt_s;
+    } else {
+        /* NEUTRAL is the uncertain state: the buffer may be drifting to
+         * either rail and only a click resolves it. Creep the floor up
+         * (gently) so uncertainty always resolves into a COMPRESSION click
+         * (safe, drains) rather than a metastable drift into TENSION (a
+         * starve). The longer the dwell, the more we lean — uncertainty
+         * grows with time since the last crossing. COMPRESSION then backs
+         * it off, so this is a bounded, compression-biased sawtooth. */
+        g_tension_floor_sps += (float)SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S * tick_dt_s;
+    }
+    if (g_tension_floor_sps > (float)SYNC_TENSION_PROBE_MAX_SPS)
+        g_tension_floor_sps = (float)SYNC_TENSION_PROBE_MAX_SPS;
+    if (g_tension_floor_sps < 0.0f)
+        g_tension_floor_sps = 0.0f;
+
+    if (s == BUF_NEUTRAL) {
+        int floor_sps = (int)g_tension_floor_sps;
+        if (floor_sps > SYNC_MIN_SPS && target_sps < floor_sps)
+            target_sps = floor_sps;
+    }
+    return target_sps;
+}
+
+static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *lane) {
+    if (lane && (lane->task == TASK_FEED || lane->task == TASK_IDLE) && lane->fault == FAULT_NONE &&
+        g_sync_state == SYNC_ACTIVE) {
+        if (g_buf.mmu_sps_dwell_samples >= 10000) {
+            g_buf.mmu_sps_dwell_sum /= 2;
+            g_buf.mmu_sps_dwell_samples /= 2;
+        }
+        g_buf.mmu_sps_dwell_sum += (uint32_t)lane_motion_sps(lane);
+        g_buf.mmu_sps_dwell_samples++;
+    }
+    float raw_target = buf_target_reserve_mm();
+    float reserve_deadband_mm = buf_virtual_deadband_mm();
+
+    g_buf_pos_raw_status = g_buf_pos;
+    /* Variance-aware position blend (default OFF) */
+    if (BUF_VARIANCE_BLEND_FRAC > 0.0f && g_buf_sigma_mm > 0.0f) {
+        float sigma_ref = (BUF_VARIANCE_BLEND_REF_MM > 0.05f) ? BUF_VARIANCE_BLEND_REF_MM : 1.0f;
+        float distrust = clamp_f(g_buf_sigma_mm / sigma_ref, 0.0f, 1.0f);
+        float blend = distrust * BUF_VARIANCE_BLEND_FRAC;
+        g_buf_pos = (1.0f - blend) * g_buf_pos + blend * raw_target;
+    }
+
+    float thr = buf_threshold_mm();
+    if (thr < 0.001f)
+        thr = 0.001f;
+
+    /* Effective buffer position with drift correction (default OFF) */
+    float bp_eff = sync_apply_drift_correction(s, thr, reserve_deadband_mm);
 
     /* Integral reserve centering — active only in BUF_NEUTRAL with adequate confidence */
     bool integral_active = (s == BUF_NEUTRAL) && (SYNC_RESERVE_INTEGRAL_GAIN > 0.0f) &&
@@ -1393,9 +1430,6 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
     }
     float effective_target = raw_target + sync_reserve_integral_mm;
 
-    float thr = buf_threshold_mm();
-    if (thr < 0.001f)
-        thr = 0.001f;
     float pos_norm = (BUF_SENSOR_TYPE == 1) ? g_buf_pos : (bp_eff / thr);
     float target_norm = (BUF_SENSOR_TYPE == 1) ? psf_goal_norm() : (effective_target / thr);
     float error_norm = pos_norm - target_norm;
@@ -1509,33 +1543,91 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
      * NEUTRAL = hold the found level. COMPRESSION (not a timeout) is the
      * recovery-complete signal, so no value of any interval is guessed. */
     if (BUF_SENSOR_TYPE == 0) {
-        float tick_dt_s = (float)SYNC_TICK_MS / 1000.0f;
-        if (s == BUF_TENSION) {
-            g_tension_floor_sps += (float)SYNC_TENSION_PROBE_UP_SPS_PER_S * tick_dt_s;
-        } else if (s == BUF_COMPRESSION) {
-            g_tension_floor_sps -= (float)SYNC_TENSION_PROBE_DOWN_SPS_PER_S * tick_dt_s;
-        } else {
-            /* NEUTRAL is the uncertain state: the buffer may be drifting to
-             * either rail and only a click resolves it. Creep the floor up
-             * (gently) so uncertainty always resolves into a COMPRESSION click
-             * (safe, drains) rather than a metastable drift into TENSION (a
-             * starve). The longer the dwell, the more we lean — uncertainty
-             * grows with time since the last crossing. COMPRESSION then backs
-             * it off, so this is a bounded, compression-biased sawtooth. */
-            g_tension_floor_sps += (float)SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S * tick_dt_s;
-        }
-        if (g_tension_floor_sps > (float)SYNC_TENSION_PROBE_MAX_SPS)
-            g_tension_floor_sps = (float)SYNC_TENSION_PROBE_MAX_SPS;
-        if (g_tension_floor_sps < 0.0f)
-            g_tension_floor_sps = 0.0f;
-
-        if (s == BUF_NEUTRAL) {
-            int floor_sps = (int)g_tension_floor_sps;
-            if (floor_sps > SYNC_MIN_SPS && target_sps < floor_sps)
-                target_sps = floor_sps;
-        }
+        target_sps = sync_apply_type_d_probe_floor(s, target_sps);
     }
     return target_sps;
+}
+
+static int sync_apply_type_p_smoothing(int target_sps, float dt_s) {
+    /* Type-P distance-based smoothing (Happy-Hare-style). Both the target
+       EMA and the slew limit are keyed to filament distance moved this tick,
+       not wall-clock — so feed changes scale with flow and go to zero when
+       the printer is idle, instead of the old time-ramp (flow-blind, 2-tick
+       bang-bang) or the direct apply (snaps to the noisy PD target instantly).
+       "move" = extruder flow demand this tick (the system's distance clock). */
+    uint8_t idx = (active_lane == 2) ? 1 : 0;
+    float move = fabsf(extruder_est_sps) * MM_PER_STEP[idx] * dt_s;
+
+    /* 1. EMA the target over distance: alpha = 1 - exp(-move/L). */
+    float L = (SYNC_PSF_FILTER_MM > 0.01f) ? SYNC_PSF_FILTER_MM : 0.01f;
+    float alpha = 1.0f - expf(-move / L);
+    g_psf_target_filt += alpha * ((float)target_sps - g_psf_target_filt);
+
+    /* 2. Slew-limit the applied rate, clamped so it never overshoots the
+          filtered target (overshoot is what made the old ramp oscillate).
+          Floor the step so a tiny creep is always allowed off idle. */
+    float max_step = SYNC_PSF_SLEW_PER_MM * move;
+    if (max_step < 1.0f)
+        max_step = 1.0f;
+    float cur = (float)sync_current_sps;
+    if (g_psf_target_filt > cur + max_step)
+        cur += max_step;
+    else if (g_psf_target_filt < cur - max_step)
+        cur -= max_step;
+    else
+        cur = g_psf_target_filt;
+
+    /* Overfeed guard: the distance clock (move) freezes the filter when the
+       extruder stops (move -> 0 => alpha, max_step -> 0), holding the feed at
+       the pre-stop rate so the MMU keeps pushing into a stopped extruder and
+       slams COMPRESSION. Feed *drops* are always safe (worst case is a brief
+       tension excursion, which has room), so additionally let the feed fall
+       toward the raw target on wall-clock, independent of flow. Take whichever
+       path is lower and pin the filtered target so it can't re-drive the feed
+       back up while demand stays low. UP is untouched (purely flow-keyed). */
+    if (SYNC_PSF_DECAY_SPS_PER_S > 0.0f) {
+        float wall_cur = cur - SYNC_PSF_DECAY_SPS_PER_S * dt_s;
+        if (wall_cur < (float)target_sps)
+            wall_cur = (float)target_sps;
+        if (wall_cur < cur) {
+            cur = wall_cur;
+            if (g_psf_target_filt > cur)
+                g_psf_target_filt = cur;
+        }
+    }
+    return (int)(cur + 0.5f);
+}
+
+static bool sync_check_continuous_compression(buf_state_t s, uint32_t now_ms) {
+    if (sync_auto_started && !sync_tail_assist_active) {
+        if (s == BUF_COMPRESSION) {
+            // Start or maintain the continuous physical dwell timer
+            if (sync_continuous_compression_since_ms == 0) {
+                sync_continuous_compression_since_ms = now_ms;
+            }
+
+            uint32_t compression_dwell_ms = now_ms - sync_continuous_compression_since_ms;
+
+            // Define a widened floor threshold to ignore PID hunting/noise
+            int effective_floor_sps = sync_compression_floor_sps() + PRE_RAMP_SPS;
+
+            uint32_t floor_timeout_ms = (uint32_t)SYNC_AUTO_STOP_MS;
+
+            if (floor_timeout_ms > 0 && compression_dwell_ms > floor_timeout_ms) {
+                if (sync_current_sps <= effective_floor_sps) {
+                    sync_relief_pause();
+                    extruder_est_last_update_ms = now_ms;
+                    sync_apply_to_active();
+                    cmd_event("SYNC", "RELIEF_PAUSE");
+                    return true;
+                }
+            }
+        } else {
+            // ONLY reset the timer when the arm physically leaves the compression switch
+            sync_continuous_compression_since_ms = 0;
+        }
+    }
+    return false;
 }
 
 static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms, lane_t *lane) {
@@ -1622,54 +1714,8 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
            overshooting into COMPRESSION. */
         g_psf_target_filt = extruder_est_sps;
     } else if (BUF_SENSOR_TYPE == 1) {
-        /* Type-P distance-based smoothing (Happy-Hare-style). Both the target
-           EMA and the slew limit are keyed to filament distance moved this tick,
-           not wall-clock — so feed changes scale with flow and go to zero when
-           the printer is idle, instead of the old time-ramp (flow-blind, 2-tick
-           bang-bang) or the direct apply (snaps to the noisy PD target instantly).
-           "move" = extruder flow demand this tick (the system's distance clock). */
-        uint8_t idx = (active_lane == 2) ? 1 : 0;
         float dt_s = (float)SYNC_TICK_MS / 1000.0f;
-        float move = fabsf(extruder_est_sps) * MM_PER_STEP[idx] * dt_s;
-
-        /* 1. EMA the target over distance: alpha = 1 - exp(-move/L). */
-        float L = (SYNC_PSF_FILTER_MM > 0.01f) ? SYNC_PSF_FILTER_MM : 0.01f;
-        float alpha = 1.0f - expf(-move / L);
-        g_psf_target_filt += alpha * ((float)target_sps - g_psf_target_filt);
-
-        /* 2. Slew-limit the applied rate, clamped so it never overshoots the
-              filtered target (overshoot is what made the old ramp oscillate).
-              Floor the step so a tiny creep is always allowed off idle. */
-        float max_step = SYNC_PSF_SLEW_PER_MM * move;
-        if (max_step < 1.0f)
-            max_step = 1.0f;
-        float cur = (float)sync_current_sps;
-        if (g_psf_target_filt > cur + max_step)
-            cur += max_step;
-        else if (g_psf_target_filt < cur - max_step)
-            cur -= max_step;
-        else
-            cur = g_psf_target_filt;
-
-        /* Overfeed guard: the distance clock (move) freezes the filter when the
-           extruder stops (move -> 0 => alpha, max_step -> 0), holding the feed at
-           the pre-stop rate so the MMU keeps pushing into a stopped extruder and
-           slams COMPRESSION. Feed *drops* are always safe (worst case is a brief
-           tension excursion, which has room), so additionally let the feed fall
-           toward the raw target on wall-clock, independent of flow. Take whichever
-           path is lower and pin the filtered target so it can't re-drive the feed
-           back up while demand stays low. UP is untouched (purely flow-keyed). */
-        if (SYNC_PSF_DECAY_SPS_PER_S > 0.0f) {
-            float wall_cur = cur - SYNC_PSF_DECAY_SPS_PER_S * dt_s;
-            if (wall_cur < (float)target_sps)
-                wall_cur = (float)target_sps;
-            if (wall_cur < cur) {
-                cur = wall_cur;
-                if (g_psf_target_filt > cur)
-                    g_psf_target_filt = cur;
-            }
-        }
-        sync_current_sps = (int)(cur + 0.5f);
+        sync_current_sps = sync_apply_type_p_smoothing(target_sps, dt_s);
     } else if (sync_current_sps > target_sps) {
         sync_current_sps -= ramp_dn_sps;
         if (sync_current_sps < target_sps)
@@ -1682,33 +1728,8 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
 
     sync_current_sps = clamp_i(sync_current_sps, 0, max_sps);
 
-    if (sync_auto_started && !sync_tail_assist_active) {
-        if (s == BUF_COMPRESSION) {
-            // Start or maintain the continuous physical dwell timer
-            if (sync_continuous_compression_since_ms == 0) {
-                sync_continuous_compression_since_ms = now_ms;
-            }
-
-            uint32_t compression_dwell_ms = now_ms - sync_continuous_compression_since_ms;
-
-            // Define a widened floor threshold to ignore PID hunting/noise
-            int effective_floor_sps = sync_compression_floor_sps() + PRE_RAMP_SPS;
-
-            uint32_t floor_timeout_ms = (uint32_t)SYNC_AUTO_STOP_MS;
-
-            if (floor_timeout_ms > 0 && compression_dwell_ms > floor_timeout_ms) {
-                if (sync_current_sps <= effective_floor_sps) {
-                    sync_relief_pause();
-                    extruder_est_last_update_ms = now_ms;
-                    sync_apply_to_active();
-                    cmd_event("SYNC", "RELIEF_PAUSE");
-                    return;
-                }
-            }
-        } else {
-            // ONLY reset the timer when the arm physically leaves the compression switch
-            sync_continuous_compression_since_ms = 0;
-        }
+    if (sync_check_continuous_compression(s, now_ms)) {
+        return;
     }
 
     sync_apply_to_active();
