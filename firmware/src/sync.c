@@ -849,9 +849,8 @@ static void sync_buffer_lock_follow(lane_t *lane, uint32_t now_ms) {
         dt_s = 0.001f;
 
     if (BUF_SENSOR_TYPE == 1) {
-        bool rail_hit = (g_bl_target_state == BUF_TENSION)
-                            ? (g_buf_pos <= -PSF_FOLLOW_RAIL_NORM)
-                            : (g_buf_pos >= PSF_FOLLOW_RAIL_NORM);
+        bool rail_hit = (g_bl_target_state == BUF_TENSION) ? (g_buf_pos <= -PSF_FOLLOW_RAIL_NORM)
+                                                           : (g_buf_pos >= PSF_FOLLOW_RAIL_NORM);
         if (rail_hit) {
             motor_set_rate_sps(&lane->m, 0);
             g_bl_sub_state = BL_LOCKED;
@@ -1085,57 +1084,59 @@ void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t now_ms
     }
 }
 
-static bool sync_tick_gated_checks(lane_t *lane, uint32_t now_ms) {
-    if (BUF_SENSOR_TYPE == 1 && sync_enabled) {
-        /* Gated to active sync: type-P rests at the tension rail (+1.0) whenever
-           unloaded/idle/mid-tube, so this saturation catch must NOT run when the
-           sync loop isn't driving — otherwise the resting home position trips
-           sync_fault_hold() at idle and breaks a manual UL (the buffer is its own
-           normal home, not a starvation fault). Over-tension is only a fault while
-           actively syncing a loaded buffer. */
-        /* 10.1: Velocity-triggered brake on compression slam. Compression is +
-           under the new convention, so a slam toward the compression rail is a
-           POSITIVE velocity spike. */
-        if (g_vel_norm > CONF_PSF_JUMP_NORM_PER_S) {
-            sync_fast_brake_until_ms = now_ms + CONF_PSF_STOP_CONFIRM_MS;
-        }
+static bool sync_tick_type_p_rail_guard(uint32_t now_ms) {
+    if (BUF_SENSOR_TYPE != 1 || !sync_enabled) {
+        return false;
+    }
 
-        /* 10.2: Stop/slowdown classification during brake */
-        bool fast_brake_active =
-            sync_fast_brake_until_ms != 0 && (int32_t)(sync_fast_brake_until_ms - now_ms) > 0;
-        if (fast_brake_active) {
-            if (g_vel_norm < -0.1f) {
-                /* Extruder resumed or buffer recovered (moving back off compression,
-                   toward tension): clear brake, resume PD */
-                sync_fast_brake_until_ms = 0;
-            }
-        } else if (sync_fast_brake_until_ms != 0 &&
-                   (int32_t)(now_ms - sync_fast_brake_until_ms) >= 0) {
-            /* Brake expired: check if pinned */
+    /* Gated to active sync: type-P rests at the tension rail (+1.0) whenever
+       unloaded/idle/mid-tube, so this saturation catch must NOT run when the
+       sync loop isn't driving — otherwise the resting home position trips
+       sync_fault_hold() at idle and breaks a manual UL (the buffer is its own
+       normal home, not a starvation fault). Over-tension is only a fault while
+       actively syncing a loaded buffer. */
+    if (g_vel_norm > CONF_PSF_JUMP_NORM_PER_S) {
+        sync_fast_brake_until_ms = now_ms + CONF_PSF_STOP_CONFIRM_MS;
+    }
+
+    bool fast_brake_active =
+        sync_fast_brake_until_ms != 0 && (int32_t)(sync_fast_brake_until_ms - now_ms) > 0;
+    if (fast_brake_active) {
+        if (g_vel_norm < -0.1f) {
+            /* Extruder resumed or buffer recovered (moving back off compression,
+               toward tension): clear brake, resume PD */
             sync_fast_brake_until_ms = 0;
-            if (g_buf_pos >= 0.99f) {
-                sync_relief_pause();
-                sync_apply_to_active();
-                cmd_event("SYNC", "RELIEF_PAUSE");
-                return true;
-            }
         }
+    } else if (sync_fast_brake_until_ms != 0 && (int32_t)(now_ms - sync_fast_brake_until_ms) >= 0) {
+        sync_fast_brake_until_ms = 0;
+        if (g_buf_pos >= 0.99f) {
+            sync_relief_pause();
+            sync_apply_to_active();
+            cmd_event("SYNC", "RELIEF_PAUSE");
+            return true;
+        }
+    }
 
-        /* 10.3: Saturation-sustained relief/fault triggers */
-        if (g_buf_analog_saturated_since_ms != 0 &&
-            (now_ms - g_buf_analog_saturated_since_ms) >= CONF_PSF_WALL_SAT_MS) {
-            if (g_buf_pos >= 0.99f) {
-                sync_relief_pause();
-                sync_apply_to_active();
-                cmd_event("SYNC", "RELIEF_PAUSE");
-                return true;
-            } else if (g_buf_pos <= -0.99f) {
-                sync_fault_hold();
-                sync_apply_to_active();
-                cmd_event("SYNC", "FAULT_HOLD");
-                return true;
-            }
+    if (g_buf_analog_saturated_since_ms != 0 &&
+        (now_ms - g_buf_analog_saturated_since_ms) >= CONF_PSF_WALL_SAT_MS) {
+        if (g_buf_pos >= 0.99f) {
+            sync_relief_pause();
+            sync_apply_to_active();
+            cmd_event("SYNC", "RELIEF_PAUSE");
+            return true;
+        } else if (g_buf_pos <= -0.99f) {
+            sync_fault_hold();
+            sync_apply_to_active();
+            cmd_event("SYNC", "FAULT_HOLD");
+            return true;
         }
+    }
+    return false;
+}
+
+static bool sync_tick_gated_checks(lane_t *lane, uint32_t now_ms) {
+    if (sync_tick_type_p_rail_guard(now_ms)) {
+        return true;
     }
 
     if (g_sync_state == SYNC_FAULT_HOLD) {
@@ -1433,7 +1434,7 @@ static int sync_apply_compression_recovery_cap(buf_state_t s, int target_sps, ui
     return target_sps;
 }
 
-static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *lane) {
+static void sync_sample_mmu_dwell(lane_t *lane) {
     if (lane && (lane->task == TASK_FEED || lane->task == TASK_IDLE) && lane->fault == FAULT_NONE &&
         g_sync_state == SYNC_ACTIVE) {
         if (g_buf.mmu_sps_dwell_samples >= 10000) {
@@ -1443,26 +1444,10 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
         g_buf.mmu_sps_dwell_sum += (uint32_t)lane_motion_sps(lane);
         g_buf.mmu_sps_dwell_samples++;
     }
-    float raw_target = buf_target_reserve_mm();
-    float reserve_deadband_mm = buf_virtual_deadband_mm();
+}
 
-    g_buf_pos_raw_status = g_buf_pos;
-    /* Variance-aware position blend (default OFF) */
-    if (BUF_VARIANCE_BLEND_FRAC > 0.0f && g_buf_sigma_mm > 0.0f) {
-        float sigma_ref = (BUF_VARIANCE_BLEND_REF_MM > 0.05f) ? BUF_VARIANCE_BLEND_REF_MM : 1.0f;
-        float distrust = clamp_f(g_buf_sigma_mm / sigma_ref, 0.0f, 1.0f);
-        float blend = distrust * BUF_VARIANCE_BLEND_FRAC;
-        g_buf_pos = (1.0f - blend) * g_buf_pos + blend * raw_target;
-    }
-
-    float thr = buf_threshold_mm();
-    if (thr < 0.001f)
-        thr = 0.001f;
-
-    /* Effective buffer position with drift correction (default OFF) */
-    float bp_eff = sync_apply_drift_correction(s, thr, reserve_deadband_mm);
-
-    /* Integral reserve centering — active only in BUF_NEUTRAL with adequate confidence */
+static float sync_effective_reserve_target(buf_state_t s, float bp_eff, float raw_target,
+                                           uint32_t now_ms) {
     bool integral_active = (s == BUF_NEUTRAL) && (SYNC_RESERVE_INTEGRAL_GAIN > 0.0f) &&
                            (g_buf_signal.confidence >= 0.7f);
     if (integral_active) {
@@ -1482,7 +1467,31 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
             cmd_event("SYNC", "TENSION_DWELL_WARN");
         }
     }
-    float effective_target = raw_target + sync_reserve_integral_mm;
+    return raw_target + sync_reserve_integral_mm;
+}
+
+static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *lane) {
+    sync_sample_mmu_dwell(lane);
+    float raw_target = buf_target_reserve_mm();
+    float reserve_deadband_mm = buf_virtual_deadband_mm();
+
+    g_buf_pos_raw_status = g_buf_pos;
+    /* Variance-aware position blend (default OFF) */
+    if (BUF_VARIANCE_BLEND_FRAC > 0.0f && g_buf_sigma_mm > 0.0f) {
+        float sigma_ref = (BUF_VARIANCE_BLEND_REF_MM > 0.05f) ? BUF_VARIANCE_BLEND_REF_MM : 1.0f;
+        float distrust = clamp_f(g_buf_sigma_mm / sigma_ref, 0.0f, 1.0f);
+        float blend = distrust * BUF_VARIANCE_BLEND_FRAC;
+        g_buf_pos = (1.0f - blend) * g_buf_pos + blend * raw_target;
+    }
+
+    float thr = buf_threshold_mm();
+    if (thr < 0.001f)
+        thr = 0.001f;
+
+    /* Effective buffer position with drift correction (default OFF) */
+    float bp_eff = sync_apply_drift_correction(s, thr, reserve_deadband_mm);
+
+    float effective_target = sync_effective_reserve_target(s, bp_eff, raw_target, now_ms);
 
     float pos_norm = (BUF_SENSOR_TYPE == 1) ? g_buf_pos : (bp_eff / thr);
     float target_norm = (BUF_SENSOR_TYPE == 1) ? psf_goal_norm() : (effective_target / thr);
@@ -1643,6 +1652,26 @@ static bool sync_check_continuous_compression(buf_state_t s, uint32_t now_ms) {
     return false;
 }
 
+static int sync_type_d_compression_drain_target(int max_sps, lane_t *lane) {
+    int demand_sps = (int)extruder_est_sps;
+    int idle_threshold_sps = SYNC_MIN_SPS;
+    if (idle_threshold_sps < 1)
+        idle_threshold_sps = 1;
+    if (lane && lane->task == TASK_FEED && demand_sps > idle_threshold_sps &&
+        SYNC_COMPRESSION_DRAIN_FRAC > 0.0f &&
+        g_sync_relieve_effort_mm < SYNC_COMPRESSION_DRAIN_BUDGET_MM) {
+        int drain_sps = (int)((float)demand_sps * SYNC_COMPRESSION_DRAIN_FRAC);
+        if (drain_sps < 0)
+            drain_sps = 0;
+        if (drain_sps > max_sps)
+            drain_sps = max_sps;
+        if (drain_sps >= demand_sps)
+            drain_sps = demand_sps - 1;
+        return drain_sps;
+    }
+    return 0;
+}
+
 static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms, lane_t *lane) {
     bool compression_wall_critical = false;
     if (BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION) {
@@ -1679,24 +1708,7 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
      * still drains off the compression rail. Idle/end-of-feed remains a true
      * zero to preserve purge no-grind behavior. */
     else if (BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION) {
-        int demand_sps = (int)extruder_est_sps;
-        int idle_threshold_sps = SYNC_MIN_SPS;
-        if (idle_threshold_sps < 1)
-            idle_threshold_sps = 1;
-        if (lane && lane->task == TASK_FEED && demand_sps > idle_threshold_sps &&
-            SYNC_COMPRESSION_DRAIN_FRAC > 0.0f &&
-            g_sync_relieve_effort_mm < SYNC_COMPRESSION_DRAIN_BUDGET_MM) {
-            int drain_sps = (int)((float)demand_sps * SYNC_COMPRESSION_DRAIN_FRAC);
-            if (drain_sps < 0)
-                drain_sps = 0;
-            if (drain_sps > max_sps)
-                drain_sps = max_sps;
-            if (drain_sps >= demand_sps)
-                drain_sps = demand_sps - 1;
-            target_sps = drain_sps;
-        } else {
-            target_sps = 0;
-        }
+        target_sps = sync_type_d_compression_drain_target(max_sps, lane);
     } else
         target_sps = clamp_i(target_sps, SYNC_MIN_SPS, max_sps);
 
