@@ -184,6 +184,27 @@ void cutter_test_us(uint32_t us) {
     g_cut.phase_start_ms = to_ms_since_boot(get_absolute_time());
 }
 
+static void cutter_tick_feed_wait(uint32_t now_ms, uint32_t age) {
+    if (g_cut.lane && g_cut.current_sps < CUT_FEED_SPS) {
+        if ((int32_t)(now_ms - g_cut.ramp_last_ms) >= RAMP_TICK_MS) {
+            g_cut.current_sps += RAMP_STEP_SPS;
+            if (g_cut.current_sps > CUT_FEED_SPS)
+                g_cut.current_sps = CUT_FEED_SPS;
+            motor_set_rate_sps(&g_cut.lane->m, g_cut.current_sps);
+            g_cut.ramp_last_ms = now_ms;
+        }
+    }
+    if (age >= g_cut.feed_active_ms) {
+        if (g_cut.lane && g_cut.feed_active_ms > 0) {
+            motor_stop(&g_cut.lane->m);
+        }
+        g_cut.phase_start_ms = now_ms;
+        g_cut.state = CUT_CLOSING;
+    } else if (age > (uint32_t)CUT_TIMEOUT_FEED_MS) {
+        cutter_fail("FEED_TIMEOUT");
+    }
+}
+
 void cutter_tick(uint32_t now_ms) {
     uint32_t age = now_ms - g_cut.phase_start_ms;
 
@@ -221,24 +242,7 @@ void cutter_tick(uint32_t now_ms) {
         break;
 
     case CUT_FEED_WAIT:
-        if (g_cut.lane && g_cut.current_sps < CUT_FEED_SPS) {
-            if ((int32_t)(now_ms - g_cut.ramp_last_ms) >= RAMP_TICK_MS) {
-                g_cut.current_sps += RAMP_STEP_SPS;
-                if (g_cut.current_sps > CUT_FEED_SPS)
-                    g_cut.current_sps = CUT_FEED_SPS;
-                motor_set_rate_sps(&g_cut.lane->m, g_cut.current_sps);
-                g_cut.ramp_last_ms = now_ms;
-            }
-        }
-        if (age >= g_cut.feed_active_ms) {
-            if (g_cut.lane && g_cut.feed_active_ms > 0) {
-                motor_stop(&g_cut.lane->m);
-            }
-            g_cut.phase_start_ms = now_ms;
-            g_cut.state = CUT_CLOSING;
-        } else if (age > (uint32_t)CUT_TIMEOUT_FEED_MS) {
-            cutter_fail("FEED_TIMEOUT");
-        }
+        cutter_tick_feed_wait(now_ms, age);
         break;
 
     case CUT_CLOSING:
