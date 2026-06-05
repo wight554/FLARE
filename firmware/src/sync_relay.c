@@ -31,7 +31,7 @@ uint16_t g_type_d_neutral_flat_feed_samples = 0;
 void relay_on_transition(buf_state_t new_state, uint32_t now_ms) {
     (void)new_state;
     (void)now_ms;
-    if (BUF_SENSOR_TYPE != 0)
+    if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_D)
         return;
     g_relay_flip_travel_since_mm = 0.0f;
 }
@@ -45,7 +45,7 @@ void type_d_neutral_feed_reset(void) {
 
 void type_d_neutral_feed_sample(buf_state_t s, float pos_norm, float target_norm,
                                 float deadband_norm) {
-    if (BUF_SENSOR_TYPE != 0 || s != BUF_NEUTRAL || g_sync_state != SYNC_ACTIVE)
+    if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_D || s != BUF_NEUTRAL || g_sync_state != SYNC_ACTIVE)
         return;
     if (sync_current_sps <= 0)
         return;
@@ -101,7 +101,7 @@ void relay_neutral_trim_clamp(void) {
 }
 
 void relay_neutral_trim_leak(buf_state_t s, uint32_t now_ms) {
-    if (BUF_SENSOR_TYPE != 0 || s != BUF_NEUTRAL || g_sync_state != SYNC_ACTIVE ||
+    if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_D || s != BUF_NEUTRAL || g_sync_state != SYNC_ACTIVE ||
         g_relay_neutral_trim_sps == 0.0f) {
         g_relay_trim_last_leak_ms = now_ms;
         return;

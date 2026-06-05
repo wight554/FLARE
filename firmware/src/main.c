@@ -507,7 +507,7 @@ static void settle_boot_sensors(void) {
         debounced_input_update(&g_y_split);
         debounced_input_update(&g_buf_tension_din);
         debounced_input_update(&g_buf_compression_din);
-        if (BUF_SENSOR_TYPE == 1) {
+        if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
             buf_analog_update();
         }
         sleep_ms(1);

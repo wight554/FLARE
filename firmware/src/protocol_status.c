@@ -26,7 +26,7 @@ static const char *buf_status_label(void) {
        centred on the active goal (which the BL override can park at a rail),
        so it would otherwise mislabel a physically-tensioned buffer. Type-D
        uses switches, already physical. */
-    if (BUF_SENSOR_TYPE == 1) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
         buf_state_t phys = (g_buf_pos < -BUF_PHYSICAL_THRESHOLD_MM)  ? BUF_TENSION
                            : (g_buf_pos > BUF_PHYSICAL_THRESHOLD_MM) ? BUF_COMPRESSION
                                                                      : BUF_NEUTRAL;

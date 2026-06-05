@@ -315,7 +315,7 @@ static void lane_tick_unload(lane_t *lane, uint32_t now_ms, const char *lane_s) 
            position alone — so type-P uses no position-based relief/block and
            relies on the UNLOAD_MAX distance limit (UNLOAD_TIMEOUT) below for
            the stuck case. */
-        bool buf_recover_due = (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION);
+        bool buf_recover_due = (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && g_buf.state == BUF_TENSION);
 
         if (lane->unload_sensor_latch && !lane->unload_to_in) {
             float moved_mm = lane->task_dist_mm - lane->dist_at_out_mm;
@@ -375,7 +375,7 @@ static void lane_tick_unload(lane_t *lane, uint32_t now_ms, const char *lane_s) 
            Exception: when BOTH OUT sensors are active (double-load recovery)
            the buffer tension is caused by the OTHER lane being printed, not
            by the printer blocking THIS lane.  Skip the check in that case. */
-        if (BUF_SENSOR_TYPE == 0 && UNLOAD_TENSION_BLOCK_MS > 0 && !lane->unload_to_in &&
+        if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && UNLOAD_TENSION_BLOCK_MS > 0 && !lane->unload_to_in &&
             !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
             if (g_buf.state == BUF_TENSION) {
                 if (lane->buf_tension_since_ms == 0)
@@ -424,7 +424,7 @@ static void lane_tick_load_full(lane_t *lane, uint32_t now_ms, const char *lane_
         }
     }
 
-    bool buf_tension_sane = (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION);
+    bool buf_tension_sane = (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && g_buf.state == BUF_TENSION);
     bool buf_compression_sane = false;
     if (lane->unload_sensor_latch) {
         float dist_since_out = lane->task_dist_mm - lane->dist_at_out_mm;
@@ -434,14 +434,14 @@ static void lane_tick_load_full(lane_t *lane, uint32_t now_ms, const char *lane_
         /* For Type-P, we do not require the distance bypass gate because we have continuous
            analog tracking and the buffer won't deviate from home (1.0) until filament hits the
            gears. */
-        if (BUF_SENSOR_TYPE == 1) {
+        if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
             distance_passed = true;
         }
 
         if (!distance_passed) {
             buf_tension_sane = false;
         } else {
-            if (BUF_SENSOR_TYPE == 1) {
+            if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
                 if (g_buf_pos > PSF_LOAD_CONTACT_THRESHOLD_NORM) {
                     buf_compression_sane = true;
                 }
@@ -459,7 +459,7 @@ static void lane_tick_load_full(lane_t *lane, uint32_t now_ms, const char *lane_
         lane->load_completed = true;
         lane_stop(lane);
         cmd_event("LOADED", lane_s);
-        if (AUTO_MODE && BUF_SENSOR_TYPE == 0) {
+        if (AUTO_MODE && BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D) {
             /* Type-D: engage sync immediately on load completion. Type-P: do
                NOT force SYNC_ACTIVE here — the buffer is at COMPRESSION right
                after the tip hits the gears, and the continuous controller would
@@ -468,7 +468,7 @@ static void lane_tick_load_full(lane_t *lane, uint32_t now_ms, const char *lane_
             sync_set_state(SYNC_ACTIVE);
             sync_auto_started = true;
             sync_idle_since_ms = 0;
-        } else if (BUF_SENSOR_TYPE == 1) {
+        } else if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
             /* Type-P: confidently loaded now (gear contact / toolhead), so park
                the buffer at goal. Presence-gated; self-aborts (~200 ms,
                BUF_STAB:STAGNANT_TIMEOUT) if the buffer doesn't track the MMU —
@@ -497,7 +497,7 @@ static void lane_tick_load_full(lane_t *lane, uint32_t now_ms, const char *lane_
 }
 
 static void lane_tick_move(lane_t *lane, uint32_t now_ms, const char *lane_s) {
-    if (!lane->move_ignore_buffer && BUF_SENSOR_TYPE == 0) {
+    if (!lane->move_ignore_buffer && BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D) {
         if (lane->task_forward && g_buf.state == BUF_COMPRESSION) {
             lane_stop(lane);
             lane->fault = FAULT_BUF;

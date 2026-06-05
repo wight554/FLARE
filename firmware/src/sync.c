@@ -196,7 +196,7 @@ bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events,
         return true;
     if (!buffer_stabilize_controller_idle())
         return false;
-    if (BUF_SENSOR_TYPE != 0) {
+    if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_D) {
         /* D23 Gate A: type-P idle stabilize. Drive toward goal via the shared
            goal-relative path below (buf_state_raw() zones pick direction, the
            stabilize tick stops at BUF_NEUTRAL = near goal), but only when
@@ -276,7 +276,7 @@ void boot_stabilize_start(uint32_t now_ms) {
 }
 
 static bool boot_stabilize_tick_type_p(uint32_t now_ms) {
-    if (BUF_SENSOR_TYPE != 1)
+    if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_P)
         return false;
 
     if (g_boot_stabilizing) {
@@ -614,7 +614,7 @@ int sync_neutral_anti_tension_floor_sps(buf_state_t s, lane_t *lane, float error
         return 0;
     (void)now_ms;
 
-    if (BUF_SENSOR_TYPE == 0) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D) {
         if (error_norm >= -deadband_norm)
             return 0;
 
@@ -769,7 +769,7 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
      * so a full-speed SYNC_MAX_SPS prime overshoots PSF_HOME_THRESHOLD_NORM and
      * slams the rail before the motor reads the threshold and stops. Type-D
      * (switch) is bang-bang — the click stops it instantly, so full speed is fine. */
-    int prime_sps = (BUF_SENSOR_TYPE == 1) ? sync_clamp_max_sps(BUF_STAB_SPS)
+    int prime_sps = (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) ? sync_clamp_max_sps(BUF_STAB_SPS)
                                            : sync_clamp_max_sps(SYNC_MAX_SPS);
     float mm_per_s = (float)prime_sps * MM_PER_STEP[idx];
     float max_cap_mm =
@@ -824,7 +824,7 @@ bool sync_buffer_lock_motor_moving(void) {
 
 static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
     bool reached = false;
-    if (BUF_SENSOR_TYPE == 1) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
         if (g_bl_target_state == BUF_TENSION)
             reached = (g_buf_pos <= -PSF_HOME_THRESHOLD_NORM);
         else if (g_bl_target_state == BUF_COMPRESSION)
@@ -874,7 +874,7 @@ static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
 static void sync_buffer_lock_locked(lane_t *lane, uint32_t now_ms) {
     if (g_bl_follow_mm > 0.0f) {
         bool lock_broken = false;
-        if (BUF_SENSOR_TYPE == 1) {
+        if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
             if (g_bl_target_state == BUF_TENSION)
                 lock_broken = (g_buf_pos > -PSF_HOME_THRESHOLD_NORM);
             else if (g_bl_target_state == BUF_COMPRESSION)
@@ -925,7 +925,7 @@ static void sync_buffer_lock_follow(lane_t *lane, uint32_t now_ms) {
     if (dt_s > BL_FOLLOW_DT_MAX_S)
         dt_s = BL_FOLLOW_DT_FALLBACK_S;
 
-    if (BUF_SENSOR_TYPE == 1) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
         bool rail_hit = (g_bl_target_state == BUF_TENSION) ? (g_buf_pos <= -PSF_FOLLOW_RAIL_NORM)
                                                            : (g_buf_pos >= PSF_FOLLOW_RAIL_NORM);
         if (rail_hit) {
@@ -1170,7 +1170,7 @@ void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t now_ms
 }
 
 static bool sync_tick_type_p_rail_guard(uint32_t now_ms) {
-    if (BUF_SENSOR_TYPE != 1 || !sync_enabled) {
+    if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_P || !sync_enabled) {
         return false;
     }
 
@@ -1234,7 +1234,7 @@ static bool sync_tick_gated_checks(lane_t *lane, uint32_t now_ms) {
              * drains to COMPRESSION, never TENSION). Reseed the model to the
              * reserve target and re-enter ACTIVE directly, bootstrapped at
              * the baseline floor (F2b) so there is no overshoot. */
-            if (BUF_SENSOR_TYPE == 0)
+            if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D)
                 g_buf_pos = buf_target_reserve_mm();
             g_buf.state = BUF_NEUTRAL;
             g_buf.entered_ms = now_ms;
@@ -1270,12 +1270,12 @@ static bool sync_tick_gated_checks(lane_t *lane, uint32_t now_ms) {
              * or TENSION during feed. */
             buf_state_t s = g_buf.state;
             bool relief_rearm =
-                (BUF_SENSOR_TYPE == 0)
+                (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D)
                     ? (s == BUF_TENSION || (s == BUF_NEUTRAL && lane->task == TASK_FEED))
                     : ((g_buf_pos < TYPE_P_AUTO_START_POS_NORM) &&
                        (g_sync_tension_transitioned || g_vel_norm < TYPE_P_AUTO_START_VEL_NORM));
             if (relief_rearm) {
-                if (BUF_SENSOR_TYPE == 0)
+                if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D)
                     g_buf_pos = buf_target_reserve_mm();
                 sync_current_sps = sync_bootstrap_sps();
                 sync_tension_pin_since_ms = (g_buf.state == BUF_TENSION) ? now_ms : 0;
@@ -1320,7 +1320,7 @@ static bool sync_tick_auto_start_stop(lane_t *lane, uint32_t now_ms, buf_state_t
        extruder pulling still makes it fall. A static rest at home (-1.0) has
        vel~0, so this stays gated there (D18). */
     bool is_tension_active =
-        (BUF_SENSOR_TYPE == 1)
+        (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P)
             ? ((g_buf_pos < TYPE_P_AUTO_START_POS_NORM) &&
                (g_sync_tension_transitioned || g_vel_norm < TYPE_P_AUTO_START_VEL_NORM))
             : (s == BUF_TENSION);
@@ -1474,7 +1474,7 @@ static int sync_check_tension_dwell_and_ramp(buf_state_t s, int target_sps, uint
         /* RELAY: TENSION switch contact is the normal "buffer empty, refill"
          * signal, not a fault. Only fault-hold on tension dwell in analog
          * mode; the type-D relay catch-up path refills it. */
-        if (BUF_SENSOR_TYPE != 0 && SYNC_TENSION_DWELL_STOP_MS > 0 &&
+        if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_D && SYNC_TENSION_DWELL_STOP_MS > 0 &&
             tension_dwell_ms >= (uint32_t)SYNC_TENSION_DWELL_STOP_MS) {
             sync_fault_hold();
             extruder_est_last_update_ms = now_ms;
@@ -1493,7 +1493,7 @@ static int sync_check_tension_dwell_and_ramp(buf_state_t s, int target_sps, uint
 }
 
 static int sync_apply_compression_recovery_cap(buf_state_t s, int target_sps, uint32_t now_ms) {
-    if (BUF_SENSOR_TYPE == 0 && sync_compression_recovery_active) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && sync_compression_recovery_active) {
         uint32_t compression_recovery_ms = now_ms - g_buf.entered_ms;
         int compression_floor_sps = sync_compression_floor_sps();
         int kp_window = sync_effective_kp_sps(s);
@@ -1600,25 +1600,25 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
 
     float effective_target = sync_effective_reserve_target(s, bp_eff, raw_target, now_ms);
 
-    float pos_norm = (BUF_SENSOR_TYPE == 1) ? g_buf_pos : (bp_eff / thr);
-    float target_norm = (BUF_SENSOR_TYPE == 1) ? psf_goal_norm() : (effective_target / thr);
+    float pos_norm = (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) ? g_buf_pos : (bp_eff / thr);
+    float target_norm = (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) ? psf_goal_norm() : (effective_target / thr);
     float error_norm = pos_norm - target_norm;
     float deadband_norm =
-        (BUF_SENSOR_TYPE == 1) ? TYPE_D_DEADBAND_NORM : (reserve_deadband_mm / thr);
+        (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) ? TYPE_D_DEADBAND_NORM : (reserve_deadband_mm / thr);
 
-    if (BUF_SENSOR_TYPE == 0) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D) {
         type_d_neutral_feed_sample(s, pos_norm, target_norm, deadband_norm);
         relay_neutral_trim_leak(s, now_ms);
     }
 
     int target_sps;
-    if (BUF_SENSOR_TYPE == 0) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D) {
         target_sps = relay_control_law(s);
     } else {
         target_sps = psf_control_law(error_norm);
     }
     int type_d_neutral_relay_floor_sps =
-        (BUF_SENSOR_TYPE == 0 && s == BUF_NEUTRAL && error_norm < -deadband_norm) ? target_sps : 0;
+        (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && s == BUF_NEUTRAL && error_norm < -deadband_norm) ? target_sps : 0;
 
     /* RAMPING BIAS: If we don't know where we are, raise speed a little bit
      * until we touch compression. This probe speed (up to ~150mm/min) ensures
@@ -1663,7 +1663,7 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
      * TENSION = still starved -> probe up; COMPRESSION = overfed -> ease down;
      * NEUTRAL = hold the found level. COMPRESSION (not a timeout) is the
      * recovery-complete signal, so no value of any interval is guessed. */
-    if (BUF_SENSOR_TYPE == 0) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D) {
         target_sps = sync_apply_type_d_probe_floor(s, target_sps);
     }
     return target_sps;
@@ -1774,7 +1774,7 @@ static int sync_type_d_compression_drain_target(int max_sps, lane_t *lane) {
 
 static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms, lane_t *lane) {
     bool compression_wall_critical = false;
-    if (BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && s == BUF_COMPRESSION) {
         float compression_push_mm_s = sync_compression_wall_velocity_mm_s(lane);
         float compression_wall_ms = sync_compression_wall_time_ms(lane);
         compression_wall_critical = compression_push_mm_s > SYNC_COMPRESSION_HARD_PUSH_MM_S &&
@@ -1785,7 +1785,7 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
      * fired in type-D mode and was manufacturing the FAULT_HOLD ->
      * recovery-slam cycle. Suppress it in relay mode; the relay stop state
      * drains the full buffer off the compression wall. */
-    if (compression_wall_critical && BUF_SENSOR_TYPE != 0) {
+    if (compression_wall_critical && BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_D) {
         sync_fault_hold();
         extruder_est_last_update_ms = now_ms;
         sync_apply_to_active();
@@ -1807,13 +1807,13 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
      * feed a bounded fraction of demand, strictly below demand, so the buffer
      * still drains off the compression rail. Idle/end-of-feed remains a true
      * zero to preserve purge no-grind behavior. */
-    else if (BUF_SENSOR_TYPE == 0 && s == BUF_COMPRESSION) {
+    else if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && s == BUF_COMPRESSION) {
         target_sps = sync_type_d_compression_drain_target(max_sps, lane);
     } else
         target_sps = clamp_i(target_sps, SYNC_MIN_SPS, max_sps);
 
     int ramp_dn_sps = SYNC_RAMP_DN_SPS;
-    if (BUF_SENSOR_TYPE == 0 && !fast_brake_active && sync_compression_recovery_active &&
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && !fast_brake_active && sync_compression_recovery_active &&
         s == BUF_COMPRESSION) {
         uint32_t compression_recovery_ms = now_ms - g_buf.entered_ms;
         if (compression_recovery_ms > SYNC_COMPRESSION_COLLAPSE_DELAY_MS) {
@@ -1824,7 +1824,7 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
     if (fast_brake_active) {
         sync_current_sps = 0;
         g_psf_target_filt = 0.0f;
-    } else if (BUF_SENSOR_TYPE == 1 && buf_pos_norm() < -CONF_PSF_SOFT_WALL_START &&
+    } else if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P && buf_pos_norm() < -CONF_PSF_SOFT_WALL_START &&
                target_sps > sync_current_sps) {
         /* Urgent refill: the buffer is starved into the TENSION soft-wall zone and
            the distance-EMA below is far too slow to ramp feed before it slams the
@@ -1838,7 +1838,7 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
            eases to the extruder rate instead of staying pinned at max and
            overshooting into COMPRESSION. */
         g_psf_target_filt = extruder_est_sps;
-    } else if (BUF_SENSOR_TYPE == 1) {
+    } else if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
         float dt_s = (float)SYNC_TICK_MS / MS_PER_SECOND_F;
         sync_current_sps = sync_apply_type_p_smoothing(target_sps, dt_s);
     } else if (sync_current_sps > target_sps) {

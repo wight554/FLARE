@@ -399,7 +399,7 @@ static void tc_tick_reload_approach(lane_t *lane, uint32_t now_ms, uint32_t age)
     }
 
     bool contacted = false;
-    if (BUF_SENSOR_TYPE == 1) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
         contacted = (g_buf_pos < PSF_HOME_DEVIATION_THRESHOLD_NORM);
     } else {
         contacted = (g_buf.state == BUF_COMPRESSION);

@@ -200,6 +200,13 @@ extern int TMC_TOFF[NUM_LANES];
 extern int TMC_HSTRT[NUM_LANES];
 extern int TMC_HEND[NUM_LANES];
 extern bool TMC_INTERPOLATE[NUM_LANES];
+/// @brief Sync-Feedback Sensor type values for BUF_SENSOR_TYPE.
+/// Kept as plain ints (BUF_SENSOR_TYPE is a config-backed runtime int persisted
+/// in flash), but named so call sites read intent instead of a bare 0/1.
+enum {
+    BUF_SENSOR_TYPE_D = 0, ///< dual-endstop (two microswitches)
+    BUF_SENSOR_TYPE_P = 1  ///< proportional analog / Hall-effect
+};
 /// @brief Sync-Feedback Sensor type: D=0 dual-switch, P=1 proportional analog.
 extern int BUF_SENSOR_TYPE;
 extern int BUF_HOME_STATE;

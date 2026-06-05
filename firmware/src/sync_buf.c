@@ -139,7 +139,7 @@ float buf_threshold_mm(void) {
 float buf_target_reserve_mm(void) {
     float threshold = buf_threshold_mm();
     float pct = (float)SYNC_RESERVE_PCT / RESERVE_PCT_DIVISOR_F;
-    if (BUF_SENSOR_TYPE == 0) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D) {
         return clamp_f(threshold * pct, 0.0f, threshold * COMPRESSION_RESERVE_CAP_FRAC);
     }
 
@@ -183,7 +183,7 @@ float buf_virtual_deadband_mm(void) {
 // ============================================================================
 
 void buf_anchor_virtual_position(buf_state_t old_state, buf_state_t new_state) {
-    if (BUF_SENSOR_TYPE != 0)
+    if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_D)
         return;
 
     float threshold = buf_threshold_mm();
@@ -200,7 +200,7 @@ void buf_anchor_virtual_position(buf_state_t old_state, buf_state_t new_state) {
 }
 
 void buf_virtual_position_tick(lane_t *lane, uint32_t elapsed_ms) {
-    if (BUF_SENSOR_TYPE != 0 || elapsed_ms == 0)
+    if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_D || elapsed_ms == 0)
         return;
 
     float threshold = buf_threshold_mm();
@@ -317,7 +317,7 @@ void neutral_creep_update(buf_state_t s, lane_t *lane, uint32_t now_ms) {
 int sync_apply_scaling(int base_sps, float target_norm, float pos_norm) {
     int target = base_sps;
 
-    float deadband_norm = (BUF_SENSOR_TYPE == 1) ? TYPE_P_DEADBAND_NORM
+    float deadband_norm = (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) ? TYPE_P_DEADBAND_NORM
                                                  : (buf_virtual_deadband_mm() / buf_threshold_mm());
 
     /* Overfeed taper: as the buffer pushes past goal toward the COMPRESSION rail
@@ -460,7 +460,7 @@ float psf_goal_norm(void) {
 }
 
 float buf_pos_norm(void) {
-    if (BUF_SENSOR_TYPE == 1) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
         return g_buf_pos;
     } else {
         float thr = buf_threshold_mm();
@@ -471,7 +471,7 @@ float buf_pos_norm(void) {
 }
 
 float buf_target_norm(void) {
-    if (BUF_SENSOR_TYPE == 1) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
         return psf_goal_norm();
     } else {
         float thr = buf_threshold_mm();
@@ -482,7 +482,7 @@ float buf_target_norm(void) {
 }
 
 buf_state_t buf_state_raw(void) {
-    if (BUF_SENSOR_TYPE == 1) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
         float goal_norm = psf_goal_norm();
         const float deadband = 0.1f;
         if (g_buf_pos < goal_norm - deadband)
@@ -525,7 +525,7 @@ buf_state_t buf_read_stable(uint32_t now_ms) {
          * a stopped state because leaving it is what produces the travel
          * the guard demands). The distance hysteresis applies only to
          * actuator-moving transitions (NEUTRAL<->TENSION). */
-        if (BUF_SENSOR_TYPE == 0 && RELAY_MIN_FLIP_MM > 0.0f && raw != BUF_FAULT &&
+        if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && RELAY_MIN_FLIP_MM > 0.0f && raw != BUF_FAULT &&
             g_buf_stable_state != BUF_COMPRESSION &&
             g_relay_flip_travel_since_mm < RELAY_MIN_FLIP_MM) {
             return g_buf_stable_state;
@@ -573,7 +573,7 @@ float clamp_est_sps(float est_sps) {
 
 void blend_extruder_est_sps(float sample_sps, float alpha, uint32_t now_ms) {
     sample_sps = clamp_est_sps(sample_sps);
-    if (BUF_SENSOR_TYPE == 0 && sample_sps > extruder_est_sps) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && sample_sps > extruder_est_sps) {
         alpha = SYNC_EST_ATTACK_ALPHA;
     } else {
         alpha = clamp_f(alpha, EST_ALPHA_MIN, EST_ALPHA_MAX);
@@ -654,7 +654,7 @@ static void buf_update_estimator(buf_state_t old, buf_state_t new_state, float t
     float hyst_ms = (float)BUF_HYST_MS;
     float hyst_debounce_ms = hyst_ms / (float)BUF_HYST_DEBOUNCE_DIVISOR;
 
-    if (BUF_SENSOR_TYPE == 0 &&
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D &&
         (neutral_fill_sample || neutral_drain_sample || compression_drain_sample) &&
         prev_dwell > hyst_ms) {
         uint32_t effective_dwell = (uint32_t)(prev_dwell - hyst_debounce_ms);
@@ -742,7 +742,7 @@ static void buf_update_estimator(buf_state_t old, buf_state_t new_state, float t
 
 static void buf_update_residual_observer(buf_state_t old, buf_state_t new_state, float threshold,
                                          uint32_t now_ms) {
-    if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL &&
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && old == BUF_NEUTRAL &&
         (new_state == BUF_TENSION || new_state == BUF_COMPRESSION)) {
         float switch_pos_mm = (new_state == BUF_TENSION) ? -threshold : threshold;
         float residual = g_buf_pos - switch_pos_mm;
@@ -769,13 +769,13 @@ static void buf_update_residual_observer(buf_state_t old, buf_state_t new_state,
 }
 
 static void buf_update_trim_and_floor(buf_state_t old, buf_state_t new_state) {
-    if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL && new_state == BUF_TENSION &&
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && old == BUF_NEUTRAL && new_state == BUF_TENSION &&
         SYNC_RELAY_TRIM_STEP_SPS > 0 && SYNC_RELAY_TRIM_CLAMP_SPS > 0) {
         g_relay_neutral_trim_sps += (float)SYNC_RELAY_TRIM_STEP_SPS;
         relay_neutral_trim_clamp();
     }
 
-    if (BUF_SENSOR_TYPE == 0 && old == BUF_NEUTRAL && new_state == BUF_TENSION) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && old == BUF_NEUTRAL && new_state == BUF_TENSION) {
         if ((float)extruder_est_sps > g_tension_floor_sps)
             g_tension_floor_sps = (float)extruder_est_sps;
         if (g_tension_floor_sps > (float)SYNC_TENSION_PROBE_MAX_SPS)
@@ -821,7 +821,7 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
     history_push(g_buf.state, prev_dwell);
     g_buf.state = new_state;
     g_buf.entered_ms = now_ms;
-    if (BUF_SENSOR_TYPE == 0 && new_state == BUF_NEUTRAL)
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && new_state == BUF_NEUTRAL)
         type_d_neutral_feed_reset();
     g_buf_confidence = 1.0f;
     g_buf_last_transition_ms = now_ms;
@@ -835,7 +835,7 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
     g_sync_cannot_refill_warned = false;
     g_sync_cannot_relieve_warned = false;
 
-    if (BUF_SENSOR_TYPE == 0 && g_sync_state == SYNC_RELIEF_PAUSE && !g_boot_stabilizing &&
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && g_sync_state == SYNC_RELIEF_PAUSE && !g_boot_stabilizing &&
         (new_state == BUF_NEUTRAL || new_state == BUF_TENSION)) {
         g_buf_pos = buf_target_reserve_mm();
         sync_current_sps = sync_bootstrap_sps();
@@ -858,7 +858,7 @@ void buf_signal_publish(uint32_t now_ms) {
     float half = buf_physical_half_travel_mm();
     buf_source_kind_t kind;
     float norm;
-    if (BUF_SENSOR_TYPE == 0) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D) {
         kind = BUF_SRC_VIRTUAL_ENDSTOP;
         norm = (half > ANALOG_SPAN_MIN_F) ? (g_buf_pos / half) : 0.0f;
         norm = clamp_f(norm, -1.0f, 1.0f);
@@ -907,7 +907,7 @@ void buf_signal_publish(uint32_t now_ms) {
         }
     }
     g_buf_signal.pos_norm = norm;
-    g_buf_signal.pos_mm = (BUF_SENSOR_TYPE == 0) ? g_buf_pos : (norm * half);
+    g_buf_signal.pos_mm = (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D) ? g_buf_pos : (norm * half);
     g_buf_signal.confidence = g_buf_confidence;
     g_buf_signal.age_ms = now_ms - g_buf_analog_last_sample_ms;
     g_buf_signal.zone = g_buf.state;
@@ -921,7 +921,7 @@ void buf_sensor_tick(uint32_t now_ms) {
     if (do_pos)
         buf_pos_last_ms = now_ms;
 
-    if (BUF_SENSOR_TYPE == 1 && do_pos)
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P && do_pos)
         buf_analog_update();
 
     buf_state_t prev = g_buf.state;
@@ -930,7 +930,7 @@ void buf_sensor_tick(uint32_t now_ms) {
         buf_update(s, now_ms);
         sync_on_transition(prev, s, now_ms);
     }
-    if (BUF_SENSOR_TYPE == 0 && do_pos) {
+    if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_D && do_pos) {
         buf_virtual_position_tick(lane_ptr(active_lane), elapsed_ms);
     }
 
@@ -943,7 +943,7 @@ void buf_sensor_tick(uint32_t now_ms) {
             g_sync_mmu_total_mm += delta_mm;
             g_relay_flip_travel_since_mm += fabsf(delta_mm);
 
-            if (BUF_SENSOR_TYPE == 1 && sync_enabled) {
+            if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P && sync_enabled) {
                 float mmu_mm_s = (float)lane_motion_sps(lane) * MM_PER_STEP[idx];
                 float arm_vel = g_vel_norm * buf_physical_half_travel_mm();
                 /* Filament conservation: extruder draw = mmu feed + buffer drain rate.
