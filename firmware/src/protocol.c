@@ -22,9 +22,83 @@
 #define CMD_EVENT_BUDGET 8
 #define CMD_PARAM_MAX 64
 #define CMD_PARAM_SCAN_WIDTH 63
+#define CMD_PARAM_SCAN_FMT "%63[^:]"
+#define CMD_VALUE_MAX 32
+#define CMD_VALUE_SCAN_FMT "%31s"
+#define CMD_LINE_MAX 768
+#define CMD_OPTION_TOKEN_MAX 8
+#define CMD_OPTION_TOKEN_SCAN_FMT "%7[^:]:%7s"
+#define BUF_SWITCH_SPAN_MIN_MM 2.0f
+#define BUF_SWITCH_SPAN_HALF_MIN_MM (BUF_SWITCH_SPAN_MIN_MM * HALF_F)
+#define HALF_F 0.5f
+#define FULL_SPAN_MULT_F 2.0f
+#define MS_PER_SECOND_F 1000.0f
+#define SECONDS_PER_MINUTE_F 60.0f
+#define ROUND_TO_NEAREST_F 0.5f
+#define MIN_RUN_RATE_SPS 200
+#define MAX_RUN_RATE_SPS 50000
+#define MIN_LOW_RATE_SPS 10
+#define MAX_LOW_RATE_SPS 10000
+#define GLOBAL_MAX_MIN_MM_MIN 1000.0f
+#define GLOBAL_MAX_MAX_MM_MIN 12000.0f
+#define AUTOLOAD_RETRACT_MAX_MM 50
+#define LONG_TIMEOUT_MAX_MS 60000
+#define RELOAD_JOIN_MAX_MS 10000
+#define PATH_DIST_MIN_MM 10
+#define PATH_DIST_MAX_MM 5000
+#define BUF_TRAVEL_MIN_MM 10
+#define BUF_TRAVEL_MAX_MM 1000
+#define AUTOLOAD_MAX_MIN_MM 10
+#define AUTOLOAD_MAX_MAX_MM 10000
+#define LOAD_UNLOAD_MIN_MM 100
+#define LOAD_UNLOAD_MAX_MM 10000
+#define FOLLOW_TIMEOUT_MIN_MS 1000
+#define FOLLOW_TIMEOUT_MAX_MS 60000
+#define DRIVER_CURRENT_MAX_MA 2000
+#define DRIVER_MICROSTEPS_MAX 256
+#define DRIVER_FULL_STEPS_400 400
+#define DRIVER_FULL_STEPS_200 200
+#define DRIVER_TBL_MAX 3
+#define DRIVER_TOFF_MAX 15
+#define DRIVER_HSTRT_MAX 7
+#define DRIVER_HEND_MIN -3
+#define DRIVER_HEND_MAX 12
+#define SYNC_PSF_SLEW_MAX 50000.0f
+#define SYNC_PSF_FILTER_MIN_MM 0.1f
+#define SYNC_PSF_FILTER_MAX_MM 500.0f
+#define SYNC_PSF_DECAY_MAX_SPS_PER_S 200000.0f
+#define SYNC_RESERVE_MAX_PCT 150
+#define COMPRESSION_BIAS_MAX_FRAC 0.7f
+#define SYNC_AUTO_STOP_MAX_MS 30000
+#define PSF_KD_MAX 100.0f
+#define RELAY_FRAC_MIN 0.5f
+#define RELAY_FRAC_MAX 3.0f
+#define RELAY_TRIM_STEP_MAX_SPS 5000
+#define RELAY_TRIM_CLAMP_MAX_SPS 50000
+#define COMPRESSION_DRAIN_MAX_FRAC 0.9f
+#define COMPRESSION_DRAIN_BUDGET_MAX_MM 25.0f
+#define SYNC_EST_ATTACK_MIN_ALPHA 0.65f
+#define SYNC_TENSION_FAST_MAX_MM_S 200.0f
+#define TENSION_PROBE_MAX_MM_MIN 6000.0f
+#define TENSION_PROBE_RAMP_MAX_MM_MIN 12000.0f
+#define SERVO_MIN_PULSE_US 400
+#define SERVO_MAX_PULSE_US 2700
+#define SERVO_SETTLE_MIN_MS 100
+#define SERVO_SETTLE_MAX_MS 2000
+#define CUT_FEED_MIN_MM_MIN 100
+#define CUT_FEED_MAX_MM_MIN 30000
+#define CUT_FEED_MAX_MM 200
+#define CUT_LENGTH_MAX_MM 50
+#define CUT_AMOUNT_MAX 5
+#define BOOTSEL_REPLY_DELAY_MS 100
+
+static const float TMC_ROTATION_MIN_MM = 0.1f;
+static const float TMC_ROTATION_MAX_MM = 1000.0f;
+static const float TMC_GEAR_RATIO_MIN = 0.001f;
+static const float TMC_GEAR_RATIO_MAX = 1000.0f;
 
 typedef struct {
-    char buf[64];
+    char buf[CMD_PARAM_MAX];
     int pos;
     bool overflow;
 } cmd_parser_t;
@@ -119,9 +193,9 @@ static bool live_tune_locked_param(const char *param) {
 
 static float buf_switch_span_half_from_full(float span_mm, int max_travel_mm) {
     float max_span_mm = (float)max_travel_mm;
-    if (max_span_mm < 2.0f)
-        max_span_mm = 2.0f;
-    return clamp_f(span_mm, 2.0f, max_span_mm) * 0.5f;
+    if (max_span_mm < BUF_SWITCH_SPAN_MIN_MM)
+        max_span_mm = BUF_SWITCH_SPAN_MIN_MM;
+    return clamp_f(span_mm, BUF_SWITCH_SPAN_MIN_MM, max_span_mm) * HALF_F;
 }
 
 static bool controller_activity_in_progress(void) {
@@ -168,7 +242,7 @@ static void cmd_write_line(const char *prefix, const char *type, const char *dat
     if (best_effort && !cmd_event_permitted())
         return;
 
-    char line[768];
+    char line[CMD_LINE_MAX];
     int len;
     if (data && *data)
         len = snprintf(line, sizeof(line), "%s%s:%s\n", prefix, type, data);
@@ -304,7 +378,7 @@ static bool cmd_get_motion_params(const char *param, int idx, char *out, size_t 
         snprintf(out, out_len, "GLOBAL_MAX_RATE:%.1f",
                  (double)sps_to_mm_per_min_idx(GLOBAL_MAX_SPS, idx));
     else if (!strcmp(param, "GLOBAL_MAX_ACCEL")) {
-        float tick_s = (float)RAMP_TICK_MS / 1000.0f;
+        float tick_s = (float)RAMP_TICK_MS / MS_PER_SECOND_F;
         float accel = (float)RAMP_STEP_SPS * MM_PER_STEP[0] / tick_s;
         snprintf(out, out_len, "GLOBAL_MAX_ACCEL:%.0f", (double)accel);
     }
@@ -373,11 +447,11 @@ static bool cmd_get_buffer_geometry_params(const char *param, int idx, char *out
         snprintf(out, out_len, "SYNC_MIN_RATE:%.1f",
                  (double)sps_to_mm_per_min_idx(SYNC_MIN_SPS, idx));
     else if (!strcmp(param, "SYNC_RAMP_ACCEL")) {
-        float tick_s = (float)SYNC_TICK_MS / 1000.0f;
+        float tick_s = (float)SYNC_TICK_MS / MS_PER_SECOND_F;
         float accel = (float)SYNC_RAMP_UP_SPS * MM_PER_STEP[0] / tick_s;
         snprintf(out, out_len, "SYNC_RAMP_ACCEL:%.0f", (double)accel);
     } else if (!strcmp(param, "SYNC_RAMP_DECEL")) {
-        float tick_s = (float)SYNC_TICK_MS / 1000.0f;
+        float tick_s = (float)SYNC_TICK_MS / MS_PER_SECOND_F;
         float accel = (float)SYNC_RAMP_DN_SPS * MM_PER_STEP[0] / tick_s;
         snprintf(out, out_len, "SYNC_RAMP_DECEL:%.0f", (double)accel);
     }
@@ -390,7 +464,8 @@ static bool cmd_get_buffer_geometry_params(const char *param, int idx, char *out
         snprintf(out, out_len, "BUF_PREDICT_THR_MS:%d", BUF_PREDICT_THR_MS);
 #endif
     else if (!strcmp(param, "BUF_SWITCH_SPAN"))
-        snprintf(out, out_len, "BUF_SWITCH_SPAN:%.3f", (double)(BUF_SWITCH_SPAN_HALF_MM * 2.0f));
+        snprintf(out, out_len, "BUF_SWITCH_SPAN:%.3f",
+                 (double)(BUF_SWITCH_SPAN_HALF_MM * FULL_SPAN_MULT_F));
     else if (!strcmp(param, "BL"))
         snprintf(out, out_len, "BL:%s", sync_buffer_lock_arm_str());
     else if (!strcmp(param, "SYNC_STATE"))
@@ -661,7 +736,7 @@ static bool cmd_get_reload_cutter_params(const char *param, int idx, char *out, 
 }
 
 static void cmd_handle_get(const char *p, uint32_t now_ms) {
-    char out[64];
+    char out[CMD_PARAM_MAX];
     char param[CMD_PARAM_MAX];
     int lane_mask = 1;
     strncpy(param, p, sizeof(param));
@@ -691,37 +766,41 @@ typedef enum { CMD_SET_UNHANDLED, CMD_SET_HANDLED, CMD_SET_REPLIED } cmd_set_res
 
 static bool cmd_set_motion_params(const char *base_param, int iv, float fv) {
     if (!strcmp(base_param, "FEED_RATE"))
-        FEED_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
+        FEED_SPS = motion_clamp_rate_sps(
+            clamp_i(mm_per_min_to_sps(fv), MIN_RUN_RATE_SPS, MAX_RUN_RATE_SPS));
     else if (!strcmp(base_param, "REV_RATE"))
-        REV_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
+        REV_SPS = motion_clamp_rate_sps(
+            clamp_i(mm_per_min_to_sps(fv), MIN_RUN_RATE_SPS, MAX_RUN_RATE_SPS));
     else if (!strcmp(base_param, "AUTO_RATE"))
-        AUTO_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
+        AUTO_SPS = motion_clamp_rate_sps(
+            clamp_i(mm_per_min_to_sps(fv), MIN_RUN_RATE_SPS, MAX_RUN_RATE_SPS));
     else if (!strcmp(base_param, "SYNC_MAX_RATE"))
-        SYNC_MAX_SPS = sync_clamp_max_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
+        SYNC_MAX_SPS =
+            sync_clamp_max_sps(clamp_i(mm_per_min_to_sps(fv), MIN_RUN_RATE_SPS, MAX_RUN_RATE_SPS));
     else if (!strcmp(base_param, "GLOBAL_MAX_RATE")) {
-        GLOBAL_MAX_SPS =
-            clamp_i(mm_per_min_to_sps(fv), mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
+        GLOBAL_MAX_SPS = clamp_i(mm_per_min_to_sps(fv), mm_per_min_to_sps(GLOBAL_MAX_MIN_MM_MIN),
+                                 mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
     } else if (!strcmp(base_param, "SYNC_MIN_RATE"))
-        SYNC_MIN_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, 50000));
+        SYNC_MIN_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, MAX_RUN_RATE_SPS));
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "SYNC_RAMP_ACCEL")) {
-        float tick_s = (float)SYNC_TICK_MS / 1000.0f;
-        int sps = (int)(fv * tick_s / MM_PER_STEP[0] + 0.5f);
-        SYNC_RAMP_UP_SPS = motion_clamp_rate_sps(clamp_i(sps, 1, 50000));
+        float tick_s = (float)SYNC_TICK_MS / MS_PER_SECOND_F;
+        int sps = (int)(fv * tick_s / MM_PER_STEP[0] + HALF_F);
+        SYNC_RAMP_UP_SPS = motion_clamp_rate_sps(clamp_i(sps, 1, MAX_RUN_RATE_SPS));
     } else if (!strcmp(base_param, "SYNC_RAMP_DECEL")) {
-        float tick_s = (float)SYNC_TICK_MS / 1000.0f;
-        int sps = (int)(fv * tick_s / MM_PER_STEP[0] + 0.5f);
-        SYNC_RAMP_DN_SPS = motion_clamp_rate_sps(clamp_i(sps, 1, 50000));
+        float tick_s = (float)SYNC_TICK_MS / MS_PER_SECOND_F;
+        int sps = (int)(fv * tick_s / MM_PER_STEP[0] + HALF_F);
+        SYNC_RAMP_DN_SPS = motion_clamp_rate_sps(clamp_i(sps, 1, MAX_RUN_RATE_SPS));
     } else if (!strcmp(base_param, "SYNC_TICK_MS"))
         SYNC_TICK_MS = clamp_i(iv, 1, 1000);
     else if (!strcmp(base_param, "GLOBAL_MAX_ACCEL")) {
-        float tick_s = (float)RAMP_TICK_MS / 1000.0f;
-        int sps = (int)(fv * tick_s / MM_PER_STEP[0] + 0.5f);
+        float tick_s = (float)RAMP_TICK_MS / MS_PER_SECOND_F;
+        int sps = (int)(fv * tick_s / MM_PER_STEP[0] + HALF_F);
         RAMP_STEP_SPS = motion_clamp_rate_sps(clamp_i(sps, 1, 30000));
     } else if (!strcmp(base_param, "RAMP_TICK_MS"))
         RAMP_TICK_MS = clamp_i(iv, 1, 1000);
     else if (!strcmp(base_param, "PRE_RAMP_RATE"))
-        PRE_RAMP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, 50000));
+        PRE_RAMP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, MAX_RUN_RATE_SPS));
 #endif
     else if (!strcmp(base_param, "BUF_SWITCH_SPAN")) {
         BUF_SWITCH_SPAN_HALF_MM = buf_switch_span_half_from_full(fv, BUF_MAX_TRAVEL_MM);
@@ -730,7 +809,7 @@ static bool cmd_set_motion_params(const char *base_param, int iv, float fv) {
     else if (!strcmp(base_param, "BUF_HYST"))
         BUF_HYST_MS = clamp_i(iv, 5, 500);
     else if (!strcmp(base_param, "BUF_PREDICT_THR_MS"))
-        BUF_PREDICT_THR_MS = clamp_i(iv, 0, 10000);
+        BUF_PREDICT_THR_MS = clamp_i(iv, 0, RELOAD_JOIN_MAX_MS);
 #endif
     else
         return false;
@@ -741,7 +820,7 @@ static bool cmd_set_reload_motion_params(const char *base_param, int iv, float f
     if (!strcmp(base_param, "AUTO_PRELOAD"))
         AUTO_PRELOAD = (iv != 0);
     else if (!strcmp(base_param, "RETRACT_MM"))
-        AUTOLOAD_RETRACT_MM = clamp_i(iv, 0, 50);
+        AUTOLOAD_RETRACT_MM = clamp_i(iv, 0, AUTOLOAD_RETRACT_MAX_MM);
     else if (!strcmp(base_param, "CUTTER"))
         ENABLE_CUTTER = (iv != 0);
     else if (!strcmp(base_param, "AUTO_MODE"))
@@ -749,7 +828,7 @@ static bool cmd_set_reload_motion_params(const char *base_param, int iv, float f
     else if (!strcmp(base_param, "RELOAD_MODE"))
         RELOAD_MODE = (iv != 0) ? 1 : 0;
     else if (!strcmp(base_param, "RUNOUT_COOLDOWN_MS"))
-        RUNOUT_COOLDOWN_MS = clamp_i(iv, 0, 60000);
+        RUNOUT_COOLDOWN_MS = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "POST_PRINT_STAB_MS"))
         POST_PRINT_STAB_DELAY_MS = clamp_i(iv, 0, 300000);
@@ -757,30 +836,34 @@ static bool cmd_set_reload_motion_params(const char *base_param, int iv, float f
         RELOAD_Y_TIMEOUT_MS = clamp_i(iv, 100, 30000);
 #endif
     else if (!strcmp(base_param, "RELOAD_JOIN_MS"))
-        RELOAD_JOIN_DELAY_MS = clamp_i(iv, 0, 10000);
+        RELOAD_JOIN_DELAY_MS = clamp_i(iv, 0, RELOAD_JOIN_MAX_MS);
     else if (!strcmp(base_param, "DIST_IN_OUT"))
-        DIST_IN_OUT = clamp_i(iv, 10, 5000);
+        DIST_IN_OUT = clamp_i(iv, PATH_DIST_MIN_MM, PATH_DIST_MAX_MM);
     else if (!strcmp(base_param, "DIST_OUT_Y"))
-        DIST_OUT_Y = clamp_i(iv, 0, 5000);
+        DIST_OUT_Y = clamp_i(iv, 0, PATH_DIST_MAX_MM);
     else if (!strcmp(base_param, "DIST_Y_BUF"))
-        DIST_Y_BUF = clamp_i(iv, 0, 5000);
+        DIST_Y_BUF = clamp_i(iv, 0, PATH_DIST_MAX_MM);
     else if (!strcmp(base_param, "BUF_BODY_LEN"))
-        BUF_BODY_LEN = clamp_i(iv, 0, 5000);
+        BUF_BODY_LEN = clamp_i(iv, 0, PATH_DIST_MAX_MM);
     else if (!strcmp(base_param, "BUF_MAX_TRAVEL")) {
-        BUF_MAX_TRAVEL_MM = clamp_i(iv, 10, 1000);
-        float max_half = (float)BUF_MAX_TRAVEL_MM * 0.5f;
+        BUF_MAX_TRAVEL_MM = clamp_i(iv, BUF_TRAVEL_MIN_MM, BUF_TRAVEL_MAX_MM);
+        float max_half = (float)BUF_MAX_TRAVEL_MM * HALF_F;
         if (BUF_SWITCH_SPAN_HALF_MM > max_half)
             BUF_SWITCH_SPAN_HALF_MM = max_half;
-        if (BUF_SWITCH_SPAN_HALF_MM < 1.0f)
-            BUF_SWITCH_SPAN_HALF_MM = 1.0f;
+        if (BUF_SWITCH_SPAN_HALF_MM < BUF_SWITCH_SPAN_HALF_MIN_MM)
+            BUF_SWITCH_SPAN_HALF_MM = BUF_SWITCH_SPAN_HALF_MIN_MM;
     } else if (!strcmp(base_param, "JOIN_RATE"))
-        JOIN_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
+        JOIN_SPS = motion_clamp_rate_sps(
+            clamp_i(mm_per_min_to_sps(fv), MIN_RUN_RATE_SPS, MAX_RUN_RATE_SPS));
     else if (!strcmp(base_param, "PRESS_RATE"))
-        PRESS_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
+        PRESS_SPS = motion_clamp_rate_sps(
+            clamp_i(mm_per_min_to_sps(fv), MIN_RUN_RATE_SPS, MAX_RUN_RATE_SPS));
     else if (!strcmp(base_param, "COMPRESSION_RATE"))
-        COMPRESSION_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 10, 10000));
+        COMPRESSION_SPS = motion_clamp_rate_sps(
+            clamp_i(mm_per_min_to_sps(fv), MIN_LOW_RATE_SPS, MAX_LOW_RATE_SPS));
     else if (!strcmp(base_param, "BUF_STAB_RATE"))
-        BUF_STAB_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 10, 10000));
+        BUF_STAB_SPS = motion_clamp_rate_sps(
+            clamp_i(mm_per_min_to_sps(fv), MIN_LOW_RATE_SPS, MAX_LOW_RATE_SPS));
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "BASELINE_ALPHA"))
         g_baseline_alpha = clamp_f(fv, 0.0f, 1.0f);
@@ -812,31 +895,38 @@ static bool cmd_set_lane_params(const char *base_param, int lane_mask, int iv, f
         }
 
     if (!strcmp(base_param, "RUN_CURRENT_MA")) {
-        SET_LANE({ TMC_RUN_CURRENT_MA[idx] = clamp_i(iv, 0, 2000); });
+        SET_LANE({ TMC_RUN_CURRENT_MA[idx] = clamp_i(iv, 0, DRIVER_CURRENT_MAX_MA); });
     } else if (!strcmp(base_param, "HOLD_CURRENT_MA")) {
-        SET_LANE({ TMC_HOLD_CURRENT_MA[idx] = clamp_i(iv, 0, 2000); });
+        SET_LANE({ TMC_HOLD_CURRENT_MA[idx] = clamp_i(iv, 0, DRIVER_CURRENT_MAX_MA); });
     } else if (!strcmp(base_param, "MICROSTEPS")) {
-        SET_LANE({ TMC_MICROSTEPS[idx] = clamp_i(iv, 1, 256); });
+        SET_LANE({ TMC_MICROSTEPS[idx] = clamp_i(iv, 1, DRIVER_MICROSTEPS_MAX); });
     } else if (!strcmp(base_param, "ROTATION_DIST")) {
-        SET_LANE({ TMC_ROTATION_DISTANCE[idx] = clamp_f(fv, 0.1f, 1000.0f); });
+        SET_LANE({
+            TMC_ROTATION_DISTANCE[idx] = clamp_f(fv, TMC_ROTATION_MIN_MM, TMC_ROTATION_MAX_MM);
+        });
     } else if (!strcmp(base_param, "GEAR_RATIO")) {
-        SET_LANE({ TMC_GEAR_RATIO[idx] = clamp_f(fv, 0.001f, 1000.0f); });
+        SET_LANE({ TMC_GEAR_RATIO[idx] = clamp_f(fv, TMC_GEAR_RATIO_MIN, TMC_GEAR_RATIO_MAX); });
     } else if (!strcmp(base_param, "FULL_STEPS")) {
-        SET_LANE({ TMC_FULL_STEPS[idx] = (iv == 400 ? 400 : 200); });
+        SET_LANE({
+            TMC_FULL_STEPS[idx] =
+                (iv == DRIVER_FULL_STEPS_400 ? DRIVER_FULL_STEPS_400 : DRIVER_FULL_STEPS_200);
+        });
     } else if (!strcmp(base_param, "INTERPOLATE")) {
         SET_LANE({ TMC_INTERPOLATE[idx] = (iv != 0); });
     } else if (!strcmp(base_param, "STEALTHCHOP")) {
         SET_LANE({ TMC_STEALTHCHOP_SPS[idx] = (iv == 0) ? 0 : mm_per_min_to_sps_idx(fv, idx); });
     } else if (!strcmp(base_param, "DRIVER_TBL")) {
-        SET_LANE({ TMC_TBL[idx] = clamp_i(iv, 0, 3); });
+        SET_LANE({ TMC_TBL[idx] = clamp_i(iv, 0, DRIVER_TBL_MAX); });
     } else if (!strcmp(base_param, "DRIVER_TOFF")) {
-        SET_LANE({ TMC_TOFF[idx] = clamp_i(iv, 0, 15); });
+        SET_LANE({ TMC_TOFF[idx] = clamp_i(iv, 0, DRIVER_TOFF_MAX); });
     } else if (!strcmp(base_param, "DRIVER_HSTRT")) {
-        SET_LANE({ TMC_HSTRT[idx] = clamp_i(iv, 0, 7); });
+        SET_LANE({ TMC_HSTRT[idx] = clamp_i(iv, 0, DRIVER_HSTRT_MAX); });
     } else if (!strcmp(base_param, "DRIVER_HEND")) {
-        SET_LANE({ TMC_HEND[idx] = clamp_i(iv, -3, 12); });
+        SET_LANE({ TMC_HEND[idx] = clamp_i(iv, DRIVER_HEND_MIN, DRIVER_HEND_MAX); });
     } else if (!strcmp(base_param, "FOLLOW_MS")) {
-        SET_LANE({ FOLLOW_TIMEOUT_MS[idx] = clamp_i(iv, 1000, 60000); });
+        SET_LANE({
+            FOLLOW_TIMEOUT_MS[idx] = clamp_i(iv, FOLLOW_TIMEOUT_MIN_MS, FOLLOW_TIMEOUT_MAX_MS);
+        });
     } else {
 #undef SET_LANE
         return false;
@@ -848,12 +938,13 @@ static bool cmd_set_lane_params(const char *base_param, int lane_mask, int iv, f
 
 static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, float fv) {
     if (!strcmp(base_param, "BASELINE_RATE")) {
-        int baseline_sps = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 200, 50000));
+        int baseline_sps = motion_clamp_rate_sps(
+            clamp_i(mm_per_min_to_sps(fv), MIN_RUN_RATE_SPS, MAX_RUN_RATE_SPS));
         g_baseline_target_sps = baseline_sps;
         g_baseline_sps = baseline_sps;
         flow_schedule_refresh_scalar();
     } else if (!strcmp(base_param, "BASELINE_SPS")) {
-        int baseline_sps = motion_clamp_rate_sps(clamp_i(iv, 200, 50000));
+        int baseline_sps = motion_clamp_rate_sps(clamp_i(iv, MIN_RUN_RATE_SPS, MAX_RUN_RATE_SPS));
         g_baseline_target_sps = baseline_sps;
         g_baseline_sps = baseline_sps;
         flow_schedule_refresh_scalar();
@@ -880,23 +971,23 @@ static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, fl
         BUF_ANALOG_ALPHA = clamp_f(fv, 0.01f, 1.0f);
 #endif
     else if (!strcmp(base_param, "AUTOLOAD_MAX"))
-        AUTOLOAD_MAX_MM = clamp_i(iv, 10, 10000);
+        AUTOLOAD_MAX_MM = clamp_i(iv, AUTOLOAD_MAX_MIN_MM, AUTOLOAD_MAX_MAX_MM);
     else if (!strcmp(base_param, "LOAD_MAX"))
-        LOAD_MAX_MM = clamp_i(iv, 100, 10000);
+        LOAD_MAX_MM = clamp_i(iv, LOAD_UNLOAD_MIN_MM, LOAD_UNLOAD_MAX_MM);
     else if (!strcmp(base_param, "UNLOAD_MAX"))
-        UNLOAD_MAX_MM = clamp_i(iv, 100, 10000);
+        UNLOAD_MAX_MM = clamp_i(iv, LOAD_UNLOAD_MIN_MM, LOAD_UNLOAD_MAX_MM);
     else if (!strcmp(base_param, "UNLOAD_TENSION_BLOCK_MS"))
-        UNLOAD_TENSION_BLOCK_MS = clamp_i(iv, 0, 60000);
+        UNLOAD_TENSION_BLOCK_MS = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
     else if (!strcmp(base_param, "SYNC_KP_RATE"))
-        SYNC_KP_SPS = clamp_i(mm_per_min_to_sps(fv), 0, 50000);
+        SYNC_KP_SPS = clamp_i(mm_per_min_to_sps(fv), 0, MAX_RUN_RATE_SPS);
     else if (!strcmp(base_param, "KD_PSF"))
-        KD_PSF = clamp_f(fv, 0.0f, 100.0f);
+        KD_PSF = clamp_f(fv, 0.0f, PSF_KD_MAX);
     else if (!strcmp(base_param, "SYNC_PSF_SLEW_PER_MM"))
-        SYNC_PSF_SLEW_PER_MM = clamp_f(fv, 1.0f, 50000.0f);
+        SYNC_PSF_SLEW_PER_MM = clamp_f(fv, 1.0f, SYNC_PSF_SLEW_MAX);
     else if (!strcmp(base_param, "SYNC_PSF_FILTER_MM"))
-        SYNC_PSF_FILTER_MM = clamp_f(fv, 0.1f, 500.0f);
+        SYNC_PSF_FILTER_MM = clamp_f(fv, SYNC_PSF_FILTER_MIN_MM, SYNC_PSF_FILTER_MAX_MM);
     else if (!strcmp(base_param, "SYNC_PSF_DECAY_SPS_PER_S"))
-        SYNC_PSF_DECAY_SPS_PER_S = clamp_f(fv, 0.0f, 200000.0f);
+        SYNC_PSF_DECAY_SPS_PER_S = clamp_f(fv, 0.0f, SYNC_PSF_DECAY_MAX_SPS_PER_S);
     else if (!strcmp(base_param, "PSF_STAB_STAGNANT_MS"))
         PSF_STAB_STAGNANT_MS = (iv < 0) ? 0 : iv;
     else if (!strcmp(base_param, "PSF_STAB_STAGNANT_NORM"))
@@ -908,12 +999,12 @@ static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, fl
         SYNC_OVERSHOOT_PCT = clamp_i(iv, 0, 200);
 #endif
     else if (!strcmp(base_param, "SYNC_RESERVE_PCT"))
-        SYNC_RESERVE_PCT = clamp_i(iv, 0, 150);
+        SYNC_RESERVE_PCT = clamp_i(iv, 0, SYNC_RESERVE_MAX_PCT);
     else if (!strcmp(base_param, "COMPRESSION_BIAS_FRAC")) {
-        SYNC_COMPRESSION_BIAS_FRAC = clamp_f(fv, 0.0f, 0.7f);
+        SYNC_COMPRESSION_BIAS_FRAC = clamp_f(fv, 0.0f, COMPRESSION_BIAS_MAX_FRAC);
         flow_schedule_refresh_scalar();
     } else if (!strcmp(base_param, "SYNC_AUTO_STOP"))
-        SYNC_AUTO_STOP_MS = clamp_i(iv, 0, 30000);
+        SYNC_AUTO_STOP_MS = clamp_i(iv, 0, SYNC_AUTO_STOP_MAX_MS);
     else
         return CMD_SET_UNHANDLED;
     return CMD_SET_HANDLED;
@@ -922,7 +1013,7 @@ static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, fl
 static bool cmd_set_sync_advanced_params(const char *base_param, int iv, float fv) {
 #ifdef FLARE_DEV_TUNING
     if (!strcmp(base_param, "NEUTRAL_CREEP_TIMEOUT_MS"))
-        NEUTRAL_CREEP_TIMEOUT_MS = clamp_i(iv, 0, 60000);
+        NEUTRAL_CREEP_TIMEOUT_MS = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
     else if (!strcmp(base_param, "NEUTRAL_CREEP_RATE") ||
              !strcmp(base_param, "NEUTRAL_CREEP_RATE_SPS_PER_S"))
         NEUTRAL_CREEP_RATE_SPS_PER_S = clamp_i(iv, 0, 1000);
@@ -934,25 +1025,25 @@ static bool cmd_set_sync_advanced_params(const char *base_param, int iv, float f
         BUF_VARIANCE_BLEND_FRAC = clamp_f(fv, 0.0f, 0.9f);
     else if (!strcmp(base_param, "VAR_BLEND_REF_MM") ||
              !strcmp(base_param, "BUF_VARIANCE_BLEND_REF_MM"))
-        BUF_VARIANCE_BLEND_REF_MM = clamp_f(fv, 0.5f, 5.0f);
+        BUF_VARIANCE_BLEND_REF_MM = clamp_f(fv, HALF_F, 5.0f);
     else if (!strcmp(base_param, "SYNC_TENSION_STOP_MS"))
         SYNC_TENSION_DWELL_STOP_MS = clamp_i(iv, 0, 30000);
     else if (!strcmp(base_param, "SYNC_TENSION_RAMP_MS"))
-        SYNC_TENSION_RAMP_DELAY_MS = clamp_i(iv, 0, 5000);
+        SYNC_TENSION_RAMP_DELAY_MS = clamp_i(iv, 0, PATH_DIST_MAX_MM);
     else if (!strcmp(base_param, "SYNC_OVERSHOOT_NEUTRAL_EXT"))
         SYNC_OVERSHOOT_NEUTRAL_EXTEND = clamp_i(iv, 0, 1);
     else if (!strcmp(base_param, "SYNC_INT_GAIN"))
         SYNC_RESERVE_INTEGRAL_GAIN = clamp_f(fv, 0.0f, 0.05f);
     else if (!strcmp(base_param, "SYNC_INT_CLAMP"))
-        SYNC_RESERVE_INTEGRAL_CLAMP_MM = clamp_f(fv, 0.0f, 2.0f);
+        SYNC_RESERVE_INTEGRAL_CLAMP_MM = clamp_f(fv, 0.0f, BUF_SWITCH_SPAN_MIN_MM);
     else if (!strcmp(base_param, "SYNC_INT_DECAY_MS"))
-        SYNC_RESERVE_INTEGRAL_DECAY_MS = clamp_i(iv, 0, 60000);
+        SYNC_RESERVE_INTEGRAL_DECAY_MS = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
     else if (!strcmp(base_param, "EST_SIGMA_CAP"))
-        EST_SIGMA_HARD_CAP_MM = clamp_f(fv, 0.5f, 5.0f);
+        EST_SIGMA_HARD_CAP_MM = clamp_f(fv, HALF_F, 5.0f);
     else if (!strcmp(base_param, "EST_LOW_CF_THR"))
         EST_LOW_CF_WARN_THRESHOLD = clamp_f(fv, 0.0f, 1.0f);
     else if (!strcmp(base_param, "EST_FALLBACK_THR"))
-        EST_FALLBACK_CF_THRESHOLD = clamp_f(fv, 0.0f, 0.5f);
+        EST_FALLBACK_CF_THRESHOLD = clamp_f(fv, 0.0f, HALF_F);
     else
 #endif
         return false;
@@ -961,41 +1052,42 @@ static bool cmd_set_sync_advanced_params(const char *base_param, int iv, float f
 
 static bool cmd_set_sync_relay_probe_params(const char *base_param, int iv, float fv) {
     if (!strcmp(base_param, "RELAY_CATCHUP_FRAC"))
-        RELAY_CATCHUP_FRAC = clamp_f(fv, 0.5f, 3.0f);
+        RELAY_CATCHUP_FRAC = clamp_f(fv, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
     else if (!strcmp(base_param, "RELAY_NEUTRAL_FRAC"))
-        RELAY_NEUTRAL_FRAC = clamp_f(fv, 0.5f, 3.0f);
+        RELAY_NEUTRAL_FRAC = clamp_f(fv, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
     else if (!strcmp(base_param, "SYNC_RELAY_TRIM_STEP_SPS"))
-        SYNC_RELAY_TRIM_STEP_SPS = clamp_i(iv, 0, 5000);
+        SYNC_RELAY_TRIM_STEP_SPS = clamp_i(iv, 0, PATH_DIST_MAX_MM);
     else if (!strcmp(base_param, "SYNC_RELAY_TRIM_CLAMP_SPS"))
-        SYNC_RELAY_TRIM_CLAMP_SPS = clamp_i(iv, 0, 50000);
+        SYNC_RELAY_TRIM_CLAMP_SPS = clamp_i(iv, 0, MAX_RUN_RATE_SPS);
     else if (!strcmp(base_param, "SYNC_COMPRESSION_DRAIN_FRAC"))
-        SYNC_COMPRESSION_DRAIN_FRAC = clamp_f(fv, 0.0f, 0.9f);
+        SYNC_COMPRESSION_DRAIN_FRAC = clamp_f(fv, 0.0f, COMPRESSION_DRAIN_MAX_FRAC);
     else if (!strcmp(base_param, "SYNC_COMPRESSION_DRAIN_BUDGET_MM"))
-        SYNC_COMPRESSION_DRAIN_BUDGET_MM = clamp_f(fv, 0.0f, 25.0f);
+        SYNC_COMPRESSION_DRAIN_BUDGET_MM = clamp_f(fv, 0.0f, COMPRESSION_DRAIN_BUDGET_MAX_MM);
     else if (!strcmp(base_param, "SYNC_EST_ATTACK_ALPHA"))
-        SYNC_EST_ATTACK_ALPHA = clamp_f(fv, 0.65f, 1.0f);
+        SYNC_EST_ATTACK_ALPHA = clamp_f(fv, SYNC_EST_ATTACK_MIN_ALPHA, 1.0f);
     else if (!strcmp(base_param, "SYNC_TENSION_FAST_MM_S"))
-        SYNC_TENSION_FAST_MM_S = clamp_f(fv, 1.0f, 200.0f);
+        SYNC_TENSION_FAST_MM_S = clamp_f(fv, 1.0f, SYNC_TENSION_FAST_MAX_MM_S);
     else if (!strcmp(base_param, "SYNC_TENSION_PROBE_MAX"))
-        SYNC_TENSION_PROBE_MAX_SPS = clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(6000.0f));
+        SYNC_TENSION_PROBE_MAX_SPS =
+            clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(TENSION_PROBE_MAX_MM_MIN));
     else if (!strcmp(base_param, "SYNC_TENSION_PROBE_UP"))
         SYNC_TENSION_PROBE_UP_SPS_PER_S =
-            clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(12000.0f));
+            clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
     else if (!strcmp(base_param, "SYNC_TENSION_PROBE_DOWN"))
         SYNC_TENSION_PROBE_DOWN_SPS_PER_S =
-            clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(12000.0f));
+            clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
     else if (!strcmp(base_param, "SYNC_TENSION_PROBE_NEUTRAL"))
         SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S =
-            clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(12000.0f));
+            clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "RELAY_MIN_FLIP_MM"))
         RELAY_MIN_FLIP_MM = clamp_f(fv, 0.0f, 100.0f);
     else if (!strcmp(base_param, "RELAY_COLLAPSE_DELAY_MS"))
-        RELAY_COLLAPSE_DELAY_MS = clamp_i(iv, 0, 5000);
+        RELAY_COLLAPSE_DELAY_MS = clamp_i(iv, 0, PATH_DIST_MAX_MM);
     else if (!strcmp(base_param, "RELAY_COLLAPSE_RAMP_MULT"))
         RELAY_COLLAPSE_RAMP_MULT = clamp_i(iv, 1, 16);
     else if (!strcmp(base_param, "RELAY_COLLAPSE_CAP_MS"))
-        RELAY_COLLAPSE_CAP_MS = clamp_i(iv, 0, 5000);
+        RELAY_COLLAPSE_CAP_MS = clamp_i(iv, 0, PATH_DIST_MAX_MM);
     else if (!strcmp(base_param, "BUF_DRIFT_TAU_MS"))
         BUF_DRIFT_EWMA_TAU_MS = clamp_i(iv, 5000, 600000);
     else if (!strcmp(base_param, "BUF_DRIFT_MIN_SMP"))
@@ -1022,19 +1114,21 @@ static bool cmd_set_sync_relay_probe_params(const char *base_param, int iv, floa
 
 static bool cmd_set_cutter_params(const char *base_param, int iv, float fv) {
     if (!strcmp(base_param, "SERVO_OPEN"))
-        SERVO_OPEN_US = clamp_i(iv, 400, 2700);
+        SERVO_OPEN_US = clamp_i(iv, SERVO_MIN_PULSE_US, SERVO_MAX_PULSE_US);
     else if (!strcmp(base_param, "SERVO_CLOSE"))
-        SERVO_CLOSE_US = clamp_i(iv, 400, 2700);
+        SERVO_CLOSE_US = clamp_i(iv, SERVO_MIN_PULSE_US, SERVO_MAX_PULSE_US);
     else if (!strcmp(base_param, "SERVO_BLOCK"))
-        SERVO_BLOCK_US = clamp_i(iv, 400, 2700);
+        SERVO_BLOCK_US = clamp_i(iv, SERVO_MIN_PULSE_US, SERVO_MAX_PULSE_US);
     else if (!strcmp(base_param, "SERVO_SETTLE") || !strcmp(base_param, "SERVO_SETTLE_MS"))
-        SERVO_SETTLE_MS = clamp_i(iv, 100, 2000);
+        SERVO_SETTLE_MS = clamp_i(iv, SERVO_SETTLE_MIN_MS, SERVO_SETTLE_MAX_MS);
     else if (!strcmp(base_param, "UNLOAD_CUT"))
         UNLOAD_CUT = (iv == 1);
     else if (!strcmp(base_param, "CUT_FEED_RATE"))
-        CUT_FEED_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 100, 30000));
+        CUT_FEED_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv),
+                                                     mm_per_min_to_sps(CUT_FEED_MIN_MM_MIN),
+                                                     mm_per_min_to_sps(CUT_FEED_MAX_MM_MIN)));
     else if (!strcmp(base_param, "CUT_FEED"))
-        CUT_FEED_MM = clamp_i(iv, 1, 200);
+        CUT_FEED_MM = clamp_i(iv, 1, CUT_FEED_MAX_MM);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "CUT_FEED_MS"))
         CUT_TIMEOUT_FEED_MS = clamp_i(iv, 1000, 120000);
@@ -1042,14 +1136,14 @@ static bool cmd_set_cutter_params(const char *base_param, int iv, float fv) {
         CUT_TIMEOUT_SETTLE_MS = clamp_i(iv, 500, 10000);
 #endif
     else if (!strcmp(base_param, "CUT_LEN"))
-        CUT_LENGTH_MM = clamp_i(iv, 1, 50);
+        CUT_LENGTH_MM = clamp_i(iv, 1, CUT_LENGTH_MAX_MM);
     else if (!strcmp(base_param, "CUT_AMT"))
-        CUT_AMOUNT = clamp_i(iv, 1, 5);
+        CUT_AMOUNT = clamp_i(iv, 1, CUT_AMOUNT_MAX);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "TC_CUT_MS"))
         TC_TIMEOUT_CUT_MS = clamp_i(iv, 1000, 30000);
     else if (!strcmp(base_param, "TC_TH_MS"))
-        TC_TIMEOUT_TH_MS = clamp_i(iv, 0, 10000);
+        TC_TIMEOUT_TH_MS = clamp_i(iv, 0, RELOAD_JOIN_MAX_MS);
     else if (!strcmp(base_param, "TC_Y_MS"))
         TC_TIMEOUT_Y_MS = clamp_i(iv, 0, 30000);
 #endif
@@ -1081,8 +1175,8 @@ static cmd_set_result_t cmd_apply_set_param(const char *base_param, int lane_mas
 
 static void cmd_handle_set(const char *p, uint32_t now_ms) {
     char param[CMD_PARAM_MAX];
-    char val_str[32];
-    if (sscanf(p, "%63[^:]:%31s", param, val_str) != 2) {
+    char val_str[CMD_VALUE_MAX];
+    if (sscanf(p, CMD_PARAM_SCAN_FMT ":" CMD_VALUE_SCAN_FMT, param, val_str) != 2) {
         cmd_reply("ER", "SET:ARG");
         return;
     }
@@ -1163,7 +1257,7 @@ static bool cmd_handle_cutter(const char *cmd, const char *p, uint32_t now_ms) {
             return true;
         }
         int us = atoi(p);
-        if (us < 400 || us > 2700) {
+        if (us < SERVO_MIN_PULSE_US || us > SERVO_MAX_PULSE_US) {
             cmd_reply("ER", "ARG");
             return true;
         }
@@ -1270,17 +1364,17 @@ static bool cmd_handle_mv_command(const char *p, uint32_t now_ms) {
         return true;
     float mm = 0.0f;
     float feed_mm_min = 0.0f;
-    char dir_tok[8] = {0};
-    char ignore_tok[8] = {0};
-    int n = sscanf(p, "%f:%f:%7[^:]:%7s", &mm, &feed_mm_min, dir_tok, ignore_tok);
+    char dir_tok[CMD_OPTION_TOKEN_MAX] = {0};
+    char ignore_tok[CMD_OPTION_TOKEN_MAX] = {0};
+    int n = sscanf(p, "%f:%f:" CMD_OPTION_TOKEN_SCAN_FMT, &mm, &feed_mm_min, dir_tok, ignore_tok);
     if ((n < 2 || n > 4) || feed_mm_min <= 0.0f) {
         cmd_reply("ER", "ARG");
         return true;
     }
     int idx = lane_to_idx(active_lane);
-    int sps = (int)(feed_mm_min / 60.0f / MM_PER_STEP[idx] + 0.5f);
-    if (sps < 200)
-        sps = 200;
+    int sps = (int)(feed_mm_min / SECONDS_PER_MINUTE_F / MM_PER_STEP[idx] + HALF_F);
+    if (sps < MIN_RUN_RATE_SPS)
+        sps = MIN_RUN_RATE_SPS;
     sps = motion_clamp_rate_sps(sps);
 
     bool forward = (mm >= 0.0f);
@@ -1669,7 +1763,7 @@ static bool cmd_handle_system(const char *cmd, const char *p, uint32_t now_ms) {
         return true;
     } else if (!strcmp(cmd, "BOOT")) {
         cmd_reply("OK", "REBOOTING_TO_BOOTSEL");
-        sleep_ms(100);
+        sleep_ms(BOOTSEL_REPLY_DELAY_MS);
         reset_usb_boot(0, 0);
         return true;
     }
