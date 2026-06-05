@@ -61,6 +61,19 @@ All identifiers must be intention-revealing. No single-letter or opaque identifi
 - **Typedefs / Structs**: `lower_case_t` (must suffix with `_t`)
 - **Macros / Enum Constants**: `UPPER_CASE`
 
+### Global Naming Categories
+Firmware globals fall into three name-distinguished categories. Read the name to know
+what a symbol is:
+
+- `UPPER_CASE` (e.g. `FEED_SPS`, `BUF_SENSOR_TYPE`): a **runtime-mutable, config-backed
+  tunable** — an `extern` variable that mirrors a `config.ini` key, is settable via
+  `SET:`/`GET:`, and is persisted in flash. Despite the constant-looking case, these
+  are NOT compile-time constants; the casing is kept to match the protocol/config name.
+- `g_lower_case` (e.g. `g_buf`, `g_lane_l1`): **internal module/runtime state**, not a
+  tunable and not part of the config/protocol surface.
+- `CONF_*` (e.g. `CONF_FEED_SPS`): a **generated compile-time default** from
+  `tune.h` (built from `config.ini`); seeds the matching `UPPER_CASE` tunable at boot.
+
 ### Domain Vocabulary Whitelist
 The following domain-specific abbreviations are allowed and documented:
 - `sps`: Steps Per Second (stepper rate unit)
@@ -93,6 +106,9 @@ Include headers in the following order (separated by a blank line):
 - Opaque numeric literals in control logic are prohibited.
 - Use named constants (`#define` or `static const`) with explanatory comments.
 - For values that need to be runtime-tunable, use the `config.ini` -> `tune.h` -> `CONF_*` macro pipeline.
+- **Single definition (DRY)**: a constant or small helper used by more than one
+  translation unit lives once in a shared header (e.g. `firmware/include/firmware_constants.h`),
+  not copied per `.c`. Do not redefine the same constant with divergent style across units.
 
 ---
 
