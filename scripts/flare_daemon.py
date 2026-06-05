@@ -958,6 +958,9 @@ def klipper_syncer(moonraker_url):
     was_online = False
     last_loaded_gate = None
     last_active_spool = object()  # sentinel distinct from None / any spool id
+    last_pushed_fields = {}  # KEY -> last-pushed formatted value, for delta SET_MMU
+    last_gate_dbg = None  # FLARE_GATE_DEBUG: last logged gate-input tuple
+    gate_debug = bool(os.environ.get("FLARE_GATE_DEBUG"))
 
     while True:
         time.sleep(0.25)
@@ -999,15 +1002,22 @@ def klipper_syncer(moonraker_url):
         if abs(sync_feedback - last_sync_feedback) > 0.05:
             changed = True
 
-        # Force full sync every 10 seconds to recover if Klipper/Moonraker restarted
+        # Force full sync every 10 seconds to recover if Klipper/Moonraker restarted.
+        # full = send every SET_MMU field (not just the delta) for restart recovery.
+        force_full = False
         if time.time() - last_force_sync > 10.0:
             changed = True
+            force_full = True
 
         board_online = state.get("board_online", False)
         trigger_board_sync = False
         if board_online and not was_online:
             trigger_board_sync = True
             changed = True
+            force_full = True
+
+        if not last_pushed_fields:
+            force_full = True  # first push after start / recovery
 
         if not changed:
             continue
@@ -1099,28 +1109,73 @@ def klipper_syncer(moonraker_url):
         rev_rate = state.get("rev_rate_mms", 50.0)
         bypass = bool(state.get("bypass", False))
 
-        mmu_cmd = (
-            f"SET_MMU NUM_GATES=2 ACTIVE_GATE={active_gate} GATE={klipper_gate} TOOL={klipper_tool} "
-            f"ACTION='{action}' TC_STATE='{tc_state}' "
-            f"GATE_STATUS='{gate_status_1},{gate_status_2}' GATE_SENSOR='{in1},{in2}' "
-            f"TOOLHEAD_SENSOR={toolhead} SYNC_FEEDBACK={sync_feedback:.3f} SYNC_FEEDBACK_ENABLED={sync_feedback_enabled} "
-            f"SYNC_FEEDBACK_STATE='{buf_state}' PRINT_JOB_STATE='{print_job_state}' "
-            f"PRINT_STATE='{print_state}' BOARD_ONLINE={board_online} "
-            f"SPS={sps:.3f} RELOAD_MODE={reload_mode} ENABLE_CUTTER={enable_cutter} "
-            f"UNLOAD_CUT={unload_cut} BUF_SENSOR_TYPE={stype} GATE_SENSOR_ACTIVE={gate_sensor_active} "
-            f"EXTRUDER_SENSOR_ACTIVE={extruder_sensor_active} "
-            f"PRE_GATE_SENSOR_ACTIVE={pre_gate_sensor_active} HUB_SENSOR_ACTIVE={hub_sensor_active} "
-            f"SWAPS_TOTAL={st['swaps_total']} SWAPS_SUCCESS={st['swaps_success']} "
-            f"SWAPS_FAILED={st['swaps_failed']} LOADS_SUCCESS={st['loads_success']} "
-            f"UNLOADS_SUCCESS={st['unloads_success']} MMU_LAST_ERROR='{st['last_error']}' "
-            f"FEED_RATE={feed_rate:.2f} REV_RATE={rev_rate:.2f} "
-            f"BYPASS={1 if bypass else 0}"
-        )
+        # All SET_MMU mirror fields as formatted strings, in a stable order. cmd_SET_MMU
+        # keeps the current value for any absent param, so we can push only the fields
+        # that changed (delta) and still leave the mock in the same state.
+        fields = {
+            "NUM_GATES": "2",
+            "ACTIVE_GATE": str(active_gate),
+            "GATE": str(klipper_gate),
+            "TOOL": str(klipper_tool),
+            "ACTION": f"'{action}'",
+            "TC_STATE": f"'{tc_state}'",
+            "GATE_STATUS": f"'{gate_status_1},{gate_status_2}'",
+            "GATE_SENSOR": f"'{in1},{in2}'",
+            "TOOLHEAD_SENSOR": str(toolhead),
+            "SYNC_FEEDBACK": f"{sync_feedback:.3f}",
+            "SYNC_FEEDBACK_ENABLED": str(sync_feedback_enabled),
+            "SYNC_FEEDBACK_STATE": f"'{buf_state}'",
+            "PRINT_JOB_STATE": f"'{print_job_state}'",
+            "PRINT_STATE": f"'{print_state}'",
+            "BOARD_ONLINE": str(board_online),
+            "SPS": f"{sps:.3f}",
+            "RELOAD_MODE": str(reload_mode),
+            "ENABLE_CUTTER": str(enable_cutter),
+            "UNLOAD_CUT": str(unload_cut),
+            "BUF_SENSOR_TYPE": str(stype),
+            "GATE_SENSOR_ACTIVE": str(gate_sensor_active),
+            "EXTRUDER_SENSOR_ACTIVE": str(extruder_sensor_active),
+            "PRE_GATE_SENSOR_ACTIVE": str(pre_gate_sensor_active),
+            "HUB_SENSOR_ACTIVE": str(hub_sensor_active),
+            "SWAPS_TOTAL": str(st["swaps_total"]),
+            "SWAPS_SUCCESS": str(st["swaps_success"]),
+            "SWAPS_FAILED": str(st["swaps_failed"]),
+            "LOADS_SUCCESS": str(st["loads_success"]),
+            "UNLOADS_SUCCESS": str(st["unloads_success"]),
+            "MMU_LAST_ERROR": f"'{st['last_error']}'",
+            "FEED_RATE": f"{feed_rate:.2f}",
+            "REV_RATE": f"{rev_rate:.2f}",
+            "BYPASS": str(1 if bypass else 0),
+        }
 
-        lines.append(mmu_cmd)
+        # FLARE_GATE_DEBUG: log gate-relevant inputs when they change, to root-cause
+        # the gate-status dot blink. No-op unless the env flag is set.
+        if gate_debug:
+            gate_tuple = (active_gate, in1, out1, in2, out2,
+                          gate_status_1, gate_status_2, tc_state)
+            if gate_tuple != last_gate_dbg:
+                last_gate_dbg = gate_tuple
+                print(f"[gate-dbg {time.time():.3f}] active_gate={active_gate} "
+                      f"in1={in1} out1={out1} in2={in2} out2={out2} "
+                      f"gate_status={gate_status_1},{gate_status_2} tc={tc_state}",
+                      file=sys.stderr, flush=True)
+
+        if force_full:
+            delta = fields
+        else:
+            delta = {k: v for k, v in fields.items() if last_pushed_fields.get(k) != v}
+
+        if not delta and not trigger_board_sync:
+            continue
+
+        if delta:
+            lines.append("SET_MMU " + " ".join(f"{k}={v}" for k, v in delta.items()))
 
         if trigger_board_sync:
             lines.append("_FLARE_SYNC_BOARD")
+
+        if not lines:
+            continue
 
         gcode_script = "\n".join(lines)
         payload = json.dumps({"script": gcode_script}).encode("utf-8")
@@ -1136,11 +1191,15 @@ def klipper_syncer(moonraker_url):
             with urllib.request.urlopen(req, timeout=1.0) as resp:
                 if resp.status == 200:
                     last_sync = state
+                    # Record the full current field snapshot so the next push only
+                    # diffs against what Klipper now actually holds.
+                    last_pushed_fields = dict(fields)
                     last_force_sync = time.time()
                     was_online = board_online
         except Exception:
             # Moonraker offline, backoff for 5.0 seconds
-            last_sync = {} # Clear cache to force push on recovery
+            last_sync = {}  # Clear cache to force push on recovery
+            last_pushed_fields = {}  # force a full SET_MMU on recovery
             backoff = time.time() + 5.0
 
         # Spoolman: mirror the loaded gate's spool as Moonraker's active spool so
