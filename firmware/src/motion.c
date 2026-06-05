@@ -243,284 +243,259 @@ void lane_start(lane_t *lane, task_t t, int sps, bool forward, uint32_t now_ms, 
     tmc_set_run_current_ma(lane->tmc, TMC_RUN_CURRENT_MA[idx], TMC_HOLD_CURRENT_MA[idx]);
 }
 
-void lane_tick(lane_t *lane, uint32_t now_ms) {
-    char lane_s[2] = {(char)('0' + lane->lane_id), 0};
-
-    bool in_p = lane_in_present(lane);
-    if (lane->prev_in && !in_p) {
-        lane->dist_at_in_clear_mm = lane->task_dist_mm;
-    }
-    lane->prev_in = in_p;
-
-    if (lane->task != TASK_IDLE && lane->current_sps < lane->target_sps) {
-        if ((int32_t)(now_ms - lane->ramp_last_tick_ms) >= RAMP_TICK_MS) {
+static void lane_tick_autoload(lane_t *lane, uint32_t now_ms, const char *lane_s) {
+    if (lane_out_present(lane)) {
+        if (AUTOLOAD_RETRACT_MM > 0) {
+            float secs =
+                (float)AUTOLOAD_RETRACT_MM / ((float)REV_SPS * MM_PER_STEP[lane->lane_id - 1]);
+            if (secs < 0.05f)
+                secs = 0.05f;
+            lane->dist_at_out_mm = lane->task_dist_mm;
+            lane->retract_deadline_ms = now_ms + (uint32_t)(secs * 1000.0f);
+            lane->task = TASK_UNLOAD;
+            motor_set_dir(&lane->m, false);
+            lane->target_sps = REV_SPS;
+            lane->current_sps = RAMP_STEP_SPS;
             lane->ramp_last_tick_ms = now_ms;
-            lane->current_sps += RAMP_STEP_SPS;
-            if (lane->current_sps > lane->target_sps)
-                lane->current_sps = lane->target_sps;
             motor_set_rate_sps(&lane->m, lane->current_sps);
-        }
-    }
-
-    uint32_t dt_ms = now_ms - lane->last_dist_tick_ms;
-    if (dt_ms > 0) {
-        int idx = lane_to_idx(lane->lane_id);
-        lane->task_dist_mm += (float)lane->current_sps * ((float)dt_ms / 1000.0f) * MM_PER_STEP[idx];
-        lane->last_dist_tick_ms = now_ms;
-    }
-
-    if (lane->task == TASK_AUTOLOAD) {
-        if (lane_out_present(lane)) {
-            if (AUTOLOAD_RETRACT_MM > 0) {
-                float secs =
-                    (float)AUTOLOAD_RETRACT_MM / ((float)REV_SPS * MM_PER_STEP[lane->lane_id - 1]);
-                if (secs < 0.05f)
-                    secs = 0.05f;
-                lane->dist_at_out_mm = lane->task_dist_mm;
-                lane->retract_deadline_ms = now_ms + (uint32_t)(secs * 1000.0f);
-                lane->task = TASK_UNLOAD;
-                motor_set_dir(&lane->m, false);
-                lane->target_sps = REV_SPS;
-                lane->current_sps = RAMP_STEP_SPS;
-                lane->ramp_last_tick_ms = now_ms;
-                motor_set_rate_sps(&lane->m, lane->current_sps);
-            } else {
-                lane_stop(lane);
-            }
-        } else if (lane->task_dist_mm > (float)DIST_IN_OUT * 1.5f) {
-            lane_stop(lane);
-            tc_enter_error("PRELOAD_JAM");
-        } else if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+        } else {
             lane_stop(lane);
         }
+    } else if (lane->task_dist_mm > (float)DIST_IN_OUT * 1.5f) {
+        lane_stop(lane);
+        tc_enter_error("PRELOAD_JAM");
+    } else if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+        lane_stop(lane);
     }
+}
 
-    if (lane->task == TASK_UNLOAD) {
-        if (lane->retract_deadline_ms == 0) {
-            /* Type-D recover: buffer hits TENSION mid-retract -> brief forward jog
-               to relieve, then resume. Type-D ONLY. Type-P homes at the tension
-               rail and relaxes back to it throughout ANY normal retract (mid-tube,
-               deep, or compression-start), indistinguishable from a real jam by
-               position alone — so type-P uses no position-based relief/block and
-               relies on the UNLOAD_MAX distance limit (UNLOAD_TIMEOUT) below for
-               the stuck case. */
-            bool buf_recover_due = (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION);
+static void lane_tick_unload(lane_t *lane, uint32_t now_ms, const char *lane_s) {
+    if (lane->retract_deadline_ms == 0) {
+        /* Type-D recover: buffer hits TENSION mid-retract -> brief forward jog
+           to relieve, then resume. Type-D ONLY. Type-P homes at the tension
+           rail and relaxes back to it throughout ANY normal retract (mid-tube,
+           deep, or compression-start), indistinguishable from a real jam by
+           position alone — so type-P uses no position-based relief/block and
+           relies on the UNLOAD_MAX distance limit (UNLOAD_TIMEOUT) below for
+           the stuck case. */
+        bool buf_recover_due = (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION);
 
-            if (lane->unload_sensor_latch && !lane->unload_to_in) {
-                float moved_mm = lane->task_dist_mm - lane->dist_at_out_mm;
-                if (moved_mm >= BUF_SWITCH_SPAN_HALF_MM) {
-                    lane->task_dist_mm = lane->dist_at_out_mm;
-                    lane->unload_sensor_latch = false;
+        if (lane->unload_sensor_latch && !lane->unload_to_in) {
+            float moved_mm = lane->task_dist_mm - lane->dist_at_out_mm;
+            if (moved_mm >= BUF_SWITCH_SPAN_HALF_MM) {
+                lane->task_dist_mm = lane->dist_at_out_mm;
+                lane->unload_sensor_latch = false;
 
-                    motor_stop(&lane->m);
-                    lane->target_sps = REV_SPS;
-                    lane->current_sps = REV_SPS;
-                    lane->ramp_last_tick_ms = now_ms;
-                    motor_enable(&lane->m, true);
-                    motor_set_dir(&lane->m, false);
-                    motor_set_rate_sps(&lane->m, lane->current_sps);
-                }
-            } else if (!lane->unload_to_in && !lane->unload_buf_recover_done && buf_recover_due) {
                 motor_stop(&lane->m);
-                lane->unload_buf_recover_done = true;
-                lane->unload_sensor_latch = true;
-                lane->dist_at_out_mm = lane->task_dist_mm;
-
-                lane->target_sps = BUF_STAB_SPS;
-                lane->current_sps = BUF_STAB_SPS;
+                lane->target_sps = REV_SPS;
+                lane->current_sps = REV_SPS;
                 lane->ramp_last_tick_ms = now_ms;
                 motor_enable(&lane->m, true);
-                motor_set_dir(&lane->m, true);
+                motor_set_dir(&lane->m, false);
                 motor_set_rate_sps(&lane->m, lane->current_sps);
-            } else if (lane_out_present(lane)) {
-            } else if (lane->unload_to_in && lane_in_present(lane)) {
-                if (!lane->unload_sensor_latch) {
-                    lane->unload_sensor_latch = true;
-                    lane->dist_at_out_mm = lane->task_dist_mm;
-                }
-                float dist_since_out = lane->task_dist_mm - lane->dist_at_out_mm;
-                if (dist_since_out > (float)DIST_IN_OUT * 2.0f) {
-                    lane_stop(lane);
-                    tc_enter_error("UNLOAD_JAM");
-                }
-            } else {
-                if (lane->unload_to_in) {
-                    lane_stop(lane);
-                    cmd_event("UNLOADED", lane_s);
-                } else {
-                    lane->dist_at_out_mm = lane->task_dist_mm;
-                    lane->retract_deadline_ms = now_ms + 30000;
-                }
             }
-
-            if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
-                lane_stop(lane);
-                cmd_event("UNLOAD_TIMEOUT", NULL);
-            }
-
-            /* UNLOAD_TENSION_BLOCK: if the buffer stays in TENSION throughout
-               a retract it usually means the printer extruder is gripping and
-               pulling forward faster than the MMU can retract — a real block.
-               Exception: when BOTH OUT sensors are active (double-load recovery)
-               the buffer tension is caused by the OTHER lane being printed, not
-               by the printer blocking THIS lane.  Skip the check in that case. */
-            if (BUF_SENSOR_TYPE == 0 && UNLOAD_TENSION_BLOCK_MS > 0 && !lane->unload_to_in &&
-                !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
-                if (g_buf.state == BUF_TENSION) {
-                    if (lane->buf_tension_since_ms == 0)
-                        lane->buf_tension_since_ms = now_ms;
-                    else if ((int32_t)(now_ms - lane->buf_tension_since_ms) >=
-                             UNLOAD_TENSION_BLOCK_MS) {
-                        lane_stop(lane);
-                        cmd_event("UNLOAD_BLOCKED", NULL);
-                    }
-                } else {
-                    lane->buf_tension_since_ms = 0;
-                }
-            }
-        } else {
-            bool done;
-            if (!lane->unload_to_in) {
-                float retracted = lane->task_dist_mm - lane->dist_at_out_mm;
-                done = retracted >= (float)AUTOLOAD_RETRACT_MM ||
-                       (int32_t)(now_ms - lane->retract_deadline_ms) >= 0;
-            } else {
-                done = (int32_t)(now_ms - lane->retract_deadline_ms) >= 0;
-            }
-            if (done) {
-                bool suppress_event = lane->suppress_unloaded_event;
-                lane_stop(lane);
-                if (!suppress_event)
-                    cmd_event("UNLOADED", lane_s);
-            }
-        }
-    }
-
-    if (lane->task == TASK_LOAD_FULL) {
-        if (lane_out_present(lane) && !lane->unload_sensor_latch) {
+        } else if (!lane->unload_to_in && !lane->unload_buf_recover_done && buf_recover_due) {
+            motor_stop(&lane->m);
+            lane->unload_buf_recover_done = true;
             lane->unload_sensor_latch = true;
             lane->dist_at_out_mm = lane->task_dist_mm;
+
+            lane->target_sps = BUF_STAB_SPS;
+            lane->current_sps = BUF_STAB_SPS;
+            lane->ramp_last_tick_ms = now_ms;
+            motor_enable(&lane->m, true);
+            motor_set_dir(&lane->m, true);
+            motor_set_rate_sps(&lane->m, lane->current_sps);
+        } else if (lane_out_present(lane)) {
+        } else if (lane->unload_to_in && lane_in_present(lane)) {
+            if (!lane->unload_sensor_latch) {
+                lane->unload_sensor_latch = true;
+                lane->dist_at_out_mm = lane->task_dist_mm;
+            }
+            float dist_since_out = lane->task_dist_mm - lane->dist_at_out_mm;
+            if (dist_since_out > (float)DIST_IN_OUT * 2.0f) {
+                lane_stop(lane);
+                tc_enter_error("UNLOAD_JAM");
+            }
+        } else {
+            if (lane->unload_to_in) {
+                lane_stop(lane);
+                cmd_event("UNLOADED", lane_s);
+            } else {
+                lane->dist_at_out_mm = lane->task_dist_mm;
+                lane->retract_deadline_ms = now_ms + 30000;
+            }
         }
 
-        if (TS_BUF_FALLBACK_MS > 0 && lane->unload_sensor_latch) {
-            if (g_buf.state == BUF_COMPRESSION) {
+        if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+            lane_stop(lane);
+            cmd_event("UNLOAD_TIMEOUT", NULL);
+        }
+
+        /* UNLOAD_TENSION_BLOCK: if the buffer stays in TENSION throughout
+           a retract it usually means the printer extruder is gripping and
+           pulling forward faster than the MMU can retract — a real block.
+           Exception: when BOTH OUT sensors are active (double-load recovery)
+           the buffer tension is caused by the OTHER lane being printed, not
+           by the printer blocking THIS lane.  Skip the check in that case. */
+        if (BUF_SENSOR_TYPE == 0 && UNLOAD_TENSION_BLOCK_MS > 0 && !lane->unload_to_in &&
+            !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
+            if (g_buf.state == BUF_TENSION) {
                 if (lane->buf_tension_since_ms == 0)
                     lane->buf_tension_since_ms = now_ms;
-                else if ((int32_t)(now_ms - lane->buf_tension_since_ms) >= TS_BUF_FALLBACK_MS)
-                    set_toolhead_filament(true);
+                else if ((int32_t)(now_ms - lane->buf_tension_since_ms) >=
+                         UNLOAD_TENSION_BLOCK_MS) {
+                    lane_stop(lane);
+                    cmd_event("UNLOAD_BLOCKED", NULL);
+                }
             } else {
                 lane->buf_tension_since_ms = 0;
             }
         }
+    } else {
+        bool done;
+        if (!lane->unload_to_in) {
+            float retracted = lane->task_dist_mm - lane->dist_at_out_mm;
+            done = retracted >= (float)AUTOLOAD_RETRACT_MM ||
+                   (int32_t)(now_ms - lane->retract_deadline_ms) >= 0;
+        } else {
+            done = (int32_t)(now_ms - lane->retract_deadline_ms) >= 0;
+        }
+        if (done) {
+            bool suppress_event = lane->suppress_unloaded_event;
+            lane_stop(lane);
+            if (!suppress_event)
+                cmd_event("UNLOADED", lane_s);
+        }
+    }
+}
 
-        bool buf_tension_sane = (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION);
-        bool buf_compression_sane = false;
-        if (lane->unload_sensor_latch) {
-            float dist_since_out = lane->task_dist_mm - lane->dist_at_out_mm;
-            float threshold =
-                (float)DIST_OUT_Y + (float)DIST_Y_BUF + (float)BUF_MAX_TRAVEL_MM / 2.0f;
-            bool distance_passed = (dist_since_out >= threshold * 0.8f);
-            /* For Type-P, we do not require the distance bypass gate because we have continuous
-               analog tracking and the buffer won't deviate from home (1.0) until filament hits the
-               gears. */
+static void lane_tick_load_full(lane_t *lane, uint32_t now_ms, const char *lane_s) {
+    if (lane_out_present(lane) && !lane->unload_sensor_latch) {
+        lane->unload_sensor_latch = true;
+        lane->dist_at_out_mm = lane->task_dist_mm;
+    }
+
+    if (TS_BUF_FALLBACK_MS > 0 && lane->unload_sensor_latch) {
+        if (g_buf.state == BUF_COMPRESSION) {
+            if (lane->buf_tension_since_ms == 0)
+                lane->buf_tension_since_ms = now_ms;
+            else if ((int32_t)(now_ms - lane->buf_tension_since_ms) >= TS_BUF_FALLBACK_MS)
+                set_toolhead_filament(true);
+        } else {
+            lane->buf_tension_since_ms = 0;
+        }
+    }
+
+    bool buf_tension_sane = (BUF_SENSOR_TYPE == 0 && g_buf.state == BUF_TENSION);
+    bool buf_compression_sane = false;
+    if (lane->unload_sensor_latch) {
+        float dist_since_out = lane->task_dist_mm - lane->dist_at_out_mm;
+        float threshold =
+            (float)DIST_OUT_Y + (float)DIST_Y_BUF + (float)BUF_MAX_TRAVEL_MM / 2.0f;
+        bool distance_passed = (dist_since_out >= threshold * 0.8f);
+        /* For Type-P, we do not require the distance bypass gate because we have continuous
+           analog tracking and the buffer won't deviate from home (1.0) until filament hits the
+           gears. */
+        if (BUF_SENSOR_TYPE == 1) {
+            distance_passed = true;
+        }
+
+        if (!distance_passed) {
+            buf_tension_sane = false;
+        } else {
             if (BUF_SENSOR_TYPE == 1) {
-                distance_passed = true;
-            }
-
-            if (!distance_passed) {
-                buf_tension_sane = false;
-            } else {
-                if (BUF_SENSOR_TYPE == 1) {
-                    if (g_buf_pos > PSF_LOAD_CONTACT_THRESHOLD_NORM) {
-                        buf_compression_sane = true;
-                    }
-                } else if (g_buf.state == BUF_COMPRESSION) {
+                if (g_buf_pos > PSF_LOAD_CONTACT_THRESHOLD_NORM) {
                     buf_compression_sane = true;
                 }
+            } else if (g_buf.state == BUF_COMPRESSION) {
+                buf_compression_sane = true;
             }
-        } else {
-            buf_tension_sane = false;
         }
+    } else {
+        buf_tension_sane = false;
+    }
 
-        bool loaded = toolhead_has_filament || buf_tension_sane || buf_compression_sane;
+    bool loaded = toolhead_has_filament || buf_tension_sane || buf_compression_sane;
 
-        if (loaded) {
-            lane->load_completed = true;
-            lane_stop(lane);
-            cmd_event("LOADED", lane_s);
-            if (AUTO_MODE && BUF_SENSOR_TYPE == 0) {
-                /* Type-D: engage sync immediately on load completion. Type-P: do
-                   NOT force SYNC_ACTIVE here — the buffer is at COMPRESSION right
-                   after the tip hits the gears, and the continuous controller would
-                   overfeed into them. The D18 auto-start (tension transition +
-                   g_buf_pos > 0.6) engages type-P sync when the extruder demands. */
-                sync_set_state(SYNC_ACTIVE);
-                sync_auto_started = true;
-                sync_idle_since_ms = 0;
-            } else if (BUF_SENSOR_TYPE == 1) {
-                /* Type-P: confidently loaded now (gear contact / toolhead), so park
-                   the buffer at goal. Presence-gated; self-aborts (~200 ms,
-                   BUF_STAB:STAGNANT_TIMEOUT) if the buffer doesn't track the MMU —
-                   i.e. not actually coupled, so we stop rather than dry-spin. */
-                buffer_stabilize_request(now_ms);
-            }
-        } else if (!lane_in_present(lane) && (int32_t)(now_ms - lane->task_started_ms) >= 1000) {
-            if (lane_out_present(lane)) {
-                lane->reload_tail_ms = now_ms;
-            } else if (lane_tail_in_transit(lane)) {
-            } else {
-                lane_stop(lane);
-                cmd_event("RUNOUT", lane_s);
-                if (RELOAD_MODE && tc_state() == TC_IDLE)
-                    reload_trigger(lane->lane_id, now_ms);
-            }
-        } else if (!lane->unload_sensor_latch && (int32_t)(now_ms - lane->motion_started_ms) >= 10000) {
+    if (loaded) {
+        lane->load_completed = true;
+        lane_stop(lane);
+        cmd_event("LOADED", lane_s);
+        if (AUTO_MODE && BUF_SENSOR_TYPE == 0) {
+            /* Type-D: engage sync immediately on load completion. Type-P: do
+               NOT force SYNC_ACTIVE here — the buffer is at COMPRESSION right
+               after the tip hits the gears, and the continuous controller would
+               overfeed into them. The D18 auto-start (tension transition +
+               g_buf_pos > 0.6) engages type-P sync when the extruder demands. */
+            sync_set_state(SYNC_ACTIVE);
+            sync_auto_started = true;
+            sync_idle_since_ms = 0;
+        } else if (BUF_SENSOR_TYPE == 1) {
+            /* Type-P: confidently loaded now (gear contact / toolhead), so park
+               the buffer at goal. Presence-gated; self-aborts (~200 ms,
+               BUF_STAB:STAGNANT_TIMEOUT) if the buffer doesn't track the MMU —
+               i.e. not actually coupled, so we stop rather than dry-spin. */
+            buffer_stabilize_request(now_ms);
+        }
+    } else if (!lane_in_present(lane) && (int32_t)(now_ms - lane->task_started_ms) >= 1000) {
+        if (lane_out_present(lane)) {
+            lane->reload_tail_ms = now_ms;
+        } else if (lane_tail_in_transit(lane)) {
+        } else {
             lane_stop(lane);
             cmd_event("RUNOUT", lane_s);
-        } else if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+            if (RELOAD_MODE && tc_state() == TC_IDLE)
+                reload_trigger(lane->lane_id, now_ms);
+        }
+    } else if (!lane->unload_sensor_latch && (int32_t)(now_ms - lane->motion_started_ms) >= 10000) {
+        lane_stop(lane);
+        cmd_event("RUNOUT", lane_s);
+    } else if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+        lane_stop(lane);
+        cmd_event("LOAD_TIMEOUT", lane_s);
+    }
+}
+
+static void lane_tick_move(lane_t *lane, uint32_t now_ms, const char *lane_s) {
+    if (!lane->move_ignore_buffer && BUF_SENSOR_TYPE == 0) {
+        if (lane->task_forward && g_buf.state == BUF_COMPRESSION) {
             lane_stop(lane);
-            cmd_event("LOAD_TIMEOUT", lane_s);
-        }
-    }
-
-    if (lane->task == TASK_MOVE) {
-        if (!lane->move_ignore_buffer && BUF_SENSOR_TYPE == 0) {
-            if (lane->task_forward && g_buf.state == BUF_COMPRESSION) {
-                lane_stop(lane);
-                lane->fault = FAULT_BUF;
-                cmd_event("FAULT:MOVE_COMPRESSION", lane_s);
-            } else if (!lane->task_forward && g_buf.state == BUF_TENSION) {
-                lane_stop(lane);
-                lane->fault = FAULT_BUF;
-                cmd_event("FAULT:MOVE_TENSION", lane_s);
-            }
-        }
-
-        if (lane->task == TASK_MOVE && lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+            lane->fault = FAULT_BUF;
+            cmd_event("FAULT:MOVE_COMPRESSION", lane_s);
+        } else if (!lane->task_forward && g_buf.state == BUF_TENSION) {
             lane_stop(lane);
-            cmd_event("MOVE_DONE", lane_s);
+            lane->fault = FAULT_BUF;
+            cmd_event("FAULT:MOVE_TENSION", lane_s);
         }
     }
 
-    if ((lane->task == TASK_FEED || lane->task == TASK_AUTOLOAD) && !lane_in_present(lane)) {
-        if ((int32_t)(now_ms - lane->task_started_ms) >= 1000 &&
-            (int32_t)(now_ms - lane->runout_block_until_ms) >= 0) {
-            if (lane_out_present(lane)) {
-                lane->reload_tail_ms = now_ms;
-                lane->runout_block_until_ms = now_ms + 30000u;
-            } else if (lane_tail_in_transit(lane)) {
-            } else {
-                cmd_event("RUNOUT", lane_s);
-                lane->runout_block_until_ms = now_ms + (uint32_t)RUNOUT_COOLDOWN_MS;
-                if (lane->task == TASK_FEED)
-                    set_toolhead_filament(false);
-                lane_stop(lane);
-                if (RELOAD_MODE && lane->task == TASK_FEED && tc_state() == TC_IDLE)
-                    reload_trigger(lane->lane_id, now_ms);
-            }
+    if (lane->task == TASK_MOVE && lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+        lane_stop(lane);
+        cmd_event("MOVE_DONE", lane_s);
+    }
+}
+
+static void lane_tick_feed_autoload(lane_t *lane, uint32_t now_ms, const char *lane_s) {
+    if ((int32_t)(now_ms - lane->task_started_ms) >= 1000 &&
+        (int32_t)(now_ms - lane->runout_block_until_ms) >= 0) {
+        if (lane_out_present(lane)) {
+            lane->reload_tail_ms = now_ms;
+            lane->runout_block_until_ms = now_ms + 30000u;
+        } else if (lane_tail_in_transit(lane)) {
+        } else {
+            cmd_event("RUNOUT", lane_s);
+            lane->runout_block_until_ms = now_ms + (uint32_t)RUNOUT_COOLDOWN_MS;
+            if (lane->task == TASK_FEED)
+                set_toolhead_filament(false);
+            lane_stop(lane);
+            if (RELOAD_MODE && lane->task == TASK_FEED && tc_state() == TC_IDLE)
+                reload_trigger(lane->lane_id, now_ms);
         }
     }
+}
 
+static void lane_tick_dry_spin_tail(lane_t *lane, uint32_t now_ms, const char *lane_s) {
     if (lane->task != TASK_IDLE && !lane_in_present(lane) && !lane_out_present(lane) &&
         g_buf.state != BUF_TENSION) {
         if (lane->dry_spin_ms == 0)
@@ -551,6 +526,55 @@ void lane_tick(lane_t *lane, uint32_t now_ms) {
                 reload_trigger(lane->lane_id, now_ms);
         }
     }
+}
+
+void lane_tick(lane_t *lane, uint32_t now_ms) {
+    char lane_s[2] = {(char)('0' + lane->lane_id), 0};
+
+    bool in_p = lane_in_present(lane);
+    if (lane->prev_in && !in_p) {
+        lane->dist_at_in_clear_mm = lane->task_dist_mm;
+    }
+    lane->prev_in = in_p;
+
+    if (lane->task != TASK_IDLE && lane->current_sps < lane->target_sps) {
+        if ((int32_t)(now_ms - lane->ramp_last_tick_ms) >= RAMP_TICK_MS) {
+            lane->ramp_last_tick_ms = now_ms;
+            lane->current_sps += RAMP_STEP_SPS;
+            if (lane->current_sps > lane->target_sps)
+                lane->current_sps = lane->target_sps;
+            motor_set_rate_sps(&lane->m, lane->current_sps);
+        }
+    }
+
+    uint32_t dt_ms = now_ms - lane->last_dist_tick_ms;
+    if (dt_ms > 0) {
+        int idx = lane_to_idx(lane->lane_id);
+        lane->task_dist_mm += (float)lane->current_sps * ((float)dt_ms / 1000.0f) * MM_PER_STEP[idx];
+        lane->last_dist_tick_ms = now_ms;
+    }
+
+    if (lane->task == TASK_AUTOLOAD) {
+        lane_tick_autoload(lane, now_ms, lane_s);
+    }
+
+    if (lane->task == TASK_UNLOAD) {
+        lane_tick_unload(lane, now_ms, lane_s);
+    }
+
+    if (lane->task == TASK_LOAD_FULL) {
+        lane_tick_load_full(lane, now_ms, lane_s);
+    }
+
+    if (lane->task == TASK_MOVE) {
+        lane_tick_move(lane, now_ms, lane_s);
+    }
+
+    if ((lane->task == TASK_FEED || lane->task == TASK_AUTOLOAD) && !lane_in_present(lane)) {
+        lane_tick_feed_autoload(lane, now_ms, lane_s);
+    }
+
+    lane_tick_dry_spin_tail(lane, now_ms, lane_s);
 }
 
 void stop_all(void) {
