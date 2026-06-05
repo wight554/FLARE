@@ -45,3 +45,18 @@
   - Commits: `c7f0cfa`, `def0627`.
 - [x] 5.3 Final `ninja -C build_local` pass; confirm zero behavior/protocol/config/tunable change across the change
   - 2026-06-05 validation: final `ninja -C build_local` passed (`ninja: no work to do` after prior successful build). Working tree clean before ledger update. Change-span review from the tooling baseline showed no edits to `config.ini`, `config.ini.example`, `scripts/gen_config.py`, `scripts/flare_cmd.py`, `MANUAL.md`, `KLIPPER.md`, `BEHAVIOR.md`, or gitignored `tune.h`; touched protocol/settings files were split/extracted/named/formatted only. `settings_t` field layout stayed unchanged and `SETTINGS_VERSION` remained `59u`; no runtime tunable, protocol parameter, persisted field, or config key was added/removed/renamed.
+
+## 6. Comprehension layer (why-not-what comments + self-documenting structure)
+
+- [x] 6.1 Add a file-header doc-block to each `firmware/src/*.c` (`/// @file`: what the unit owns, the core algorithm in 1-3 lines, pointer to the `BEHAVIOR.md`/spec section); build-unaffected (comments only)
+  - 2026-06-05: added `/// @file` blocks to all 14 `.c` units; `ninja -C build_local` passed. Commit `1735824`.
+- [x] 6.2 Add a state-transition map comment atop the `tc_state_t` FSM in `toolchange.c` (states, legal transitions, trigger per edge); comment non-obvious phase logic why-not-what
+  - 2026-06-05: transition map atop `tc_tick` + why-comments (start-state, ready-to-join debounce, follow success); removed duplicate `cutter.h` include. Build passed. Commit `4dfe024`.
+- [x] 6.3 Comment under-commented modules why-not-what (intent, invariants, hardware quirks, edge cases): `motion.c`, `cutter.c`, `settings_store.c`, `protocol_tmc.c`, `protocol_status.c`, `neopixel.c`; no narration of obvious lines
+  - 2026-06-05: commented `motion.c` (tail-in-transit, PWM rate, lane_tick pipeline), `cutter.c` (servo PWM, cutter_state_t map), `settings_store.c` (flash/XIP, load guards), `neopixel.c` (GRB, FIFO). `protocol_tmc.c`/`protocol_status.c` covered by `@file` headers (thin dispatch/format). Build passed. Commit `ba038e2`.
+- [x] 6.4 Add section-divider banners in the large units (`sync.c`, `sync_buf.c`, `protocol.c`) for navigation
+  - 2026-06-05: banners in `sync.c` (8), `sync_buf.c` (7), `protocol.c` (5). Build passed. Commit `2853901`.
+- [x] 6.5 Minimal enum cleanup: convert remaining bool-as-int returns / magic int params to `bool` or named enum where it clarifies intent; build-verify (states already enumerated — small targeted pass only)
+  - 2026-06-05: scan found no bool-as-int returns or bool int-params. Added anonymous enum `BUF_SENSOR_TYPE_D/_P` (same int 0/1) and replaced 61 bare `BUF_SENSOR_TYPE == 0/1` comparisons; assignment/persistence/IO sites unchanged, no `settings_t`/`SETTINGS_VERSION` change. Build passed. Commit `34975e9`.
+- [x] 6.6 Final `ninja -C build_local` pass; confirm comments/enum-cleanup only, zero behavior/protocol/config/tunable change
+  - 2026-06-05: final `ninja -C build_local` = `no work to do` (clean). Phase 6 diff is comments, section banners, one duplicate-include removal, and the sensor-type enum naming (identical int values) only. No serial protocol, `config.ini` key, `tune.h`, runtime tunable, or `settings_t`/`SETTINGS_VERSION` change.

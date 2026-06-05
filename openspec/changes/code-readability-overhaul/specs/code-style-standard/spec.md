@@ -78,6 +78,31 @@ documented tunables; values that are runtime-tunable SHALL follow the existing
 - **THEN** it is replaced by a named constant with an explanatory comment, or a
   config-backed tunable if runtime-adjustable
 
+### Requirement: Comprehension comments and self-documenting structure
+
+Each firmware `.c` SHALL carry a file-header doc-block stating what the unit owns,
+its core algorithm, and a pointer to the relevant `BEHAVIOR.md`/spec section. Inline
+comments SHALL explain why (intent, invariants, hardware quirks, edge cases), not
+narrate obvious code. Every state machine SHALL carry a state-transition map comment.
+
+#### Scenario: A contributor opens an unfamiliar module
+
+- **WHEN** a new contributor opens any `firmware/src/*.c`
+- **THEN** the file-header doc-block states what the unit owns, its core algorithm,
+  and where the behavior is documented
+
+#### Scenario: A state machine is read
+
+- **WHEN** a contributor reads a state machine such as `tc_state_t` in `toolchange.c`
+- **THEN** a transition-map comment lists the states, legal transitions, and the
+  trigger for each edge
+
+#### Scenario: An inline comment is added
+
+- **WHEN** an inline comment is written
+- **THEN** it explains intent, an invariant, a hardware quirk, or an edge case
+- **AND** it does not narrate self-evident code
+
 ### Requirement: Doc-comment format and rationale preservation
 
 `STYLE.md` SHALL define the function/struct/macro doc-comment format, and existing

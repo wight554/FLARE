@@ -62,6 +62,23 @@ splits command-parse vs status-dump vs TMC-advanced. Keep one domain owner per u
 decls. Rationale: splitting on natural seams keeps each TU buildable and reviewable;
 arbitrary line-count cuts would scatter related logic.
 
+### D6: Comprehension layer = why-not-what comments in-code, no separate onboarding doc
+Phase 6 adds the human-comprehension layer. Decision: make the *code* newbie-friendly
+rather than write standalone onboarding docs (user directive). Mechanism: (a) `/// @file`
+header doc-block per `.c` = "architecture in the code" (owns X, algorithm Y, see
+`BEHAVIOR.md` §Z); (b) why-not-what inline comments (intent, invariants, hardware
+quirks, edge cases) for the under-commented modules (`toolchange.c` 599L/2,
+`motion.c` 616L/5, `cutter.c` 304L/0, `settings_store.c` 532L/1); (c) state-transition
+map atop the `tc_state_t` FSM (transitions are the one thing not readable off the code);
+(d) section-divider banners in the large units for navigation. Comment density was
+uneven post-split — rationale concentrated in `sync.c` (120 comments), bare elsewhere.
+Rationale: C convention documents interface in headers, implementation intent in `.c`;
+"why" comments carry the context naming cannot. Alternatives: standalone `ARCHITECTURE.md`
+(user declined — wants self-documenting code); heavy teaching comments (rejected — noise,
+drifts). Enums already cover the state space (`tc_state_t`, `buf_state_t`, `sync_state_t`,
+`fault_t`, `task_t`, `buffer_service_mode_t`); only a minimal bool-as-int / magic-int-param
+cleanup remains.
+
 ### D5: Verification = build + diff-semantics, not new tests
 Behavior-preservation verified by `ninja -C build_local` pass + reviewer confirming
 each commit is format/rename/move only. No HW re-validation required because semantics
