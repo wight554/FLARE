@@ -401,36 +401,8 @@ static void tc_tick_reload_approach(lane_t *lane, uint32_t now_ms, uint32_t age)
     }
 }
 
-static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
-    buf_state_t instant_buf_state = buf_state_raw();
-    if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION ||
-        toolhead_has_filament) {
-        if (lane)
-            lane_stop(lane);
-        set_toolhead_filament(true);
-        char lane_s[2] = {(char)('0' + active_lane), 0};
-        cmd_event("RELOAD:LOADED", lane_s);
-        g_tc_ctx.state = TC_IDLE;
-        return;
-    }
-
-    if (lane->task_dist_mm >= (float)LOAD_MAX_MM) {
-        if (lane)
-            lane_stop(lane);
-        set_toolhead_filament(true);
-        char lane_s[2] = {(char)('0' + active_lane), 0};
-        cmd_event("RELOAD:LOADED", lane_s);
-        g_tc_ctx.state = TC_IDLE;
-        return;
-    }
-
-    if ((now_ms - g_tc_ctx.reload_tick_ms) < (uint32_t)SYNC_TICK_MS)
-        return;
-    g_tc_ctx.reload_tick_ms = now_ms;
-
-    uint32_t follow_age_ms = now_ms - g_tc_ctx.phase_start_ms;
+static int tc_reload_follow_target_sps(lane_t *lane, uint32_t now_ms, uint32_t follow_age_ms) {
     float compression_wall_ms = sync_compression_wall_time_ms(lane);
-    float compression_push_mm_s = sync_compression_wall_velocity_mm_s(lane);
 
     // We must OVER-feed to close the gap and maintain pressure on the old tail.
     // Under-feeding creates a gap because the MMU pushes slower than the extruder pulls!
@@ -464,6 +436,79 @@ static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
         if (target_sps < floor_sps)
             target_sps = floor_sps;
     }
+    return target_sps;
+}
+
+static bool tc_reload_follow_check_jam(lane_t *lane, uint32_t now_ms, uint32_t follow_age_ms) {
+    float compression_push_mm_s = sync_compression_wall_velocity_mm_s(lane);
+    float compression_wall_ms = sync_compression_wall_time_ms(lane);
+
+    if (g_buf.state == BUF_COMPRESSION) {
+        if (g_tc_ctx.last_compression_ms == 0)
+            g_tc_ctx.last_compression_ms = now_ms;
+        bool wall_critical = compression_push_mm_s > RELOAD_COMPRESSION_HARD_PUSH_MM_S &&
+                             compression_wall_ms < RELOAD_COMPRESSION_HARD_WALL_MS;
+        if (wall_critical) {
+            if (g_tc_ctx.wall_critical_since_ms == 0)
+                g_tc_ctx.wall_critical_since_ms = now_ms;
+            else if ((now_ms - g_tc_ctx.wall_critical_since_ms) >=
+                     RELOAD_COMPRESSION_HARD_HOLD_MS) {
+                tc_enter_error("FOLLOW_JAM");
+                lane_stop(lane);
+                return true;
+            }
+        } else {
+            g_tc_ctx.wall_critical_since_ms = 0;
+        }
+        if ((now_ms - g_tc_ctx.last_compression_ms) >
+            (uint32_t)FOLLOW_TIMEOUT_MS[lane_to_idx(lane->lane_id)]) {
+            tc_enter_error("FOLLOW_JAM");
+            lane_stop(lane);
+            return true;
+        }
+    } else {
+        g_tc_ctx.last_compression_ms = 0;
+        g_tc_ctx.wall_critical_since_ms = 0;
+    }
+
+    if (follow_age_ms > 300000) {
+        tc_enter_error("FOLLOW_TIMEOUT_ABS");
+        lane_stop(lane);
+        return true;
+    }
+    return false;
+}
+
+static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
+    buf_state_t instant_buf_state = buf_state_raw();
+    if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION ||
+        toolhead_has_filament) {
+        if (lane)
+            lane_stop(lane);
+        set_toolhead_filament(true);
+        char lane_s[2] = {(char)('0' + active_lane), 0};
+        cmd_event("RELOAD:LOADED", lane_s);
+        g_tc_ctx.state = TC_IDLE;
+        return;
+    }
+
+    if (lane->task_dist_mm >= (float)LOAD_MAX_MM) {
+        if (lane)
+            lane_stop(lane);
+        set_toolhead_filament(true);
+        char lane_s[2] = {(char)('0' + active_lane), 0};
+        cmd_event("RELOAD:LOADED", lane_s);
+        g_tc_ctx.state = TC_IDLE;
+        return;
+    }
+
+    if ((now_ms - g_tc_ctx.reload_tick_ms) < (uint32_t)SYNC_TICK_MS)
+        return;
+    g_tc_ctx.reload_tick_ms = now_ms;
+
+    uint32_t follow_age_ms = now_ms - g_tc_ctx.phase_start_ms;
+
+    int target_sps = tc_reload_follow_target_sps(lane, now_ms, follow_age_ms);
 
     if (g_tc_ctx.reload_current_sps > target_sps)
         g_tc_ctx.reload_current_sps -= SYNC_RAMP_DN_SPS;
@@ -491,37 +536,7 @@ static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
         }
     }
 
-    if (g_buf.state == BUF_COMPRESSION) {
-        if (g_tc_ctx.last_compression_ms == 0)
-            g_tc_ctx.last_compression_ms = now_ms;
-        bool wall_critical = compression_push_mm_s > RELOAD_COMPRESSION_HARD_PUSH_MM_S &&
-                             compression_wall_ms < RELOAD_COMPRESSION_HARD_WALL_MS;
-        if (wall_critical) {
-            if (g_tc_ctx.wall_critical_since_ms == 0)
-                g_tc_ctx.wall_critical_since_ms = now_ms;
-            else if ((now_ms - g_tc_ctx.wall_critical_since_ms) >=
-                     RELOAD_COMPRESSION_HARD_HOLD_MS) {
-                tc_enter_error("FOLLOW_JAM");
-                lane_stop(lane);
-                return;
-            }
-        } else {
-            g_tc_ctx.wall_critical_since_ms = 0;
-        }
-        if ((now_ms - g_tc_ctx.last_compression_ms) >
-            (uint32_t)FOLLOW_TIMEOUT_MS[lane_to_idx(lane->lane_id)]) {
-            tc_enter_error("FOLLOW_JAM");
-            lane_stop(lane);
-            return;
-        }
-    } else {
-        g_tc_ctx.last_compression_ms = 0;
-        g_tc_ctx.wall_critical_since_ms = 0;
-    }
-
-    if ((now_ms - g_tc_ctx.phase_start_ms) > 300000) {
-        tc_enter_error("FOLLOW_TIMEOUT_ABS");
-        lane_stop(lane);
+    if (tc_reload_follow_check_jam(lane, now_ms, follow_age_ms)) {
         return;
     }
 
