@@ -18,3 +18,6 @@ CheckOptions:
     value:           UPPER_CASE
   - key:             readability-identifier-naming.EnumConstantCase
     value:           UPPER_CASE
+  - key:             readability-function-size.LineThreshold
+    value:           100
+
