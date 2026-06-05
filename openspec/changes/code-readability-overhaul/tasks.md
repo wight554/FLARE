@@ -40,5 +40,7 @@
 
 - [x] 5.1 Normalize function/struct/macro doc-comments to `STYLE.md` format; preserve all rationale/tuning-history comments verbatim in meaning
   - 2026-06-05 validation: normalized API-facing struct/macro/shared-interface comments in public/internal headers to `/// @brief` / `///<` form; retained `.c` algorithm/hardware/tuning rationale block comments in meaning. `ninja -C build_local` passed. Commit: `07bca8b`.
-- [ ] 5.2 Re-run `clang-tidy`; resolve or justified-suppress remaining findings
+- [x] 5.2 Re-run `clang-tidy`; resolve or justified-suppress remaining findings
+  - 2026-06-05 validation: documented ARM/newlib `clang-tidy` invocation in `STYLE.md` and tuned `.clang-tidy` so the local firmware gate parses `firmware/src/*.c` through `build_local` without host-header errors. Resolved actionable findings (macro parentheses, reserved local name, suspicious `strcmp`, small loop counters, explicit float math, sync function-size helper, reload approach null guard). Justified suppressions cover Pico fixed-address register access, bounded `snprintf` on newlib, legacy serial parser conversion semantics, similar typed firmware APIs, generated headers, and legacy runtime globals. `ninja -C build_local` passed before code commits. Full documented `clang-tidy` command exited 0 and emitted no project warning lines; only aggregate suppressed/header counters remained.
+  - Commits: `c7f0cfa`, `def0627`.
 - [ ] 5.3 Final `ninja -C build_local` pass; confirm zero behavior/protocol/config/tunable change across the change
