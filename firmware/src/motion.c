@@ -9,15 +9,36 @@
 
 #include "protocol.h"
 
+#define TAIL_TRANSIT_MARGIN_FRAC 1.2f
+#define DEBOUNCE_STABLE_US 10000
+#define PWM_MAX_WRAP_F 65535.0f
+#define PWM_MAX_CLKDIV 255.0f
+#define PWM_MIN_WRAP 10u
+#define PWM_MAX_WRAP 65535u
+#define AUTOLOAD_MIN_RETRACT_S 0.05f
+#define MS_PER_SECOND_F 1000.0f
+#define PRELOAD_JAM_MARGIN_FRAC 1.5f
+#define UNLOAD_TO_IN_JAM_MARGIN_FRAC 2.0f
+#define UNLOAD_RETRACT_TIMEOUT_MS 30000u
+#define LOAD_BYPASS_HALF_TRAVEL_DIVISOR 2.0f
+#define LOAD_BYPASS_DISTANCE_FRAC 0.8f
+#define LOAD_RUNOUT_GRACE_MS 1000u
+#define LOAD_FULL_SENSOR_TIMEOUT_MS 10000u
+#define RUNOUT_DEBOUNCE_MS 1000u
+#define RUNOUT_REARM_BLOCK_MS 30000u
+#define DRY_SPIN_TIMEOUT_MS 8000u
+
 static bool lane_tail_in_transit(lane_t *lane) {
     return !lane_in_present(lane) && !lane_out_present(lane) &&
-           ((lane->task_dist_mm - lane->dist_at_in_clear_mm) < ((float)DIST_IN_OUT * 1.2f));
+           ((lane->task_dist_mm - lane->dist_at_in_clear_mm) <
+            ((float)DIST_IN_OUT * TAIL_TRANSIT_MARGIN_FRAC));
 }
 
 static bool lane_tail_runout_ready(lane_t *lane) {
     if (!lane_out_present(lane))
         return true;
-    return (lane->task_dist_mm - lane->dist_at_in_clear_mm) >= ((float)DIST_IN_OUT * 1.2f);
+    return (lane->task_dist_mm - lane->dist_at_in_clear_mm) >=
+           ((float)DIST_IN_OUT * TAIL_TRANSIT_MARGIN_FRAC);
 }
 
 int motion_clamp_rate_sps(int sps) {
@@ -83,7 +104,7 @@ void debounced_input_update(debounced_input_t *d) {
     }
 
     if (raw != d->stable) {
-        if (absolute_time_diff_us(d->last_edge, now) >= 10000) {
+        if (absolute_time_diff_us(d->last_edge, now) >= DEBOUNCE_STABLE_US) {
             d->stable = raw;
         }
     }
@@ -139,17 +160,17 @@ void motor_set_rate_sps(motor_t *motor, int sps) {
     uint32_t sys = clock_get_hz(clk_sys);
     float target = (float)sps;
 
-    float div = (float)sys / (target * 65535.0f);
+    float div = (float)sys / (target * PWM_MAX_WRAP_F);
     if (div < 1.0f)
         div = 1.0f;
-    if (div > 255.0f)
-        div = 255.0f;
+    if (div > PWM_MAX_CLKDIV)
+        div = PWM_MAX_CLKDIV;
 
     uint32_t wrap = (uint32_t)((float)sys / (div * target) - 1.0f);
-    if (wrap < 10)
-        wrap = 10;
-    if (wrap > 65535)
-        wrap = 65535;
+    if (wrap < PWM_MIN_WRAP)
+        wrap = PWM_MIN_WRAP;
+    if (wrap > PWM_MAX_WRAP)
+        wrap = PWM_MAX_WRAP;
 
     pwm_set_clkdiv(motor->slice, div);
     pwm_set_wrap(motor->slice, wrap);
@@ -248,10 +269,10 @@ static void lane_tick_autoload(lane_t *lane, uint32_t now_ms, const char *lane_s
         if (AUTOLOAD_RETRACT_MM > 0) {
             float secs =
                 (float)AUTOLOAD_RETRACT_MM / ((float)REV_SPS * MM_PER_STEP[lane->lane_id - 1]);
-            if (secs < 0.05f)
-                secs = 0.05f;
+            if (secs < AUTOLOAD_MIN_RETRACT_S)
+                secs = AUTOLOAD_MIN_RETRACT_S;
             lane->dist_at_out_mm = lane->task_dist_mm;
-            lane->retract_deadline_ms = now_ms + (uint32_t)(secs * 1000.0f);
+            lane->retract_deadline_ms = now_ms + (uint32_t)(secs * MS_PER_SECOND_F);
             lane->task = TASK_UNLOAD;
             motor_set_dir(&lane->m, false);
             lane->target_sps = REV_SPS;
@@ -261,7 +282,7 @@ static void lane_tick_autoload(lane_t *lane, uint32_t now_ms, const char *lane_s
         } else {
             lane_stop(lane);
         }
-    } else if (lane->task_dist_mm > (float)DIST_IN_OUT * 1.5f) {
+    } else if (lane->task_dist_mm > (float)DIST_IN_OUT * PRELOAD_JAM_MARGIN_FRAC) {
         lane_stop(lane);
         tc_enter_error("PRELOAD_JAM");
     } else if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
@@ -313,7 +334,7 @@ static void lane_tick_unload(lane_t *lane, uint32_t now_ms, const char *lane_s) 
                 lane->dist_at_out_mm = lane->task_dist_mm;
             }
             float dist_since_out = lane->task_dist_mm - lane->dist_at_out_mm;
-            if (dist_since_out > (float)DIST_IN_OUT * 2.0f) {
+            if (dist_since_out > (float)DIST_IN_OUT * UNLOAD_TO_IN_JAM_MARGIN_FRAC) {
                 lane_stop(lane);
                 tc_enter_error("UNLOAD_JAM");
             }
@@ -323,7 +344,7 @@ static void lane_tick_unload(lane_t *lane, uint32_t now_ms, const char *lane_s) 
                 cmd_event("UNLOADED", lane_s);
             } else {
                 lane->dist_at_out_mm = lane->task_dist_mm;
-                lane->retract_deadline_ms = now_ms + 30000;
+                lane->retract_deadline_ms = now_ms + UNLOAD_RETRACT_TIMEOUT_MS;
             }
         }
 
@@ -391,9 +412,9 @@ static void lane_tick_load_full(lane_t *lane, uint32_t now_ms, const char *lane_
     bool buf_compression_sane = false;
     if (lane->unload_sensor_latch) {
         float dist_since_out = lane->task_dist_mm - lane->dist_at_out_mm;
-        float threshold =
-            (float)DIST_OUT_Y + (float)DIST_Y_BUF + (float)BUF_MAX_TRAVEL_MM / 2.0f;
-        bool distance_passed = (dist_since_out >= threshold * 0.8f);
+        float threshold = (float)DIST_OUT_Y + (float)DIST_Y_BUF +
+                          (float)BUF_MAX_TRAVEL_MM / LOAD_BYPASS_HALF_TRAVEL_DIVISOR;
+        bool distance_passed = (dist_since_out >= threshold * LOAD_BYPASS_DISTANCE_FRAC);
         /* For Type-P, we do not require the distance bypass gate because we have continuous
            analog tracking and the buffer won't deviate from home (1.0) until filament hits the
            gears. */
@@ -438,7 +459,8 @@ static void lane_tick_load_full(lane_t *lane, uint32_t now_ms, const char *lane_
                i.e. not actually coupled, so we stop rather than dry-spin. */
             buffer_stabilize_request(now_ms);
         }
-    } else if (!lane_in_present(lane) && (int32_t)(now_ms - lane->task_started_ms) >= 1000) {
+    } else if (!lane_in_present(lane) &&
+               (int32_t)(now_ms - lane->task_started_ms) >= LOAD_RUNOUT_GRACE_MS) {
         if (lane_out_present(lane)) {
             lane->reload_tail_ms = now_ms;
         } else if (lane_tail_in_transit(lane)) {
@@ -448,7 +470,8 @@ static void lane_tick_load_full(lane_t *lane, uint32_t now_ms, const char *lane_
             if (RELOAD_MODE && tc_state() == TC_IDLE)
                 reload_trigger(lane->lane_id, now_ms);
         }
-    } else if (!lane->unload_sensor_latch && (int32_t)(now_ms - lane->motion_started_ms) >= 10000) {
+    } else if (!lane->unload_sensor_latch &&
+               (int32_t)(now_ms - lane->motion_started_ms) >= LOAD_FULL_SENSOR_TIMEOUT_MS) {
         lane_stop(lane);
         cmd_event("RUNOUT", lane_s);
     } else if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
@@ -470,18 +493,19 @@ static void lane_tick_move(lane_t *lane, uint32_t now_ms, const char *lane_s) {
         }
     }
 
-    if (lane->task == TASK_MOVE && lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
+    if (lane->task == TASK_MOVE && lane->task_limit_mm > 0 &&
+        lane->task_dist_mm >= lane->task_limit_mm) {
         lane_stop(lane);
         cmd_event("MOVE_DONE", lane_s);
     }
 }
 
 static void lane_tick_feed_autoload(lane_t *lane, uint32_t now_ms, const char *lane_s) {
-    if ((int32_t)(now_ms - lane->task_started_ms) >= 1000 &&
+    if ((int32_t)(now_ms - lane->task_started_ms) >= RUNOUT_DEBOUNCE_MS &&
         (int32_t)(now_ms - lane->runout_block_until_ms) >= 0) {
         if (lane_out_present(lane)) {
             lane->reload_tail_ms = now_ms;
-            lane->runout_block_until_ms = now_ms + 30000u;
+            lane->runout_block_until_ms = now_ms + RUNOUT_REARM_BLOCK_MS;
         } else if (lane_tail_in_transit(lane)) {
         } else {
             cmd_event("RUNOUT", lane_s);
@@ -500,7 +524,7 @@ static void lane_tick_dry_spin_tail(lane_t *lane, uint32_t now_ms, const char *l
         g_buf.state != BUF_TENSION) {
         if (lane->dry_spin_ms == 0)
             lane->dry_spin_ms = now_ms;
-        if ((int32_t)(now_ms - lane->dry_spin_ms) > 8000) {
+        if ((int32_t)(now_ms - lane->dry_spin_ms) > DRY_SPIN_TIMEOUT_MS) {
             lane_stop(lane);
             lane->fault = FAULT_DRY_SPIN;
             cmd_event("FAULT:DRY_SPIN", lane_s);
@@ -550,7 +574,8 @@ void lane_tick(lane_t *lane, uint32_t now_ms) {
     uint32_t dt_ms = now_ms - lane->last_dist_tick_ms;
     if (dt_ms > 0) {
         int idx = lane_to_idx(lane->lane_id);
-        lane->task_dist_mm += (float)lane->current_sps * ((float)dt_ms / 1000.0f) * MM_PER_STEP[idx];
+        lane->task_dist_mm +=
+            (float)lane->current_sps * ((float)dt_ms / MS_PER_SECOND_F) * MM_PER_STEP[idx];
         lane->last_dist_tick_ms = now_ms;
     }
 
