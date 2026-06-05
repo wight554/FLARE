@@ -12,7 +12,7 @@ typedef enum {
 } sync_state_t;
 
 extern sync_state_t g_sync_state;
-extern bool sync_auto_started;
+extern bool g_sync_auto_started;
 
 #define sync_enabled (g_sync_state == SYNC_ACTIVE)
 #define sync_guard_active (g_sync_state == SYNC_RETRACT_ASSIST || g_sync_state == SYNC_FAULT_HOLD)

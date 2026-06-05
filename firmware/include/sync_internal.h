@@ -15,11 +15,11 @@
 #define SYNC_COMPRESSION_HARD_PUSH_MM_S 0.25f
 
 /// @brief Type-D compression collapse delay alias.
-#define SYNC_COMPRESSION_COLLAPSE_DELAY_MS ((uint32_t)RELAY_COLLAPSE_DELAY_MS)
+#define SYNC_COMPRESSION_COLLAPSE_DELAY_MS ((uint32_t)g_relay_collapse_delay_ms)
 /// @brief Type-D compression collapse ramp multiplier alias.
-#define SYNC_COMPRESSION_COLLAPSE_RAMP_MULT RELAY_COLLAPSE_RAMP_MULT
+#define SYNC_COMPRESSION_COLLAPSE_RAMP_MULT g_relay_collapse_ramp_mult
 /// @brief Type-D compression collapse cap alias.
-#define SYNC_COMPRESSION_COLLAPSE_CAP_MS ((uint32_t)RELAY_COLLAPSE_CAP_MS)
+#define SYNC_COMPRESSION_COLLAPSE_CAP_MS ((uint32_t)g_relay_collapse_cap_ms)
 /// @brief Estimator sample freshness window.
 #define SYNC_EST_FRESH_MS 20000u
 
@@ -94,27 +94,27 @@ typedef enum {
 
 /// @brief Shared variables for sync split units.
 extern sync_state_t g_sync_state;
-extern bool sync_auto_started;
-extern bool sync_tail_assist_active;
-extern uint32_t sync_idle_since_ms;
-extern int sync_current_sps;
+extern bool g_sync_auto_started;
+extern bool g_sync_tail_assist_active;
+extern uint32_t g_sync_idle_since_ms;
+extern int g_sync_current_sps;
 
 extern float g_psf_target_filt;
 extern int g_baseline_target_sps;
 extern int g_baseline_sps;
 extern float g_baseline_alpha;
-extern const flow_schedule_point_t g_flow_sched_config[CONF_FLOW_SCHED_CAP];
+extern const flow_schedule_point_t G_FLOW_SCHED_CONFIG[CONF_FLOW_SCHED_CAP];
 extern flow_schedule_point_t g_flow_sched_runtime[CONF_FLOW_SCHED_CAP];
 extern int g_flow_sched_live_delta[CONF_FLOW_SCHED_CAP];
 extern int g_flow_sched_len;
-extern uint32_t sync_fast_brake_until_ms;
-extern bool sync_compression_recovery_active;
-extern uint32_t sync_continuous_compression_since_ms;
-extern uint32_t sync_post_compression_boost_until_ms;
-extern uint32_t sync_recent_negative_until_ms;
-extern uint32_t sync_tension_pin_since_ms;
+extern uint32_t g_sync_fast_brake_until_ms;
+extern bool g_sync_compression_recovery_active;
+extern uint32_t g_sync_continuous_compression_since_ms;
+extern uint32_t g_sync_post_compression_boost_until_ms;
+extern uint32_t g_sync_recent_negative_until_ms;
+extern uint32_t g_sync_tension_pin_since_ms;
 
-extern float sync_reserve_integral_mm;
+extern float g_sync_reserve_integral_mm;
 extern float g_buf_pos_sigma_accum_mm;
 extern float g_buf_sigma_mm;
 extern uint32_t g_buf_est_low_cf_emit_ms;
@@ -155,12 +155,12 @@ extern buf_tracker_t g_buf;
 extern float g_buf_pos;
 extern float g_buf_pos_prev;
 
-extern uint32_t sync_last_tick_ms;
-extern uint32_t sync_last_evt_ms;
-extern float extruder_est_sps;
-extern float extruder_est_prev_sps;
-extern uint32_t extruder_est_last_update_ms;
-extern uint32_t last_slope_update_ms;
+extern uint32_t g_sync_last_tick_ms;
+extern uint32_t g_sync_last_evt_ms;
+extern float g_extruder_est_sps;
+extern float g_extruder_est_prev_sps;
+extern uint32_t g_extruder_est_last_update_ms;
+extern uint32_t g_last_slope_update_ms;
 
 extern char g_marker_tag[MARKER_TAG_LEN];
 extern uint16_t g_marker_seq;
@@ -170,7 +170,7 @@ extern float g_vel_norm_f;
 
 extern float g_buf_pos_raw_status;
 extern float g_buf_physical_entry_pos_mm;
-extern uint32_t buf_pos_last_ms;
+extern uint32_t g_buf_pos_last_ms;
 
 extern buf_state_t g_bl_goal_override;
 extern bool g_bl_autostart_suppressed;

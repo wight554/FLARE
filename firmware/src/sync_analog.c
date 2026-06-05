@@ -17,7 +17,7 @@ static const float COMPRESSION_WALL_MIN_MM_S = 0.05f;
 static const float COMPRESSION_WALL_UNREACHABLE_MS = 1000000000.0f;
 
 float g_psf_target_filt = 0.0f;
-float sync_reserve_integral_mm = 0.0f;
+float g_sync_reserve_integral_mm = 0.0f;
 float g_buf_pos_sigma_accum_mm = 0.0f;
 float g_buf_sigma_mm = 0.0f;
 uint32_t g_buf_est_low_cf_emit_ms = 0;
@@ -27,7 +27,7 @@ uint32_t g_neutral_creep_last_tension_ms = 0;
 bool g_buf_est_fallback_emitted = false;
 
 int psf_control_law(float error_norm) {
-    int max_sps = sync_clamp_max_sps(SYNC_MAX_SPS);
+    int max_sps = sync_clamp_max_sps(g_sync_max_sps);
     int kp_window = sync_effective_kp_sps(g_buf.state);
 
     /* Convention: g_buf_pos +compression / -tension. error_norm = pos - goal,
@@ -39,9 +39,9 @@ int psf_control_law(float error_norm) {
         p_err = 0.0f;
     }
 
-    int ff = (int)extruder_est_sps;
+    int ff = (int)g_extruder_est_sps;
     int p = (int)(p_err * (float)kp_window);
-    int d = (int)(-g_vel_norm_f * KD_PSF);
+    int d = (int)(-g_vel_norm_f * g_kd_psf);
 
     int target = ff + p + d;
 
@@ -94,7 +94,7 @@ float sync_reserve_deadband_mm(void) {
 }
 
 float sync_reserve_integral_get_mm(void) {
-    return sync_reserve_integral_mm;
+    return g_sync_reserve_integral_mm;
 }
 
 float sync_buf_sigma_mm(void) {
@@ -114,7 +114,7 @@ int sync_bp_drift_samples(void) {
 }
 
 int sync_tension_pin_window_count(uint32_t now_ms) {
-    uint32_t window_ms = (TENSION_RISK_WINDOW_MS > 0) ? (uint32_t)TENSION_RISK_WINDOW_MS
+    uint32_t window_ms = (g_tension_risk_window_ms > 0) ? (uint32_t)g_tension_risk_window_ms
                                                       : DEFAULT_TENSION_RISK_WINDOW_MS;
     int count = 0;
     for (int i = 0; i < TENSION_PIN_WINDOW_LEN; i++) {

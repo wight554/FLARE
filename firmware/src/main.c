@@ -70,165 +70,165 @@
 #define MAIN_LOOP_SLEEP_US 100u
 
 // ===================== Tunables =====================
-int FEED_SPS = CONF_FEED_SPS;
-int REV_SPS = CONF_REV_SPS;
-int AUTO_SPS = CONF_AUTO_SPS;
+int g_feed_sps = CONF_FEED_SPS;
+int g_rev_sps = CONF_REV_SPS;
+int g_auto_sps = CONF_AUTO_SPS;
 
-int MOTION_STARTUP_MS = FLARE_INT_MOTION_STARTUP_MS;
+int g_motion_startup_ms = FLARE_INT_MOTION_STARTUP_MS;
 
-int RUNOUT_COOLDOWN_MS = CONF_RUNOUT_COOLDOWN_MS;
-int POST_PRINT_STAB_DELAY_MS = FLARE_INT_POST_PRINT_STAB_DELAY_MS;
-float SYNC_PSF_DECAY_SPS_PER_S = FLARE_INT_SYNC_PSF_DECAY_SPS_PER_S;
-int RELOAD_MODE = CONF_RELOAD_MODE;
-int RELOAD_Y_TIMEOUT_MS = FLARE_INT_RELOAD_Y_TIMEOUT_MS;
-int RELOAD_JOIN_DELAY_MS = CONF_RELOAD_JOIN_DELAY_MS;
-int JOIN_SPS = CONF_JOIN_SPS;
-int PRESS_SPS = CONF_PRESS_SPS;
-int COMPRESSION_SPS = CONF_COMPRESSION_SPS;
-int RELOAD_TOUCH_SETTLE_MS = CONF_RELOAD_TOUCH_SETTLE_MS;
-int RELOAD_TOUCH_BOOST_MS = CONF_RELOAD_TOUCH_BOOST_MS;
-int RELOAD_TOUCH_FLOOR_PCT = CONF_RELOAD_TOUCH_FLOOR_PCT;
-int BUF_STAB_SPS = CONF_BUF_STAB_SPS; /* not persisted; settings_defaults() re-sets it, but the
+int g_runout_cooldown_ms = CONF_RUNOUT_COOLDOWN_MS;
+int g_post_print_stab_delay_ms = FLARE_INT_POST_PRINT_STAB_DELAY_MS;
+float g_sync_psf_decay_sps_per_s = FLARE_INT_SYNC_PSF_DECAY_SPS_PER_S;
+int g_reload_mode = CONF_RELOAD_MODE;
+int g_reload_y_timeout_ms = FLARE_INT_RELOAD_Y_TIMEOUT_MS;
+int g_reload_join_delay_ms = CONF_RELOAD_JOIN_DELAY_MS;
+int g_join_sps = CONF_JOIN_SPS;
+int g_press_sps = CONF_PRESS_SPS;
+int g_compression_sps = CONF_COMPRESSION_SPS;
+int g_reload_touch_settle_ms = CONF_RELOAD_TOUCH_SETTLE_MS;
+int g_reload_touch_boost_ms = CONF_RELOAD_TOUCH_BOOST_MS;
+int g_reload_touch_floor_pct = CONF_RELOAD_TOUCH_FLOOR_PCT;
+int g_buf_stab_sps = CONF_BUF_STAB_SPS; /* not persisted; settings_defaults() re-sets it, but the
                                          NVM-load path does not — must init non-zero or BS returns
                                          BUF_STAB_UNAVAILABLE on a board with saved settings */
-int FOLLOW_TIMEOUT_MS[NUM_LANES] = {CONF_L1_FOLLOW_TIMEOUT_MS, CONF_L2_FOLLOW_TIMEOUT_MS};
+int g_follow_timeout_ms[NUM_LANES] = {CONF_L1_FOLLOW_TIMEOUT_MS, CONF_L2_FOLLOW_TIMEOUT_MS};
 
-int ZONE_BIAS_BASE_SPS = CONF_ZONE_BIAS_BASE_SPS;
-int ZONE_BIAS_RAMP_SPS_S = CONF_ZONE_BIAS_RAMP_SPS_S;
-int ZONE_BIAS_MAX_SPS = CONF_ZONE_BIAS_MAX_SPS;
-float EST_ALPHA_MIN = FLARE_INT_EST_ALPHA_MIN;
-float EST_ALPHA_MAX = FLARE_INT_EST_ALPHA_MAX;
-float RELOAD_LEAN_FACTOR = FLARE_INT_RELOAD_LEAN_FACTOR;
+int g_zone_bias_base_sps = CONF_ZONE_BIAS_BASE_SPS;
+int g_zone_bias_ramp_sps_s = CONF_ZONE_BIAS_RAMP_SPS_S;
+int g_zone_bias_max_sps = CONF_ZONE_BIAS_MAX_SPS;
+float g_est_alpha_min = FLARE_INT_EST_ALPHA_MIN;
+float g_est_alpha_max = FLARE_INT_EST_ALPHA_MAX;
+float g_reload_lean_factor = FLARE_INT_RELOAD_LEAN_FACTOR;
 
-int RAMP_STEP_SPS = CONF_RAMP_STEP_SPS;
-int RAMP_TICK_MS = CONF_RAMP_TICK_MS;
+int g_ramp_step_sps = CONF_RAMP_STEP_SPS;
+int g_ramp_tick_ms = CONF_RAMP_TICK_MS;
 
-int TMC_RUN_CURRENT_MA[NUM_LANES] = {CONF_L1_RUN_CURRENT_MA, CONF_L2_RUN_CURRENT_MA};
-int TMC_HOLD_CURRENT_MA[NUM_LANES] = {CONF_L1_HOLD_CURRENT_MA, CONF_L2_HOLD_CURRENT_MA};
-int TMC_MICROSTEPS[NUM_LANES] = {CONF_L1_MICROSTEPS, CONF_L2_MICROSTEPS};
-int TMC_STEALTHCHOP_SPS[NUM_LANES] = {CONF_L1_STEALTHCHOP_THRESHOLD, CONF_L2_STEALTHCHOP_THRESHOLD};
-float TMC_ROTATION_DISTANCE[NUM_LANES] = {CONF_L1_ROTATION_DISTANCE, CONF_L2_ROTATION_DISTANCE};
-float TMC_GEAR_RATIO[NUM_LANES] = {CONF_L1_GEAR_RATIO, CONF_L2_GEAR_RATIO};
-int TMC_FULL_STEPS[NUM_LANES] = {CONF_L1_FULL_STEPS, CONF_L2_FULL_STEPS};
-int TMC_TBL[NUM_LANES] = {CONF_L1_TBL, CONF_L2_TBL};
-int TMC_TOFF[NUM_LANES] = {CONF_L1_TOFF, CONF_L2_TOFF};
-int TMC_HSTRT[NUM_LANES] = {CONF_L1_HSTRT, CONF_L2_HSTRT};
-int TMC_HEND[NUM_LANES] = {CONF_L1_HEND, CONF_L2_HEND};
-bool TMC_INTERPOLATE[NUM_LANES] = {CONF_L1_INTPOL, CONF_L2_INTPOL};
+int g_tmc_run_current_ma[NUM_LANES] = {CONF_L1_RUN_CURRENT_MA, CONF_L2_RUN_CURRENT_MA};
+int g_tmc_hold_current_ma[NUM_LANES] = {CONF_L1_HOLD_CURRENT_MA, CONF_L2_HOLD_CURRENT_MA};
+int g_tmc_microsteps[NUM_LANES] = {CONF_L1_MICROSTEPS, CONF_L2_MICROSTEPS};
+int g_tmc_stealthchop_sps[NUM_LANES] = {CONF_L1_STEALTHCHOP_THRESHOLD, CONF_L2_STEALTHCHOP_THRESHOLD};
+float g_tmc_rotation_distance[NUM_LANES] = {CONF_L1_ROTATION_DISTANCE, CONF_L2_ROTATION_DISTANCE};
+float g_tmc_gear_ratio[NUM_LANES] = {CONF_L1_GEAR_RATIO, CONF_L2_GEAR_RATIO};
+int g_tmc_full_steps[NUM_LANES] = {CONF_L1_FULL_STEPS, CONF_L2_FULL_STEPS};
+int g_tmc_tbl[NUM_LANES] = {CONF_L1_TBL, CONF_L2_TBL};
+int g_tmc_toff[NUM_LANES] = {CONF_L1_TOFF, CONF_L2_TOFF};
+int g_tmc_hstrt[NUM_LANES] = {CONF_L1_HSTRT, CONF_L2_HSTRT};
+int g_tmc_hend[NUM_LANES] = {CONF_L1_HEND, CONF_L2_HEND};
+bool g_tmc_interpolate[NUM_LANES] = {CONF_L1_INTPOL, CONF_L2_INTPOL};
 
-int BUF_SENSOR_TYPE = CONF_BUF_SENSOR_TYPE;
-int BUF_HOME_STATE = CONF_BUF_HOME_STATE;
-float BUF_PSF_MAX_COMP = CONF_BUF_PSF_MAX_COMP;
-float BUF_PSF_MAX_TENS = CONF_BUF_PSF_MAX_TENS;
-float BUF_PSF_NEUTRAL = CONF_BUF_PSF_NEUTRAL;
-float BUF_GOAL = CONF_BUF_GOAL;
-float BUF_ANALOG_ALPHA = FLARE_INT_BUF_ANALOG_ALPHA;
-int SYNC_KP_SPS = CONF_SYNC_KP_SPS;
-float KD_PSF = FLARE_INT_KD_PSF;
-int SYNC_OVERSHOOT_PCT = FLARE_INT_SYNC_OVERSHOOT_PCT;
-int SYNC_RESERVE_PCT = CONF_SYNC_RESERVE_PCT;
-int TS_BUF_FALLBACK_MS = FLARE_INT_TS_BUF_FALLBACK_MS;
+int g_buf_sensor_type = CONF_BUF_SENSOR_TYPE;
+int g_buf_home_state = CONF_BUF_HOME_STATE;
+float g_buf_psf_max_comp = CONF_BUF_PSF_MAX_COMP;
+float g_buf_psf_max_tens = CONF_BUF_PSF_MAX_TENS;
+float g_buf_psf_neutral = CONF_BUF_PSF_NEUTRAL;
+float g_buf_goal = CONF_BUF_GOAL;
+float g_buf_analog_alpha = FLARE_INT_BUF_ANALOG_ALPHA;
+int g_sync_kp_sps = CONF_SYNC_KP_SPS;
+float g_kd_psf = FLARE_INT_KD_PSF;
+int g_sync_overshoot_pct = FLARE_INT_SYNC_OVERSHOOT_PCT;
+int g_sync_reserve_pct = CONF_SYNC_RESERVE_PCT;
+int g_ts_buf_fallback_ms = FLARE_INT_TS_BUF_FALLBACK_MS;
 
-int SERVO_OPEN_US = CONF_SERVO_OPEN_US;
-int SERVO_CLOSE_US = CONF_SERVO_CLOSE_US;
-int SERVO_BLOCK_US = CONF_SERVO_BLOCK_US;
-int SERVO_SETTLE_MS = CONF_SERVO_SETTLE_MS;
-int CUT_FEED_SPS = CONF_CUT_FEED_SPS;
-int CUT_FEED_MM = CONF_CUT_FEED_MM;
-int CUT_LENGTH_MM = CONF_CUT_LENGTH_MM;
-int CUT_AMOUNT = CONF_CUT_AMOUNT;
-int CUT_TIMEOUT_SETTLE_MS = FLARE_INT_CUT_TIMEOUT_SETTLE_MS;
-int CUT_TIMEOUT_FEED_MS = FLARE_INT_CUT_TIMEOUT_FEED_MS;
+int g_servo_open_us = CONF_SERVO_OPEN_US;
+int g_servo_close_us = CONF_SERVO_CLOSE_US;
+int g_servo_block_us = CONF_SERVO_BLOCK_US;
+int g_servo_settle_ms = CONF_SERVO_SETTLE_MS;
+int g_cut_feed_sps = CONF_CUT_FEED_SPS;
+int g_cut_feed_mm = CONF_CUT_FEED_MM;
+int g_cut_length_mm = CONF_CUT_LENGTH_MM;
+int g_cut_amount = CONF_CUT_AMOUNT;
+int g_cut_timeout_settle_ms = FLARE_INT_CUT_TIMEOUT_SETTLE_MS;
+int g_cut_timeout_feed_ms = FLARE_INT_CUT_TIMEOUT_FEED_MS;
 
-int TC_TIMEOUT_CUT_MS = FLARE_INT_TC_TIMEOUT_CUT_MS;
-int LOAD_MAX_MM = CONF_LOAD_MAX_MM;
-int UNLOAD_MAX_MM = CONF_UNLOAD_MAX_MM;
-int UNLOAD_TENSION_BLOCK_MS = CONF_UNLOAD_TENSION_BLOCK_MS;
-int TC_TIMEOUT_TH_MS = FLARE_INT_TC_TIMEOUT_TH_MS;
-int TC_TIMEOUT_Y_MS = FLARE_INT_TC_TIMEOUT_Y_MS;
+int g_tc_timeout_cut_ms = FLARE_INT_TC_TIMEOUT_CUT_MS;
+int g_load_max_mm = CONF_LOAD_MAX_MM;
+int g_unload_max_mm = CONF_UNLOAD_MAX_MM;
+int g_unload_tension_block_ms = CONF_UNLOAD_TENSION_BLOCK_MS;
+int g_tc_timeout_th_ms = FLARE_INT_TC_TIMEOUT_TH_MS;
+int g_tc_timeout_y_ms = FLARE_INT_TC_TIMEOUT_Y_MS;
 
-int SYNC_MAX_SPS = CONF_SYNC_MAX_SPS;
-int GLOBAL_MAX_SPS = CONF_GLOBAL_MAX_SPS;
-int SYNC_MIN_SPS = CONF_SYNC_MIN_SPS;
-int SYNC_RAMP_UP_SPS = CONF_SYNC_RAMP_UP_SPS;
-int SYNC_RAMP_DN_SPS = CONF_SYNC_RAMP_DN_SPS;
-int SYNC_TICK_MS = CONF_SYNC_TICK_MS;
+int g_sync_max_sps = CONF_SYNC_MAX_SPS;
+int g_global_max_sps = CONF_GLOBAL_MAX_SPS;
+int g_sync_min_sps = CONF_SYNC_MIN_SPS;
+int g_sync_ramp_up_sps = CONF_SYNC_RAMP_UP_SPS;
+int g_sync_ramp_dn_sps = CONF_SYNC_RAMP_DN_SPS;
+int g_sync_tick_ms = CONF_SYNC_TICK_MS;
 /* Type-P output smoothing — runtime-tunable, not persisted (re-init from CONF
    each boot, matching BUF_STAB_SPS). Tune live via SET; reflash changes the default. */
-float SYNC_PSF_SLEW_PER_MM = CONF_SYNC_PSF_SLEW_PER_MM;
-float SYNC_PSF_FILTER_MM = CONF_SYNC_PSF_FILTER_MM;
-int PSF_STAB_STAGNANT_MS = CONF_PSF_STAB_STAGNANT_MS;
-float PSF_STAB_STAGNANT_NORM = CONF_PSF_STAB_STAGNANT_NORM;
-int PSF_STAB_RAIL_BREAK_MS = CONF_PSF_STAB_RAIL_BREAK_MS;
-int PRE_RAMP_SPS = CONF_PRE_RAMP_SPS;
-int BUF_HYST_MS = FLARE_INT_BUF_HYST_MS;
-int BUF_PREDICT_THR_MS = FLARE_INT_BUF_PREDICT_THR_MS;
-float BUF_SWITCH_SPAN_HALF_MM = CONF_BUF_SWITCH_SPAN_MM * HALF_F;
-int SYNC_AUTO_STOP_MS = CONF_SYNC_AUTO_STOP_MS;
-int SYNC_TENSION_DWELL_STOP_MS = FLARE_INT_SYNC_TENSION_DWELL_STOP_MS;
-int SYNC_TENSION_RAMP_DELAY_MS = FLARE_INT_SYNC_TENSION_RAMP_DELAY_MS;
-int SYNC_OVERSHOOT_NEUTRAL_EXTEND = FLARE_INT_SYNC_OVERSHOOT_NEUTRAL_EXTEND;
-float SYNC_COMPRESSION_BIAS_FRAC = CONF_SYNC_COMPRESSION_BIAS_FRAC;
-int NEUTRAL_CREEP_TIMEOUT_MS = FLARE_INT_NEUTRAL_CREEP_TIMEOUT_MS;
-int NEUTRAL_CREEP_RATE_SPS_PER_S = FLARE_INT_NEUTRAL_CREEP_RATE_SPS_PER_S;
-int NEUTRAL_CREEP_CAP_FRAC = FLARE_INT_NEUTRAL_CREEP_CAP_FRAC;
-float BUF_VARIANCE_BLEND_FRAC = FLARE_INT_BUF_VARIANCE_BLEND_FRAC;
-float BUF_VARIANCE_BLEND_REF_MM = FLARE_INT_BUF_VARIANCE_BLEND_REF_MM;
-float SYNC_RESERVE_INTEGRAL_GAIN = FLARE_INT_SYNC_RESERVE_INTEGRAL_GAIN;
-float SYNC_RESERVE_INTEGRAL_CLAMP_MM = FLARE_INT_SYNC_RESERVE_INTEGRAL_CLAMP_MM;
-int SYNC_RESERVE_INTEGRAL_DECAY_MS = FLARE_INT_SYNC_RESERVE_INTEGRAL_DECAY_MS;
-float EST_SIGMA_HARD_CAP_MM = FLARE_INT_EST_SIGMA_HARD_CAP_MM;
-float EST_LOW_CF_WARN_THRESHOLD = FLARE_INT_EST_LOW_CF_WARN_THRESHOLD;
-float EST_FALLBACK_CF_THRESHOLD = FLARE_INT_EST_FALLBACK_CF_THRESHOLD;
-float RELAY_CATCHUP_FRAC = CONF_RELAY_CATCHUP_FRAC;
-float RELAY_NEUTRAL_FRAC = CONF_RELAY_NEUTRAL_FRAC;
-int SYNC_RELAY_TRIM_STEP_SPS = CONF_SYNC_RELAY_TRIM_STEP_SPS;
-int SYNC_RELAY_TRIM_CLAMP_SPS = CONF_SYNC_RELAY_TRIM_CLAMP_SPS;
-float SYNC_COMPRESSION_DRAIN_FRAC = CONF_SYNC_COMPRESSION_DRAIN_FRAC;
-float SYNC_COMPRESSION_DRAIN_BUDGET_MM = CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM;
-float SYNC_EST_ATTACK_ALPHA = CONF_SYNC_EST_ATTACK_ALPHA;
-float SYNC_TENSION_FAST_MM_S = CONF_SYNC_TENSION_FAST_MM_S;
-int SYNC_TENSION_PROBE_MAX_SPS = CONF_SYNC_TENSION_PROBE_MAX_SPS;
-int SYNC_TENSION_PROBE_UP_SPS_PER_S = CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S;
-int SYNC_TENSION_PROBE_DOWN_SPS_PER_S = CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S;
-int SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S = CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S;
-float RELAY_MIN_FLIP_MM = FLARE_INT_RELAY_MIN_FLIP_MM;
-int RELAY_COLLAPSE_DELAY_MS = FLARE_INT_RELAY_COLLAPSE_DELAY_MS;
-int RELAY_COLLAPSE_RAMP_MULT = FLARE_INT_RELAY_COLLAPSE_RAMP_MULT;
-int RELAY_COLLAPSE_CAP_MS = FLARE_INT_RELAY_COLLAPSE_CAP_MS;
-int BUF_DRIFT_EWMA_TAU_MS = FLARE_INT_BUF_DRIFT_EWMA_TAU_MS;
-int BUF_DRIFT_MIN_SAMPLES = FLARE_INT_BUF_DRIFT_MIN_SAMPLES;
-float BUF_DRIFT_APPLY_THR_MM = FLARE_INT_BUF_DRIFT_APPLY_THR_MM;
-float BUF_DRIFT_CLAMP_MM = FLARE_INT_BUF_DRIFT_CLAMP_MM;
-float BUF_DRIFT_APPLY_MIN_CF = FLARE_INT_BUF_DRIFT_APPLY_MIN_CF;
-int TENSION_RISK_WINDOW_MS = FLARE_INT_TENSION_RISK_WINDOW_MS;
-int TENSION_RISK_THRESHOLD = FLARE_INT_TENSION_RISK_THRESHOLD;
-int AUTOLOAD_MAX_MM = CONF_AUTOLOAD_MAX_MM;
-int AUTO_MODE = 1; // 1=Automated flow, 0=Host-controlled flow
-bool AUTO_PRELOAD = true;
-int AUTOLOAD_RETRACT_MM = CONF_AUTOLOAD_RETRACT_MM;
-bool ENABLE_CUTTER = CONF_ENABLE_CUTTER;
-bool UNLOAD_CUT = CONF_UNLOAD_CUT;
+float g_sync_psf_slew_per_mm = CONF_SYNC_PSF_SLEW_PER_MM;
+float g_sync_psf_filter_mm = CONF_SYNC_PSF_FILTER_MM;
+int g_psf_stab_stagnant_ms = CONF_PSF_STAB_STAGNANT_MS;
+float g_psf_stab_stagnant_norm = CONF_PSF_STAB_STAGNANT_NORM;
+int g_psf_stab_rail_break_ms = CONF_PSF_STAB_RAIL_BREAK_MS;
+int g_pre_ramp_sps = CONF_PRE_RAMP_SPS;
+int g_buf_hyst_ms = FLARE_INT_BUF_HYST_MS;
+int g_buf_predict_thr_ms = FLARE_INT_BUF_PREDICT_THR_MS;
+float g_buf_switch_span_half_mm = CONF_BUF_SWITCH_SPAN_MM * HALF_F;
+int g_sync_auto_stop_ms = CONF_SYNC_AUTO_STOP_MS;
+int g_sync_tension_dwell_stop_ms = FLARE_INT_SYNC_TENSION_DWELL_STOP_MS;
+int g_sync_tension_ramp_delay_ms = FLARE_INT_SYNC_TENSION_RAMP_DELAY_MS;
+int g_sync_overshoot_neutral_extend = FLARE_INT_SYNC_OVERSHOOT_NEUTRAL_EXTEND;
+float g_sync_compression_bias_frac = CONF_SYNC_COMPRESSION_BIAS_FRAC;
+int g_neutral_creep_timeout_ms = FLARE_INT_NEUTRAL_CREEP_TIMEOUT_MS;
+int g_neutral_creep_rate_sps_per_s = FLARE_INT_NEUTRAL_CREEP_RATE_SPS_PER_S;
+int g_neutral_creep_cap_frac = FLARE_INT_NEUTRAL_CREEP_CAP_FRAC;
+float g_buf_variance_blend_frac = FLARE_INT_BUF_VARIANCE_BLEND_FRAC;
+float g_buf_variance_blend_ref_mm = FLARE_INT_BUF_VARIANCE_BLEND_REF_MM;
+float g_sync_reserve_integral_gain = FLARE_INT_SYNC_RESERVE_INTEGRAL_GAIN;
+float g_sync_reserve_integral_clamp_mm = FLARE_INT_SYNC_RESERVE_INTEGRAL_CLAMP_MM;
+int g_sync_reserve_integral_decay_ms = FLARE_INT_SYNC_RESERVE_INTEGRAL_DECAY_MS;
+float g_est_sigma_hard_cap_mm = FLARE_INT_EST_SIGMA_HARD_CAP_MM;
+float g_est_low_cf_warn_threshold = FLARE_INT_EST_LOW_CF_WARN_THRESHOLD;
+float g_est_fallback_cf_threshold = FLARE_INT_EST_FALLBACK_CF_THRESHOLD;
+float g_relay_catchup_frac = CONF_RELAY_CATCHUP_FRAC;
+float g_relay_neutral_frac = CONF_RELAY_NEUTRAL_FRAC;
+int g_sync_relay_trim_step_sps = CONF_SYNC_RELAY_TRIM_STEP_SPS;
+int g_sync_relay_trim_clamp_sps = CONF_SYNC_RELAY_TRIM_CLAMP_SPS;
+float g_sync_compression_drain_frac = CONF_SYNC_COMPRESSION_DRAIN_FRAC;
+float g_sync_compression_drain_budget_mm = CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM;
+float g_sync_est_attack_alpha = CONF_SYNC_EST_ATTACK_ALPHA;
+float g_sync_tension_fast_mm_s = CONF_SYNC_TENSION_FAST_MM_S;
+int g_sync_tension_probe_max_sps = CONF_SYNC_TENSION_PROBE_MAX_SPS;
+int g_sync_tension_probe_up_sps_per_s = CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S;
+int g_sync_tension_probe_down_sps_per_s = CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S;
+int g_sync_tension_probe_neutral_sps_per_s = CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S;
+float g_relay_min_flip_mm = FLARE_INT_RELAY_MIN_FLIP_MM;
+int g_relay_collapse_delay_ms = FLARE_INT_RELAY_COLLAPSE_DELAY_MS;
+int g_relay_collapse_ramp_mult = FLARE_INT_RELAY_COLLAPSE_RAMP_MULT;
+int g_relay_collapse_cap_ms = FLARE_INT_RELAY_COLLAPSE_CAP_MS;
+int g_buf_drift_ewma_tau_ms = FLARE_INT_BUF_DRIFT_EWMA_TAU_MS;
+int g_buf_drift_min_samples = FLARE_INT_BUF_DRIFT_MIN_SAMPLES;
+float g_buf_drift_apply_thr_mm = FLARE_INT_BUF_DRIFT_APPLY_THR_MM;
+float g_buf_drift_clamp_mm = FLARE_INT_BUF_DRIFT_CLAMP_MM;
+float g_buf_drift_apply_min_cf = FLARE_INT_BUF_DRIFT_APPLY_MIN_CF;
+int g_tension_risk_window_ms = FLARE_INT_TENSION_RISK_WINDOW_MS;
+int g_tension_risk_threshold = FLARE_INT_TENSION_RISK_THRESHOLD;
+int g_autoload_max_mm = CONF_AUTOLOAD_MAX_MM;
+int g_auto_mode = 1; // 1=Automated flow, 0=Host-controlled flow
+bool g_auto_preload = true;
+int g_autoload_retract_mm = CONF_AUTOLOAD_RETRACT_MM;
+bool g_enable_cutter = CONF_ENABLE_CUTTER;
+bool g_unload_cut = CONF_UNLOAD_CUT;
 
-int DIST_IN_OUT = CONF_DIST_IN_OUT;
-int DIST_OUT_Y = CONF_DIST_OUT_Y;
-int DIST_Y_BUF = CONF_DIST_Y_BUF;
-int BUF_BODY_LEN = CONF_BUF_BODY_LEN;
-int BUF_MAX_TRAVEL_MM = CONF_BUF_MAX_TRAVEL_MM;
+int g_dist_in_out = CONF_DIST_IN_OUT;
+int g_dist_out_y = CONF_DIST_OUT_Y;
+int g_dist_y_buf = CONF_DIST_Y_BUF;
+int g_buf_body_len = CONF_BUF_BODY_LEN;
+int g_buf_max_travel_mm = CONF_BUF_MAX_TRAVEL_MM;
 
 // Derived Physical Path Constants
 #define Y_TO_BUF_NEUTRAL ((float)DIST_Y_BUF + (float)BUF_MAX_TRAVEL_MM / 2.0f)
 
-float MM_PER_STEP[NUM_LANES] = {CONF_L1_MM_PER_STEP, CONF_L2_MM_PER_STEP};
+float g_mm_per_step[NUM_LANES] = {CONF_L1_MM_PER_STEP, CONF_L2_MM_PER_STEP};
 
 int mm_per_min_to_sps_idx(float mm_per_min, int idx) {
-    return (int)(mm_per_min / SECONDS_PER_MINUTE_F / MM_PER_STEP[idx] + ROUND_TO_NEAREST_F);
+    return (int)(mm_per_min / SECONDS_PER_MINUTE_F / g_mm_per_step[idx] + ROUND_TO_NEAREST_F);
 }
 int mm_per_min_to_sps(float mm_per_min) {
     return mm_per_min_to_sps_idx(mm_per_min, 0);
 }
 float sps_to_mm_per_min_idx(int sps, int idx) {
-    return (float)sps * MM_PER_STEP[idx] * SECONDS_PER_MINUTE_F + DISPLAY_ROUNDING_OFFSET_F;
+    return (float)sps * g_mm_per_step[idx] * SECONDS_PER_MINUTE_F + DISPLAY_ROUNDING_OFFSET_F;
 }
 float sps_to_mm_per_min(int sps) {
     return sps_to_mm_per_min_idx(sps, 0);
@@ -289,8 +289,8 @@ void sync_currents_from_ihold_irun(int lane, uint32_t reg) {
     uint8_t ihold = (uint8_t)(reg & TMC_CS_MASK);
     uint8_t irun = (uint8_t)((reg >> TMC_IRUN_SHIFT) & TMC_CS_MASK);
     bool vsense = g_shadow_vsense[idx];
-    TMC_RUN_CURRENT_MA[idx] = cs_to_ma(irun, vsense);
-    TMC_HOLD_CURRENT_MA[idx] = cs_to_ma(ihold, vsense);
+    g_tmc_run_current_ma[idx] = cs_to_ma(irun, vsense);
+    g_tmc_hold_current_ma[idx] = cs_to_ma(ihold, vsense);
 }
 
 // ===================== Globals =====================
@@ -307,27 +307,27 @@ tmc_t g_tmc_l2;
 tc_ctx_t g_tc_ctx = {.state = TC_IDLE};
 
 volatile uint32_t g_now_ms = 0;
-int active_lane = 0;
-bool toolhead_has_filament = false;
+int g_active_lane = 0;
+bool g_toolhead_has_filament = false;
 
-bool prev_lane1_in_present = false;
-bool prev_lane2_in_present = false;
+bool g_prev_lane1_in_present = false;
+bool g_prev_lane2_in_present = false;
 
 // ===================== Forward declarations =====================
 // Toolhead sensor state is always tracked, but in AUTO_MODE sync is governed
 // by buffer state rather than TS events.
 void set_toolhead_filament(bool present) {
-    toolhead_has_filament = present;
-    if (!AUTO_MODE) {
+    g_toolhead_has_filament = present;
+    if (!g_auto_mode) {
         if (present)
             sync_set_state(SYNC_ACTIVE);
         else
             sync_disable(false);
         if (!present) {
-            sync_current_sps = 0;
-            sync_auto_started = false;
-            sync_tail_assist_active = false;
-            sync_idle_since_ms = 0;
+            g_sync_current_sps = 0;
+            g_sync_auto_started = false;
+            g_sync_tail_assist_active = false;
+            g_sync_idle_since_ms = 0;
         }
     }
 }
@@ -343,14 +343,14 @@ static int detect_active_lane_from_out(void) {
 }
 
 void set_active_lane(int lane) {
-    if (active_lane != lane && (active_lane == 1 || active_lane == 2) && (lane == 1 || lane == 2)) {
-        int old_idx = active_lane - 1;
+    if (g_active_lane != lane && (g_active_lane == 1 || g_active_lane == 2) && (lane == 1 || lane == 2)) {
+        int old_idx = g_active_lane - 1;
         int new_idx = lane - 1;
-        if (MM_PER_STEP[new_idx] > MIN_MM_PER_STEP_F) {
-            extruder_est_sps = extruder_est_sps * (MM_PER_STEP[old_idx] / MM_PER_STEP[new_idx]);
+        if (g_mm_per_step[new_idx] > MIN_MM_PER_STEP_F) {
+            g_extruder_est_sps = g_extruder_est_sps * (g_mm_per_step[old_idx] / g_mm_per_step[new_idx]);
         }
     }
-    active_lane = lane;
+    g_active_lane = lane;
     if (lane == 1 || lane == 2) {
         char lane_s[2];
         lane_id_str(lane_s, lane);
@@ -373,9 +373,9 @@ int other_lane(int lane) {
 }
 
 static void autopreload_tick(uint32_t now_ms) {
-    if (!AUTO_MODE && !AUTO_PRELOAD) {
-        prev_lane1_in_present = lane_in_present(&g_lane_l1);
-        prev_lane2_in_present = lane_in_present(&g_lane_l2);
+    if (!g_auto_mode && !g_auto_preload) {
+        g_prev_lane1_in_present = lane_in_present(&g_lane_l1);
+        g_prev_lane2_in_present = lane_in_present(&g_lane_l2);
         return;
     }
 
@@ -386,8 +386,8 @@ static void autopreload_tick(uint32_t now_ms) {
      * any IN rising edge there is a real operator insertion and must NOT
      * be consumed. After release (BL_IDLE) the gate doesn't apply. */
     if (sync_buffer_lock_motor_moving()) {
-        prev_lane1_in_present = lane_in_present(&g_lane_l1);
-        prev_lane2_in_present = lane_in_present(&g_lane_l2);
+        g_prev_lane1_in_present = lane_in_present(&g_lane_l1);
+        g_prev_lane2_in_present = lane_in_present(&g_lane_l2);
         return;
     }
 
@@ -397,7 +397,7 @@ static void autopreload_tick(uint32_t now_ms) {
     // MMU is completely empty if neither OUT sensor is present.
     bool mmu_empty = !lane_out_present(&g_lane_l1) && !lane_out_present(&g_lane_l2);
 
-    if (in1 && !prev_lane1_in_present) {
+    if (in1 && !g_prev_lane1_in_present) {
         if (g_lane_l1.fault == FAULT_DRY_SPIN)
             g_lane_l1.fault = FAULT_NONE;
         if (g_tc_ctx.state == TC_ERROR)
@@ -405,14 +405,14 @@ static void autopreload_tick(uint32_t now_ms) {
         if (g_lane_l1.task == TASK_IDLE &&
             (tc_state() == TC_IDLE || tc_state() == TC_RELOAD_FOLLOW) && !cutter_busy() &&
             !lane_out_present(&g_lane_l1)) {
-            if (AUTO_MODE && mmu_empty) {
+            if (g_auto_mode && mmu_empty) {
                 // Completely empty MMU: auto-load all the way to toolhead.
-                lane_start(&g_lane_l1, TASK_LOAD_FULL, FEED_SPS, true, now_ms, (float)LOAD_MAX_MM);
+                lane_start(&g_lane_l1, TASK_LOAD_FULL, g_feed_sps, true, now_ms, (float)g_load_max_mm);
                 cmd_event("AUTO_LOAD", "1");
-            } else if (AUTO_PRELOAD) {
+            } else if (g_auto_preload) {
                 // Other lane loaded (or AUTO_MODE off): just preload to Y-splitter.
-                lane_start(&g_lane_l1, TASK_AUTOLOAD, AUTO_SPS, true, now_ms,
-                           (float)AUTOLOAD_MAX_MM);
+                lane_start(&g_lane_l1, TASK_AUTOLOAD, g_auto_sps, true, now_ms,
+                           (float)g_autoload_max_mm);
                 cmd_event("PRELOAD", "1");
             }
             if (!lane_out_present(&g_lane_l2))
@@ -420,7 +420,7 @@ static void autopreload_tick(uint32_t now_ms) {
         }
     }
 
-    if (in2 && !prev_lane2_in_present) {
+    if (in2 && !g_prev_lane2_in_present) {
         if (g_lane_l2.fault == FAULT_DRY_SPIN)
             g_lane_l2.fault = FAULT_NONE;
         if (g_tc_ctx.state == TC_ERROR)
@@ -428,12 +428,12 @@ static void autopreload_tick(uint32_t now_ms) {
         if (g_lane_l2.task == TASK_IDLE &&
             (tc_state() == TC_IDLE || tc_state() == TC_RELOAD_FOLLOW) && !cutter_busy() &&
             !lane_out_present(&g_lane_l2)) {
-            if (AUTO_MODE && mmu_empty) {
-                lane_start(&g_lane_l2, TASK_LOAD_FULL, FEED_SPS, true, now_ms, (float)LOAD_MAX_MM);
+            if (g_auto_mode && mmu_empty) {
+                lane_start(&g_lane_l2, TASK_LOAD_FULL, g_feed_sps, true, now_ms, (float)g_load_max_mm);
                 cmd_event("AUTO_LOAD", "2");
-            } else if (AUTO_PRELOAD) {
-                lane_start(&g_lane_l2, TASK_AUTOLOAD, AUTO_SPS, true, now_ms,
-                           (float)AUTOLOAD_MAX_MM);
+            } else if (g_auto_preload) {
+                lane_start(&g_lane_l2, TASK_AUTOLOAD, g_auto_sps, true, now_ms,
+                           (float)g_autoload_max_mm);
                 cmd_event("PRELOAD", "2");
             }
             if (!lane_out_present(&g_lane_l1))
@@ -441,8 +441,8 @@ static void autopreload_tick(uint32_t now_ms) {
         }
     }
 
-    prev_lane1_in_present = in1;
-    prev_lane2_in_present = in2;
+    g_prev_lane1_in_present = in1;
+    g_prev_lane2_in_present = in2;
 }
 
 // ===================== NeoPixel state =====================
@@ -457,7 +457,7 @@ static led_state_t led_state_from_system(void) {
         return LED_TC;
     if (g_lane_l1.task == TASK_AUTOLOAD || g_lane_l2.task == TASK_AUTOLOAD)
         return LED_LOADING;
-    if (sync_enabled && sync_current_sps > 0)
+    if (sync_enabled && g_sync_current_sps > 0)
         return LED_ACTIVE;
     return LED_IDLE;
 }
@@ -507,7 +507,7 @@ static void settle_boot_sensors(void) {
         debounced_input_update(&g_y_split);
         debounced_input_update(&g_buf_tension_din);
         debounced_input_update(&g_buf_compression_din);
-        if (BUF_SENSOR_TYPE == BUF_SENSOR_TYPE_P) {
+        if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
             buf_analog_update();
         }
         sleep_ms(1);
@@ -544,17 +544,17 @@ int main(void) {
     settle_boot_sensors();
     sync_init(to_ms_since_boot(get_absolute_time()));
 
-    active_lane = detect_active_lane_from_out();
-    if (active_lane == 0) {
+    g_active_lane = detect_active_lane_from_out();
+    if (g_active_lane == 0) {
         // Fall back: filament parked before OUT (pre-loaded state).
         // Pick lane 1 first; if only lane 2 has filament, pick lane 2.
         if (lane_in_present(&g_lane_l1) && !lane_out_present(&g_lane_l1))
-            active_lane = 1;
+            g_active_lane = 1;
         else if (lane_in_present(&g_lane_l2) && !lane_out_present(&g_lane_l2))
-            active_lane = 2;
+            g_active_lane = 2;
     }
-    prev_lane1_in_present = lane_in_present(&g_lane_l1);
-    prev_lane2_in_present = lane_in_present(&g_lane_l2);
+    g_prev_lane1_in_present = lane_in_present(&g_lane_l1);
+    g_prev_lane2_in_present = lane_in_present(&g_lane_l2);
 
     // One-shot boot buffer neutralization, deferred into the loop. NO retry for
     // now: a single attempt makes the settle-delay honest — if it STAGNANTs, the
@@ -566,7 +566,7 @@ int main(void) {
     while (true) {
         g_now_ms = to_ms_since_boot(get_absolute_time());
 
-        if (!boot_stab_armed && active_lane != 0 && g_now_ms >= BOOT_STAB_FIRST_MS) {
+        if (!boot_stab_armed && g_active_lane != 0 && g_now_ms >= BOOT_STAB_FIRST_MS) {
             boot_stab_armed = true;
             boot_stabilize_start(g_now_ms);
         }

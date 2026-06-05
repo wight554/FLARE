@@ -10,8 +10,11 @@ CheckOptions:
     value:           lower_case
   - key:             readability-identifier-naming.GlobalVariablePrefix
     value:           g_
-  - key:             readability-identifier-naming.GlobalVariableIgnoredRegexp
-    value:           '.*'
+  # Constants stay UPPER_CASE (named-constant convention); do not sweep them into g_.
+  - key:             readability-identifier-naming.GlobalConstantCase
+    value:           UPPER_CASE
+  - key:             readability-identifier-naming.StaticConstantCase
+    value:           UPPER_CASE
   - key:             readability-identifier-naming.MacroDefinitionIgnoredRegexp
     value:           '^sync_.*$'
   - key:             readability-identifier-naming.TypedefCase

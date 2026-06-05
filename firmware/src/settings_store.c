@@ -138,130 +138,130 @@ static void settings_defaults_tmc(void) {
                                             CONF_L2_STEALTHCHOP_THRESHOLD};
 
     for (int i = 0; i < NUM_LANES; i++) {
-        FOLLOW_TIMEOUT_MS[i] = follow_timeout_ms[i];
-        TMC_RUN_CURRENT_MA[i] = run_current_ma[i];
-        TMC_HOLD_CURRENT_MA[i] = hold_current_ma[i];
-        TMC_MICROSTEPS[i] = microsteps[i];
-        TMC_STEALTHCHOP_SPS[i] = stealthchop_sps[i];
+        g_follow_timeout_ms[i] = follow_timeout_ms[i];
+        g_tmc_run_current_ma[i] = run_current_ma[i];
+        g_tmc_hold_current_ma[i] = hold_current_ma[i];
+        g_tmc_microsteps[i] = microsteps[i];
+        g_tmc_stealthchop_sps[i] = stealthchop_sps[i];
     }
 
-    MM_PER_STEP[0] = CONF_L1_MM_PER_STEP;
-    MM_PER_STEP[1] = CONF_L2_MM_PER_STEP;
+    g_mm_per_step[0] = CONF_L1_MM_PER_STEP;
+    g_mm_per_step[1] = CONF_L2_MM_PER_STEP;
 
-    TMC_ROTATION_DISTANCE[0] = CONF_L1_ROTATION_DISTANCE;
-    TMC_ROTATION_DISTANCE[1] = CONF_L2_ROTATION_DISTANCE;
-    TMC_GEAR_RATIO[0] = CONF_L1_GEAR_RATIO;
-    TMC_GEAR_RATIO[1] = CONF_L2_GEAR_RATIO;
-    TMC_FULL_STEPS[0] = CONF_L1_FULL_STEPS;
-    TMC_FULL_STEPS[1] = CONF_L2_FULL_STEPS;
-    TMC_MICROSTEPS[0] = CONF_L1_MICROSTEPS;
-    TMC_MICROSTEPS[1] = CONF_L2_MICROSTEPS;
-    TMC_TBL[0] = CONF_L1_TBL;
-    TMC_TBL[1] = CONF_L2_TBL;
-    TMC_TOFF[0] = CONF_L1_TOFF;
-    TMC_TOFF[1] = CONF_L2_TOFF;
-    TMC_HSTRT[0] = CONF_L1_HSTRT;
-    TMC_HSTRT[1] = CONF_L2_HSTRT;
-    TMC_HEND[0] = CONF_L1_HEND;
-    TMC_HEND[1] = CONF_L2_HEND;
-    TMC_INTERPOLATE[0] = CONF_L1_INTPOL;
-    TMC_INTERPOLATE[1] = CONF_L2_INTPOL;
-    TMC_STEALTHCHOP_SPS[0] = CONF_L1_STEALTHCHOP_THRESHOLD;
-    TMC_STEALTHCHOP_SPS[1] = CONF_L2_STEALTHCHOP_THRESHOLD;
-    TMC_RUN_CURRENT_MA[0] = CONF_L1_RUN_CURRENT_MA;
-    TMC_RUN_CURRENT_MA[1] = CONF_L2_RUN_CURRENT_MA;
-    TMC_HOLD_CURRENT_MA[0] = CONF_L1_HOLD_CURRENT_MA;
-    TMC_HOLD_CURRENT_MA[1] = CONF_L2_HOLD_CURRENT_MA;
+    g_tmc_rotation_distance[0] = CONF_L1_ROTATION_DISTANCE;
+    g_tmc_rotation_distance[1] = CONF_L2_ROTATION_DISTANCE;
+    g_tmc_gear_ratio[0] = CONF_L1_GEAR_RATIO;
+    g_tmc_gear_ratio[1] = CONF_L2_GEAR_RATIO;
+    g_tmc_full_steps[0] = CONF_L1_FULL_STEPS;
+    g_tmc_full_steps[1] = CONF_L2_FULL_STEPS;
+    g_tmc_microsteps[0] = CONF_L1_MICROSTEPS;
+    g_tmc_microsteps[1] = CONF_L2_MICROSTEPS;
+    g_tmc_tbl[0] = CONF_L1_TBL;
+    g_tmc_tbl[1] = CONF_L2_TBL;
+    g_tmc_toff[0] = CONF_L1_TOFF;
+    g_tmc_toff[1] = CONF_L2_TOFF;
+    g_tmc_hstrt[0] = CONF_L1_HSTRT;
+    g_tmc_hstrt[1] = CONF_L2_HSTRT;
+    g_tmc_hend[0] = CONF_L1_HEND;
+    g_tmc_hend[1] = CONF_L2_HEND;
+    g_tmc_interpolate[0] = CONF_L1_INTPOL;
+    g_tmc_interpolate[1] = CONF_L2_INTPOL;
+    g_tmc_stealthchop_sps[0] = CONF_L1_STEALTHCHOP_THRESHOLD;
+    g_tmc_stealthchop_sps[1] = CONF_L2_STEALTHCHOP_THRESHOLD;
+    g_tmc_run_current_ma[0] = CONF_L1_RUN_CURRENT_MA;
+    g_tmc_run_current_ma[1] = CONF_L2_RUN_CURRENT_MA;
+    g_tmc_hold_current_ma[0] = CONF_L1_HOLD_CURRENT_MA;
+    g_tmc_hold_current_ma[1] = CONF_L2_HOLD_CURRENT_MA;
 }
 
 static void settings_defaults_sync(void) {
-    BUF_SENSOR_TYPE = CONF_BUF_SENSOR_TYPE;
-    BUF_HOME_STATE = CONF_BUF_HOME_STATE;
-    BUF_PSF_MAX_COMP = CONF_BUF_PSF_MAX_COMP;
-    BUF_PSF_MAX_TENS = CONF_BUF_PSF_MAX_TENS;
-    BUF_PSF_NEUTRAL = CONF_BUF_PSF_NEUTRAL;
-    BUF_GOAL = CONF_BUF_GOAL;
-    SYNC_KP_SPS = CONF_SYNC_KP_SPS;
-    SYNC_RESERVE_PCT = clamp_i(CONF_SYNC_RESERVE_PCT, 0, SYNC_RESERVE_MAX_PCT);
-    RELAY_CATCHUP_FRAC = clamp_f(CONF_RELAY_CATCHUP_FRAC, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
-    RELAY_NEUTRAL_FRAC = clamp_f(CONF_RELAY_NEUTRAL_FRAC, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
-    SYNC_COMPRESSION_DRAIN_FRAC =
+    g_buf_sensor_type = CONF_BUF_SENSOR_TYPE;
+    g_buf_home_state = CONF_BUF_HOME_STATE;
+    g_buf_psf_max_comp = CONF_BUF_PSF_MAX_COMP;
+    g_buf_psf_max_tens = CONF_BUF_PSF_MAX_TENS;
+    g_buf_psf_neutral = CONF_BUF_PSF_NEUTRAL;
+    g_buf_goal = CONF_BUF_GOAL;
+    g_sync_kp_sps = CONF_SYNC_KP_SPS;
+    g_sync_reserve_pct = clamp_i(CONF_SYNC_RESERVE_PCT, 0, SYNC_RESERVE_MAX_PCT);
+    g_relay_catchup_frac = clamp_f(CONF_RELAY_CATCHUP_FRAC, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
+    g_relay_neutral_frac = clamp_f(CONF_RELAY_NEUTRAL_FRAC, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
+    g_sync_compression_drain_frac =
         clamp_f(CONF_SYNC_COMPRESSION_DRAIN_FRAC, 0.0f, COMPRESSION_DRAIN_MAX_FRAC);
-    SYNC_COMPRESSION_DRAIN_BUDGET_MM =
+    g_sync_compression_drain_budget_mm =
         clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, COMPRESSION_DRAIN_BUDGET_MAX_MM);
-    SYNC_EST_ATTACK_ALPHA = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, SYNC_EST_ATTACK_MIN_ALPHA, 1.0f);
-    SYNC_TENSION_FAST_MM_S = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, SYNC_TENSION_FAST_MAX_MM_S);
-    SYNC_TENSION_PROBE_MAX_SPS =
+    g_sync_est_attack_alpha = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, SYNC_EST_ATTACK_MIN_ALPHA, 1.0f);
+    g_sync_tension_fast_mm_s = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, SYNC_TENSION_FAST_MAX_MM_S);
+    g_sync_tension_probe_max_sps =
         clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(TENSION_PROBE_MAX_MM_MIN));
-    SYNC_TENSION_PROBE_UP_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0,
+    g_sync_tension_probe_up_sps_per_s = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0,
                                               mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
-    SYNC_TENSION_PROBE_DOWN_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0,
+    g_sync_tension_probe_down_sps_per_s = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0,
                                                 mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
-    SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S =
+    g_sync_tension_probe_neutral_sps_per_s =
         clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0,
                 mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
 
-    SYNC_COMPRESSION_BIAS_FRAC =
+    g_sync_compression_bias_frac =
         clamp_f(CONF_SYNC_COMPRESSION_BIAS_FRAC, 0.0f, COMPRESSION_BIAS_MAX_FRAC);
     flow_schedule_reset_runtime();
 
-    BUF_STAB_SPS = clamp_i(CONF_BUF_STAB_SPS, BUF_STAB_MIN_SPS, BUF_STAB_MAX_SPS);
-    JOIN_SPS = CONF_JOIN_SPS;
-    PRESS_SPS = CONF_PRESS_SPS;
-    COMPRESSION_SPS = CONF_COMPRESSION_SPS;
+    g_buf_stab_sps = clamp_i(CONF_BUF_STAB_SPS, BUF_STAB_MIN_SPS, BUF_STAB_MAX_SPS);
+    g_join_sps = CONF_JOIN_SPS;
+    g_press_sps = CONF_PRESS_SPS;
+    g_compression_sps = CONF_COMPRESSION_SPS;
 }
 
 static void settings_defaults_motion(void) {
-    FEED_SPS = CONF_FEED_SPS;
-    REV_SPS = CONF_REV_SPS;
-    AUTO_SPS = CONF_AUTO_SPS;
+    g_feed_sps = CONF_FEED_SPS;
+    g_rev_sps = CONF_REV_SPS;
+    g_auto_sps = CONF_AUTO_SPS;
 
-    GLOBAL_MAX_SPS = clamp_i(CONF_GLOBAL_MAX_SPS, mm_per_min_to_sps(GLOBAL_MAX_MIN_MM_MIN),
+    g_global_max_sps = clamp_i(CONF_GLOBAL_MAX_SPS, mm_per_min_to_sps(GLOBAL_MAX_MIN_MM_MIN),
                              mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
-    SYNC_MAX_SPS = sync_clamp_max_sps(CONF_SYNC_MAX_SPS);
-    SYNC_MIN_SPS = CONF_SYNC_MIN_SPS;
-    SYNC_RAMP_UP_SPS = CONF_SYNC_RAMP_UP_SPS;
-    SYNC_RAMP_DN_SPS = CONF_SYNC_RAMP_DN_SPS;
-    PRE_RAMP_SPS = CONF_PRE_RAMP_SPS;
-    SYNC_AUTO_STOP_MS = CONF_SYNC_AUTO_STOP_MS;
-    AUTOLOAD_MAX_MM = CONF_AUTOLOAD_MAX_MM;
-    LOAD_MAX_MM = CONF_LOAD_MAX_MM;
-    UNLOAD_MAX_MM = CONF_UNLOAD_MAX_MM;
-    UNLOAD_TENSION_BLOCK_MS = CONF_UNLOAD_TENSION_BLOCK_MS;
-    RELOAD_JOIN_DELAY_MS = CONF_RELOAD_JOIN_DELAY_MS;
-    RELOAD_MODE = CONF_RELOAD_MODE;
-    AUTO_MODE = 1;
-    AUTO_PRELOAD = true;
-    DIST_IN_OUT = CONF_DIST_IN_OUT;
-    DIST_OUT_Y = CONF_DIST_OUT_Y;
-    DIST_Y_BUF = CONF_DIST_Y_BUF;
-    BUF_BODY_LEN = CONF_BUF_BODY_LEN;
-    BUF_MAX_TRAVEL_MM = clamp_i(CONF_BUF_MAX_TRAVEL_MM, BUF_TRAVEL_MIN_MM, BUF_TRAVEL_MAX_MM);
-    BUF_SWITCH_SPAN_HALF_MM =
-        buf_switch_span_half_from_full(CONF_BUF_SWITCH_SPAN_MM, BUF_MAX_TRAVEL_MM);
-    ZONE_BIAS_BASE_SPS = CONF_ZONE_BIAS_BASE_SPS;
-    ZONE_BIAS_RAMP_SPS_S = CONF_ZONE_BIAS_RAMP_SPS_S;
-    ZONE_BIAS_MAX_SPS = CONF_ZONE_BIAS_MAX_SPS;
+    g_sync_max_sps = sync_clamp_max_sps(CONF_SYNC_MAX_SPS);
+    g_sync_min_sps = CONF_SYNC_MIN_SPS;
+    g_sync_ramp_up_sps = CONF_SYNC_RAMP_UP_SPS;
+    g_sync_ramp_dn_sps = CONF_SYNC_RAMP_DN_SPS;
+    g_pre_ramp_sps = CONF_PRE_RAMP_SPS;
+    g_sync_auto_stop_ms = CONF_SYNC_AUTO_STOP_MS;
+    g_autoload_max_mm = CONF_AUTOLOAD_MAX_MM;
+    g_load_max_mm = CONF_LOAD_MAX_MM;
+    g_unload_max_mm = CONF_UNLOAD_MAX_MM;
+    g_unload_tension_block_ms = CONF_UNLOAD_TENSION_BLOCK_MS;
+    g_reload_join_delay_ms = CONF_RELOAD_JOIN_DELAY_MS;
+    g_reload_mode = CONF_RELOAD_MODE;
+    g_auto_mode = 1;
+    g_auto_preload = true;
+    g_dist_in_out = CONF_DIST_IN_OUT;
+    g_dist_out_y = CONF_DIST_OUT_Y;
+    g_dist_y_buf = CONF_DIST_Y_BUF;
+    g_buf_body_len = CONF_BUF_BODY_LEN;
+    g_buf_max_travel_mm = clamp_i(CONF_BUF_MAX_TRAVEL_MM, BUF_TRAVEL_MIN_MM, BUF_TRAVEL_MAX_MM);
+    g_buf_switch_span_half_mm =
+        buf_switch_span_half_from_full(CONF_BUF_SWITCH_SPAN_MM, g_buf_max_travel_mm);
+    g_zone_bias_base_sps = CONF_ZONE_BIAS_BASE_SPS;
+    g_zone_bias_ramp_sps_s = CONF_ZONE_BIAS_RAMP_SPS_S;
+    g_zone_bias_max_sps = CONF_ZONE_BIAS_MAX_SPS;
     g_baseline_target_sps = CONF_BASELINE_SPS;
     g_baseline_sps = CONF_BASELINE_SPS;
-    AUTO_PRELOAD = true;
-    AUTOLOAD_RETRACT_MM = CONF_AUTOLOAD_RETRACT_MM;
-    ENABLE_CUTTER = CONF_ENABLE_CUTTER;
-    UNLOAD_CUT = CONF_UNLOAD_CUT;
-    RAMP_STEP_SPS = CONF_RAMP_STEP_SPS;
+    g_auto_preload = true;
+    g_autoload_retract_mm = CONF_AUTOLOAD_RETRACT_MM;
+    g_enable_cutter = CONF_ENABLE_CUTTER;
+    g_unload_cut = CONF_UNLOAD_CUT;
+    g_ramp_step_sps = CONF_RAMP_STEP_SPS;
 }
 
 static void settings_defaults_servo_cutter(void) {
-    SERVO_OPEN_US = CONF_SERVO_OPEN_US;
-    SERVO_CLOSE_US = CONF_SERVO_CLOSE_US;
-    SERVO_BLOCK_US = CONF_SERVO_BLOCK_US;
-    SERVO_SETTLE_MS = CONF_SERVO_SETTLE_MS;
-    CUT_FEED_SPS = CONF_CUT_FEED_SPS;
-    CUT_FEED_MM = CONF_CUT_FEED_MM;
-    CUT_LENGTH_MM = CONF_CUT_LENGTH_MM;
-    CUT_AMOUNT = CONF_CUT_AMOUNT;
+    g_servo_open_us = CONF_SERVO_OPEN_US;
+    g_servo_close_us = CONF_SERVO_CLOSE_US;
+    g_servo_block_us = CONF_SERVO_BLOCK_US;
+    g_servo_settle_ms = CONF_SERVO_SETTLE_MS;
+    g_cut_feed_sps = CONF_CUT_FEED_SPS;
+    g_cut_feed_mm = CONF_CUT_FEED_MM;
+    g_cut_length_mm = CONF_CUT_LENGTH_MM;
+    g_cut_amount = CONF_CUT_AMOUNT;
 
-    RUNOUT_COOLDOWN_MS = CONF_RUNOUT_COOLDOWN_MS;
+    g_runout_cooldown_ms = CONF_RUNOUT_COOLDOWN_MS;
 }
 
 void settings_defaults(void) {
@@ -278,79 +278,79 @@ void settings_save(void) {
     s.magic = SETTINGS_MAGIC;
     s.version = SETTINGS_VERSION;
 
-    s.feed_sps = FEED_SPS;
-    s.rev_sps = REV_SPS;
-    s.auto_sps = AUTO_SPS;
+    s.feed_sps = g_feed_sps;
+    s.rev_sps = g_rev_sps;
+    s.auto_sps = g_auto_sps;
 
-    s.sync_max_sps = SYNC_MAX_SPS;
-    s.global_max_sps = GLOBAL_MAX_SPS;
-    s.sync_min_sps = SYNC_MIN_SPS;
-    s.sync_auto_stop_ms = SYNC_AUTO_STOP_MS;
-    s.autoload_max_mm = AUTOLOAD_MAX_MM;
-    s.load_max_mm = LOAD_MAX_MM;
-    s.unload_max_mm = UNLOAD_MAX_MM;
-    s.unload_tension_block_ms = UNLOAD_TENSION_BLOCK_MS;
-    s.reload_join_delay_ms = RELOAD_JOIN_DELAY_MS;
-    s.auto_mode = AUTO_MODE;
-    s.auto_preload = AUTO_PRELOAD ? 1 : 0;
-    s.buf_switch_span_mm = BUF_SWITCH_SPAN_HALF_MM * FULL_SPAN_MULT_F;
-    s.dist_in_out = DIST_IN_OUT;
-    s.dist_out_y = DIST_OUT_Y;
-    s.dist_y_buf = DIST_Y_BUF;
-    s.buf_body_len = BUF_BODY_LEN;
-    s.buf_max_travel_mm = BUF_MAX_TRAVEL_MM;
+    s.sync_max_sps = g_sync_max_sps;
+    s.global_max_sps = g_global_max_sps;
+    s.sync_min_sps = g_sync_min_sps;
+    s.sync_auto_stop_ms = g_sync_auto_stop_ms;
+    s.autoload_max_mm = g_autoload_max_mm;
+    s.load_max_mm = g_load_max_mm;
+    s.unload_max_mm = g_unload_max_mm;
+    s.unload_tension_block_ms = g_unload_tension_block_ms;
+    s.reload_join_delay_ms = g_reload_join_delay_ms;
+    s.auto_mode = g_auto_mode;
+    s.auto_preload = g_auto_preload ? 1 : 0;
+    s.buf_switch_span_mm = g_buf_switch_span_half_mm * FULL_SPAN_MULT_F;
+    s.dist_in_out = g_dist_in_out;
+    s.dist_out_y = g_dist_out_y;
+    s.dist_y_buf = g_dist_y_buf;
+    s.buf_body_len = g_buf_body_len;
+    s.buf_max_travel_mm = g_buf_max_travel_mm;
     s.baseline_sps = g_baseline_target_sps;
-    s.auto_preload = AUTO_PRELOAD;
-    s.autoload_retract_mm = AUTOLOAD_RETRACT_MM;
-    s.enable_cutter = ENABLE_CUTTER;
-    s.unload_cut = UNLOAD_CUT;
+    s.auto_preload = g_auto_preload;
+    s.autoload_retract_mm = g_autoload_retract_mm;
+    s.enable_cutter = g_enable_cutter;
+    s.unload_cut = g_unload_cut;
 
-    s.servo_open_us = SERVO_OPEN_US;
-    s.servo_close_us = SERVO_CLOSE_US;
-    s.servo_block_us = SERVO_BLOCK_US;
-    s.servo_settle_ms = SERVO_SETTLE_MS;
-    s.cut_feed_sps = CUT_FEED_SPS;
-    s.cut_feed_mm = CUT_FEED_MM;
-    s.cut_length_mm = CUT_LENGTH_MM;
-    s.cut_amount = CUT_AMOUNT;
+    s.servo_open_us = g_servo_open_us;
+    s.servo_close_us = g_servo_close_us;
+    s.servo_block_us = g_servo_block_us;
+    s.servo_settle_ms = g_servo_settle_ms;
+    s.cut_feed_sps = g_cut_feed_sps;
+    s.cut_feed_mm = g_cut_feed_mm;
+    s.cut_length_mm = g_cut_length_mm;
+    s.cut_amount = g_cut_amount;
 
-    s.runout_cooldown_ms = RUNOUT_COOLDOWN_MS;
+    s.runout_cooldown_ms = g_runout_cooldown_ms;
 
-    s.buf_sensor_type = BUF_SENSOR_TYPE;
-    s.buf_home_state = BUF_HOME_STATE;
-    s.buf_psf_max_comp = BUF_PSF_MAX_COMP;
-    s.buf_psf_max_tens = BUF_PSF_MAX_TENS;
-    s.buf_psf_neutral = BUF_PSF_NEUTRAL;
-    s.buf_psf_goal = BUF_GOAL;
-    s.sync_kp_sps = SYNC_KP_SPS;
-    s.sync_reserve_pct = SYNC_RESERVE_PCT;
-    s.join_sps = JOIN_SPS;
-    s.press_sps = PRESS_SPS;
-    s.compression_sps = COMPRESSION_SPS;
+    s.buf_sensor_type = g_buf_sensor_type;
+    s.buf_home_state = g_buf_home_state;
+    s.buf_psf_max_comp = g_buf_psf_max_comp;
+    s.buf_psf_max_tens = g_buf_psf_max_tens;
+    s.buf_psf_neutral = g_buf_psf_neutral;
+    s.buf_psf_goal = g_buf_goal;
+    s.sync_kp_sps = g_sync_kp_sps;
+    s.sync_reserve_pct = g_sync_reserve_pct;
+    s.join_sps = g_join_sps;
+    s.press_sps = g_press_sps;
+    s.compression_sps = g_compression_sps;
 
-    s.reload_mode = (bool)RELOAD_MODE;
+    s.reload_mode = (bool)g_reload_mode;
     for (int i = 0; i < NUM_LANES; i++) {
-        s.follow_timeout_ms[i] = FOLLOW_TIMEOUT_MS[i];
+        s.follow_timeout_ms[i] = g_follow_timeout_ms[i];
     }
 
-    s.relay_catchup_frac = RELAY_CATCHUP_FRAC;
-    s.relay_neutral_frac = RELAY_NEUTRAL_FRAC;
+    s.relay_catchup_frac = g_relay_catchup_frac;
+    s.relay_neutral_frac = g_relay_neutral_frac;
 
-    s.sync_compression_bias_frac = SYNC_COMPRESSION_BIAS_FRAC;
+    s.sync_compression_bias_frac = g_sync_compression_bias_frac;
 
     for (int i = 0; i < NUM_LANES; i++) {
-        s.tmc_rotation_distance[i] = TMC_ROTATION_DISTANCE[i];
-        s.tmc_gear_ratio[i] = TMC_GEAR_RATIO[i];
-        s.tmc_full_steps[i] = TMC_FULL_STEPS[i];
-        s.tmc_microsteps[i] = TMC_MICROSTEPS[i];
-        s.tmc_tbl[i] = TMC_TBL[i];
-        s.tmc_toff[i] = TMC_TOFF[i];
-        s.tmc_hstrt[i] = TMC_HSTRT[i];
-        s.tmc_hend[i] = TMC_HEND[i];
-        s.tmc_interpolate[i] = TMC_INTERPOLATE[i];
-        s.tmc_stealthchop_sps[i] = TMC_STEALTHCHOP_SPS[i];
-        s.tmc_run_current_ma[i] = TMC_RUN_CURRENT_MA[i];
-        s.tmc_hold_current_ma[i] = TMC_HOLD_CURRENT_MA[i];
+        s.tmc_rotation_distance[i] = g_tmc_rotation_distance[i];
+        s.tmc_gear_ratio[i] = g_tmc_gear_ratio[i];
+        s.tmc_full_steps[i] = g_tmc_full_steps[i];
+        s.tmc_microsteps[i] = g_tmc_microsteps[i];
+        s.tmc_tbl[i] = g_tmc_tbl[i];
+        s.tmc_toff[i] = g_tmc_toff[i];
+        s.tmc_hstrt[i] = g_tmc_hstrt[i];
+        s.tmc_hend[i] = g_tmc_hend[i];
+        s.tmc_interpolate[i] = g_tmc_interpolate[i];
+        s.tmc_stealthchop_sps[i] = g_tmc_stealthchop_sps[i];
+        s.tmc_run_current_ma[i] = g_tmc_run_current_ma[i];
+        s.tmc_hold_current_ma[i] = g_tmc_hold_current_ma[i];
     }
 
     // CRC covers every field up to (not including) crc32 itself; settings_load
@@ -376,144 +376,144 @@ void sync_tmc_settings(int lane) {
     int idx = lane_to_idx(lane);
     tmc_t *tmc = (lane == 1) ? &g_tmc_l1 : &g_tmc_l2;
 
-    MM_PER_STEP[idx] =
-        TMC_ROTATION_DISTANCE[idx] /
-        ((float)TMC_FULL_STEPS[idx] * TMC_GEAR_RATIO[idx] * (float)TMC_MICROSTEPS[idx]);
+    g_mm_per_step[idx] =
+        g_tmc_rotation_distance[idx] /
+        ((float)g_tmc_full_steps[idx] * g_tmc_gear_ratio[idx] * (float)g_tmc_microsteps[idx]);
 
-    tmc_setup_chopconf(tmc, TMC_MICROSTEPS[idx], TMC_TOFF[idx], TMC_TBL[idx], TMC_HSTRT[idx],
-                       TMC_HEND[idx], TMC_INTERPOLATE[idx]);
-    tmc_set_stealthchop_sps(tmc, TMC_STEALTHCHOP_SPS[idx], TMC_MICROSTEPS[idx]);
-    tmc_set_run_current_ma(tmc, TMC_RUN_CURRENT_MA[idx], TMC_HOLD_CURRENT_MA[idx]);
+    tmc_setup_chopconf(tmc, g_tmc_microsteps[idx], g_tmc_toff[idx], g_tmc_tbl[idx], g_tmc_hstrt[idx],
+                       g_tmc_hend[idx], g_tmc_interpolate[idx]);
+    tmc_set_stealthchop_sps(tmc, g_tmc_stealthchop_sps[idx], g_tmc_microsteps[idx]);
+    tmc_set_run_current_ma(tmc, g_tmc_run_current_ma[idx], g_tmc_hold_current_ma[idx]);
 
     // Synchronize shadow state for protocol reporting
-    g_shadow_vsense[idx] = (TMC_RUN_CURRENT_MA[idx] <= TMC_VSENSE_THRESHOLD_MA);
-    g_shadow_ihold_irun[idx] = build_ihold_irun_reg(TMC_RUN_CURRENT_MA[idx],
-                                                    TMC_HOLD_CURRENT_MA[idx], g_shadow_vsense[idx]);
+    g_shadow_vsense[idx] = (g_tmc_run_current_ma[idx] <= TMC_VSENSE_THRESHOLD_MA);
+    g_shadow_ihold_irun[idx] = build_ihold_irun_reg(g_tmc_run_current_ma[idx],
+                                                    g_tmc_hold_current_ma[idx], g_shadow_vsense[idx]);
     g_shadow_ihold_irun_valid[idx] = true;
 }
 
 static void tmc_apply_all(void) {
     tmc_set_pwmconf(&g_tmc_l1);
     tmc_set_pwmconf(&g_tmc_l2);
-    tmc_set_stealthchop_sps(&g_tmc_l1, TMC_STEALTHCHOP_SPS[0], TMC_MICROSTEPS[0]);
-    tmc_set_stealthchop_sps(&g_tmc_l2, TMC_STEALTHCHOP_SPS[1], TMC_MICROSTEPS[1]);
-    tmc_setup_chopconf(&g_tmc_l1, TMC_MICROSTEPS[0], TMC_TOFF[0], TMC_TBL[0], TMC_HSTRT[0],
-                       TMC_HEND[0], TMC_INTERPOLATE[0]);
-    tmc_setup_chopconf(&g_tmc_l2, TMC_MICROSTEPS[1], TMC_TOFF[1], TMC_TBL[1], TMC_HSTRT[1],
-                       TMC_HEND[1], TMC_INTERPOLATE[1]);
-    tmc_set_run_current_ma(&g_tmc_l1, TMC_RUN_CURRENT_MA[0], TMC_HOLD_CURRENT_MA[0]);
-    tmc_set_run_current_ma(&g_tmc_l2, TMC_RUN_CURRENT_MA[1], TMC_HOLD_CURRENT_MA[1]);
+    tmc_set_stealthchop_sps(&g_tmc_l1, g_tmc_stealthchop_sps[0], g_tmc_microsteps[0]);
+    tmc_set_stealthchop_sps(&g_tmc_l2, g_tmc_stealthchop_sps[1], g_tmc_microsteps[1]);
+    tmc_setup_chopconf(&g_tmc_l1, g_tmc_microsteps[0], g_tmc_toff[0], g_tmc_tbl[0], g_tmc_hstrt[0],
+                       g_tmc_hend[0], g_tmc_interpolate[0]);
+    tmc_setup_chopconf(&g_tmc_l2, g_tmc_microsteps[1], g_tmc_toff[1], g_tmc_tbl[1], g_tmc_hstrt[1],
+                       g_tmc_hend[1], g_tmc_interpolate[1]);
+    tmc_set_run_current_ma(&g_tmc_l1, g_tmc_run_current_ma[0], g_tmc_hold_current_ma[0]);
+    tmc_set_run_current_ma(&g_tmc_l2, g_tmc_run_current_ma[1], g_tmc_hold_current_ma[1]);
 
-    g_shadow_vsense[0] = (TMC_RUN_CURRENT_MA[0] <= TMC_VSENSE_THRESHOLD_MA);
-    g_shadow_vsense[1] = (TMC_RUN_CURRENT_MA[1] <= TMC_VSENSE_THRESHOLD_MA);
+    g_shadow_vsense[0] = (g_tmc_run_current_ma[0] <= TMC_VSENSE_THRESHOLD_MA);
+    g_shadow_vsense[1] = (g_tmc_run_current_ma[1] <= TMC_VSENSE_THRESHOLD_MA);
     g_shadow_ihold_irun[0] =
-        build_ihold_irun_reg(TMC_RUN_CURRENT_MA[0], TMC_HOLD_CURRENT_MA[0], g_shadow_vsense[0]);
+        build_ihold_irun_reg(g_tmc_run_current_ma[0], g_tmc_hold_current_ma[0], g_shadow_vsense[0]);
     g_shadow_ihold_irun[1] =
-        build_ihold_irun_reg(TMC_RUN_CURRENT_MA[1], TMC_HOLD_CURRENT_MA[1], g_shadow_vsense[1]);
+        build_ihold_irun_reg(g_tmc_run_current_ma[1], g_tmc_hold_current_ma[1], g_shadow_vsense[1]);
     g_shadow_ihold_irun_valid[0] = true;
     g_shadow_ihold_irun_valid[1] = true;
 }
 
 static void settings_load_motion(const settings_t *s) {
-    FEED_SPS = s->feed_sps;
-    REV_SPS = s->rev_sps;
-    AUTO_SPS = s->auto_sps;
+    g_feed_sps = s->feed_sps;
+    g_rev_sps = s->rev_sps;
+    g_auto_sps = s->auto_sps;
 
-    GLOBAL_MAX_SPS = clamp_i(s->global_max_sps, mm_per_min_to_sps(GLOBAL_MAX_MIN_MM_MIN),
+    g_global_max_sps = clamp_i(s->global_max_sps, mm_per_min_to_sps(GLOBAL_MAX_MIN_MM_MIN),
                              mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
-    SYNC_MAX_SPS = sync_clamp_max_sps(s->sync_max_sps);
-    SYNC_MIN_SPS = s->sync_min_sps;
-    SYNC_AUTO_STOP_MS = s->sync_auto_stop_ms;
-    AUTOLOAD_MAX_MM = s->autoload_max_mm;
-    LOAD_MAX_MM = s->load_max_mm;
-    UNLOAD_MAX_MM = s->unload_max_mm;
-    UNLOAD_TENSION_BLOCK_MS = s->unload_tension_block_ms;
-    RELOAD_JOIN_DELAY_MS = s->reload_join_delay_ms;
-    AUTO_MODE = s->auto_mode;
-    AUTO_PRELOAD = (s->auto_preload != 0);
-    BUF_MAX_TRAVEL_MM = clamp_i(s->buf_max_travel_mm, BUF_TRAVEL_MIN_MM, BUF_TRAVEL_MAX_MM);
-    BUF_SWITCH_SPAN_HALF_MM =
-        buf_switch_span_half_from_full(s->buf_switch_span_mm, BUF_MAX_TRAVEL_MM);
-    DIST_IN_OUT = s->dist_in_out;
-    DIST_OUT_Y = s->dist_out_y;
-    DIST_Y_BUF = s->dist_y_buf;
-    BUF_BODY_LEN = s->buf_body_len;
+    g_sync_max_sps = sync_clamp_max_sps(s->sync_max_sps);
+    g_sync_min_sps = s->sync_min_sps;
+    g_sync_auto_stop_ms = s->sync_auto_stop_ms;
+    g_autoload_max_mm = s->autoload_max_mm;
+    g_load_max_mm = s->load_max_mm;
+    g_unload_max_mm = s->unload_max_mm;
+    g_unload_tension_block_ms = s->unload_tension_block_ms;
+    g_reload_join_delay_ms = s->reload_join_delay_ms;
+    g_auto_mode = s->auto_mode;
+    g_auto_preload = (s->auto_preload != 0);
+    g_buf_max_travel_mm = clamp_i(s->buf_max_travel_mm, BUF_TRAVEL_MIN_MM, BUF_TRAVEL_MAX_MM);
+    g_buf_switch_span_half_mm =
+        buf_switch_span_half_from_full(s->buf_switch_span_mm, g_buf_max_travel_mm);
+    g_dist_in_out = s->dist_in_out;
+    g_dist_out_y = s->dist_out_y;
+    g_dist_y_buf = s->dist_y_buf;
+    g_buf_body_len = s->buf_body_len;
     g_baseline_target_sps = motion_clamp_rate_sps(s->baseline_sps);
     g_baseline_sps = g_baseline_target_sps;
-    AUTO_PRELOAD = s->auto_preload;
-    AUTOLOAD_RETRACT_MM = s->autoload_retract_mm;
-    ENABLE_CUTTER = s->enable_cutter;
-    UNLOAD_CUT = s->unload_cut;
+    g_auto_preload = s->auto_preload;
+    g_autoload_retract_mm = s->autoload_retract_mm;
+    g_enable_cutter = s->enable_cutter;
+    g_unload_cut = s->unload_cut;
 }
 
 static void settings_load_tmc(const settings_t *s) {
     for (int i = 0; i < NUM_LANES; i++) {
-        FOLLOW_TIMEOUT_MS[i] = s->follow_timeout_ms[i];
-        TMC_ROTATION_DISTANCE[i] = s->tmc_rotation_distance[i];
-        TMC_GEAR_RATIO[i] = s->tmc_gear_ratio[i];
-        TMC_FULL_STEPS[i] = s->tmc_full_steps[i];
-        TMC_MICROSTEPS[i] = s->tmc_microsteps[i];
-        TMC_TBL[i] = s->tmc_tbl[i];
-        TMC_TOFF[i] = s->tmc_toff[i];
-        TMC_HSTRT[i] = s->tmc_hstrt[i];
-        TMC_HEND[i] = s->tmc_hend[i];
-        TMC_INTERPOLATE[i] = s->tmc_interpolate[i];
-        TMC_STEALTHCHOP_SPS[i] = s->tmc_stealthchop_sps[i];
-        TMC_RUN_CURRENT_MA[i] = s->tmc_run_current_ma[i];
-        TMC_HOLD_CURRENT_MA[i] = s->tmc_hold_current_ma[i];
-        MM_PER_STEP[i] = TMC_ROTATION_DISTANCE[i] /
-                         ((float)TMC_FULL_STEPS[i] * TMC_GEAR_RATIO[i] * (float)TMC_MICROSTEPS[i]);
+        g_follow_timeout_ms[i] = s->follow_timeout_ms[i];
+        g_tmc_rotation_distance[i] = s->tmc_rotation_distance[i];
+        g_tmc_gear_ratio[i] = s->tmc_gear_ratio[i];
+        g_tmc_full_steps[i] = s->tmc_full_steps[i];
+        g_tmc_microsteps[i] = s->tmc_microsteps[i];
+        g_tmc_tbl[i] = s->tmc_tbl[i];
+        g_tmc_toff[i] = s->tmc_toff[i];
+        g_tmc_hstrt[i] = s->tmc_hstrt[i];
+        g_tmc_hend[i] = s->tmc_hend[i];
+        g_tmc_interpolate[i] = s->tmc_interpolate[i];
+        g_tmc_stealthchop_sps[i] = s->tmc_stealthchop_sps[i];
+        g_tmc_run_current_ma[i] = s->tmc_run_current_ma[i];
+        g_tmc_hold_current_ma[i] = s->tmc_hold_current_ma[i];
+        g_mm_per_step[i] = g_tmc_rotation_distance[i] /
+                         ((float)g_tmc_full_steps[i] * g_tmc_gear_ratio[i] * (float)g_tmc_microsteps[i]);
     }
 }
 
 static void settings_load_servo_cutter(const settings_t *s) {
-    SERVO_OPEN_US = s->servo_open_us;
-    SERVO_CLOSE_US = s->servo_close_us;
-    SERVO_BLOCK_US = s->servo_block_us;
-    SERVO_SETTLE_MS = s->servo_settle_ms;
-    CUT_FEED_SPS = s->cut_feed_sps;
-    CUT_FEED_MM = s->cut_feed_mm;
-    CUT_LENGTH_MM = s->cut_length_mm;
-    CUT_AMOUNT = s->cut_amount;
+    g_servo_open_us = s->servo_open_us;
+    g_servo_close_us = s->servo_close_us;
+    g_servo_block_us = s->servo_block_us;
+    g_servo_settle_ms = s->servo_settle_ms;
+    g_cut_feed_sps = s->cut_feed_sps;
+    g_cut_feed_mm = s->cut_feed_mm;
+    g_cut_length_mm = s->cut_length_mm;
+    g_cut_amount = s->cut_amount;
 
-    RUNOUT_COOLDOWN_MS = s->runout_cooldown_ms;
+    g_runout_cooldown_ms = s->runout_cooldown_ms;
 }
 
 static void settings_load_sync_reload(const settings_t *s) {
-    BUF_SENSOR_TYPE = s->buf_sensor_type;
-    BUF_HOME_STATE = clamp_i(s->buf_home_state, 0, 2);
-    BUF_PSF_MAX_COMP = s->buf_psf_max_comp;
-    BUF_PSF_MAX_TENS = s->buf_psf_max_tens;
-    BUF_PSF_NEUTRAL = s->buf_psf_neutral;
-    BUF_GOAL = s->buf_psf_goal;
-    SYNC_KP_SPS = s->sync_kp_sps;
-    SYNC_RESERVE_PCT = clamp_i(s->sync_reserve_pct, 0, SYNC_RESERVE_MAX_PCT);
-    RELAY_CATCHUP_FRAC = clamp_f(s->relay_catchup_frac, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
-    RELAY_NEUTRAL_FRAC = clamp_f(s->relay_neutral_frac, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
-    SYNC_COMPRESSION_DRAIN_FRAC =
+    g_buf_sensor_type = s->buf_sensor_type;
+    g_buf_home_state = clamp_i(s->buf_home_state, 0, 2);
+    g_buf_psf_max_comp = s->buf_psf_max_comp;
+    g_buf_psf_max_tens = s->buf_psf_max_tens;
+    g_buf_psf_neutral = s->buf_psf_neutral;
+    g_buf_goal = s->buf_psf_goal;
+    g_sync_kp_sps = s->sync_kp_sps;
+    g_sync_reserve_pct = clamp_i(s->sync_reserve_pct, 0, SYNC_RESERVE_MAX_PCT);
+    g_relay_catchup_frac = clamp_f(s->relay_catchup_frac, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
+    g_relay_neutral_frac = clamp_f(s->relay_neutral_frac, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
+    g_sync_compression_drain_frac =
         clamp_f(CONF_SYNC_COMPRESSION_DRAIN_FRAC, 0.0f, COMPRESSION_DRAIN_MAX_FRAC);
-    SYNC_COMPRESSION_DRAIN_BUDGET_MM =
+    g_sync_compression_drain_budget_mm =
         clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, COMPRESSION_DRAIN_BUDGET_MAX_MM);
-    SYNC_EST_ATTACK_ALPHA = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, SYNC_EST_ATTACK_MIN_ALPHA, 1.0f);
-    SYNC_TENSION_FAST_MM_S = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, SYNC_TENSION_FAST_MAX_MM_S);
-    SYNC_TENSION_PROBE_MAX_SPS =
+    g_sync_est_attack_alpha = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, SYNC_EST_ATTACK_MIN_ALPHA, 1.0f);
+    g_sync_tension_fast_mm_s = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, SYNC_TENSION_FAST_MAX_MM_S);
+    g_sync_tension_probe_max_sps =
         clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(TENSION_PROBE_MAX_MM_MIN));
-    SYNC_TENSION_PROBE_UP_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0,
+    g_sync_tension_probe_up_sps_per_s = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0,
                                               mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
-    SYNC_TENSION_PROBE_DOWN_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0,
+    g_sync_tension_probe_down_sps_per_s = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0,
                                                 mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
-    SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S =
+    g_sync_tension_probe_neutral_sps_per_s =
         clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0,
                 mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
 
-    SYNC_COMPRESSION_BIAS_FRAC =
+    g_sync_compression_bias_frac =
         clamp_f(s->sync_compression_bias_frac, 0.0f, COMPRESSION_BIAS_MAX_FRAC);
     flow_schedule_reset_runtime();
 
-    RELOAD_MODE = s->reload_mode ? 1 : 0;
-    JOIN_SPS = s->join_sps;
-    PRESS_SPS = s->press_sps;
-    COMPRESSION_SPS = s->compression_sps;
+    g_reload_mode = s->reload_mode ? 1 : 0;
+    g_join_sps = s->join_sps;
+    g_press_sps = s->press_sps;
+    g_compression_sps = s->compression_sps;
 }
 
 void settings_load(void) {

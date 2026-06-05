@@ -94,14 +94,14 @@ bool cutter_failed(void) {
 }
 
 static uint32_t cut_feed_ms_for_mm(int mm, int idx) {
-    float secs = (float)mm / ((float)CUT_FEED_SPS * MM_PER_STEP[idx]);
+    float secs = (float)mm / ((float)g_cut_feed_sps * g_mm_per_step[idx]);
     if (secs < 0.0f)
         secs = 0.0f;
     return (uint32_t)(secs * MS_PER_SECOND_F);
 }
 
 uint32_t cutter_expected_ms(lane_t *lane, bool enable_feed) {
-    int repeats = CUT_AMOUNT;
+    int repeats = g_cut_amount;
     if (repeats < 1)
         repeats = 1;
 
@@ -110,13 +110,13 @@ uint32_t cutter_expected_ms(lane_t *lane, bool enable_feed) {
         int idx = lane->lane_id - 1;
         if (idx < 0 || idx >= NUM_LANES)
             idx = 0;
-        feed_ms = cut_feed_ms_for_mm(CUT_FEED_MM, idx);
+        feed_ms = cut_feed_ms_for_mm(g_cut_feed_mm, idx);
         if (repeats > 1) {
-            feed_ms += (uint32_t)(repeats - 1) * cut_feed_ms_for_mm(CUT_LENGTH_MM, idx);
+            feed_ms += (uint32_t)(repeats - 1) * cut_feed_ms_for_mm(g_cut_length_mm, idx);
         }
     }
 
-    uint32_t settle_ms = (uint32_t)SERVO_SETTLE_MS * (uint32_t)((2 * repeats) + 2);
+    uint32_t settle_ms = (uint32_t)g_servo_settle_ms * (uint32_t)((2 * repeats) + 2);
     return feed_ms + settle_ms + CUTTER_WATCHDOG_SLACK_MS;
 }
 
@@ -125,7 +125,7 @@ static void cut_begin_feed(uint32_t now_ms, uint32_t window_ms) {
     if (g_cut.lane && window_ms > 0) {
         motor_enable(&g_cut.lane->m, true);
         motor_set_dir(&g_cut.lane->m, true);
-        g_cut.current_sps = RAMP_STEP_SPS;
+        g_cut.current_sps = g_ramp_step_sps;
         motor_set_rate_sps(&g_cut.lane->m, g_cut.current_sps);
         g_cut.ramp_last_ms = now_ms;
     } else {
@@ -137,7 +137,7 @@ static void cut_begin_feed(uint32_t now_ms, uint32_t window_ms) {
 
 void cutter_init(void) {
     servo_init(PIN_SERVO);
-    servo_set_us(PIN_SERVO, SERVO_BLOCK_US);
+    servo_set_us(PIN_SERVO, g_servo_block_us);
     g_cut.state = CUT_BOOT_PARK;
     g_cut.phase_start_ms = to_ms_since_boot(get_absolute_time());
 }
@@ -152,8 +152,8 @@ void cutter_start(lane_t *lane, bool enable_feed, uint32_t now_ms) {
 
     if (lane && enable_feed) {
         int idx = lane->lane_id - 1;
-        g_cut.feed_initial_ms = cut_feed_ms_for_mm(CUT_FEED_MM, idx);
-        g_cut.feed_repeat_ms = cut_feed_ms_for_mm(CUT_LENGTH_MM, idx);
+        g_cut.feed_initial_ms = cut_feed_ms_for_mm(g_cut_feed_mm, idx);
+        g_cut.feed_repeat_ms = cut_feed_ms_for_mm(g_cut_length_mm, idx);
     } else {
         g_cut.feed_initial_ms = 0;
         g_cut.feed_repeat_ms = 0;
@@ -175,7 +175,7 @@ void cutter_abort(void) {
     if (g_cut.state == CUT_IDLE)
         return;
     g_cut.failed = true;
-    servo_set_us(PIN_SERVO, SERVO_BLOCK_US);
+    servo_set_us(PIN_SERVO, g_servo_block_us);
     if (g_cut.lane)
         motor_stop(&g_cut.lane->m);
     g_cut.state = CUT_IDLE;
@@ -186,7 +186,7 @@ static void cutter_fail(const char *reason) {
     if (g_cut.state == CUT_IDLE)
         return;
     g_cut.failed = true;
-    servo_set_us(PIN_SERVO, SERVO_BLOCK_US);
+    servo_set_us(PIN_SERVO, g_servo_block_us);
     if (g_cut.lane)
         motor_stop(&g_cut.lane->m);
     g_cut.state = CUT_IDLE;
@@ -202,11 +202,11 @@ void cutter_test_us(uint32_t us) {
 }
 
 static void cutter_tick_feed_wait(uint32_t now_ms, uint32_t age) {
-    if (g_cut.lane && g_cut.current_sps < CUT_FEED_SPS) {
-        if ((int32_t)(now_ms - g_cut.ramp_last_ms) >= RAMP_TICK_MS) {
-            g_cut.current_sps += RAMP_STEP_SPS;
-            if (g_cut.current_sps > CUT_FEED_SPS)
-                g_cut.current_sps = CUT_FEED_SPS;
+    if (g_cut.lane && g_cut.current_sps < g_cut_feed_sps) {
+        if ((int32_t)(now_ms - g_cut.ramp_last_ms) >= g_ramp_tick_ms) {
+            g_cut.current_sps += g_ramp_step_sps;
+            if (g_cut.current_sps > g_cut_feed_sps)
+                g_cut.current_sps = g_cut_feed_sps;
             motor_set_rate_sps(&g_cut.lane->m, g_cut.current_sps);
             g_cut.ramp_last_ms = now_ms;
         }
@@ -217,7 +217,7 @@ static void cutter_tick_feed_wait(uint32_t now_ms, uint32_t age) {
         }
         g_cut.phase_start_ms = now_ms;
         g_cut.state = CUT_CLOSING;
-    } else if (age > (uint32_t)CUT_TIMEOUT_FEED_MS) {
+    } else if (age > (uint32_t)g_cut_timeout_feed_ms) {
         cutter_fail("FEED_TIMEOUT");
     }
 }
@@ -248,22 +248,22 @@ void cutter_tick(uint32_t now_ms) {
 
     case CUT_BOOT_PARK:
     case CUT_TEST:
-        if (age >= (uint32_t)SERVO_SETTLE_MS) {
+        if (age >= (uint32_t)g_servo_settle_ms) {
             servo_idle(PIN_SERVO);
             g_cut.state = CUT_IDLE;
         }
         break;
 
     case CUT_OPENING:
-        servo_set_us(PIN_SERVO, SERVO_OPEN_US);
+        servo_set_us(PIN_SERVO, g_servo_open_us);
         g_cut.phase_start_ms = now_ms;
         g_cut.state = CUT_OPEN_WAIT;
         break;
 
     case CUT_OPEN_WAIT:
-        if (age > (uint32_t)CUT_TIMEOUT_SETTLE_MS) {
+        if (age > (uint32_t)g_cut_timeout_settle_ms) {
             cutter_fail("OPEN_TIMEOUT");
-        } else if (age >= (uint32_t)SERVO_SETTLE_MS) {
+        } else if (age >= (uint32_t)g_servo_settle_ms) {
             g_cut.phase_start_ms = now_ms;
             g_cut.state = CUT_FEEDING;
         }
@@ -280,36 +280,36 @@ void cutter_tick(uint32_t now_ms) {
         break;
 
     case CUT_CLOSING:
-        servo_set_us(PIN_SERVO, SERVO_CLOSE_US);
+        servo_set_us(PIN_SERVO, g_servo_close_us);
         g_cut.phase_start_ms = now_ms;
         g_cut.state = CUT_CLOSE_WAIT;
         break;
 
     case CUT_CLOSE_WAIT:
-        if (age > (uint32_t)CUT_TIMEOUT_SETTLE_MS) {
+        if (age > (uint32_t)g_cut_timeout_settle_ms) {
             cutter_fail("CLOSE_TIMEOUT");
-        } else if (age >= (uint32_t)SERVO_SETTLE_MS) {
+        } else if (age >= (uint32_t)g_servo_settle_ms) {
             g_cut.phase_start_ms = now_ms;
             g_cut.state = CUT_REOPENING;
         }
         break;
 
     case CUT_REOPENING:
-        servo_set_us(PIN_SERVO, SERVO_OPEN_US);
+        servo_set_us(PIN_SERVO, g_servo_open_us);
         g_cut.phase_start_ms = now_ms;
         g_cut.state = CUT_REOPEN_WAIT;
         break;
 
     case CUT_REOPEN_WAIT:
-        if (age > (uint32_t)CUT_TIMEOUT_SETTLE_MS) {
+        if (age > (uint32_t)g_cut_timeout_settle_ms) {
             cutter_fail("REOPEN_TIMEOUT");
-        } else if (age >= (uint32_t)SERVO_SETTLE_MS) {
+        } else if (age >= (uint32_t)g_servo_settle_ms) {
             g_cut.state = CUT_REPEAT_CHECK;
         }
         break;
 
     case CUT_REPEAT_CHECK:
-        if (g_cut.repeats_done < CUT_AMOUNT - 1) {
+        if (g_cut.repeats_done < g_cut_amount - 1) {
             g_cut.repeats_done++;
             g_cut.phase_start_ms = now_ms;
             g_cut.state = CUT_FEEDING;
@@ -320,8 +320,8 @@ void cutter_tick(uint32_t now_ms) {
         break;
 
     case CUT_DONE:
-        servo_set_us(PIN_SERVO, SERVO_BLOCK_US);
-        if (age >= (uint32_t)SERVO_SETTLE_MS) {
+        servo_set_us(PIN_SERVO, g_servo_block_us);
+        if (age >= (uint32_t)g_servo_settle_ms) {
             servo_idle(PIN_SERVO);
             g_cut.state = CUT_IDLE;
             cmd_event("CUT:DONE", NULL);

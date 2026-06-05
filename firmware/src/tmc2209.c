@@ -115,7 +115,7 @@ typedef struct {
     uint offset_rx;
 } tmc_pio_cache_t;
 
-static tmc_pio_cache_t pio_cache[TMC_PIO_CACHE_BLOCKS];
+static tmc_pio_cache_t g_pio_cache[TMC_PIO_CACHE_BLOCKS];
 
 static int pio_block_index(PIO pio) {
     return pio == pio1 ? 1 : 0;
@@ -145,7 +145,7 @@ bool tmc_init(tmc_t *tmc, uint tx_pin, uint rx_pin, uint8_t address) {
     tmc->pio = pio0;
 
     int pidx = pio_block_index(tmc->pio);
-    tmc_pio_cache_t *cache = &pio_cache[pidx];
+    tmc_pio_cache_t *cache = &g_pio_cache[pidx];
 
     if (!cache->loaded) {
         if (pio_can_add_program(tmc->pio, &tmc_uart_tx_program) &&

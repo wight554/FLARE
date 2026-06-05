@@ -40,11 +40,11 @@ bool cmd_handle_tmc_advanced(const char *cmd, const char *p, uint32_t now_ms) {
             ma <= TMC_CURRENT_MAX_MA) {
             tmc_t *t = (ln == 1) ? &g_tmc_l1 : &g_tmc_l2;
             int idx = lane_to_idx(ln);
-            if (tmc_set_run_current_ma(t, ma, TMC_HOLD_CURRENT_MA[idx])) {
-                TMC_RUN_CURRENT_MA[idx] = ma;
+            if (tmc_set_run_current_ma(t, ma, g_tmc_hold_current_ma[idx])) {
+                g_tmc_run_current_ma[idx] = ma;
                 g_shadow_vsense[idx] = (ma <= TMC_VSENSE_THRESHOLD_MA);
                 g_shadow_ihold_irun[idx] = build_ihold_irun_reg(
-                    TMC_RUN_CURRENT_MA[idx], TMC_HOLD_CURRENT_MA[idx], g_shadow_vsense[idx]);
+                    g_tmc_run_current_ma[idx], g_tmc_hold_current_ma[idx], g_shadow_vsense[idx]);
                 g_shadow_ihold_irun_valid[idx] = true;
                 cmd_reply("OK", NULL);
             } else {

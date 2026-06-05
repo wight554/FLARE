@@ -30,7 +30,7 @@ uint16_t g_type_d_neutral_flat_feed_samples = 0;
 void relay_on_transition(buf_state_t new_state, uint32_t now_ms) {
     (void)new_state;
     (void)now_ms;
-    if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_D)
+    if (g_buf_sensor_type != BUF_SENSOR_TYPE_D)
         return;
     g_relay_flip_travel_since_mm = 0.0f;
 }
@@ -44,15 +44,15 @@ void type_d_neutral_feed_reset(void) {
 
 void type_d_neutral_feed_sample(buf_state_t s, float pos_norm, float target_norm,
                                 float deadband_norm) {
-    if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_D || s != BUF_NEUTRAL || g_sync_state != SYNC_ACTIVE)
+    if (g_buf_sensor_type != BUF_SENSOR_TYPE_D || s != BUF_NEUTRAL || g_sync_state != SYNC_ACTIVE)
         return;
-    if (sync_current_sps <= 0)
+    if (g_sync_current_sps <= 0)
         return;
     if (g_type_d_neutral_feed_samples >= TYPE_D_SAMPLE_ROLLOVER_COUNT) {
         g_type_d_neutral_feed_sps_sum /= TYPE_D_SAMPLE_DECAY_DIVISOR;
         g_type_d_neutral_feed_samples /= TYPE_D_SAMPLE_DECAY_DIVISOR;
     }
-    g_type_d_neutral_feed_sps_sum += (uint32_t)sync_current_sps;
+    g_type_d_neutral_feed_sps_sum += (uint32_t)g_sync_current_sps;
     g_type_d_neutral_feed_samples++;
 
     if (pos_norm <= (target_norm + deadband_norm)) {
@@ -60,7 +60,7 @@ void type_d_neutral_feed_sample(buf_state_t s, float pos_norm, float target_norm
             g_type_d_neutral_flat_feed_sps_sum /= TYPE_D_SAMPLE_DECAY_DIVISOR;
             g_type_d_neutral_flat_feed_samples /= TYPE_D_SAMPLE_DECAY_DIVISOR;
         }
-        g_type_d_neutral_flat_feed_sps_sum += (uint32_t)sync_current_sps;
+        g_type_d_neutral_flat_feed_sps_sum += (uint32_t)g_sync_current_sps;
         g_type_d_neutral_flat_feed_samples++;
     }
 }
@@ -80,7 +80,7 @@ bool type_d_neutral_feed_avg_sps(float *avg_sps) {
 bool type_d_sample_demand_bounds(float *demand_sps) {
     if (!demand_sps)
         return false;
-    int floor_sps = SYNC_MIN_SPS;
+    int floor_sps = g_sync_min_sps;
     int cap_sps = baseline_control_floor_sps();
     if (cap_sps < floor_sps)
         cap_sps = floor_sps;
@@ -91,16 +91,16 @@ bool type_d_sample_demand_bounds(float *demand_sps) {
 }
 
 void relay_neutral_trim_clamp(void) {
-    if (SYNC_RELAY_TRIM_CLAMP_SPS <= 0) {
+    if (g_sync_relay_trim_clamp_sps <= 0) {
         g_relay_neutral_trim_sps = 0.0f;
         return;
     }
-    g_relay_neutral_trim_sps = clamp_f(g_relay_neutral_trim_sps, -(float)SYNC_RELAY_TRIM_CLAMP_SPS,
-                                       (float)SYNC_RELAY_TRIM_CLAMP_SPS);
+    g_relay_neutral_trim_sps = clamp_f(g_relay_neutral_trim_sps, -(float)g_sync_relay_trim_clamp_sps,
+                                       (float)g_sync_relay_trim_clamp_sps);
 }
 
 void relay_neutral_trim_leak(buf_state_t s, uint32_t now_ms) {
-    if (BUF_SENSOR_TYPE != BUF_SENSOR_TYPE_D || s != BUF_NEUTRAL || g_sync_state != SYNC_ACTIVE ||
+    if (g_buf_sensor_type != BUF_SENSOR_TYPE_D || s != BUF_NEUTRAL || g_sync_state != SYNC_ACTIVE ||
         g_relay_neutral_trim_sps == 0.0f) {
         g_relay_trim_last_leak_ms = now_ms;
         return;
@@ -119,7 +119,7 @@ void relay_neutral_trim_leak(buf_state_t s, uint32_t now_ms) {
     if (dt_ms == 0)
         return;
 
-    float leak_rate_sps_s = fmaxf((float)SYNC_RELAY_TRIM_STEP_SPS * SYNC_RELAY_TRIM_LEAK_RATE_FRAC,
+    float leak_rate_sps_s = fmaxf((float)g_sync_relay_trim_step_sps * SYNC_RELAY_TRIM_LEAK_RATE_FRAC,
                                   RELAY_TRIM_LEAK_MIN_SPS_S);
     float leak_sps = leak_rate_sps_s * ((float)dt_ms / MS_PER_SECOND_F);
     if (g_relay_neutral_trim_sps > 0.0f) {
@@ -134,14 +134,14 @@ void relay_neutral_trim_leak(buf_state_t s, uint32_t now_ms) {
 int relay_control_law(buf_state_t s) {
     int relay_base = baseline_control_floor_sps();
     if (s == BUF_TENSION) {
-        return (int)((float)relay_base * RELAY_CATCHUP_FRAC);
+        return (int)((float)relay_base * g_relay_catchup_frac);
     } else if (s == BUF_COMPRESSION) {
         return 0;
     } else {
-        int demand_sps = (int)extruder_est_sps;
-        int neutral = (int)((float)demand_sps * RELAY_NEUTRAL_FRAC + g_relay_neutral_trim_sps);
-        if (neutral < SYNC_MIN_SPS)
-            neutral = SYNC_MIN_SPS;
+        int demand_sps = (int)g_extruder_est_sps;
+        int neutral = (int)((float)demand_sps * g_relay_neutral_frac + g_relay_neutral_trim_sps);
+        if (neutral < g_sync_min_sps)
+            neutral = g_sync_min_sps;
         if (neutral > relay_base)
             neutral = relay_base;
         return neutral;
