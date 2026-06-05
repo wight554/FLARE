@@ -1,10 +1,9 @@
 # code-style-standard Specification
 
 ## Purpose
-Define the enforced C style + lint contract for FLARE firmware so a human maintainer
-can read and safely change it: format/lint tooling, naming conventions, file/function
-size norms, magic-number and single-definition (DRY) rules, doc-comment + comprehension
-comment format, and the behavior-preserving constraint binding all refactors.
+Enforced C style + lint contract for FLARE firmware so a human maintainer can read and
+safely change it: format/lint tooling, naming, file/function size, magic-number + DRY
+rules, doc/comprehension comments, and the behavior-preserving constraint on refactors.
 ## Requirements
 ### Requirement: Enforced format configuration
 
