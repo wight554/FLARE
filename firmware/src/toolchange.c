@@ -29,7 +29,6 @@
 #define RELOAD_STATUS_INTERVAL_MS 500u
 #define TC_EVENT_BUF_LEN 8
 #define TC_STATUS_EVENT_BUF_LEN 64
-#include "cutter.h"
 
 tc_state_t tc_state(void) {
     return g_tc_ctx.state;
@@ -54,6 +53,9 @@ void tc_start(int target_lane, uint32_t now_ms) {
     g_tc_ctx.target_lane = target_lane;
     g_tc_ctx.from_lane = active_lane;
     g_tc_ctx.phase_start_ms = now_ms;
+    // Same lane = nothing to unload, go straight to (re)load. Otherwise unload
+    // first; if a toolhead sensor says filament is still in the hotend, wait for
+    // the slicer's tip-retract to clear it before reversing (avoids a tug-of-war).
     if (target_lane == active_lane) {
         g_tc_ctx.state = TC_LOAD_START;
     } else if (TC_TIMEOUT_TH_MS > 0 && toolhead_has_filament) {
@@ -345,6 +347,10 @@ static void tc_tick_reload_wait_y(lane_t *lane, uint32_t now_ms, uint32_t age) {
         lane_stop(from_lane_ptr);
     }
 
+    // Debounce the "ready to join" condition: stamp the time it first goes true,
+    // and reset to 0 the moment it drops. The join only fires after the condition
+    // has held continuously for RELOAD_JOIN_DELAY_MS, so a flickering sensor near
+    // the Y-splitter cannot trigger an early join into a not-yet-clear hub.
     bool tail_cleared = (!from_lane_ptr || !lane_out_present(from_lane_ptr));
     bool y_cleared = (!on_al(&g_y_split) || RELOAD_Y_TIMEOUT_MS == 0);
     if (tail_cleared && y_cleared) {
@@ -496,6 +502,10 @@ static bool tc_reload_follow_check_jam(lane_t *lane, uint32_t now_ms, uint32_t f
 }
 
 static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
+    // Success signal: the new filament has reached the extruder and started pulling,
+    // which yanks the buffer to TENSION (or the toolhead sensor trips). Check both
+    // the filtered and the raw instantaneous buffer state so a sharp pull is not
+    // missed between filter updates. Any of these = loaded, stop feeding and finish.
     buf_state_t instant_buf_state = buf_state_raw();
     if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION || toolhead_has_filament) {
         if (lane)
@@ -565,6 +575,39 @@ static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
     }
 }
 
+// tc_state_t transition map. Entry points set the start state; tc_tick advances
+// one edge per call. Any state can jump to TC_ERROR via tc_enter_error() (stops
+// motion, aborts cutter); tc_abort() forces TC_IDLE. `age` = ms in current phase.
+//
+//   ENTRY  tc_start (TC:)        -> LOAD_START            (target == active lane)
+//                                -> UNLOAD_WAIT_TH        (toolhead still loaded)
+//                                -> UNLOAD_REVERSE        (otherwise)
+//   ENTRY  reload_trigger (auto runout)                   -> RELOAD_WAIT_Y
+//   ENTRY  tc_manual_reload                               -> RELOAD_APPROACH
+//
+//   -- unload branch (tc_tick_unload_states) --
+//   UNLOAD_WAIT_TH   toolhead clears / timeout            -> UNLOAD_REVERSE
+//   UNLOAD_REVERSE   tail already clear                   -> CUT pending? UNLOAD_CUT
+//                                                            : Y gated? UNLOAD_WAIT_Y : UNLOAD_DONE
+//                    tail present -> drive unload          -> UNLOAD_WAIT_OUT
+//   UNLOAD_WAIT_OUT  cleared                               -> (next-after-clear, as above)
+//                    still present at task end             -> ERROR UNLOAD_TIMEOUT
+//   UNLOAD_CUT       fire cutter                           -> UNLOAD_WAIT_CUT
+//   UNLOAD_WAIT_CUT  cut ok -> UNLOAD_REVERSE; fail/timeout-> ERROR
+//   UNLOAD_WAIT_Y    Y-splitter clears                     -> UNLOAD_DONE  (timeout -> ERROR)
+//   UNLOAD_DONE                                            -> SWAP
+//
+//   -- load branch (tc_tick_load_states) --
+//   SWAP             set active = target lane              -> LOAD_START
+//   LOAD_START       Y not clear -> ERROR HUB_NOT_CLEAR; else drive load -> LOAD_WAIT_OUT
+//   LOAD_WAIT_OUT    OUT present -> LOAD_WAIT_TH; task end -> ERROR LOAD_TIMEOUT
+//   LOAD_WAIT_TH     loaded ok -> LOAD_DONE; else          -> ERROR LOAD_TIMEOUT
+//   LOAD_DONE        emit TC:DONE                          -> IDLE
+//
+//   -- reload branch (auto runout: hot-join new lane behind the old tail) --
+//   RELOAD_WAIT_Y    tail+Y clear & join delay elapsed     -> RELOAD_APPROACH (timeout -> ERROR)
+//   RELOAD_APPROACH  buffer contact (COMPRESSION / PSF)    -> RELOAD_FOLLOW   (limit -> ERROR)
+//   RELOAD_FOLLOW    TENSION | toolhead | LOAD_MAX -> IDLE (RELOAD:LOADED); jam/abs-timeout -> ERROR
 void tc_tick(uint32_t now_ms) {
     uint32_t age = now_ms - g_tc_ctx.phase_start_ms;
     lane_t *lane = lane_ptr(active_lane);
