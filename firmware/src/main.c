@@ -29,6 +29,40 @@
 #include "toolchange.h"
 #include <math.h>
 
+#define SECONDS_PER_MINUTE_F 60.0f
+#define HALF_F 0.5f
+#define ROUND_TO_NEAREST_F 0.5f
+#define DISPLAY_ROUNDING_OFFSET_F 0.05f
+#define TMC_RSENSE_SERIES_OHM 0.020f
+#define TMC_VREF_VSENSE_LOW 0.180f
+#define TMC_VREF_VSENSE_HIGH 0.325f
+#define SQRT_2_F 1.41421356f
+#define MA_PER_AMP_F 1000.0f
+#define TMC_CURRENT_SCALE_F 32.0f
+#define TMC_MAX_CURRENT_MA 2000
+#define TMC_CS_MAX 31
+#define TMC_CS_MASK 0x1Fu
+#define TMC_IRUN_SHIFT 8u
+#define TMC_IRUNDELAY_VALUE 8u
+#define TMC_IRUNDELAY_SHIFT 16u
+#define MIN_MM_PER_STEP_F 1e-6f
+#define LED_UPDATE_INTERVAL_MS 50u
+#define LED_IDLE_GREEN 20
+#define LED_LOADING_BLUE 120
+#define LED_ACTIVE_GREEN 200
+#define LED_TC_RED 180
+#define LED_TC_GREEN 140
+#define LED_ERROR_RED 200
+#define LED_CUT_PHASE_MS 32u
+#define LED_CUT_PHASE_MASK 0x0Fu
+#define LED_CUT_HALF_PHASE 8u
+#define LED_CUT_MAX_PHASE 15u
+#define LED_CUT_BRIGHTNESS_STEP 32u
+#define BOOT_SENSOR_SETTLE_SAMPLES 25
+#define USB_STARTUP_SETTLE_MS 200u
+#define BOOT_STAB_FIRST_MS 2500u
+#define MAIN_LOOP_SLEEP_US 100u
+
 // ===================== Tunables =====================
 int FEED_SPS = CONF_FEED_SPS;
 int REV_SPS = CONF_REV_SPS;
@@ -123,7 +157,7 @@ int PSF_STAB_RAIL_BREAK_MS = CONF_PSF_STAB_RAIL_BREAK_MS;
 int PRE_RAMP_SPS = CONF_PRE_RAMP_SPS;
 int BUF_HYST_MS = FLARE_INT_BUF_HYST_MS;
 int BUF_PREDICT_THR_MS = FLARE_INT_BUF_PREDICT_THR_MS;
-float BUF_SWITCH_SPAN_HALF_MM = CONF_BUF_SWITCH_SPAN_MM * 0.5f;
+float BUF_SWITCH_SPAN_HALF_MM = CONF_BUF_SWITCH_SPAN_MM * HALF_F;
 int SYNC_AUTO_STOP_MS = CONF_SYNC_AUTO_STOP_MS;
 int SYNC_TENSION_DWELL_STOP_MS = FLARE_INT_SYNC_TENSION_DWELL_STOP_MS;
 int SYNC_TENSION_RAMP_DELAY_MS = FLARE_INT_SYNC_TENSION_RAMP_DELAY_MS;
@@ -182,13 +216,13 @@ int BUF_MAX_TRAVEL_MM = CONF_BUF_MAX_TRAVEL_MM;
 float MM_PER_STEP[NUM_LANES] = {CONF_L1_MM_PER_STEP, CONF_L2_MM_PER_STEP};
 
 int mm_per_min_to_sps_idx(float mm_per_min, int idx) {
-    return (int)(mm_per_min / 60.0f / MM_PER_STEP[idx] + 0.5f);
+    return (int)(mm_per_min / SECONDS_PER_MINUTE_F / MM_PER_STEP[idx] + ROUND_TO_NEAREST_F);
 }
 int mm_per_min_to_sps(float mm_per_min) {
     return mm_per_min_to_sps_idx(mm_per_min, 0);
 }
 float sps_to_mm_per_min_idx(int sps, int idx) {
-    return (float)sps * MM_PER_STEP[idx] * 60.0f + 0.05f; // Small offset for display rounding
+    return (float)sps * MM_PER_STEP[idx] * SECONDS_PER_MINUTE_F + DISPLAY_ROUNDING_OFFSET_F;
 }
 float sps_to_mm_per_min(int sps) {
     return sps_to_mm_per_min_idx(sps, 0);
@@ -220,35 +254,34 @@ int lane_to_idx(int lane) {
 }
 
 static int cs_to_ma(uint8_t cs, bool vsense) {
-    const float reff = CONF_RSENSE_OHM + 0.020f;
-    const float vref = vsense ? 0.180f : 0.325f;
-    const float sqrt2 = 1.41421356f;
-    float irms = ((float)cs + 1.0f) * vref / (32.0f * reff * sqrt2);
-    int ma = (int)(irms * 1000.0f + 0.5f);
-    return clamp_i(ma, 0, 2000);
+    const float reff = CONF_RSENSE_OHM + TMC_RSENSE_SERIES_OHM;
+    const float vref = vsense ? TMC_VREF_VSENSE_LOW : TMC_VREF_VSENSE_HIGH;
+    float irms = ((float)cs + 1.0f) * vref / (TMC_CURRENT_SCALE_F * reff * SQRT_2_F);
+    int ma = (int)(irms * MA_PER_AMP_F + ROUND_TO_NEAREST_F);
+    return clamp_i(ma, 0, TMC_MAX_CURRENT_MA);
 }
 
 static uint8_t ma_to_cs(int ma, bool vsense) {
     if (ma <= 0)
         return 0;
-    const float reff = CONF_RSENSE_OHM + 0.020f;
-    const float vref = vsense ? 0.180f : 0.325f;
-    const float sqrt2 = 1.41421356f;
-    float irms = (float)ma / 1000.0f;
-    int cs = (int)(32.0f * irms * reff * sqrt2 / vref - 1.0f + 0.5f);
-    return (uint8_t)clamp_i(cs, 0, 31);
+    const float reff = CONF_RSENSE_OHM + TMC_RSENSE_SERIES_OHM;
+    const float vref = vsense ? TMC_VREF_VSENSE_LOW : TMC_VREF_VSENSE_HIGH;
+    float irms = (float)ma / MA_PER_AMP_F;
+    int cs = (int)(TMC_CURRENT_SCALE_F * irms * reff * SQRT_2_F / vref - 1.0f + ROUND_TO_NEAREST_F);
+    return (uint8_t)clamp_i(cs, 0, TMC_CS_MAX);
 }
 
 uint32_t build_ihold_irun_reg(int run_ma, int hold_ma, bool vsense) {
     uint8_t irun = ma_to_cs(run_ma, vsense);
     uint8_t ihold = ma_to_cs(hold_ma, vsense);
-    return ((uint32_t)ihold) | ((uint32_t)irun << 8) | (8u << 16);
+    return ((uint32_t)ihold) | ((uint32_t)irun << TMC_IRUN_SHIFT) |
+           (TMC_IRUNDELAY_VALUE << TMC_IRUNDELAY_SHIFT);
 }
 
 void sync_currents_from_ihold_irun(int lane, uint32_t reg) {
     int idx = lane_to_idx(lane);
-    uint8_t ihold = (uint8_t)(reg & 0x1Fu);
-    uint8_t irun = (uint8_t)((reg >> 8) & 0x1Fu);
+    uint8_t ihold = (uint8_t)(reg & TMC_CS_MASK);
+    uint8_t irun = (uint8_t)((reg >> TMC_IRUN_SHIFT) & TMC_CS_MASK);
     bool vsense = g_shadow_vsense[idx];
     TMC_RUN_CURRENT_MA[idx] = cs_to_ma(irun, vsense);
     TMC_HOLD_CURRENT_MA[idx] = cs_to_ma(ihold, vsense);
@@ -307,7 +340,7 @@ void set_active_lane(int lane) {
     if (active_lane != lane && (active_lane == 1 || active_lane == 2) && (lane == 1 || lane == 2)) {
         int old_idx = active_lane - 1;
         int new_idx = lane - 1;
-        if (MM_PER_STEP[new_idx] > 1e-6f) {
+        if (MM_PER_STEP[new_idx] > MIN_MM_PER_STEP_F) {
             extruder_est_sps = extruder_est_sps * (MM_PER_STEP[old_idx] / MM_PER_STEP[new_idx]);
         }
     }
@@ -424,29 +457,31 @@ static led_state_t led_state_from_system(void) {
 
 static void neopixel_tick(uint32_t now_ms) {
     static uint32_t last_ms = 0;
-    if ((now_ms - last_ms) < 50u)
+    if ((now_ms - last_ms) < LED_UPDATE_INTERVAL_MS)
         return;
     last_ms = now_ms;
 
     switch (led_state_from_system()) {
     case LED_IDLE:
-        neopixel_set(0, 20, 0);
+        neopixel_set(0, LED_IDLE_GREEN, 0);
         break;
     case LED_LOADING:
-        neopixel_set(0, 0, 120);
+        neopixel_set(0, 0, LED_LOADING_BLUE);
         break;
     case LED_ACTIVE:
-        neopixel_set(0, 200, 0);
+        neopixel_set(0, LED_ACTIVE_GREEN, 0);
         break;
     case LED_TC:
-        neopixel_set(180, 140, 0);
+        neopixel_set(LED_TC_RED, LED_TC_GREEN, 0);
         break;
     case LED_ERROR:
-        neopixel_set(200, 0, 0);
+        neopixel_set(LED_ERROR_RED, 0, 0);
         break;
     case LED_CUTTING: {
-        uint8_t phase = (uint8_t)((now_ms / 32u) & 0x0Fu);
-        uint8_t brightness = (phase < 8u) ? (uint8_t)(phase * 32u) : (uint8_t)((15u - phase) * 32u);
+        uint8_t phase = (uint8_t)((now_ms / LED_CUT_PHASE_MS) & LED_CUT_PHASE_MASK);
+        uint8_t brightness = (phase < LED_CUT_HALF_PHASE)
+                                 ? (uint8_t)(phase * LED_CUT_BRIGHTNESS_STEP)
+                                 : (uint8_t)((LED_CUT_MAX_PHASE - phase) * LED_CUT_BRIGHTNESS_STEP);
         neopixel_set(brightness, brightness, brightness);
         break;
     }
@@ -457,7 +492,7 @@ static void settle_boot_sensors(void) {
     // debounced_input_init reads GPIOs once without debounce; sensors may not have settled.
     // Spin debounced_input_update for 25 ms so the 10 ms debounce threshold commits correctly.
     // For Type-P, also poll the ADC pin to let the EWMA filter settle to the true physical value.
-    for (int i = 0; i < 25; i++) {
+    for (int i = 0; i < BOOT_SENSOR_SETTLE_SAMPLES; i++) {
         debounced_input_update(&g_lane_l1.in_sw);
         debounced_input_update(&g_lane_l1.out_sw);
         debounced_input_update(&g_lane_l2.in_sw);
@@ -475,7 +510,7 @@ static void settle_boot_sensors(void) {
 // ===================== Main =====================
 int main(void) {
     stdio_init_all();
-    sleep_ms(200);
+    sleep_ms(USB_STARTUP_SETTLE_MS);
 
     motor_t motor_l1;
     motor_t motor_l2;
@@ -521,8 +556,6 @@ int main(void) {
     // hit the rail-break cap; tune BOOT_STAB_FIRST_MS until the single attempt
     // DONEs cleanly.
     bool boot_stab_armed = false;
-    const uint32_t BOOT_STAB_FIRST_MS = 2500;
-
     while (true) {
         g_now_ms = to_ms_since_boot(get_absolute_time());
 
@@ -558,6 +591,6 @@ int main(void) {
         // Local indicator
         neopixel_tick(g_now_ms);
 
-        sleep_us(100);
+        sleep_us(MAIN_LOOP_SLEEP_US);
     }
 }
