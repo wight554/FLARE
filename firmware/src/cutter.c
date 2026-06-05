@@ -43,23 +43,30 @@ cutter_ctx_t g_cut;
 static uint g_servo_slice = 0;
 static uint g_servo_chan = 0;
 
+#define SERVO_PWM_CLKDIV 125.0f
+#define SERVO_PWM_PERIOD_US 20000u
+#define SERVO_MIN_PULSE_US 400u
+#define SERVO_MAX_PULSE_US 2700u
+#define MS_PER_SECOND_F 1000.0f
+#define CUTTER_WATCHDOG_SLACK_MS 1000u
+
 static void servo_init(uint pin) {
     gpio_set_function(pin, GPIO_FUNC_PWM);
     g_servo_slice = pwm_gpio_to_slice_num(pin);
     g_servo_chan = pwm_gpio_to_channel(pin);
 
     pwm_config config = pwm_get_default_config();
-    pwm_config_set_clkdiv(&config, 125.0f);
-    pwm_config_set_wrap(&config, 20000 - 1);
+    pwm_config_set_clkdiv(&config, SERVO_PWM_CLKDIV);
+    pwm_config_set_wrap(&config, SERVO_PWM_PERIOD_US - 1);
     pwm_init(g_servo_slice, &config, false);
 }
 
 static void servo_set_us(uint pin, uint pulse_us) {
     (void)pin;
-    if (pulse_us < 400)
-        pulse_us = 400;
-    if (pulse_us > 2700)
-        pulse_us = 2700;
+    if (pulse_us < SERVO_MIN_PULSE_US)
+        pulse_us = SERVO_MIN_PULSE_US;
+    if (pulse_us > SERVO_MAX_PULSE_US)
+        pulse_us = SERVO_MAX_PULSE_US;
     pwm_set_chan_level(g_servo_slice, g_servo_chan, (uint16_t)pulse_us);
     pwm_set_enabled(g_servo_slice, true);
 }
@@ -81,7 +88,7 @@ static uint32_t cut_feed_ms_for_mm(int mm, int idx) {
     float secs = (float)mm / ((float)CUT_FEED_SPS * MM_PER_STEP[idx]);
     if (secs < 0.0f)
         secs = 0.0f;
-    return (uint32_t)(secs * 1000.0f);
+    return (uint32_t)(secs * MS_PER_SECOND_F);
 }
 
 uint32_t cutter_expected_ms(lane_t *lane, bool enable_feed) {
@@ -101,7 +108,7 @@ uint32_t cutter_expected_ms(lane_t *lane, bool enable_feed) {
     }
 
     uint32_t settle_ms = (uint32_t)SERVO_SETTLE_MS * (uint32_t)((2 * repeats) + 2);
-    return feed_ms + settle_ms + 1000u;
+    return feed_ms + settle_ms + CUTTER_WATCHDOG_SLACK_MS;
 }
 
 static void cut_begin_feed(uint32_t now_ms, uint32_t window_ms) {
