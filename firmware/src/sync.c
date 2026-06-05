@@ -39,9 +39,6 @@ float extruder_est_prev_sps = 0.0f;
 uint32_t extruder_est_last_update_ms = 0;
 uint32_t last_slope_update_ms = 0;
 
-char g_marker_tag[32] = {0};
-uint16_t g_marker_seq = 0;
-
 /* Buffer-lock (BL) lifecycle sub-states — active while g_sync_state == SYNC_RETRACT_ASSIST */
 typedef enum {
     BL_IDLE = 0,

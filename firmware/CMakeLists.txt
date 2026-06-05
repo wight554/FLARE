@@ -34,6 +34,8 @@ add_executable(flare_controller
   src/toolchange.c
   src/cutter.c
   src/protocol.c
+  src/protocol_status.c
+  src/protocol_tmc.c
   src/settings_store.c
   src/tmc2209.c
   src/neopixel.c

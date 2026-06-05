@@ -26,7 +26,7 @@
 ## 4. Structural splits + extraction + magic numbers
 
 - [x] 4.1 Split `sync.c` along seams: buffer sensing/position model, type-D relay control, type-P analog control, sync orchestration; shared decls in headers; build-verify
-- [ ] 4.2 Split `protocol.c`: command parse / status dump / TMC-advanced; build-verify
+- [x] 4.2 Split `protocol.c`: command parse / status dump / TMC-advanced; build-verify
 - [ ] 4.3 Extract over-long functions flagged by `readability-function-size`; build-verify
 - [ ] 4.4 Replace residual magic numbers with named constants or config-backed tunables (config→`tune.h`→`CONF_*` path for runtime-tunable); build-verify
 - [ ] 4.5 Update file map in `AGENTS.md` Key Files + `project-architecture` spec for new units
