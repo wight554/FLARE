@@ -5,58 +5,94 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/// @brief Zone history slots retained for prediction.
 #define HISTORY_LEN 16
+/// @brief Soft compression-wall time horizon in milliseconds.
 #define SYNC_COMPRESSION_SOFT_WALL_MS 1200.0f
+/// @brief Hard compression-wall time horizon in milliseconds.
 #define SYNC_COMPRESSION_HARD_WALL_MS 350.0f
+/// @brief Hard-push velocity threshold for compression wall handling.
 #define SYNC_COMPRESSION_HARD_PUSH_MM_S 0.25f
 
+/// @brief Type-D compression collapse delay alias.
 #define SYNC_COMPRESSION_COLLAPSE_DELAY_MS ((uint32_t)RELAY_COLLAPSE_DELAY_MS)
+/// @brief Type-D compression collapse ramp multiplier alias.
 #define SYNC_COMPRESSION_COLLAPSE_RAMP_MULT RELAY_COLLAPSE_RAMP_MULT
+/// @brief Type-D compression collapse cap alias.
 #define SYNC_COMPRESSION_COLLAPSE_CAP_MS ((uint32_t)RELAY_COLLAPSE_CAP_MS)
+/// @brief Estimator sample freshness window.
 #define SYNC_EST_FRESH_MS 20000u
 
+/// @brief Prediction lead time for stabilize crossings.
 #define SYNC_STAB_PREDICT_LEAD_S 0.10f
+/// @brief Type-D neutral compression taper fraction.
 #define SYNC_NEUTRAL_COMPRESSION_TAPER_FRAC 0.5f
+/// @brief Type-D neutral compression floor fraction.
 #define SYNC_NEUTRAL_COMPRESSION_FLOOR_FRAC 0.45f
+/// @brief Anti-tension floor stale window.
 #define SYNC_NEUTRAL_ANTI_TENSION_STALE_MS 1500u
+/// @brief Anti-tension floor fraction.
 #define SYNC_NEUTRAL_ANTI_TENSION_FLOOR_FRAC 0.70f
+/// @brief Anti-tension confidence threshold.
 #define SYNC_NEUTRAL_ANTI_TENSION_CONF 0.98f
+/// @brief Reserve target guard away from mechanical center.
 #define SYNC_RESERVE_CENTER_GUARD_FRAC 0.05f
 
+/// @brief Maximum reserve bias contribution from parked position.
 #define SYNC_RESERVE_BIAS_POS_FRAC_CAP 0.10f
+/// @brief Compression feed trim maximum.
 #define SYNC_COMPRESSION_FEED_TRIM_MAX_SPS 120
 
+/// @brief Endstop-model sigma contribution per virtual buffer unit.
 #define ENDSTOP_PER_UNIT_SIGMA_MM 0.025f
+/// @brief High-flow negative-assist start threshold.
 #define SYNC_HIGH_FLOW_NEG_ASSIST_START_MM_MIN 1000.0f
+/// @brief High-flow negative-assist full-strength threshold.
 #define SYNC_HIGH_FLOW_NEG_ASSIST_FULL_MM_MIN 1400.0f
+/// @brief High-flow negative-assist fraction.
 #define SYNC_HIGH_FLOW_NEG_ASSIST_FRAC 0.75f
+/// @brief Hold window for recent negative reserve damping.
 #define SYNC_RECENT_NEGATIVE_HOLD_MS 900u
+/// @brief Positive relaunch damping numerator.
 #define SYNC_POSITIVE_RELAUNCH_DAMP_NUM 1
+/// @brief Positive relaunch damping denominator.
 #define SYNC_POSITIVE_RELAUNCH_DAMP_DEN 4
+/// @brief Neutral trim leak delay.
 #define SYNC_RELAY_TRIM_LEAK_DELAY_MS 500u
+/// @brief Neutral trim leak rate fraction.
 #define SYNC_RELAY_TRIM_LEAK_RATE_FRAC 0.25f
+/// @brief Drain estimator dwell scale for alpha.
 #define SYNC_DRAIN_EST_ALPHA_DWELL_MS 1000.0f
+/// @brief Neutral-fill estimator dwell scale for alpha.
 #define SYNC_NEUTRAL_FILL_EST_ALPHA_DWELL_MS 2000.0f
+/// @brief Neutral-fill minimum dwell.
 #define SYNC_NEUTRAL_FILL_MIN_DWELL_MS 250u
+/// @brief Minimum Type-D neutral-feed samples for flat average.
 #define SYNC_NEUTRAL_FILL_MIN_FEED_SAMPLES 2u
+/// @brief Neutral-fill overrun threshold.
 #define SYNC_NEUTRAL_FILL_OVERRUN_FRAC 0.25f
+/// @brief Drain estimator minimum dwell.
 #define SYNC_DRAIN_EST_MIN_DWELL_MS 150u
 
+/// @brief Recent buffer-zone transition sample.
 typedef struct {
     buf_state_t zone;
     uint32_t dwell_ms;
 } zone_event_t;
 
+/// @brief Rolling tension-pin timestamp slots.
 #define TENSION_PIN_WINDOW_LEN 16
 
+/// @brief Default buffer-lock watchdog timeout.
 #define BL_WATCHDOG_DEFAULT_MS 30000u
 
+/// @brief Buffer service mode currently owning the stabilize drive.
 typedef enum {
     BUFFER_SERVICE_STABILIZE = 0,
     BUFFER_SERVICE_NEG_SYNC,
 } buffer_service_mode_t;
 
-// Shared variables
+/// @brief Shared variables for sync split units.
 extern sync_state_t g_sync_state;
 extern bool sync_auto_started;
 extern bool sync_tail_assist_active;
@@ -145,7 +181,7 @@ extern uint8_t g_settle_history_count;
 extern uint32_t g_last_baseline_update_ms;
 extern float g_last_baseline_update_mm;
 
-// Shared functions
+/// @brief Shared functions for sync split units.
 int sync_bootstrap_sps(void);
 int lane_motion_sps(lane_t *lane);
 int baseline_control_floor_sps(void);

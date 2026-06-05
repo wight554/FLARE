@@ -8,20 +8,29 @@
 #include "pico/stdlib.h"
 #include "tmc2209.h"
 
-/* Type-P Analog home / physical extreme thresholds */
+/// @brief Type-P analog physical extreme boundary used for homing/locking.
 #define PSF_HOME_THRESHOLD_NORM 0.90f /* reached/locked extreme boundary */
+/// @brief Type-P BL_FOLLOW open-loop safety gate before the armed rail.
 #define PSF_FOLLOW_RAIL_NORM                                                                       \
     0.95f /* BL_FOLLOW open-loop safety gate: stop feed before slamming the armed rail */
+/// @brief Type-P non-home/contact detection boundary.
 #define PSF_HOME_DEVIATION_THRESHOLD_NORM 0.85f /* non-home / contact detection boundary */
+/// @brief Type-P compression-zone contact threshold during load.
 #define PSF_LOAD_CONTACT_THRESHOLD_NORM                                                            \
     0.50f /* load contact detection boundary (compression zone) */
-/* Type-P unload over-tension guard (D22). Type-P homes at the tension rail, so
-   a pin there is a fault only while filament is still present during retract. */
-#define PSF_TENSION_PIN_NORM 0.98f    /* unload: pinned-at-tension fault boundary (rig-tune) */
+/// @brief Type-P unload over-tension guard boundary.
+///
+/// Type-P homes at the tension rail, so a pin there is a fault only while
+/// filament is still present during retract.
+#define PSF_TENSION_PIN_NORM 0.98f /* unload: pinned-at-tension fault boundary (rig-tune) */
+/// @brief Type-P pinned dwell before one-shot unload relief jog.
 #define PSF_UNLOAD_RELIEF_ARM_MS 300u /* unload: pinned dwell before one-shot relief jog */
+/// @brief Maximum marker tag bytes including the terminating NUL.
 #define MARKER_TAG_LEN 32
+/// @brief Baseline settle history sample slots.
 #define SETTLE_HISTORY_LEN 16
 
+/// @brief Debounced GPIO input state.
 typedef struct {
     uint pin;
     bool stable;
@@ -29,6 +38,7 @@ typedef struct {
     absolute_time_t last_edge;
 } debounced_input_t;
 
+/// @brief Stepper motor GPIO/PWM routing and direction state.
 typedef struct {
     uint en_pin, dir_pin, step_pin;
     bool dir_invert;
@@ -36,6 +46,7 @@ typedef struct {
     uint chan;
 } motor_t;
 
+/// @brief Lane motion task.
 typedef enum {
     TASK_IDLE = 0,
     TASK_AUTOLOAD,
@@ -45,6 +56,7 @@ typedef enum {
     TASK_MOVE
 } task_t;
 
+/// @brief Lane task fault classification.
 typedef enum {
     FAULT_NONE = 0,
     FAULT_TIMEOUT,
@@ -54,6 +66,7 @@ typedef enum {
     FAULT_DRY_SPIN
 } fault_t;
 
+/// @brief Per-lane runtime state and motion bookkeeping.
 typedef struct lane_s {
     debounced_input_t in_sw;
     debounced_input_t out_sw;
@@ -87,6 +100,7 @@ typedef struct lane_s {
     bool move_ignore_buffer;
 } lane_t;
 
+/// @brief Toolchange/RELOAD state-machine phase.
 typedef enum {
     TC_IDLE,
     TC_UNLOAD_CUT,
@@ -107,6 +121,7 @@ typedef enum {
     TC_ERROR
 } tc_state_t;
 
+/// @brief Toolchange/RELOAD runtime context.
 typedef struct {
     tc_state_t state;
     int target_lane;
@@ -120,8 +135,10 @@ typedef struct {
     bool unload_cut_done;
 } tc_ctx_t;
 
+/// @brief Quantized buffer state.
 typedef enum { BUF_NEUTRAL, BUF_TENSION, BUF_COMPRESSION, BUF_FAULT } buf_state_t;
 
+/// @brief Buffer dwell, velocity, and estimator sample state.
 typedef struct {
     buf_state_t state;
     uint32_t entered_ms;
@@ -183,7 +200,7 @@ extern int TMC_TOFF[NUM_LANES];
 extern int TMC_HSTRT[NUM_LANES];
 extern int TMC_HEND[NUM_LANES];
 extern bool TMC_INTERPOLATE[NUM_LANES];
-/* Sync-Feedback Sensor type: D=0 (Dual two-switch), P=1 (Proportional analog). */
+/// @brief Sync-Feedback Sensor type: D=0 dual-switch, P=1 proportional analog.
 extern int BUF_SENSOR_TYPE;
 extern int BUF_HOME_STATE;
 extern float BUF_PSF_MAX_COMP;
