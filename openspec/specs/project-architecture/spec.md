@@ -22,8 +22,9 @@ main loop calling non-blocking module ticks.
 ### Requirement: Module ownership shall stay explicit
 
 Each firmware module SHALL keep ownership aligned with the documented
-architecture boundaries. Cohesive split units SHALL keep a single domain owner
-and stay listed in the project file map.
+architecture boundaries. A module MAY be split into multiple cohesive translation
+units provided each unit keeps a single domain owner and the file map stays
+documented.
 
 #### Scenario: A change affects toolchange behavior
 
@@ -33,9 +34,17 @@ and stay listed in the project file map.
   `firmware/include/controller_shared.h`
 - **AND** unrelated modules are touched only for required integration points
 
-#### Scenario: Contributors navigate split sync and protocol units
+#### Scenario: A module is split for readability
 
-- **WHEN** a change touches sync or protocol behavior
+- **WHEN** an oversized translation unit is split into cohesive units
+- **THEN** each new unit keeps one domain owner aligned with its module boundary
+- **AND** the documented file map (`AGENTS.md` Key Files, `project-architecture`)
+  is updated to list the new units
+- **AND** the split changes no behavior
+
+#### Scenario: Sync and protocol are split units
+
+- **WHEN** contributors need sync or protocol ownership context
 - **THEN** `firmware/src/sync.c` owns sync orchestration, buffer lock, and boot
   stabilization
 - **AND** `firmware/src/sync_buf.c` owns buffer sensing, virtual position, signal
@@ -155,3 +164,4 @@ a racy delay.
 - **WHEN** toolchange, cutter, or manual unload is active
 - **AND** the host sends `BS` or `BL:T`
 - **THEN** the firmware returns `ER:BUSY`
+
