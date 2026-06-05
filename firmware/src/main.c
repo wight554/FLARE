@@ -453,6 +453,25 @@ static void neopixel_tick(uint32_t now_ms) {
     }
 }
 
+static void settle_boot_sensors(void) {
+    // debounced_input_init reads GPIOs once without debounce; sensors may not have settled.
+    // Spin debounced_input_update for 25 ms so the 10 ms debounce threshold commits correctly.
+    // For Type-P, also poll the ADC pin to let the EWMA filter settle to the true physical value.
+    for (int i = 0; i < 25; i++) {
+        debounced_input_update(&g_lane_l1.in_sw);
+        debounced_input_update(&g_lane_l1.out_sw);
+        debounced_input_update(&g_lane_l2.in_sw);
+        debounced_input_update(&g_lane_l2.out_sw);
+        debounced_input_update(&g_y_split);
+        debounced_input_update(&g_buf_tension_din);
+        debounced_input_update(&g_buf_compression_din);
+        if (BUF_SENSOR_TYPE == 1) {
+            buf_analog_update();
+        }
+        sleep_ms(1);
+    }
+}
+
 // ===================== Main =====================
 int main(void) {
     stdio_init_all();
@@ -480,23 +499,7 @@ int main(void) {
     settings_load();
     cutter_init();
 
-    // debounced_input_init reads GPIOs once without debounce; sensors may not have settled.
-    // Spin debounced_input_update for 25 ms so the 10 ms debounce threshold commits correctly.
-    // For Type-P, also poll the ADC pin to let the EWMA filter settle to the true physical value.
-    for (int i = 0; i < 25; i++) {
-        debounced_input_update(&g_lane_l1.in_sw);
-        debounced_input_update(&g_lane_l1.out_sw);
-        debounced_input_update(&g_lane_l2.in_sw);
-        debounced_input_update(&g_lane_l2.out_sw);
-        debounced_input_update(&g_y_split);
-        debounced_input_update(&g_buf_tension_din);
-        debounced_input_update(&g_buf_compression_din);
-        if (BUF_SENSOR_TYPE == 1) {
-            buf_analog_update();
-        }
-        sleep_ms(1);
-    }
-
+    settle_boot_sensors();
     sync_init(to_ms_since_boot(get_absolute_time()));
 
     active_lane = detect_active_lane_from_out();
