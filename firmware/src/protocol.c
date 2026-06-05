@@ -397,12 +397,12 @@ static bool cmd_get_motion_params(const char *param, int idx, char *out, size_t 
     }
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "RAMP_TICK_MS"))
-        snprintf(out, out_len, "RAMP_TICK_MS:%d", RAMP_TICK_MS);
+        snprintf(out, out_len, "RAMP_TICK_MS:%d", g_ramp_tick_ms);
     else if (!strcmp(param, "PRE_RAMP_RATE"))
         snprintf(out, out_len, "PRE_RAMP_RATE:%.1f",
-                 (double)sps_to_mm_per_min_idx(PRE_RAMP_SPS, idx));
+                 (double)sps_to_mm_per_min_idx(g_pre_ramp_sps, idx));
     else if (!strcmp(param, "STARTUP_MS"))
-        snprintf(out, out_len, "STARTUP_MS:%d", MOTION_STARTUP_MS);
+        snprintf(out, out_len, "STARTUP_MS:%d", g_motion_startup_ms);
 #endif
     else if (!strcmp(param, "AUTOLOAD_MAX"))
         snprintf(out, out_len, "AUTOLOAD_MAX:%d", g_autoload_max_mm);
@@ -470,11 +470,11 @@ static bool cmd_get_buffer_geometry_params(const char *param, int idx, char *out
     }
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "SYNC_TICK_MS"))
-        snprintf(out, out_len, "SYNC_TICK_MS:%d", SYNC_TICK_MS);
+        snprintf(out, out_len, "SYNC_TICK_MS:%d", g_sync_tick_ms);
     else if (!strcmp(param, "BUF_HYST"))
-        snprintf(out, out_len, "BUF_HYST:%d", BUF_HYST_MS);
+        snprintf(out, out_len, "BUF_HYST:%d", g_buf_hyst_ms);
     else if (!strcmp(param, "BUF_PREDICT_THR_MS"))
-        snprintf(out, out_len, "BUF_PREDICT_THR_MS:%d", BUF_PREDICT_THR_MS);
+        snprintf(out, out_len, "BUF_PREDICT_THR_MS:%d", g_buf_predict_thr_ms);
 #endif
     else if (!strcmp(param, "BUF_SWITCH_SPAN"))
         snprintf(out, out_len, "BUF_SWITCH_SPAN:%.3f",
@@ -506,7 +506,7 @@ static bool cmd_get_buffer_geometry_params(const char *param, int idx, char *out
         snprintf(out, out_len, "BUF_GOAL:%.3f", (double)g_buf_goal);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "BUF_ALPHA"))
-        snprintf(out, out_len, "BUF_ALPHA:%.3f", (double)BUF_ANALOG_ALPHA);
+        snprintf(out, out_len, "BUF_ALPHA:%.3f", (double)g_buf_analog_alpha);
 #endif
     else
         return false;
@@ -536,7 +536,7 @@ static bool cmd_get_sync_control_params(const char *param, int idx, char *out, s
         snprintf(out, out_len, "PSF_STAB_RAIL_BREAK_MS:%d", g_psf_stab_rail_break_ms);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "SYNC_OVERSHOOT_PCT"))
-        snprintf(out, out_len, "SYNC_OVERSHOOT_PCT:%d", SYNC_OVERSHOOT_PCT);
+        snprintf(out, out_len, "SYNC_OVERSHOOT_PCT:%d", g_sync_overshoot_pct);
 #endif
     else if (!strcmp(param, "SYNC_RESERVE_PCT"))
         snprintf(out, out_len, "SYNC_RESERVE_PCT:%d", g_sync_reserve_pct);
@@ -544,37 +544,37 @@ static bool cmd_get_sync_control_params(const char *param, int idx, char *out, s
         snprintf(out, out_len, "COMPRESSION_BIAS_FRAC:%.3f", (double)g_sync_compression_bias_frac);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "NEUTRAL_CREEP_TIMEOUT_MS"))
-        snprintf(out, out_len, "NEUTRAL_CREEP_TIMEOUT_MS:%d", NEUTRAL_CREEP_TIMEOUT_MS);
+        snprintf(out, out_len, "NEUTRAL_CREEP_TIMEOUT_MS:%d", g_neutral_creep_timeout_ms);
     else if (!strcmp(param, "NEUTRAL_CREEP_RATE") || !strcmp(param, "NEUTRAL_CREEP_RATE_SPS_PER_S"))
-        snprintf(out, out_len, "%s:%d", param, NEUTRAL_CREEP_RATE_SPS_PER_S);
+        snprintf(out, out_len, "%s:%d", param, g_neutral_creep_rate_sps_per_s);
     else if (!strcmp(param, "NEUTRAL_CREEP_CAP") || !strcmp(param, "NEUTRAL_CREEP_CAP_FRAC"))
-        snprintf(out, out_len, "%s:%d", param, NEUTRAL_CREEP_CAP_FRAC);
+        snprintf(out, out_len, "%s:%d", param, g_neutral_creep_cap_frac);
     else if (!strcmp(param, "開設_blend_frac") || !strcmp(param, "BUF_VARIANCE_BLEND_FRAC"))
-        snprintf(out, out_len, "%s:%.3f", param, (double)BUF_VARIANCE_BLEND_FRAC);
+        snprintf(out, out_len, "%s:%.3f", param, (double)g_buf_variance_blend_frac);
     else if (!strcmp(param, "開設_blend_ref_mm") || !strcmp(param, "BUF_VARIANCE_BLEND_REF_MM"))
-        snprintf(out, out_len, "%s:%.3f", param, (double)BUF_VARIANCE_BLEND_REF_MM);
+        snprintf(out, out_len, "%s:%.3f", param, (double)g_buf_variance_blend_ref_mm);
 #endif
     else if (!strcmp(param, "SYNC_AUTO_STOP"))
         snprintf(out, out_len, "SYNC_AUTO_STOP:%d", g_sync_auto_stop_ms);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "SYNC_TENSION_STOP_MS"))
-        snprintf(out, out_len, "SYNC_TENSION_STOP_MS:%d", SYNC_TENSION_DWELL_STOP_MS);
+        snprintf(out, out_len, "SYNC_TENSION_STOP_MS:%d", g_sync_tension_dwell_stop_ms);
     else if (!strcmp(param, "SYNC_TENSION_RAMP_MS"))
-        snprintf(out, out_len, "SYNC_TENSION_RAMP_MS:%d", SYNC_TENSION_RAMP_DELAY_MS);
+        snprintf(out, out_len, "SYNC_TENSION_RAMP_MS:%d", g_sync_tension_ramp_delay_ms);
     else if (!strcmp(param, "SYNC_OVERSHOOT_NEUTRAL_EXT"))
-        snprintf(out, out_len, "SYNC_OVERSHOOT_NEUTRAL_EXT:%d", SYNC_OVERSHOOT_NEUTRAL_EXTEND);
+        snprintf(out, out_len, "SYNC_OVERSHOOT_NEUTRAL_EXT:%d", g_sync_overshoot_neutral_extend);
     else if (!strcmp(param, "SYNC_INT_GAIN"))
-        snprintf(out, out_len, "SYNC_INT_GAIN:%.4f", (double)SYNC_RESERVE_INTEGRAL_GAIN);
+        snprintf(out, out_len, "SYNC_INT_GAIN:%.4f", (double)g_sync_reserve_integral_gain);
     else if (!strcmp(param, "SYNC_INT_CLAMP"))
-        snprintf(out, out_len, "SYNC_INT_CLAMP:%.3f", (double)SYNC_RESERVE_INTEGRAL_CLAMP_MM);
+        snprintf(out, out_len, "SYNC_INT_CLAMP:%.3f", (double)g_sync_reserve_integral_clamp_mm);
     else if (!strcmp(param, "SYNC_INT_DECAY_MS"))
-        snprintf(out, out_len, "SYNC_INT_DECAY_MS:%d", SYNC_RESERVE_INTEGRAL_DECAY_MS);
+        snprintf(out, out_len, "SYNC_INT_DECAY_MS:%d", g_sync_reserve_integral_decay_ms);
     else if (!strcmp(param, "EST_SIGMA_CAP"))
-        snprintf(out, out_len, "EST_SIGMA_CAP:%.3f", (double)EST_SIGMA_HARD_CAP_MM);
+        snprintf(out, out_len, "EST_SIGMA_CAP:%.3f", (double)g_est_sigma_hard_cap_mm);
     else if (!strcmp(param, "EST_LOW_CF_THR"))
-        snprintf(out, out_len, "EST_LOW_CF_THR:%.3f", (double)EST_LOW_CF_WARN_THRESHOLD);
+        snprintf(out, out_len, "EST_LOW_CF_THR:%.3f", (double)g_est_low_cf_warn_threshold);
     else if (!strcmp(param, "EST_FALLBACK_THR"))
-        snprintf(out, out_len, "EST_FALLBACK_THR:%.3f", (double)EST_FALLBACK_CF_THRESHOLD);
+        snprintf(out, out_len, "EST_FALLBACK_THR:%.3f", (double)g_est_fallback_cf_threshold);
 #endif
     else
         return false;
@@ -614,41 +614,41 @@ static bool cmd_get_sync_relay_probe_params(const char *param, int idx, char *ou
                  (double)sps_to_mm_per_min_idx(g_sync_tension_probe_neutral_sps_per_s, idx));
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "RELAY_MIN_FLIP_MM"))
-        snprintf(out, out_len, "RELAY_MIN_FLIP_MM:%.3f", (double)RELAY_MIN_FLIP_MM);
+        snprintf(out, out_len, "RELAY_MIN_FLIP_MM:%.3f", (double)g_relay_min_flip_mm);
     else if (!strcmp(param, "RELAY_COLLAPSE_DELAY_MS"))
-        snprintf(out, out_len, "RELAY_COLLAPSE_DELAY_MS:%d", RELAY_COLLAPSE_DELAY_MS);
+        snprintf(out, out_len, "RELAY_COLLAPSE_DELAY_MS:%d", g_relay_collapse_delay_ms);
     else if (!strcmp(param, "RELAY_COLLAPSE_RAMP_MULT"))
-        snprintf(out, out_len, "RELAY_COLLAPSE_RAMP_MULT:%d", RELAY_COLLAPSE_RAMP_MULT);
+        snprintf(out, out_len, "RELAY_COLLAPSE_RAMP_MULT:%d", g_relay_collapse_ramp_mult);
     else if (!strcmp(param, "RELAY_COLLAPSE_CAP_MS"))
-        snprintf(out, out_len, "RELAY_COLLAPSE_CAP_MS:%d", RELAY_COLLAPSE_CAP_MS);
+        snprintf(out, out_len, "RELAY_COLLAPSE_CAP_MS:%d", g_relay_collapse_cap_ms);
     else if (!strcmp(param, "BUF_DRIFT_TAU_MS"))
-        snprintf(out, out_len, "BUF_DRIFT_TAU_MS:%d", BUF_DRIFT_EWMA_TAU_MS);
+        snprintf(out, out_len, "BUF_DRIFT_TAU_MS:%d", g_buf_drift_ewma_tau_ms);
     else if (!strcmp(param, "BUF_DRIFT_MIN_SMP"))
-        snprintf(out, out_len, "BUF_DRIFT_MIN_SMP:%d", BUF_DRIFT_MIN_SAMPLES);
+        snprintf(out, out_len, "BUF_DRIFT_MIN_SMP:%d", g_buf_drift_min_samples);
     else if (!strcmp(param, "BUF_DRIFT_THR_MM"))
-        snprintf(out, out_len, "BUF_DRIFT_THR_MM:%.3f", (double)BUF_DRIFT_APPLY_THR_MM);
+        snprintf(out, out_len, "BUF_DRIFT_THR_MM:%.3f", (double)g_buf_drift_apply_thr_mm);
     else if (!strcmp(param, "BUF_DRIFT_CLAMP"))
-        snprintf(out, out_len, "BUF_DRIFT_CLAMP:%.3f", (double)BUF_DRIFT_CLAMP_MM);
+        snprintf(out, out_len, "BUF_DRIFT_CLAMP:%.3f", (double)g_buf_drift_clamp_mm);
     else if (!strcmp(param, "BUF_DRIFT_MIN_CF"))
-        snprintf(out, out_len, "BUF_DRIFT_MIN_CF:%.3f", (double)BUF_DRIFT_APPLY_MIN_CF);
+        snprintf(out, out_len, "BUF_DRIFT_MIN_CF:%.3f", (double)g_buf_drift_apply_min_cf);
     else if (!strcmp(param, "TENSION_RISK_WINDOW"))
-        snprintf(out, out_len, "TENSION_RISK_WINDOW:%d", TENSION_RISK_WINDOW_MS);
+        snprintf(out, out_len, "TENSION_RISK_WINDOW:%d", g_tension_risk_window_ms);
     else if (!strcmp(param, "TENSION_RISK_THR"))
-        snprintf(out, out_len, "TENSION_RISK_THR:%d", TENSION_RISK_THRESHOLD);
+        snprintf(out, out_len, "TENSION_RISK_THR:%d", g_tension_risk_threshold);
     else if (!strcmp(param, "TS_BUF_MS"))
-        snprintf(out, out_len, "TS_BUF_MS:%d", TS_BUF_FALLBACK_MS);
+        snprintf(out, out_len, "TS_BUF_MS:%d", g_ts_buf_fallback_ms);
     else if (!strcmp(param, "EST_ALPHA_MIN"))
-        snprintf(out, out_len, "EST_ALPHA_MIN:%.3f", (double)EST_ALPHA_MIN);
+        snprintf(out, out_len, "EST_ALPHA_MIN:%.3f", (double)g_est_alpha_min);
     else if (!strcmp(param, "EST_ALPHA_MAX"))
-        snprintf(out, out_len, "EST_ALPHA_MAX:%.3f", (double)EST_ALPHA_MAX);
+        snprintf(out, out_len, "EST_ALPHA_MAX:%.3f", (double)g_est_alpha_max);
     else if (!strcmp(param, "ZONE_BIAS_BASE"))
         snprintf(out, out_len, "ZONE_BIAS_BASE:%.1f",
-                 (double)sps_to_mm_per_min(ZONE_BIAS_BASE_SPS));
+                 (double)sps_to_mm_per_min(g_zone_bias_base_sps));
     else if (!strcmp(param, "ZONE_BIAS_RAMP"))
         snprintf(out, out_len, "ZONE_BIAS_RAMP:%.1f",
-                 (double)sps_to_mm_per_min(ZONE_BIAS_RAMP_SPS_S));
+                 (double)sps_to_mm_per_min(g_zone_bias_ramp_sps_s));
     else if (!strcmp(param, "ZONE_BIAS_MAX"))
-        snprintf(out, out_len, "ZONE_BIAS_MAX:%.1f", (double)sps_to_mm_per_min(ZONE_BIAS_MAX_SPS));
+        snprintf(out, out_len, "ZONE_BIAS_MAX:%.1f", (double)sps_to_mm_per_min(g_zone_bias_max_sps));
 #endif
     else
         return false;
@@ -676,9 +676,9 @@ static bool cmd_get_reload_cutter_params(const char *param, int idx, char *out, 
         snprintf(out, out_len, "RUNOUT_COOLDOWN_MS:%d", g_runout_cooldown_ms);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "POST_PRINT_STAB_MS"))
-        snprintf(out, out_len, "POST_PRINT_STAB_MS:%d", POST_PRINT_STAB_DELAY_MS);
+        snprintf(out, out_len, "POST_PRINT_STAB_MS:%d", g_post_print_stab_delay_ms);
     else if (!strcmp(param, "RELOAD_Y_MS"))
-        snprintf(out, out_len, "RELOAD_Y_MS:%d", RELOAD_Y_TIMEOUT_MS);
+        snprintf(out, out_len, "RELOAD_Y_MS:%d", g_reload_y_timeout_ms);
 #endif
     else if (!strcmp(param, "RELOAD_JOIN_MS"))
         snprintf(out, out_len, "RELOAD_JOIN_MS:%d", g_reload_join_delay_ms);
@@ -702,7 +702,7 @@ static bool cmd_get_reload_cutter_params(const char *param, int idx, char *out, 
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "BUF_STAB_RATE"))
         snprintf(out, out_len, "BUF_STAB_RATE:%.1f",
-                 (double)sps_to_mm_per_min_idx(BUF_STAB_SPS, idx));
+                 (double)sps_to_mm_per_min_idx(g_buf_stab_sps, idx));
 #endif
     else if (!strcmp(param, "FOLLOW_MS"))
         snprintf(out, out_len, "FOLLOW_MS:%d", g_follow_timeout_ms[idx]);
@@ -725,9 +725,9 @@ static bool cmd_get_reload_cutter_params(const char *param, int idx, char *out, 
         snprintf(out, out_len, "CUT_FEED:%d", g_cut_feed_mm);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "CUT_FEED_MS"))
-        snprintf(out, out_len, "CUT_FEED_MS:%d", CUT_TIMEOUT_FEED_MS);
+        snprintf(out, out_len, "CUT_FEED_MS:%d", g_cut_timeout_feed_ms);
     else if (!strcmp(param, "CUT_SETTLE_MS"))
-        snprintf(out, out_len, "CUT_SETTLE_MS:%d", CUT_TIMEOUT_SETTLE_MS);
+        snprintf(out, out_len, "CUT_SETTLE_MS:%d", g_cut_timeout_settle_ms);
 #endif
     else if (!strcmp(param, "CUT_LEN"))
         snprintf(out, out_len, "CUT_LEN:%d", g_cut_length_mm);
@@ -735,13 +735,13 @@ static bool cmd_get_reload_cutter_params(const char *param, int idx, char *out, 
         snprintf(out, out_len, "CUT_AMT:%d", g_cut_amount);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "TC_CUT_MS"))
-        snprintf(out, out_len, "TC_CUT_MS:%d", TC_TIMEOUT_CUT_MS);
+        snprintf(out, out_len, "TC_CUT_MS:%d", g_tc_timeout_cut_ms);
     else if (!strcmp(param, "TC_TH_MS"))
-        snprintf(out, out_len, "TC_TH_MS:%d", TC_TIMEOUT_TH_MS);
+        snprintf(out, out_len, "TC_TH_MS:%d", g_tc_timeout_th_ms);
     else if (!strcmp(param, "TC_Y_MS"))
-        snprintf(out, out_len, "TC_Y_MS:%d", TC_TIMEOUT_Y_MS);
+        snprintf(out, out_len, "TC_Y_MS:%d", g_tc_timeout_y_ms);
     else if (!strcmp(param, "RELOAD_LEAN"))
-        snprintf(out, out_len, "RELOAD_LEAN:%.2f", (double)RELOAD_LEAN_FACTOR);
+        snprintf(out, out_len, "RELOAD_LEAN:%.2f", (double)g_reload_lean_factor);
 #endif
     else
         return false;
@@ -801,32 +801,32 @@ static bool cmd_set_motion_params(const char *base_param, int iv, float fv) {
         g_sync_min_sps = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, MAX_RUN_RATE_SPS));
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "SYNC_RAMP_ACCEL")) {
-        float tick_s = (float)SYNC_TICK_MS / MS_PER_SECOND_F;
-        int sps = (int)(fv * tick_s / MM_PER_STEP[0] + HALF_F);
-        SYNC_RAMP_UP_SPS = motion_clamp_rate_sps(clamp_i(sps, 1, MAX_RUN_RATE_SPS));
+        float tick_s = (float)g_sync_tick_ms / MS_PER_SECOND_F;
+        int sps = (int)(fv * tick_s / g_mm_per_step[0] + HALF_F);
+        g_sync_ramp_up_sps = motion_clamp_rate_sps(clamp_i(sps, 1, MAX_RUN_RATE_SPS));
     } else if (!strcmp(base_param, "SYNC_RAMP_DECEL")) {
-        float tick_s = (float)SYNC_TICK_MS / MS_PER_SECOND_F;
-        int sps = (int)(fv * tick_s / MM_PER_STEP[0] + HALF_F);
-        SYNC_RAMP_DN_SPS = motion_clamp_rate_sps(clamp_i(sps, 1, MAX_RUN_RATE_SPS));
+        float tick_s = (float)g_sync_tick_ms / MS_PER_SECOND_F;
+        int sps = (int)(fv * tick_s / g_mm_per_step[0] + HALF_F);
+        g_sync_ramp_dn_sps = motion_clamp_rate_sps(clamp_i(sps, 1, MAX_RUN_RATE_SPS));
     } else if (!strcmp(base_param, "SYNC_TICK_MS"))
-        SYNC_TICK_MS = clamp_i(iv, 1, 1000);
+        g_sync_tick_ms = clamp_i(iv, 1, 1000);
     else if (!strcmp(base_param, "GLOBAL_MAX_ACCEL")) {
-        float tick_s = (float)RAMP_TICK_MS / MS_PER_SECOND_F;
-        int sps = (int)(fv * tick_s / MM_PER_STEP[0] + HALF_F);
-        RAMP_STEP_SPS = motion_clamp_rate_sps(clamp_i(sps, 1, 30000));
+        float tick_s = (float)g_ramp_tick_ms / MS_PER_SECOND_F;
+        int sps = (int)(fv * tick_s / g_mm_per_step[0] + HALF_F);
+        g_ramp_step_sps = motion_clamp_rate_sps(clamp_i(sps, 1, 30000));
     } else if (!strcmp(base_param, "RAMP_TICK_MS"))
-        RAMP_TICK_MS = clamp_i(iv, 1, 1000);
+        g_ramp_tick_ms = clamp_i(iv, 1, 1000);
     else if (!strcmp(base_param, "PRE_RAMP_RATE"))
-        PRE_RAMP_SPS = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, MAX_RUN_RATE_SPS));
+        g_pre_ramp_sps = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, MAX_RUN_RATE_SPS));
 #endif
     else if (!strcmp(base_param, "BUF_SWITCH_SPAN")) {
         g_buf_switch_span_half_mm = buf_switch_span_half_from_full(fv, g_buf_max_travel_mm);
     }
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "BUF_HYST"))
-        BUF_HYST_MS = clamp_i(iv, 5, 500);
+        g_buf_hyst_ms = clamp_i(iv, 5, 500);
     else if (!strcmp(base_param, "BUF_PREDICT_THR_MS"))
-        BUF_PREDICT_THR_MS = clamp_i(iv, 0, RELOAD_JOIN_MAX_MS);
+        g_buf_predict_thr_ms = clamp_i(iv, 0, RELOAD_JOIN_MAX_MS);
 #endif
     else
         return false;
@@ -848,9 +848,9 @@ static bool cmd_set_reload_motion_params(const char *base_param, int iv, float f
         g_runout_cooldown_ms = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "POST_PRINT_STAB_MS"))
-        POST_PRINT_STAB_DELAY_MS = clamp_i(iv, 0, 300000);
+        g_post_print_stab_delay_ms = clamp_i(iv, 0, 300000);
     else if (!strcmp(base_param, "RELOAD_Y_MS"))
-        RELOAD_Y_TIMEOUT_MS = clamp_i(iv, 100, 30000);
+        g_reload_y_timeout_ms = clamp_i(iv, 100, 30000);
 #endif
     else if (!strcmp(base_param, "RELOAD_JOIN_MS"))
         g_reload_join_delay_ms = clamp_i(iv, 0, RELOAD_JOIN_MAX_MS);
@@ -885,17 +885,17 @@ static bool cmd_set_reload_motion_params(const char *base_param, int iv, float f
     else if (!strcmp(base_param, "BASELINE_ALPHA"))
         g_baseline_alpha = clamp_f(fv, 0.0f, 1.0f);
     else if (!strcmp(base_param, "EST_ALPHA_MIN"))
-        EST_ALPHA_MIN = clamp_f(fv, 0.01f, 1.0f);
+        g_est_alpha_min = clamp_f(fv, 0.01f, 1.0f);
     else if (!strcmp(base_param, "EST_ALPHA_MAX"))
-        EST_ALPHA_MAX = clamp_f(fv, 0.01f, 1.0f);
+        g_est_alpha_max = clamp_f(fv, 0.01f, 1.0f);
     else if (!strcmp(base_param, "ZONE_BIAS_BASE"))
-        ZONE_BIAS_BASE_SPS = clamp_i(mm_per_min_to_sps(fv), 0, 5000);
+        g_zone_bias_base_sps = clamp_i(mm_per_min_to_sps(fv), 0, 5000);
     else if (!strcmp(base_param, "ZONE_BIAS_RAMP"))
-        ZONE_BIAS_RAMP_SPS_S = clamp_i(mm_per_min_to_sps(fv), 0, 5000);
+        g_zone_bias_ramp_sps_s = clamp_i(mm_per_min_to_sps(fv), 0, 5000);
     else if (!strcmp(base_param, "ZONE_BIAS_MAX"))
-        ZONE_BIAS_MAX_SPS = clamp_i(mm_per_min_to_sps(fv), 0, 5000);
+        g_zone_bias_max_sps = clamp_i(mm_per_min_to_sps(fv), 0, 5000);
     else if (!strcmp(base_param, "RELOAD_LEAN"))
-        RELOAD_LEAN_FACTOR = clamp_f(fv, 0.0f, 5.0f);
+        g_reload_lean_factor = clamp_f(fv, 0.0f, 5.0f);
 #endif
     else
         return false;
@@ -985,7 +985,7 @@ static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, fl
         g_buf_goal = clamp_f(fv, 0.0f, 1.0f);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "BUF_ALPHA"))
-        BUF_ANALOG_ALPHA = clamp_f(fv, 0.01f, 1.0f);
+        g_buf_analog_alpha = clamp_f(fv, 0.01f, 1.0f);
 #endif
     else if (!strcmp(base_param, "AUTOLOAD_MAX"))
         g_autoload_max_mm = clamp_i(iv, AUTOLOAD_MAX_MIN_MM, AUTOLOAD_MAX_MAX_MM);
@@ -1013,7 +1013,7 @@ static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, fl
         g_psf_stab_rail_break_ms = (iv < 0) ? 0 : iv;
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "SYNC_OVERSHOOT_PCT"))
-        SYNC_OVERSHOOT_PCT = clamp_i(iv, 0, 200);
+        g_sync_overshoot_pct = clamp_i(iv, 0, 200);
 #endif
     else if (!strcmp(base_param, "SYNC_RESERVE_PCT"))
         g_sync_reserve_pct = clamp_i(iv, 0, SYNC_RESERVE_MAX_PCT);
@@ -1030,37 +1030,37 @@ static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, fl
 static bool cmd_set_sync_advanced_params(const char *base_param, int iv, float fv) {
 #ifdef FLARE_DEV_TUNING
     if (!strcmp(base_param, "NEUTRAL_CREEP_TIMEOUT_MS"))
-        NEUTRAL_CREEP_TIMEOUT_MS = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
+        g_neutral_creep_timeout_ms = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
     else if (!strcmp(base_param, "NEUTRAL_CREEP_RATE") ||
              !strcmp(base_param, "NEUTRAL_CREEP_RATE_SPS_PER_S"))
-        NEUTRAL_CREEP_RATE_SPS_PER_S = clamp_i(iv, 0, 1000);
+        g_neutral_creep_rate_sps_per_s = clamp_i(iv, 0, 1000);
     else if (!strcmp(base_param, "NEUTRAL_CREEP_CAP") ||
              !strcmp(base_param, "NEUTRAL_CREEP_CAP_FRAC"))
-        NEUTRAL_CREEP_CAP_FRAC = clamp_i(iv, 0, 100);
+        g_neutral_creep_cap_frac = clamp_i(iv, 0, 100);
     else if (!strcmp(base_param, "VAR_BLEND_FRAC") ||
              !strcmp(base_param, "BUF_VARIANCE_BLEND_FRAC"))
-        BUF_VARIANCE_BLEND_FRAC = clamp_f(fv, 0.0f, 0.9f);
+        g_buf_variance_blend_frac = clamp_f(fv, 0.0f, 0.9f);
     else if (!strcmp(base_param, "VAR_BLEND_REF_MM") ||
              !strcmp(base_param, "BUF_VARIANCE_BLEND_REF_MM"))
-        BUF_VARIANCE_BLEND_REF_MM = clamp_f(fv, HALF_F, 5.0f);
+        g_buf_variance_blend_ref_mm = clamp_f(fv, HALF_F, 5.0f);
     else if (!strcmp(base_param, "SYNC_TENSION_STOP_MS"))
-        SYNC_TENSION_DWELL_STOP_MS = clamp_i(iv, 0, 30000);
+        g_sync_tension_dwell_stop_ms = clamp_i(iv, 0, 30000);
     else if (!strcmp(base_param, "SYNC_TENSION_RAMP_MS"))
-        SYNC_TENSION_RAMP_DELAY_MS = clamp_i(iv, 0, PATH_DIST_MAX_MM);
+        g_sync_tension_ramp_delay_ms = clamp_i(iv, 0, PATH_DIST_MAX_MM);
     else if (!strcmp(base_param, "SYNC_OVERSHOOT_NEUTRAL_EXT"))
-        SYNC_OVERSHOOT_NEUTRAL_EXTEND = clamp_i(iv, 0, 1);
+        g_sync_overshoot_neutral_extend = clamp_i(iv, 0, 1);
     else if (!strcmp(base_param, "SYNC_INT_GAIN"))
-        SYNC_RESERVE_INTEGRAL_GAIN = clamp_f(fv, 0.0f, 0.05f);
+        g_sync_reserve_integral_gain = clamp_f(fv, 0.0f, 0.05f);
     else if (!strcmp(base_param, "SYNC_INT_CLAMP"))
-        SYNC_RESERVE_INTEGRAL_CLAMP_MM = clamp_f(fv, 0.0f, BUF_SWITCH_SPAN_MIN_MM);
+        g_sync_reserve_integral_clamp_mm = clamp_f(fv, 0.0f, BUF_SWITCH_SPAN_MIN_MM);
     else if (!strcmp(base_param, "SYNC_INT_DECAY_MS"))
-        SYNC_RESERVE_INTEGRAL_DECAY_MS = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
+        g_sync_reserve_integral_decay_ms = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
     else if (!strcmp(base_param, "EST_SIGMA_CAP"))
-        EST_SIGMA_HARD_CAP_MM = clamp_f(fv, HALF_F, 5.0f);
+        g_est_sigma_hard_cap_mm = clamp_f(fv, HALF_F, 5.0f);
     else if (!strcmp(base_param, "EST_LOW_CF_THR"))
-        EST_LOW_CF_WARN_THRESHOLD = clamp_f(fv, 0.0f, 1.0f);
+        g_est_low_cf_warn_threshold = clamp_f(fv, 0.0f, 1.0f);
     else if (!strcmp(base_param, "EST_FALLBACK_THR"))
-        EST_FALLBACK_CF_THRESHOLD = clamp_f(fv, 0.0f, HALF_F);
+        g_est_fallback_cf_threshold = clamp_f(fv, 0.0f, HALF_F);
     else
 #endif
         return false;
@@ -1098,31 +1098,31 @@ static bool cmd_set_sync_relay_probe_params(const char *base_param, int iv, floa
             clamp_i(mm_per_min_to_sps(fv), 0, mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "RELAY_MIN_FLIP_MM"))
-        RELAY_MIN_FLIP_MM = clamp_f(fv, 0.0f, 100.0f);
+        g_relay_min_flip_mm = clamp_f(fv, 0.0f, 100.0f);
     else if (!strcmp(base_param, "RELAY_COLLAPSE_DELAY_MS"))
-        RELAY_COLLAPSE_DELAY_MS = clamp_i(iv, 0, PATH_DIST_MAX_MM);
+        g_relay_collapse_delay_ms = clamp_i(iv, 0, PATH_DIST_MAX_MM);
     else if (!strcmp(base_param, "RELAY_COLLAPSE_RAMP_MULT"))
-        RELAY_COLLAPSE_RAMP_MULT = clamp_i(iv, 1, 16);
+        g_relay_collapse_ramp_mult = clamp_i(iv, 1, 16);
     else if (!strcmp(base_param, "RELAY_COLLAPSE_CAP_MS"))
-        RELAY_COLLAPSE_CAP_MS = clamp_i(iv, 0, PATH_DIST_MAX_MM);
+        g_relay_collapse_cap_ms = clamp_i(iv, 0, PATH_DIST_MAX_MM);
     else if (!strcmp(base_param, "BUF_DRIFT_TAU_MS"))
-        BUF_DRIFT_EWMA_TAU_MS = clamp_i(iv, 5000, 600000);
+        g_buf_drift_ewma_tau_ms = clamp_i(iv, 5000, 600000);
     else if (!strcmp(base_param, "BUF_DRIFT_MIN_SMP"))
-        BUF_DRIFT_MIN_SAMPLES = clamp_i(iv, 1, 32);
+        g_buf_drift_min_samples = clamp_i(iv, 1, 32);
     else if (!strcmp(base_param, "BUF_DRIFT_THR_MM"))
-        BUF_DRIFT_APPLY_THR_MM = clamp_f(fv, 0.0f, 5.0f);
+        g_buf_drift_apply_thr_mm = clamp_f(fv, 0.0f, 5.0f);
     else if (!strcmp(base_param, "BUF_DRIFT_CLAMP"))
-        BUF_DRIFT_CLAMP_MM = clamp_f(fv, 0.0f, BUF_DRIFT_CLAMP_LIMIT_MM);
+        g_buf_drift_clamp_mm = clamp_f(fv, 0.0f, BUF_DRIFT_CLAMP_LIMIT_MM);
     else if (!strcmp(base_param, "BUF_DRIFT_MIN_CF"))
-        BUF_DRIFT_APPLY_MIN_CF = clamp_f(fv, 0.0f, 1.0f);
+        g_buf_drift_apply_min_cf = clamp_f(fv, 0.0f, 1.0f);
     else if (!strcmp(base_param, "TENSION_RISK_WINDOW"))
-        TENSION_RISK_WINDOW_MS = clamp_i(iv, 5000, 300000);
+        g_tension_risk_window_ms = clamp_i(iv, 5000, 300000);
     else if (!strcmp(base_param, "TENSION_RISK_THR"))
-        TENSION_RISK_THRESHOLD = clamp_i(iv, 0, 1000);
+        g_tension_risk_threshold = clamp_i(iv, 0, 1000);
     else if (!strcmp(base_param, "TS_BUF_MS"))
-        TS_BUF_FALLBACK_MS = clamp_i(iv, 0, 30000);
+        g_ts_buf_fallback_ms = clamp_i(iv, 0, 30000);
     else if (!strcmp(base_param, "STARTUP_MS"))
-        MOTION_STARTUP_MS = clamp_i(iv, 0, 30000);
+        g_motion_startup_ms = clamp_i(iv, 0, 30000);
 #endif
     else
         return false;
@@ -1148,9 +1148,9 @@ static bool cmd_set_cutter_params(const char *base_param, int iv, float fv) {
         g_cut_feed_mm = clamp_i(iv, 1, CUT_FEED_MAX_MM);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "CUT_FEED_MS"))
-        CUT_TIMEOUT_FEED_MS = clamp_i(iv, 1000, 120000);
+        g_cut_timeout_feed_ms = clamp_i(iv, 1000, 120000);
     else if (!strcmp(base_param, "CUT_SETTLE_MS"))
-        CUT_TIMEOUT_SETTLE_MS = clamp_i(iv, 500, 10000);
+        g_cut_timeout_settle_ms = clamp_i(iv, 500, 10000);
 #endif
     else if (!strcmp(base_param, "CUT_LEN"))
         g_cut_length_mm = clamp_i(iv, 1, CUT_LENGTH_MAX_MM);
@@ -1158,11 +1158,11 @@ static bool cmd_set_cutter_params(const char *base_param, int iv, float fv) {
         g_cut_amount = clamp_i(iv, 1, CUT_AMOUNT_MAX);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "TC_CUT_MS"))
-        TC_TIMEOUT_CUT_MS = clamp_i(iv, 1000, 30000);
+        g_tc_timeout_cut_ms = clamp_i(iv, 1000, 30000);
     else if (!strcmp(base_param, "TC_TH_MS"))
-        TC_TIMEOUT_TH_MS = clamp_i(iv, 0, RELOAD_JOIN_MAX_MS);
+        g_tc_timeout_th_ms = clamp_i(iv, 0, RELOAD_JOIN_MAX_MS);
     else if (!strcmp(base_param, "TC_Y_MS"))
-        TC_TIMEOUT_Y_MS = clamp_i(iv, 0, 30000);
+        g_tc_timeout_y_ms = clamp_i(iv, 0, 30000);
 #endif
     else
         return false;
@@ -1686,7 +1686,7 @@ static bool cmd_handle_sensor_status(const char *cmd, const char *p, uint32_t no
                  * load path (TC → TS:1, no BS) can leave suppression set
                  * from a prior BL release elsewhere in the session, and
                  * sync never engages even with filament loaded + buffer at
-                 * TENSION + AUTO_MODE on. */
+                 * TENSION + g_auto_mode on. */
                 sync_bl_clear_autostart_suppress();
             }
             set_toolhead_filament(v == 1);
