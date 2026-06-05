@@ -6,6 +6,11 @@
 #include <stdio.h>
 #include <string.h>
 
+static const uint32_t DEFAULT_TENSION_RISK_WINDOW_MS = 60000u;
+static const float COMPRESSION_WALL_MIN_MM_S = 0.05f;
+static const float COMPRESSION_WALL_UNREACHABLE_MS = 1000000000.0f;
+static const float MS_PER_SECOND_F = 1000.0f;
+
 float g_psf_target_filt = 0.0f;
 float sync_reserve_integral_mm = 0.0f;
 float g_buf_pos_sigma_accum_mm = 0.0f;
@@ -65,9 +70,10 @@ float sync_compression_wall_velocity_mm_s(lane_t *lane) {
 
 float sync_compression_wall_time_ms(lane_t *lane) {
     float toward_compression = sync_compression_wall_velocity_mm_s(lane);
-    if (!lane || g_buf_signal.kind != BUF_SRC_VIRTUAL_ENDSTOP || toward_compression < 0.05f)
-        return 1000000000.0f;
-    return (sync_compression_wall_remaining_mm() / toward_compression) * 1000.0f;
+    if (!lane || g_buf_signal.kind != BUF_SRC_VIRTUAL_ENDSTOP ||
+        toward_compression < COMPRESSION_WALL_MIN_MM_S)
+        return COMPRESSION_WALL_UNREACHABLE_MS;
+    return (sync_compression_wall_remaining_mm() / toward_compression) * MS_PER_SECOND_F;
 }
 
 float sync_reserve_error_mm(void) {
@@ -103,7 +109,8 @@ int sync_bp_drift_samples(void) {
 }
 
 int sync_tension_pin_window_count(uint32_t now_ms) {
-    uint32_t window_ms = (TENSION_RISK_WINDOW_MS > 0) ? (uint32_t)TENSION_RISK_WINDOW_MS : 60000u;
+    uint32_t window_ms = (TENSION_RISK_WINDOW_MS > 0) ? (uint32_t)TENSION_RISK_WINDOW_MS
+                                                      : DEFAULT_TENSION_RISK_WINDOW_MS;
     int count = 0;
     for (int i = 0; i < TENSION_PIN_WINDOW_LEN; i++) {
         if (g_tension_pin_ts[i] != 0 && (now_ms - g_tension_pin_ts[i]) < window_ms) {
