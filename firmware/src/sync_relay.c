@@ -6,6 +6,11 @@
 #include <stdio.h>
 #include <string.h>
 
+static const uint16_t TYPE_D_SAMPLE_ROLLOVER_COUNT = 10000u;
+static const uint32_t TYPE_D_SAMPLE_DECAY_DIVISOR = 2u;
+static const float RELAY_TRIM_LEAK_MIN_SPS_S = 25.0f;
+static const float MS_PER_SECOND_F = 1000.0f;
+
 float g_tension_floor_sps = 0.0f;
 float g_relay_flip_travel_since_mm = 0.0f;
 float g_relay_neutral_trim_sps = 0.0f;
@@ -36,17 +41,17 @@ void type_d_neutral_feed_sample(buf_state_t s, float pos_norm, float target_norm
         return;
     if (sync_current_sps <= 0)
         return;
-    if (g_type_d_neutral_feed_samples >= 10000u) {
-        g_type_d_neutral_feed_sps_sum /= 2u;
-        g_type_d_neutral_feed_samples /= 2u;
+    if (g_type_d_neutral_feed_samples >= TYPE_D_SAMPLE_ROLLOVER_COUNT) {
+        g_type_d_neutral_feed_sps_sum /= TYPE_D_SAMPLE_DECAY_DIVISOR;
+        g_type_d_neutral_feed_samples /= TYPE_D_SAMPLE_DECAY_DIVISOR;
     }
     g_type_d_neutral_feed_sps_sum += (uint32_t)sync_current_sps;
     g_type_d_neutral_feed_samples++;
 
     if (pos_norm <= (target_norm + deadband_norm)) {
-        if (g_type_d_neutral_flat_feed_samples >= 10000u) {
-            g_type_d_neutral_flat_feed_sps_sum /= 2u;
-            g_type_d_neutral_flat_feed_samples /= 2u;
+        if (g_type_d_neutral_flat_feed_samples >= TYPE_D_SAMPLE_ROLLOVER_COUNT) {
+            g_type_d_neutral_flat_feed_sps_sum /= TYPE_D_SAMPLE_DECAY_DIVISOR;
+            g_type_d_neutral_flat_feed_samples /= TYPE_D_SAMPLE_DECAY_DIVISOR;
         }
         g_type_d_neutral_flat_feed_sps_sum += (uint32_t)sync_current_sps;
         g_type_d_neutral_flat_feed_samples++;
@@ -107,9 +112,9 @@ void relay_neutral_trim_leak(buf_state_t s, uint32_t now_ms) {
     if (dt_ms == 0)
         return;
 
-    float leak_rate_sps_s =
-        fmaxf((float)SYNC_RELAY_TRIM_STEP_SPS * SYNC_RELAY_TRIM_LEAK_RATE_FRAC, 25.0f);
-    float leak_sps = leak_rate_sps_s * ((float)dt_ms / 1000.0f);
+    float leak_rate_sps_s = fmaxf((float)SYNC_RELAY_TRIM_STEP_SPS * SYNC_RELAY_TRIM_LEAK_RATE_FRAC,
+                                  RELAY_TRIM_LEAK_MIN_SPS_S);
+    float leak_sps = leak_rate_sps_s * ((float)dt_ms / MS_PER_SECOND_F);
     if (g_relay_neutral_trim_sps > 0.0f) {
         g_relay_neutral_trim_sps =
             (g_relay_neutral_trim_sps > leak_sps) ? (g_relay_neutral_trim_sps - leak_sps) : 0.0f;
