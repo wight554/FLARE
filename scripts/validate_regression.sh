@@ -8,7 +8,11 @@ cd "$REPO"
 echo "=== Generate Config ==="
 python3 scripts/gen_config.py
 
-echo "=== Firmware Build ==="
+echo "=== Firmware Build (FLARE_DEV_TUNING=ON superset) ==="
+# Build the dev-tuning superset so #ifdef FLARE_DEV_TUNING handlers (Tier-3 SET/GET in
+# protocol.c) are compiled here — the Pi builds with it on, and code in an inactive
+# preprocessor branch is invisible to both the default build and clang-tidy.
+cmake -S firmware -B build_local -DFLARE_DEV_TUNING=ON >/dev/null
 ninja -C build_local
 
 echo "=== Python Syntax ==="
