@@ -152,12 +152,25 @@ be redefined with divergent style (`#define` vs `static const`) across units.
 
 ### Requirement: Global-naming convention is documented
 
-`STYLE.md` SHALL document the firmware global-naming convention so a reader can tell a
-mutable tunable from internal state from a compile-time default by name alone.
+All firmware global variables SHALL be named `g_lower_case`, including config-backed
+runtime tunables, and the `g_` prefix SHALL be enforced by `.clang-tidy` (no blanket
+`GlobalVariableIgnoredRegexp` exemption). `STYLE.md` SHALL document this and SHALL state
+that tunable-vs-state is distinguished by the `controller_shared.h` tunables section,
+the `settings_t` mirror, and the `SET:`/`GET:` surface — not by casing. Protocol param
+names and `config.ini` keys remain `UPPER_CASE` strings and are not affected by the
+identifier naming.
 
 #### Scenario: A contributor reads STYLE.md
 
-- **WHEN** a contributor looks up the naming convention
-- **THEN** `STYLE.md` states that `UPPER_CASE` = runtime-mutable config-backed tunable,
-  `g_` = internal module/runtime state, and `CONF_*` = generated compile-time default
+- **WHEN** a contributor looks up the global-naming convention
+- **THEN** `STYLE.md` states all globals (incl. tunables) use `g_lower_case`
+- **AND** it states protocol/config names remain `UPPER_CASE` strings, and `CONF_*` are
+  generated compile-time defaults
+
+#### Scenario: A global tunable is declared
+
+- **WHEN** a config-backed runtime tunable is declared in `controller_shared.h`
+- **THEN** its C identifier is `g_lower_case`
+- **AND** its `SET:`/`GET:` param string and `config.ini` key are unchanged
+- **AND** `.clang-tidy` enforces the `g_` prefix with no blanket ignore regexp
 
