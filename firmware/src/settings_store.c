@@ -16,6 +16,34 @@
 #define SETTINGS_MAGIC 0x4e4f5346u
 #define SETTINGS_VERSION 59u
 
+enum {
+    SETTINGS_FLASH_BUFFER_BYTES = 512,
+    CRC32_BITS_PER_BYTE = 8,
+    BUF_STAB_MIN_SPS = 10,
+    BUF_STAB_MAX_SPS = 10000,
+    BUF_TRAVEL_MIN_MM = 10,
+    BUF_TRAVEL_MAX_MM = 1000,
+    SYNC_RESERVE_MAX_PCT = 150,
+    TMC_VSENSE_THRESHOLD_MA = 980,
+};
+
+static const uint32_t CRC32_INITIAL_VALUE = 0xFFFFFFFFu;
+static const uint32_t CRC32_POLYNOMIAL = 0xEDB88320u;
+static const float BUF_SWITCH_SPAN_MIN_MM = 2.0f;
+static const float HALF_F = 0.5f;
+static const float FULL_SPAN_MULT_F = 2.0f;
+static const float GLOBAL_MAX_MIN_MM_MIN = 1000.0f;
+static const float GLOBAL_MAX_MAX_MM_MIN = 12000.0f;
+static const float RELAY_FRAC_MIN = 0.5f;
+static const float RELAY_FRAC_MAX = 3.0f;
+static const float COMPRESSION_DRAIN_MAX_FRAC = 0.9f;
+static const float COMPRESSION_DRAIN_BUDGET_MAX_MM = 25.0f;
+static const float SYNC_EST_ATTACK_MIN_ALPHA = 0.65f;
+static const float SYNC_TENSION_FAST_MAX_MM_S = 200.0f;
+static const float TENSION_PROBE_MAX_MM_MIN = 6000.0f;
+static const float TENSION_PROBE_RAMP_MAX_MM_MIN = 12000.0f;
+static const float COMPRESSION_BIAS_MAX_FRAC = 0.7f;
+
 typedef struct {
     uint32_t magic;
     uint32_t version;
@@ -74,16 +102,16 @@ typedef struct {
     uint32_t crc32;
 } settings_t;
 
-_Static_assert(sizeof(settings_t) <= 512,
+_Static_assert(sizeof(settings_t) <= SETTINGS_FLASH_BUFFER_BYTES,
                "settings_t exceeds two flash pages - expand buffer in settings_save()");
 
 static uint32_t crc32_buf(const uint8_t *data, size_t len) {
-    uint32_t crc = 0xFFFFFFFFu;
+    uint32_t crc = CRC32_INITIAL_VALUE;
     for (size_t i = 0; i < len; i++) {
         crc ^= data[i];
-        for (int j = 0; j < 8; j++) {
+        for (int j = 0; j < CRC32_BITS_PER_BYTE; j++) {
             uint32_t mask = -(crc & 1u);
-            crc = (crc >> 1) ^ (0xEDB88320u & mask);
+            crc = (crc >> 1) ^ (CRC32_POLYNOMIAL & mask);
         }
     }
     return ~crc;
@@ -91,9 +119,9 @@ static uint32_t crc32_buf(const uint8_t *data, size_t len) {
 
 static float buf_switch_span_half_from_full(float span_mm, int max_travel_mm) {
     float max_span_mm = (float)max_travel_mm;
-    if (max_span_mm < 2.0f)
-        max_span_mm = 2.0f;
-    return clamp_f(span_mm, 2.0f, max_span_mm) * 0.5f;
+    if (max_span_mm < BUF_SWITCH_SPAN_MIN_MM)
+        max_span_mm = BUF_SWITCH_SPAN_MIN_MM;
+    return clamp_f(span_mm, BUF_SWITCH_SPAN_MIN_MM, max_span_mm) * HALF_F;
 }
 
 static void settings_defaults_tmc(void) {
@@ -143,26 +171,30 @@ static void settings_defaults_sync(void) {
     BUF_PSF_NEUTRAL = CONF_BUF_PSF_NEUTRAL;
     BUF_GOAL = CONF_BUF_GOAL;
     SYNC_KP_SPS = CONF_SYNC_KP_SPS;
-    SYNC_RESERVE_PCT = clamp_i(CONF_SYNC_RESERVE_PCT, 0, 150);
-    RELAY_CATCHUP_FRAC = clamp_f(CONF_RELAY_CATCHUP_FRAC, 0.5f, 3.0f);
-    RELAY_NEUTRAL_FRAC = clamp_f(CONF_RELAY_NEUTRAL_FRAC, 0.5f, 3.0f);
-    SYNC_COMPRESSION_DRAIN_FRAC = clamp_f(CONF_SYNC_COMPRESSION_DRAIN_FRAC, 0.0f, 0.9f);
-    SYNC_COMPRESSION_DRAIN_BUDGET_MM = clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, 25.0f);
-    SYNC_EST_ATTACK_ALPHA = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, 0.65f, 1.0f);
-    SYNC_TENSION_FAST_MM_S = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, 200.0f);
+    SYNC_RESERVE_PCT = clamp_i(CONF_SYNC_RESERVE_PCT, 0, SYNC_RESERVE_MAX_PCT);
+    RELAY_CATCHUP_FRAC = clamp_f(CONF_RELAY_CATCHUP_FRAC, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
+    RELAY_NEUTRAL_FRAC = clamp_f(CONF_RELAY_NEUTRAL_FRAC, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
+    SYNC_COMPRESSION_DRAIN_FRAC =
+        clamp_f(CONF_SYNC_COMPRESSION_DRAIN_FRAC, 0.0f, COMPRESSION_DRAIN_MAX_FRAC);
+    SYNC_COMPRESSION_DRAIN_BUDGET_MM =
+        clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, COMPRESSION_DRAIN_BUDGET_MAX_MM);
+    SYNC_EST_ATTACK_ALPHA = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, SYNC_EST_ATTACK_MIN_ALPHA, 1.0f);
+    SYNC_TENSION_FAST_MM_S = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, SYNC_TENSION_FAST_MAX_MM_S);
     SYNC_TENSION_PROBE_MAX_SPS =
-        clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(6000.0f));
-    SYNC_TENSION_PROBE_UP_SPS_PER_S =
-        clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
-    SYNC_TENSION_PROBE_DOWN_SPS_PER_S =
-        clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+        clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(TENSION_PROBE_MAX_MM_MIN));
+    SYNC_TENSION_PROBE_UP_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0,
+                                              mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
+    SYNC_TENSION_PROBE_DOWN_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0,
+                                                mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
     SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S =
-        clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+        clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0,
+                mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
 
-    SYNC_COMPRESSION_BIAS_FRAC = clamp_f(CONF_SYNC_COMPRESSION_BIAS_FRAC, 0.0f, 0.7f);
+    SYNC_COMPRESSION_BIAS_FRAC =
+        clamp_f(CONF_SYNC_COMPRESSION_BIAS_FRAC, 0.0f, COMPRESSION_BIAS_MAX_FRAC);
     flow_schedule_reset_runtime();
 
-    BUF_STAB_SPS = clamp_i(CONF_BUF_STAB_SPS, 10, 10000);
+    BUF_STAB_SPS = clamp_i(CONF_BUF_STAB_SPS, BUF_STAB_MIN_SPS, BUF_STAB_MAX_SPS);
     JOIN_SPS = CONF_JOIN_SPS;
     PRESS_SPS = CONF_PRESS_SPS;
     COMPRESSION_SPS = CONF_COMPRESSION_SPS;
@@ -173,8 +205,8 @@ static void settings_defaults_motion(void) {
     REV_SPS = CONF_REV_SPS;
     AUTO_SPS = CONF_AUTO_SPS;
 
-    GLOBAL_MAX_SPS =
-        clamp_i(CONF_GLOBAL_MAX_SPS, mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
+    GLOBAL_MAX_SPS = clamp_i(CONF_GLOBAL_MAX_SPS, mm_per_min_to_sps(GLOBAL_MAX_MIN_MM_MIN),
+                             mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
     SYNC_MAX_SPS = sync_clamp_max_sps(CONF_SYNC_MAX_SPS);
     SYNC_MIN_SPS = CONF_SYNC_MIN_SPS;
     SYNC_RAMP_UP_SPS = CONF_SYNC_RAMP_UP_SPS;
@@ -193,7 +225,7 @@ static void settings_defaults_motion(void) {
     DIST_OUT_Y = CONF_DIST_OUT_Y;
     DIST_Y_BUF = CONF_DIST_Y_BUF;
     BUF_BODY_LEN = CONF_BUF_BODY_LEN;
-    BUF_MAX_TRAVEL_MM = clamp_i(CONF_BUF_MAX_TRAVEL_MM, 10, 1000);
+    BUF_MAX_TRAVEL_MM = clamp_i(CONF_BUF_MAX_TRAVEL_MM, BUF_TRAVEL_MIN_MM, BUF_TRAVEL_MAX_MM);
     BUF_SWITCH_SPAN_HALF_MM =
         buf_switch_span_half_from_full(CONF_BUF_SWITCH_SPAN_MM, BUF_MAX_TRAVEL_MM);
     ZONE_BIAS_BASE_SPS = CONF_ZONE_BIAS_BASE_SPS;
@@ -250,7 +282,7 @@ void settings_save(void) {
     s.reload_join_delay_ms = RELOAD_JOIN_DELAY_MS;
     s.auto_mode = AUTO_MODE;
     s.auto_preload = AUTO_PRELOAD ? 1 : 0;
-    s.buf_switch_span_mm = BUF_SWITCH_SPAN_HALF_MM * 2.0f;
+    s.buf_switch_span_mm = BUF_SWITCH_SPAN_HALF_MM * FULL_SPAN_MULT_F;
     s.dist_in_out = DIST_IN_OUT;
     s.dist_out_y = DIST_OUT_Y;
     s.dist_y_buf = DIST_Y_BUF;
@@ -312,14 +344,14 @@ void settings_save(void) {
 
     s.crc32 = crc32_buf((const uint8_t *)&s, offsetof(settings_t, crc32));
 
-    uint8_t buffer[512] = {0};
+    uint8_t buffer[SETTINGS_FLASH_BUFFER_BYTES] = {0};
     memcpy(buffer, &s, sizeof(s));
 
     stop_all();
 
     uint32_t ints = save_and_disable_interrupts();
     flash_range_erase(SETTINGS_FLASH_OFFSET, FLASH_SECTOR_SIZE);
-    flash_range_program(SETTINGS_FLASH_OFFSET, buffer, 512);
+    flash_range_program(SETTINGS_FLASH_OFFSET, buffer, SETTINGS_FLASH_BUFFER_BYTES);
     restore_interrupts(ints);
 }
 
@@ -336,7 +368,7 @@ void sync_tmc_settings(int lane) {
     tmc_set_run_current_ma(tmc, TMC_RUN_CURRENT_MA[idx], TMC_HOLD_CURRENT_MA[idx]);
 
     // Synchronize shadow state for protocol reporting
-    g_shadow_vsense[idx] = (TMC_RUN_CURRENT_MA[idx] <= 980);
+    g_shadow_vsense[idx] = (TMC_RUN_CURRENT_MA[idx] <= TMC_VSENSE_THRESHOLD_MA);
     g_shadow_ihold_irun[idx] = build_ihold_irun_reg(TMC_RUN_CURRENT_MA[idx],
                                                     TMC_HOLD_CURRENT_MA[idx], g_shadow_vsense[idx]);
     g_shadow_ihold_irun_valid[idx] = true;
@@ -354,8 +386,8 @@ static void tmc_apply_all(void) {
     tmc_set_run_current_ma(&g_tmc_l1, TMC_RUN_CURRENT_MA[0], TMC_HOLD_CURRENT_MA[0]);
     tmc_set_run_current_ma(&g_tmc_l2, TMC_RUN_CURRENT_MA[1], TMC_HOLD_CURRENT_MA[1]);
 
-    g_shadow_vsense[0] = (TMC_RUN_CURRENT_MA[0] <= 980);
-    g_shadow_vsense[1] = (TMC_RUN_CURRENT_MA[1] <= 980);
+    g_shadow_vsense[0] = (TMC_RUN_CURRENT_MA[0] <= TMC_VSENSE_THRESHOLD_MA);
+    g_shadow_vsense[1] = (TMC_RUN_CURRENT_MA[1] <= TMC_VSENSE_THRESHOLD_MA);
     g_shadow_ihold_irun[0] =
         build_ihold_irun_reg(TMC_RUN_CURRENT_MA[0], TMC_HOLD_CURRENT_MA[0], g_shadow_vsense[0]);
     g_shadow_ihold_irun[1] =
@@ -369,8 +401,8 @@ static void settings_load_motion(const settings_t *s) {
     REV_SPS = s->rev_sps;
     AUTO_SPS = s->auto_sps;
 
-    GLOBAL_MAX_SPS =
-        clamp_i(s->global_max_sps, mm_per_min_to_sps(1000.0f), mm_per_min_to_sps(12000.0f));
+    GLOBAL_MAX_SPS = clamp_i(s->global_max_sps, mm_per_min_to_sps(GLOBAL_MAX_MIN_MM_MIN),
+                             mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
     SYNC_MAX_SPS = sync_clamp_max_sps(s->sync_max_sps);
     SYNC_MIN_SPS = s->sync_min_sps;
     SYNC_AUTO_STOP_MS = s->sync_auto_stop_ms;
@@ -381,7 +413,7 @@ static void settings_load_motion(const settings_t *s) {
     RELOAD_JOIN_DELAY_MS = s->reload_join_delay_ms;
     AUTO_MODE = s->auto_mode;
     AUTO_PRELOAD = (s->auto_preload != 0);
-    BUF_MAX_TRAVEL_MM = clamp_i(s->buf_max_travel_mm, 10, 1000);
+    BUF_MAX_TRAVEL_MM = clamp_i(s->buf_max_travel_mm, BUF_TRAVEL_MIN_MM, BUF_TRAVEL_MAX_MM);
     BUF_SWITCH_SPAN_HALF_MM =
         buf_switch_span_half_from_full(s->buf_switch_span_mm, BUF_MAX_TRAVEL_MM);
     DIST_IN_OUT = s->dist_in_out;
@@ -437,23 +469,27 @@ static void settings_load_sync_reload(const settings_t *s) {
     BUF_PSF_NEUTRAL = s->buf_psf_neutral;
     BUF_GOAL = s->buf_psf_goal;
     SYNC_KP_SPS = s->sync_kp_sps;
-    SYNC_RESERVE_PCT = clamp_i(s->sync_reserve_pct, 0, 150);
-    RELAY_CATCHUP_FRAC = clamp_f(s->relay_catchup_frac, 0.5f, 3.0f);
-    RELAY_NEUTRAL_FRAC = clamp_f(s->relay_neutral_frac, 0.5f, 3.0f);
-    SYNC_COMPRESSION_DRAIN_FRAC = clamp_f(CONF_SYNC_COMPRESSION_DRAIN_FRAC, 0.0f, 0.9f);
-    SYNC_COMPRESSION_DRAIN_BUDGET_MM = clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, 25.0f);
-    SYNC_EST_ATTACK_ALPHA = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, 0.65f, 1.0f);
-    SYNC_TENSION_FAST_MM_S = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, 200.0f);
+    SYNC_RESERVE_PCT = clamp_i(s->sync_reserve_pct, 0, SYNC_RESERVE_MAX_PCT);
+    RELAY_CATCHUP_FRAC = clamp_f(s->relay_catchup_frac, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
+    RELAY_NEUTRAL_FRAC = clamp_f(s->relay_neutral_frac, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
+    SYNC_COMPRESSION_DRAIN_FRAC =
+        clamp_f(CONF_SYNC_COMPRESSION_DRAIN_FRAC, 0.0f, COMPRESSION_DRAIN_MAX_FRAC);
+    SYNC_COMPRESSION_DRAIN_BUDGET_MM =
+        clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, COMPRESSION_DRAIN_BUDGET_MAX_MM);
+    SYNC_EST_ATTACK_ALPHA = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, SYNC_EST_ATTACK_MIN_ALPHA, 1.0f);
+    SYNC_TENSION_FAST_MM_S = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, SYNC_TENSION_FAST_MAX_MM_S);
     SYNC_TENSION_PROBE_MAX_SPS =
-        clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(6000.0f));
-    SYNC_TENSION_PROBE_UP_SPS_PER_S =
-        clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
-    SYNC_TENSION_PROBE_DOWN_SPS_PER_S =
-        clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+        clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(TENSION_PROBE_MAX_MM_MIN));
+    SYNC_TENSION_PROBE_UP_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0,
+                                              mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
+    SYNC_TENSION_PROBE_DOWN_SPS_PER_S = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0,
+                                                mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
     SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S =
-        clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0, mm_per_min_to_sps(12000.0f));
+        clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0,
+                mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
 
-    SYNC_COMPRESSION_BIAS_FRAC = clamp_f(s->sync_compression_bias_frac, 0.0f, 0.7f);
+    SYNC_COMPRESSION_BIAS_FRAC =
+        clamp_f(s->sync_compression_bias_frac, 0.0f, COMPRESSION_BIAS_MAX_FRAC);
     flow_schedule_reset_runtime();
 
     RELOAD_MODE = s->reload_mode ? 1 : 0;
