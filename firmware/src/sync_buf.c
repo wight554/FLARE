@@ -619,11 +619,13 @@ static void buf_update_estimator(buf_state_t old, buf_state_t new_state, float t
     bool neutral_drain_sample = (old == BUF_NEUTRAL && new_state == BUF_TENSION);
     bool compression_drain_sample = (old == BUF_COMPRESSION && new_state == BUF_NEUTRAL);
     bool has_known_travel = fabsf(travel_mm) > ESTIMATOR_TRAVEL_EPSILON_MM;
+    float hyst_ms = (float)BUF_HYST_MS;
+    float hyst_debounce_ms = hyst_ms / (float)BUF_HYST_DEBOUNCE_DIVISOR;
 
     if (BUF_SENSOR_TYPE == 0 &&
         (neutral_fill_sample || neutral_drain_sample || compression_drain_sample) &&
-        prev_dwell > (uint32_t)BUF_HYST_MS) {
-        uint32_t effective_dwell = prev_dwell - (uint32_t)(BUF_HYST_MS / BUF_HYST_DEBOUNCE_DIVISOR);
+        prev_dwell > hyst_ms) {
+        uint32_t effective_dwell = (uint32_t)(prev_dwell - hyst_debounce_ms);
         if (effective_dwell < EFFECTIVE_DWELL_MIN_MS)
             effective_dwell = EFFECTIVE_DWELL_MIN_MS;
         if (has_known_travel) {

@@ -374,7 +374,12 @@ static void tc_tick_reload_wait_y(lane_t *lane, uint32_t now_ms, uint32_t age) {
 }
 
 static void tc_tick_reload_approach(lane_t *lane, uint32_t now_ms, uint32_t age) {
-    if (lane && lane->task == TASK_IDLE) {
+    if (!lane) {
+        tc_enter_error("RELOAD_APPROACH_FAULT");
+        return;
+    }
+
+    if (lane->task == TASK_IDLE) {
         tc_enter_error("RELOAD_APPROACH_FAULT");
         return;
     }
@@ -386,16 +391,14 @@ static void tc_tick_reload_approach(lane_t *lane, uint32_t now_ms, uint32_t age)
         contacted = (g_buf.state == BUF_COMPRESSION);
     }
 
-    if (lane && lane->task_limit_mm > 0.0f && lane->task_dist_mm >= lane->task_limit_mm) {
+    if (lane->task_limit_mm > 0.0f && lane->task_dist_mm >= lane->task_limit_mm) {
         lane_stop(lane);
         tc_enter_error("RELOAD_APPROACH_TIMEOUT");
         return;
     }
 
     if (contacted) {
-        if (lane) {
-            lane_stop(lane);
-        }
+        lane_stop(lane);
         g_tc_ctx.reload_current_sps = COMPRESSION_SPS;
         g_tc_ctx.last_compression_ms = (g_buf.state == BUF_COMPRESSION) ? now_ms : 0;
         g_tc_ctx.wall_critical_since_ms = 0;

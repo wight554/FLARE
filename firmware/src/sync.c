@@ -314,9 +314,10 @@ void buffer_stabilize_tick(uint32_t now_ms) {
     }
 
     if (!g_boot_stabilizing) {
-        if (!buffer_stabilize_controller_idle()) {
-            g_idle_compression_since_ms = 0;
-        } else if (buf_state_raw() == BUF_COMPRESSION && buffer_negative_sync_eligible()) {
+        bool can_start_negative_sync = buffer_stabilize_controller_idle() &&
+                                       buf_state_raw() == BUF_COMPRESSION &&
+                                       buffer_negative_sync_eligible();
+        if (can_start_negative_sync) {
             if (g_idle_compression_since_ms == 0)
                 g_idle_compression_since_ms = now_ms;
             if (POST_PRINT_STAB_DELAY_MS <= 0 ||
@@ -1522,6 +1523,23 @@ static float sync_effective_reserve_target(buf_state_t s, float bp_eff, float ra
     return raw_target + sync_reserve_integral_mm;
 }
 
+static void sync_warn_tension_risk(uint32_t now_ms) {
+    if (TENSION_RISK_THRESHOLD <= 0) {
+        return;
+    }
+
+    int tension_pin_count = sync_tension_pin_window_count(now_ms);
+    if (tension_pin_count < TENSION_RISK_THRESHOLD) {
+        return;
+    }
+
+    if (g_tension_risk_emit_ms == 0 ||
+        (now_ms - g_tension_risk_emit_ms) >= SYNC_TENSION_RISK_WARN_INTERVAL_MS) {
+        g_tension_risk_emit_ms = now_ms;
+        cmd_event("SYNC", "TENSION_RISK_HIGH");
+    }
+}
+
 static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *lane) {
     sync_sample_mmu_dwell(lane);
     float raw_target = buf_target_reserve_mm();
@@ -1580,17 +1598,7 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
         return -1;
     }
 
-    /* TENSION-risk density warning (warn-only, default threshold=4) */
-    if (TENSION_RISK_THRESHOLD > 0) {
-        int tpx = sync_tension_pin_window_count(now_ms);
-        if (tpx >= TENSION_RISK_THRESHOLD) {
-            if (g_tension_risk_emit_ms == 0 ||
-                (now_ms - g_tension_risk_emit_ms) >= SYNC_TENSION_RISK_WARN_INTERVAL_MS) {
-                g_tension_risk_emit_ms = now_ms;
-                cmd_event("SYNC", "TENSION_RISK_HIGH");
-            }
-        }
-    }
+    sync_warn_tension_risk(now_ms);
 
     target_sps = sync_apply_scaling(target_sps, target_norm, pos_norm);
 
@@ -1637,8 +1645,9 @@ static int sync_apply_type_p_smoothing(int target_sps, float dt_s) {
     float move = fabsf(extruder_est_sps) * MM_PER_STEP[idx] * dt_s;
 
     /* 1. EMA the target over distance: alpha = 1 - exp(-move/L). */
-    float L = (SYNC_PSF_FILTER_MM > PSF_FILTER_MIN_MM) ? SYNC_PSF_FILTER_MM : PSF_FILTER_MIN_MM;
-    float alpha = 1.0f - expf(-move / L);
+    float filter_len_mm =
+        (SYNC_PSF_FILTER_MM > PSF_FILTER_MIN_MM) ? SYNC_PSF_FILTER_MM : PSF_FILTER_MIN_MM;
+    float alpha = 1.0f - expf(-move / filter_len_mm);
     g_psf_target_filt += alpha * ((float)target_sps - g_psf_target_filt);
 
     /* 2. Slew-limit the applied rate, clamped so it never overshoots the

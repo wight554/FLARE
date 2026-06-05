@@ -107,13 +107,13 @@ bool cmd_handle_tmc_advanced(const char *cmd, const char *p, uint32_t now_ms) {
             tmc_t probe = (ln == 1) ? g_tmc_l1 : g_tmc_l2;
             char out[TMC_RAW_REPLY_MAX];
             int pos = snprintf(out, sizeof(out), "%d:", ln);
-            for (uint8_t a = 0; a < TMC_UART_ADDR_COUNT; a++) {
-                probe.addr = a;
+            for (int addr = 0; addr < TMC_UART_ADDR_COUNT; addr++) {
+                probe.addr = (uint8_t)addr;
                 uint8_t buf[TMC_RAW_REPLY_LEN] = {0};
                 int n = tmc_read_raw(&probe, TMC_REG_GCONF, buf);
                 pos += snprintf(out + pos, sizeof(out) - pos,
-                                "A%u:N=%d:%02X%02X%02X%02X%02X%02X%02X%02X ", a, n, buf[0], buf[1],
-                                buf[RAW_REPLY_REG_IDX], buf[RAW_REPLY_DATA3_IDX],
+                                "A%u:N=%d:%02X%02X%02X%02X%02X%02X%02X%02X ", (unsigned int)addr, n,
+                                buf[0], buf[1], buf[RAW_REPLY_REG_IDX], buf[RAW_REPLY_DATA3_IDX],
                                 buf[RAW_REPLY_DATA2_IDX], buf[RAW_REPLY_DATA1_IDX],
                                 buf[RAW_REPLY_DATA0_IDX], buf[RAW_REPLY_CRC_IDX]);
             }

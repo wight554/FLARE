@@ -119,7 +119,7 @@ uint8_t tmc_crc8(const uint8_t *data, uint8_t len) {
     uint8_t crc = 0;
     for (uint8_t i = 0; i < len; i++) {
         uint8_t b = data[i];
-        for (uint8_t j = 0; j < TMC_CRC_BITS_PER_BYTE; j++) {
+        for (int j = 0; j < TMC_CRC_BITS_PER_BYTE; j++) {
             uint8_t mix = (crc >> TMC_CRC_TOP_BIT_SHIFT) ^ (b & 1u);
             crc <<= 1;
             if (mix) {

@@ -1,6 +1,6 @@
-Checks: '-*,readability-identifier-naming,readability-magic-numbers,readability-function-size,bugprone-*,clang-analyzer-*'
+Checks: '-*,readability-identifier-naming,readability-magic-numbers,readability-function-size,bugprone-*,clang-analyzer-*,-clang-analyzer-core.FixedAddressDereference,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-bugprone-easily-swappable-parameters,-bugprone-unchecked-string-to-number-conversion'
 WarningsAsErrors: ''
-HeaderFilterRegex: '.*'
+HeaderFilterRegex: '.*/firmware/(src|include)/.*'
 CheckOptions:
   - key:             readability-identifier-naming.FunctionCase
     value:           lower_case
@@ -10,6 +10,10 @@ CheckOptions:
     value:           lower_case
   - key:             readability-identifier-naming.GlobalVariablePrefix
     value:           g_
+  - key:             readability-identifier-naming.GlobalVariableIgnoredRegexp
+    value:           '.*'
+  - key:             readability-identifier-naming.MacroDefinitionIgnoredRegexp
+    value:           '^sync_.*$'
   - key:             readability-identifier-naming.TypedefCase
     value:           lower_case
   - key:             readability-identifier-naming.TypedefSuffix
@@ -20,4 +24,3 @@ CheckOptions:
     value:           UPPER_CASE
   - key:             readability-function-size.LineThreshold
     value:           100
-

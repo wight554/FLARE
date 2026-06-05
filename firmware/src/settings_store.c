@@ -125,13 +125,19 @@ static float buf_switch_span_half_from_full(float span_mm, int max_travel_mm) {
 }
 
 static void settings_defaults_tmc(void) {
+    const int follow_timeout_ms[NUM_LANES] = {CONF_L1_FOLLOW_TIMEOUT_MS, CONF_L2_FOLLOW_TIMEOUT_MS};
+    const int run_current_ma[NUM_LANES] = {CONF_L1_RUN_CURRENT_MA, CONF_L2_RUN_CURRENT_MA};
+    const int hold_current_ma[NUM_LANES] = {CONF_L1_HOLD_CURRENT_MA, CONF_L2_HOLD_CURRENT_MA};
+    const int microsteps[NUM_LANES] = {CONF_L1_MICROSTEPS, CONF_L2_MICROSTEPS};
+    const int stealthchop_sps[NUM_LANES] = {CONF_L1_STEALTHCHOP_THRESHOLD,
+                                            CONF_L2_STEALTHCHOP_THRESHOLD};
+
     for (int i = 0; i < NUM_LANES; i++) {
-        FOLLOW_TIMEOUT_MS[i] = (i == 0) ? CONF_L1_FOLLOW_TIMEOUT_MS : CONF_L2_FOLLOW_TIMEOUT_MS;
-        TMC_RUN_CURRENT_MA[i] = (i == 0) ? CONF_L1_RUN_CURRENT_MA : CONF_L2_RUN_CURRENT_MA;
-        TMC_HOLD_CURRENT_MA[i] = (i == 0) ? CONF_L1_HOLD_CURRENT_MA : CONF_L2_HOLD_CURRENT_MA;
-        TMC_MICROSTEPS[i] = (i == 0) ? CONF_L1_MICROSTEPS : CONF_L2_MICROSTEPS;
-        TMC_STEALTHCHOP_SPS[i] =
-            (i == 0) ? CONF_L1_STEALTHCHOP_THRESHOLD : CONF_L2_STEALTHCHOP_THRESHOLD;
+        FOLLOW_TIMEOUT_MS[i] = follow_timeout_ms[i];
+        TMC_RUN_CURRENT_MA[i] = run_current_ma[i];
+        TMC_HOLD_CURRENT_MA[i] = hold_current_ma[i];
+        TMC_MICROSTEPS[i] = microsteps[i];
+        TMC_STEALTHCHOP_SPS[i] = stealthchop_sps[i];
     }
 
     MM_PER_STEP[0] = CONF_L1_MM_PER_STEP;
@@ -359,8 +365,9 @@ void sync_tmc_settings(int lane) {
     int idx = lane_to_idx(lane);
     tmc_t *tmc = (lane == 1) ? &g_tmc_l1 : &g_tmc_l2;
 
-    MM_PER_STEP[idx] = TMC_ROTATION_DISTANCE[idx] /
-                       (float)(TMC_FULL_STEPS[idx] * TMC_GEAR_RATIO[idx] * TMC_MICROSTEPS[idx]);
+    MM_PER_STEP[idx] =
+        TMC_ROTATION_DISTANCE[idx] /
+        ((float)TMC_FULL_STEPS[idx] * TMC_GEAR_RATIO[idx] * (float)TMC_MICROSTEPS[idx]);
 
     tmc_setup_chopconf(tmc, TMC_MICROSTEPS[idx], TMC_TOFF[idx], TMC_TBL[idx], TMC_HSTRT[idx],
                        TMC_HEND[idx], TMC_INTERPOLATE[idx]);
@@ -444,7 +451,7 @@ static void settings_load_tmc(const settings_t *s) {
         TMC_RUN_CURRENT_MA[i] = s->tmc_run_current_ma[i];
         TMC_HOLD_CURRENT_MA[i] = s->tmc_hold_current_ma[i];
         MM_PER_STEP[i] = TMC_ROTATION_DISTANCE[i] /
-                         (float)(TMC_FULL_STEPS[i] * TMC_GEAR_RATIO[i] * TMC_MICROSTEPS[i]);
+                         ((float)TMC_FULL_STEPS[i] * TMC_GEAR_RATIO[i] * (float)TMC_MICROSTEPS[i]);
     }
 }
 

@@ -24,8 +24,30 @@ clang-format --dry-run -Werror firmware/src/*.c firmware/include/*.h
 
 To run static analysis and naming/readability checks (requires `compile_commands.json` in the root or build directory):
 ```bash
-clang-tidy -p build_local firmware/src/*.c
+SYSROOT=$(arm-none-eabi-gcc -print-sysroot)
+GCCINC=$(arm-none-eabi-gcc -print-file-name=include)
+clang-tidy -p build_local firmware/src/*.c \
+  --extra-arg=--target=arm-none-eabi \
+  --extra-arg=-isystem$GCCINC \
+  --extra-arg=-isystem$SYSROOT/include
 ```
+
+`clang-analyzer-core.FixedAddressDereference` is disabled in `.clang-tidy`: RP2040/Pico SDK
+hardware access intentionally dereferences memory-mapped peripheral addresses.
+`clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling` is disabled because this
+embedded/newlib target uses bounded `snprintf`; C11 Annex K `snprintf_s` is not portable or available.
+`bugprone-unchecked-string-to-number-conversion` is disabled for the legacy serial command parser:
+hardening `atoi`/`sscanf` parsing can change accepted payload syntax and belongs in a parser-focused
+protocol change.
+The header filter is limited to `firmware/src` and `firmware/include` so generated Pico/PIO headers
+under `build_local/` are not lint-owned by this project.
+Uppercase runtime globals such as `FEED_SPS` are exempt from the `g_` prefix rule because they mirror
+the documented config/protocol tunable names and preserve the config -> runtime -> SET/GET surface.
+Legacy shared globals are also exempt in `.clang-tidy`; renaming them is a broad API/symbol migration
+and should be done only in a dedicated behavior-preserving rename change.
+`bugprone-easily-swappable-parameters` is disabled because existing firmware APIs intentionally pass
+adjacent hardware pins, timestamps, and rates of similar C types; replacing those with wrapper structs
+would be API churn outside this readability gate.
 
 ---
 

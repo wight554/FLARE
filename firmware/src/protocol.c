@@ -1509,9 +1509,9 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
                    Do not use RETRACT_ASSIST: UL: calls sync_disable anyway and
                    the RA state is superfluous here. */
                 {
-                    lane_t *_Aold = lane_ptr(active_lane);
-                    if (_Aold && _Aold->task == TASK_FEED)
-                        lane_stop(_Aold);
+                    lane_t *old_lane = lane_ptr(active_lane);
+                    if (old_lane && old_lane->task == TASK_FEED)
+                        lane_stop(old_lane);
                 }
                 sync_disable(false);
                 set_active_lane(ln);
@@ -1771,7 +1771,8 @@ static bool cmd_handle_system(const char *cmd, const char *p, uint32_t now_ms) {
 }
 
 static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
-    if (manual_unload_active() && strcmp(cmd, "ST") && strcmp(cmd, "?") && strcmp(cmd, "GET")) {
+    if (manual_unload_active() && strcmp(cmd, "ST") != 0 && strcmp(cmd, "?") != 0 &&
+        strcmp(cmd, "GET") != 0) {
         cmd_reply("ER", "BUSY");
         return;
     }
@@ -1786,9 +1787,13 @@ static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
 
     if (cmd_handle_sensor_status(cmd, p, now_ms)) {
         return;
-    } else if (cmd_handle_system(cmd, p, now_ms)) {
+    }
+
+    if (cmd_handle_system(cmd, p, now_ms)) {
         return;
-    } else if (!strcmp(cmd, "SET")) {
+    }
+
+    if (!strcmp(cmd, "SET")) {
         cmd_handle_set(p, now_ms);
     } else if (!strcmp(cmd, "GET")) {
         cmd_handle_get(p, now_ms);
