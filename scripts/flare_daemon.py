@@ -920,6 +920,102 @@ def _moonraker_get_gate_spool_ids(moonraker_url):
     except Exception:
         return []
 
+_MMU_RECONCILE_STATUS_KEYS = {
+    "NUM_GATES": "num_gates",
+    "ACTIVE_GATE": "active_gate",
+    "GATE": "gate",
+    "TOOL": "tool",
+    "ACTION": "action",
+    "TC_STATE": "tc_state",
+    "GATE_STATUS": "gate_status",
+    "GATE_SENSOR": "gate_sensor",
+    "TOOLHEAD_SENSOR": "toolhead_sensor",
+    "SYNC_FEEDBACK": "sync_feedback",
+    "SYNC_FEEDBACK_ENABLED": "sync_feedback_enabled",
+    "SYNC_FEEDBACK_STATE": "sync_feedback_state",
+    "PRINT_JOB_STATE": "print_job_state",
+    "PRINT_STATE": "print_state",
+    "BOARD_ONLINE": "board_online",
+    "SPS": "sps",
+    "RELOAD_MODE": "reload_mode",
+    "ENABLE_CUTTER": "enable_cutter",
+    "UNLOAD_CUT": "unload_cut",
+    "BUF_SENSOR_TYPE": "buf_sensor_type",
+    "GATE_SENSOR_ACTIVE": "gate_sensor_active",
+    "EXTRUDER_SENSOR_ACTIVE": "extruder_sensor_active",
+    "PRE_GATE_SENSOR_ACTIVE": "pre_gate_sensor_active",
+    "HUB_SENSOR_ACTIVE": "hub_sensor_active",
+    "SWAPS_TOTAL": "swaps_total",
+    "SWAPS_SUCCESS": "swaps_success",
+    "SWAPS_FAILED": "swaps_failed",
+    "LOADS_SUCCESS": "loads_success",
+    "UNLOADS_SUCCESS": "unloads_success",
+    "MMU_LAST_ERROR": "last_error",
+    "FEED_RATE": "board_feed_rate",
+    "REV_RATE": "board_rev_rate",
+    "BYPASS": "bypass",
+}
+
+_MMU_RECONCILE_FLOATS = {
+    "SYNC_FEEDBACK": 3,
+    "SPS": 3,
+    "FEED_RATE": 2,
+    "REV_RATE": 2,
+}
+
+_MMU_RECONCILE_STRINGS = {
+    "ACTION",
+    "TC_STATE",
+    "GATE_STATUS",
+    "GATE_SENSOR",
+    "SYNC_FEEDBACK_STATE",
+    "PRINT_JOB_STATE",
+    "PRINT_STATE",
+    "MMU_LAST_ERROR",
+}
+
+def _moonraker_get_mmu_status(moonraker_url):
+    """Read Klipper's mmu object through Moonraker. Returns None if absent/offline."""
+    try:
+        url = f"{moonraker_url}/printer/objects/query?mmu"
+        with urllib.request.urlopen(url, timeout=1.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        mmu_status = data.get("result", {}).get("status", {}).get("mmu")
+        return mmu_status if isinstance(mmu_status, dict) else None
+    except Exception:
+        return None
+
+def _format_mmu_reconcile_value(key, status, desired_fields):
+    """Return the SET_MMU-formatted value represented by a Moonraker mmu status."""
+    status_key = _MMU_RECONCILE_STATUS_KEYS.get(key)
+    if status_key is None or status_key not in status:
+        return None
+
+    value = status[status_key]
+    if key in ("ACTIVE_GATE", "GATE", "TOOL") and desired_fields.get("BYPASS") == "1":
+        return desired_fields.get(key)  # cmd_SET_MMU stores -2 while command carries lane fields.
+    elif key == "BYPASS":
+        value = 1 if bool(value) else 0
+
+    if key in _MMU_RECONCILE_FLOATS:
+        return f"{float(value):.{_MMU_RECONCILE_FLOATS[key]}f}"
+    if key in _MMU_RECONCILE_STRINGS:
+        if isinstance(value, (list, tuple)):
+            value = ",".join(str(x) for x in value)
+        return f"'{str(value)}'"
+    if isinstance(value, bool):
+        return str(1 if value else 0)
+    return str(value)
+
+def _mmu_status_matches_fields(mmu_status, fields):
+    """True when the Klipper mmu mock already stores the desired mirror fields."""
+    if not isinstance(mmu_status, dict):
+        return False
+    for key, desired in fields.items():
+        if _format_mmu_reconcile_value(key, mmu_status, fields) != desired:
+            return False
+    return True
+
 def _moonraker_set_active_spool(moonraker_url, spool_id):
     """Set Moonraker's active Spoolman spool (None clears it). Moonraker then
     bills filament consumption to this spool. No-op/ignored if Spoolman is not
@@ -1002,12 +1098,10 @@ def klipper_syncer(moonraker_url):
         if abs(sync_feedback - last_sync_feedback) > 0.05:
             changed = True
 
-        # Force full sync every 10 seconds to recover if Klipper/Moonraker restarted.
-        # full = send every SET_MMU field (not just the delta) for restart recovery.
+        reconcile_due = time.time() - last_force_sync > 10.0
+
+        # Full sync = send every SET_MMU field (not just the delta).
         force_full = False
-        if time.time() - last_force_sync > 10.0:
-            changed = True
-            force_full = True
 
         board_online = state.get("board_online", False)
         trigger_board_sync = False
@@ -1019,7 +1113,7 @@ def klipper_syncer(moonraker_url):
         if not last_pushed_fields:
             force_full = True  # first push after start / recovery
 
-        if not changed:
+        if not changed and not reconcile_due:
             continue
 
         lines = []
@@ -1147,6 +1241,15 @@ def klipper_syncer(moonraker_url):
             "REV_RATE": f"{rev_rate:.2f}",
             "BYPASS": str(1 if bypass else 0),
         }
+
+        # Periodic restart recovery is a silent reconcile: read Klipper's mmu
+        # object and only emit a full SET_MMU when the mock diverged or vanished.
+        if reconcile_due:
+            last_force_sync = time.time()
+            mmu_status = _moonraker_get_mmu_status(moonraker_url)
+            if not _mmu_status_matches_fields(mmu_status, fields):
+                changed = True
+                force_full = True
 
         # FLARE_GATE_DEBUG: log gate-relevant inputs when they change, to root-cause
         # the gate-status dot blink. No-op unless the env flag is set.

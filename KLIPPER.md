@@ -121,6 +121,10 @@ Because the install daemon registers mock `[mmu]` and `[mmu_sensors]` modules, M
 2. **Buffer Piston Visualizer**: A sliding block representing the live position of your spring-trolley buffer.
 3. **Control Buttons**: `MMU_LOAD` and `MMU_EJECT` buttons on the dashboard will function correctly, selecting and loading the chosen gate automatically.
 
+If your WebUI console still shows historical `SET_MMU` status traffic, add
+`^SET_MMU` to the Mainsail/Fluidd hidden-command filter. This only hides console
+echo; it does not change daemon behavior or MMU dashboard updates.
+
 ---
 
 ## 🔍 Troubleshooting Connection Problems

@@ -12,9 +12,13 @@ Run: python3 scripts/test_flare_mmu_status.py   (exit 0 = all pass)
 """
 import os
 import sys
+import types
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "klipper"))
 import mmu  # noqa: E402
+sys.modules.setdefault("serial", types.SimpleNamespace())  # flare_daemon import guard
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import flare_daemon  # noqa: E402
 
 
 class FakeReactor:
@@ -224,6 +228,60 @@ def run_tests():
     s = m.get_status(0)
     check("buf_sensor_type 1 exposes filament_proportional", s["sensors"].get("filament_proportional") is True, s["sensors"])
     check("buf_sensor_type 1 does NOT expose filament_tension/compression", "filament_tension" not in s["sensors"] and "filament_compression" not in s["sensors"], s["sensors"])
+
+    print("daemon reconcile — compare Moonraker mmu status to SET_MMU formatting")
+    fields = {
+        "NUM_GATES": "2",
+        "ACTIVE_GATE": "0",
+        "GATE": "0",
+        "TOOL": "0",
+        "ACTION": "'Loading'",
+        "TC_STATE": "'LOAD_START'",
+        "GATE_STATUS": "'1,0'",
+        "GATE_SENSOR": "'1,0'",
+        "TOOLHEAD_SENSOR": "1",
+        "SYNC_FEEDBACK": "0.400",
+        "SYNC_FEEDBACK_ENABLED": "1",
+        "SYNC_FEEDBACK_STATE": "'tension'",
+        "PRINT_JOB_STATE": "'printing'",
+        "PRINT_STATE": "'printing'",
+        "BOARD_ONLINE": "1",
+        "SPS": "12.345",
+        "RELOAD_MODE": "1",
+        "ENABLE_CUTTER": "1",
+        "UNLOAD_CUT": "0",
+        "BUF_SENSOR_TYPE": "1",
+        "GATE_SENSOR_ACTIVE": "1",
+        "EXTRUDER_SENSOR_ACTIVE": "1",
+        "PRE_GATE_SENSOR_ACTIVE": "1",
+        "HUB_SENSOR_ACTIVE": "1",
+        "SWAPS_TOTAL": "3",
+        "SWAPS_SUCCESS": "2",
+        "SWAPS_FAILED": "1",
+        "LOADS_SUCCESS": "4",
+        "UNLOADS_SUCCESS": "5",
+        "MMU_LAST_ERROR": "'None'",
+        "FEED_RATE": "50.25",
+        "REV_RATE": "40.50",
+        "BYPASS": "0",
+    }
+    m, p = new_mock()
+    m.cmd_SET_MMU(FakeGcmd(fields))
+    status = m.get_status(0)
+    check("reconcile matches full field set",
+          flare_daemon._mmu_status_matches_fields(status, fields), status)
+    drifted = dict(status)
+    drifted["sync_feedback"] = 0.5
+    check("reconcile detects float drift",
+          not flare_daemon._mmu_status_matches_fields(drifted, fields), drifted["sync_feedback"])
+    bypass_fields = dict(fields)
+    bypass_fields.update({"BYPASS": "1", "ACTIVE_GATE": "0", "GATE": "0", "TOOL": "0"})
+    m, p = new_mock()
+    m.cmd_SET_MMU(FakeGcmd(bypass_fields))
+    status = m.get_status(0)
+    check("reconcile accepts bypass gate/tool sentinels",
+          flare_daemon._mmu_status_matches_fields(status, bypass_fields),
+          (status["active_gate"], status["gate"], status["tool"]))
 
     print(f"\n{_PASS} passed, {_FAIL} failed")
     sys.exit(1 if _FAIL else 0)
