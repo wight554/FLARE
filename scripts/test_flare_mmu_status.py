@@ -16,6 +16,7 @@ import types
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "klipper"))
 import mmu  # noqa: E402
+
 sys.modules.setdefault("serial", types.SimpleNamespace())  # flare_daemon import guard
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import flare_daemon  # noqa: E402
