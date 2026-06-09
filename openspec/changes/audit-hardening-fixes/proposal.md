@@ -2,7 +2,7 @@
 
 ## Why
 
-Full audit (2026-06-10) of firmware (`firmware/src`, `firmware/include`) + host scripts + docs, plus a verified second-pass (Gemini gap audit), found 19 code defects and a doc-drift cluster: 3 wire-protocol bugs already live (double `EV:` prefix, dead tuner event regex, daemon `RL` completion timeout), 1 unauthenticated network actuator surface (daemon binds `0.0.0.0`), 2 dead validation guards (settings parity test broken AND never executed), toolchange ownership not enforced against host commands, plus flash-trust, cutter-hijack, and TMC shadow-desync hazards. Docs are the root cause of the tuner bug: MANUAL.md/BEHAVIOR.md document events in comma format (`EV:SYNC,FAULT_HOLD`) contradicting MANUAL.md's own normative `EV:TYPE:DATA`; the tuner was coded to the docs. All small surgical fixes; none change control laws.
+Full audit (2026-06-10) of firmware (`firmware/src`, `firmware/include`) + host scripts + docs + Klipper/WebUI integration, plus a verified second-pass (Gemini gap audit), found 27 code defects and a doc-drift cluster: 3 wire-protocol bugs already live (double `EV:` prefix, dead tuner event regex, daemon `RL` completion timeout), 1 unauthenticated network actuator surface (daemon binds `0.0.0.0`), 2 dead validation guards (settings parity test broken AND never executed), toolchange ownership not enforced against host commands, plus flash-trust, cutter-hijack, and TMC shadow-desync hazards. Docs are the root cause of the tuner bug: MANUAL.md/BEHAVIOR.md document events in comma format (`EV:SYNC,FAULT_HOLD`) contradicting MANUAL.md's own normative `EV:TYPE:DATA`; the tuner was coded to the docs. All small surgical fixes; none change control laws.
 
 ## What Changes
 
@@ -32,6 +32,17 @@ Scripts:
 - **S7** `klipper_motion_tracker.py:130-143,151-153`: `poll()` drains `self._messages` before the socket; `list_objects` re-appends any id-mismatched message and loops — one unsolicited Klipper message mid-wait = deterministic infinite CPU spin (poll returns instantly forever, timeout never fires).
 - **S8** `flash_flare.sh:139-148,320-343`: `find_and_mount_rp2` defined but never called; UF2 fallback raw `sudo mount /dev/sd*1` fails on automounted boards (desktop Linux `/media/*`, macOS `/Volumes/RPI-RP2`) and never scans macOS `/dev/disk*`. Fallback-only (picotool USB load is primary path).
 
+Klipper / WebUI integration (mmu mock, daemon mirror, macros, installer):
+
+- **K1** `klipper/mmu.py:897-906`: `FLARE_WAIT_UNLOAD` picks sensors/task via `active_gate == 0 ? lane1 : lane2` — `active_gate` of `-1`/`-2` silently watches lane 2, `unload_completed` can latch on the wrong lane's idle state → premature "Unload complete". Guard gate ∈ {0,1}, else derive from loaded gate or error.
+- **K2** `klipper/mmu.py` wait loops: daemon-unreachable swallowed (`except: pass`) every poll — only exit is the full timeout with a misleading "Unload timed out"/"Toolchange timed out" error. Surface daemon-down after N consecutive failures.
+- **K3** gate-map restore is single-shot: `_load_vars` pulls `/config` once at klippy init (2 s timeout); daemon SET_MMU pushes `GATE_STATUS` but never `GATE_COLOR`/`GATE_MATERIAL`/`GATE_SPOOL_ID`/`GATE_NAME` (flare_daemon.py:1216 vs mock fields); service unit orders only `After=network.target` (no klipper ordering) — klippy-before-daemon boot race leaves colors/spools/names at defaults until a manual reload. Include gate-map fields in the force-full push (or retry `_load_vars`).
+- **K4** `klipper/mmu.py:1340-1341,975-977` fallback `bowden_length=1000`/`extruder_to_nozzle=117` diverge from `flare_mmu.cfg:8-9` (`1800`/`125`) — wrong synthetic filament position whenever `_FLARE_VARS` lookup fails. Align defaults.
+- **K5** `flare_daemon.py:518,1092,1096,1134`: type-D piston scale hardcoded `/15.0` half-travel; firmware `BUF_MAX_TRAVEL` is runtime-tunable (tune.h default 25, reference rig 16) — piston display under/over-ranges. Derive half-travel from board config.
+- **K6** `install_daemon.sh:144` never installs `flare_mmu.cfg` (echo-only reminder); extras-dir `mmu.py`/`mmu_sensors.py` copies are wiped by Klipper updates (git clean / update-manager recovery). Install or document the cfg copy explicitly + reinstall-after-Klipper-update note.
+- **K7** `klipper/mmu_sensors.py:26-30,98-102` blanking model (gate ≠ active) differs from `mmu.py` `get_status` path cascade (gear-clear anchored, mmu.py:1334-1336) — sensor dots and filament widget can contradict. Unify on the path cascade.
+- **K8** cosmetics: `install_daemon.sh:10` bogus `NC` color code; service unit has no documented ordering/`Wants=` rationale.
+
 Docs:
 
 - **D1** comma→colon event format: MANUAL.md (4 sites: 226, 227, 234, 308) + BEHAVIOR.md (9 sites) write `EV:TYPE,DATA`; normative format is `EV:TYPE:DATA` (MANUAL.md:9). Source of tuner bug S3.
@@ -54,7 +65,7 @@ Docs:
 ### Modified Capabilities
 
 - `persistence-contract`: flash writes MUST be activity-gated for ALL commands (CAL included); load path MUST validate values feeding divisions before use.
-- `daemon-klipper-mirror`: daemon binds loopback by default; non-local bind explicit opt-in. Event-type split table MUST cover `RELOAD`.
+- `daemon-klipper-mirror`: daemon binds loopback by default; non-local bind explicit opt-in. Event-type split table MUST cover `RELOAD`. Full-resync push MUST include gate-map fields so a klippy restart recovers colors/materials/spool ids without daemon restart ordering luck.
 - `static-regression-validation`: gate MUST execute settings parity check (unittest-discoverable).
 - `live-tuner`: event parsing MUST match firmware colon wire format (`EV:TYPE:DATA`).
 - `project-architecture`: serial protocol — event type MUST NOT include `EV:` prefix (single-prefix invariant); fault-class events exempt from best-effort budget; toolchange ownership gating — lane-mutating commands rejected `ER:BUSY` mid-TC, no silent-no-op-with-OK replies.

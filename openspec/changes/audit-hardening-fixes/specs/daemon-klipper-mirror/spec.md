@@ -33,3 +33,22 @@ format.
 - **WHEN** firmware emits `EV:RELOAD:LOADED:1`
 - **THEN** daemon classifies type `RELOAD:LOADED`, data `1`
 - **AND** `flare_cmd RL` completion-wait matches it and exits 0
+
+### Requirement: Full resync includes gate-map fields
+
+The daemon's force-full `SET_MMU` push SHALL include the persisted gate-map
+fields (`GATE_COLOR`, `GATE_MATERIAL`, `GATE_SPOOL_ID`, gate names) in addition
+to live state, so a Klipper restart recovers the complete mock state without
+relying on the mock's one-shot `/config` pull at klippy init (which races
+daemon startup ordering).
+
+#### Scenario: Klipper restarts while daemon is up
+
+- **WHEN** klippy restarts and the next force-full push fires
+- **THEN** gate colors, materials, and spool ids reappear in Mainsail/Fluidd
+  without operator action
+
+#### Scenario: Daemon starts after Klipper
+
+- **WHEN** the mock's init-time `/config` pull failed (daemon not yet up)
+- **THEN** the first force-full push after daemon start restores the gate map
