@@ -377,6 +377,7 @@ bool predict_tension_coming(void) {
 // ============================================================================
 
 void buf_analog_update(void) {
+    g_buf_analog_last_sample_ms = to_ms_since_boot(get_absolute_time());
     adc_select_input(PIN_PSF - ADC_PIN_BASE);
     uint32_t sum = 0;
     for (int i = 0; i < ADC_SAMPLE_COUNT; i++)
@@ -889,11 +890,9 @@ void buf_signal_publish(uint32_t now_ms) {
             }
         }
         g_buf_analog_saturated_since_ms = 0;
-        g_buf_analog_last_sample_ms = now_ms;
     } else {
         kind = BUF_SRC_ANALOG;
         norm = g_buf_pos;
-        g_buf_analog_last_sample_ms = now_ms;
         if (fabsf(norm) >= TYPE_P_RAIL_NORM) {
             if (g_buf_analog_saturated_since_ms == 0)
                 g_buf_analog_saturated_since_ms = now_ms;
@@ -930,6 +929,7 @@ void buf_sensor_tick(uint32_t now_ms) {
     }
     if (g_buf_sensor_type == BUF_SENSOR_TYPE_D && do_pos) {
         buf_virtual_position_tick(lane_ptr(g_active_lane), elapsed_ms);
+        g_buf_analog_last_sample_ms = now_ms;
     }
 
     if (do_pos) {

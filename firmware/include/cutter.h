@@ -11,4 +11,4 @@ uint32_t cutter_expected_ms(lane_t *lane, bool enable_feed);
 void cutter_start(lane_t *lane, bool enable_feed, uint32_t now_ms);
 void cutter_abort(void);
 void cutter_tick(uint32_t now_ms);
-void cutter_test_us(uint32_t us);
+bool cutter_test_us(uint32_t us);

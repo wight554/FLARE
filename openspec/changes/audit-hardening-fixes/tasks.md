@@ -8,16 +8,16 @@
 
 ## 2. Firmware — guards & validation
 
-- [ ] 2.1 F2: gate `CAL:PSF_*` saves with `controller_activity_in_progress()` → `ER:PERSIST_BUSY` (protocol.c:1726-1740)
-- [ ] 2.2 F3: `SET:MICROSTEPS` reject non-power-of-2 (`(v&(v-1))==0`, 1..256) → `ER` (protocol.c:919)
-- [ ] 2.3 F4: `settings_load_tmc()` clamp `microsteps` (snap to valid pow2), `full_steps` {200,400}, `gear_ratio`/`rotation_distance` to `TMC_*_MIN/MAX` before `mm_per_step` division (settings_store.c:449-466); guard `tmc_set_stealthchop_sps` against `microsteps <= 0` (tmc2209.c:430)
-- [ ] 2.4 F5: `cutter_test_us` returns false unless `CUT_IDLE`/`CUT_BOOT_PARK`; `CP` handler replies `ER:BUSY` on refusal (cutter.c:196, protocol.c:1275)
-- [ ] 2.5 F7: `TW` reg==CHOPCONF mirrors value into `tmc->chopconf` (protocol_tmc.c:69-74)
-- [ ] 2.6 F8: shared `tc_busy()` gate → `ER:BUSY` for `T:`/`TC:`/`RL:`/`UL:`/`UM:`(active)/`LO:`/`FL:`/`FD:` while TC active; remove silent-no-op-with-OK in `TC:`/`RL:` handlers; `MV:` untouched (protocol.c:1426-1568, toolchange.c tc_start/tc_manual_reload)
-- [ ] 2.7 F9: NULL guard at top of `tc_tick_reload_follow` mirroring `tc_tick_reload_approach` (toolchange.c:526-527 inverted deref-then-check)
-- [ ] 2.8 F10: zero `g_flow_sched_live_delta[]` on sync OFF transition (design D11); verify learned baseline no longer carries across prints in one power-on session
-- [ ] 2.9 F11: `g_buf_signal.age_ms` truthful — stamp `g_buf_analog_last_sample_ms` only on actual fresh sample, or compute age from real sample timestamp (sync_buf.c:892/896/910)
-- [ ] 2.10 Build gate: `ninja -C build_local` + dev superset (`-DFLARE_DEV_TUNING=ON`) clean
+- [x] 2.1 F2: gate `CAL:PSF_*` saves with `controller_activity_in_progress()` → `ER:PERSIST_BUSY` (protocol.c:1726-1740)
+- [x] 2.2 F3: `SET:MICROSTEPS` reject non-power-of-2 (`(v&(v-1))==0`, 1..256) → `ER` (protocol.c:919)
+- [x] 2.3 F4: `settings_load_tmc()` clamp `microsteps` (snap to valid pow2), `full_steps` {200,400}, `gear_ratio`/`rotation_distance` to `TMC_*_MIN/MAX` before `mm_per_step` division (settings_store.c:449-466); guard `tmc_set_stealthchop_sps` against `microsteps <= 0` (tmc2209.c:430)
+- [x] 2.4 F5: `cutter_test_us` returns false unless `CUT_IDLE`/`CUT_BOOT_PARK`; `CP` handler replies `ER:BUSY` on refusal (cutter.c:196, protocol.c:1275)
+- [x] 2.5 F7: `TW` reg==CHOPCONF mirrors value into `tmc->chopconf` (protocol_tmc.c:69-74)
+- [x] 2.6 F8: shared `tc_busy()` gate → `ER:BUSY` for `T:`/`TC:`/`RL:`/`UL:`/`UM:`(active)/`LO:`/`FL:`/`FD:` while TC active; remove silent-no-op-with-OK in `TC:`/`RL:` handlers; `MV:` untouched (protocol.c:1426-1568, toolchange.c tc_start/tc_manual_reload)
+- [x] 2.7 F9: NULL guard at top of `tc_tick_reload_follow` mirroring `tc_tick_reload_approach` (toolchange.c:526-527 inverted deref-then-check)
+- [x] 2.8 F10: zero `g_flow_sched_live_delta[]` on sync OFF transition (design D11); verify learned baseline no longer carries across prints in one power-on session
+- [x] 2.9 F11: `g_buf_signal.age_ms` truthful — stamp `g_buf_analog_last_sample_ms` only on actual fresh sample, or compute age from real sample timestamp (sync_buf.c:892/896/910)
+- [x] 2.10 Build gate: `ninja -C build_local` + dev superset (`-DFLARE_DEV_TUNING=ON`) clean
 
 ## 3. Scripts — protocol drift
 

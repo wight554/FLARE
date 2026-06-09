@@ -446,13 +446,28 @@ static void settings_load_motion(const settings_t *s) {
     g_unload_cut = s->unload_cut;
 }
 
+static int snap_microsteps(int x) {
+    if (x <= 1) return 1;
+    if (x >= 256) return 256;
+    int lower = 1;
+    while (lower * 2 <= x) {
+        lower *= 2;
+    }
+    int upper = lower * 2;
+    if ((x - lower) < (upper - x)) {
+        return lower;
+    } else {
+        return upper;
+    }
+}
+
 static void settings_load_tmc(const settings_t *s) {
     for (int i = 0; i < NUM_LANES; i++) {
         g_follow_timeout_ms[i] = s->follow_timeout_ms[i];
-        g_tmc_rotation_distance[i] = s->tmc_rotation_distance[i];
-        g_tmc_gear_ratio[i] = s->tmc_gear_ratio[i];
-        g_tmc_full_steps[i] = s->tmc_full_steps[i];
-        g_tmc_microsteps[i] = s->tmc_microsteps[i];
+        g_tmc_rotation_distance[i] = clamp_f(s->tmc_rotation_distance[i], TMC_ROTATION_MIN_MM, TMC_ROTATION_MAX_MM);
+        g_tmc_gear_ratio[i] = clamp_f(s->tmc_gear_ratio[i], TMC_GEAR_RATIO_MIN, TMC_GEAR_RATIO_MAX);
+        g_tmc_full_steps[i] = (s->tmc_full_steps[i] == 400) ? 400 : 200;
+        g_tmc_microsteps[i] = snap_microsteps(s->tmc_microsteps[i]);
         g_tmc_tbl[i] = s->tmc_tbl[i];
         g_tmc_toff[i] = s->tmc_toff[i];
         g_tmc_hstrt[i] = s->tmc_hstrt[i];

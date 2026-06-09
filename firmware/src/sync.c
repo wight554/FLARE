@@ -657,6 +657,11 @@ int sync_clamp_max_sps(int requested_sps) {
 void sync_set_state(sync_state_t new_state) {
     if (g_sync_state == new_state)
         return;
+    if (new_state == SYNC_OFF) {
+        for (int i = 0; i < CONF_FLOW_SCHED_CAP; i++) {
+            g_flow_sched_live_delta[i] = 0;
+        }
+    }
     /* Seed the type-P smoothing filter to the current feed on (re)entering active
        sync so it doesn't slew from a stale value left by a prior session. */
     if (new_state == SYNC_ACTIVE)

@@ -11,6 +11,7 @@ void tc_start(int target_lane, uint32_t now_ms);
 void tc_manual_reload(uint32_t now_ms);
 void tc_abort(void);
 tc_state_t tc_state(void);
+bool tc_busy(void);
 void tc_tick(uint32_t now_ms);
 void tc_enter_error(const char *reason);
 void reload_trigger(int runout_lane, uint32_t now_ms);

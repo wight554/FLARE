@@ -34,6 +34,10 @@ tc_state_t tc_state(void) {
     return g_tc_ctx.state;
 }
 
+bool tc_busy(void) {
+    return g_tc_ctx.state != TC_IDLE && g_tc_ctx.state != TC_ERROR;
+}
+
 void tc_enter_error(const char *reason) {
     cmd_event_critical("TC:ERROR", reason);
     stop_all();
@@ -507,14 +511,17 @@ static bool tc_reload_follow_check_jam(lane_t *lane, uint32_t now_ms, uint32_t f
 }
 
 static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
+    if (!lane) {
+        tc_enter_error("RELOAD_FOLLOW_FAULT");
+        return;
+    }
     // Success signal: the new filament has reached the extruder and started pulling,
     // which yanks the buffer to TENSION (or the toolhead sensor trips). Check both
     // the filtered and the raw instantaneous buffer state so a sharp pull is not
     // missed between filter updates. Any of these = loaded, stop feeding and finish.
     buf_state_t instant_buf_state = buf_state_raw();
     if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION || g_toolhead_has_filament) {
-        if (lane)
-            lane_stop(lane);
+        lane_stop(lane);
         set_toolhead_filament(true);
         char lane_s[2];
         lane_id_str(lane_s, g_active_lane);
@@ -524,8 +531,7 @@ static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
     }
 
     if (lane->task_dist_mm >= (float)g_load_max_mm) {
-        if (lane)
-            lane_stop(lane);
+        lane_stop(lane);
         set_toolhead_filament(true);
         char lane_s[2];
         lane_id_str(lane_s, g_active_lane);

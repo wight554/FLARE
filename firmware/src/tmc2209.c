@@ -427,6 +427,8 @@ bool tmc_set_stealthchop_sps(tmc_t *tmc, int sps, int microsteps) {
         // If we send pulses at frequency 'sps' while in 'microsteps' mode,
         // each pulse corresponds to (256/microsteps) internal units.
         // TPWMTHRS = f_clk / (sps * (256 / microsteps))
+        if (microsteps <= 0)
+            return false;
         uint32_t scale = TMC_INTERNAL_MICROSTEPS / (uint32_t)microsteps;
         uint32_t tpwmthrs = TMC_CLOCK_HZ / ((uint32_t)sps * scale);
         if (tpwmthrs > TMC_TPWMTHRS_MAX)

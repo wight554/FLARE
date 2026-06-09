@@ -193,12 +193,15 @@ static void cutter_fail(const char *reason) {
     cmd_event_critical("CUT:ERROR", reason);
 }
 
-void cutter_test_us(uint32_t us) {
+bool cutter_test_us(uint32_t us) {
+    if (g_cut.state != CUT_IDLE && g_cut.state != CUT_BOOT_PARK)
+        return false;
     if (g_cut.lane)
         motor_stop(&g_cut.lane->m);
     servo_set_us(PIN_SERVO, us);
     g_cut.state = CUT_TEST;
     g_cut.phase_start_ms = to_ms_since_boot(get_absolute_time());
+    return true;
 }
 
 static void cutter_tick_feed_wait(uint32_t now_ms, uint32_t age) {

@@ -96,11 +96,6 @@
 #define CUT_AMOUNT_MAX 5
 #define BOOTSEL_REPLY_DELAY_MS 100
 
-static const float TMC_ROTATION_MIN_MM = 0.1f;
-static const float TMC_ROTATION_MAX_MM = 1000.0f;
-static const float TMC_GEAR_RATIO_MIN = 0.001f;
-static const float TMC_GEAR_RATIO_MAX = 1000.0f;
-
 typedef struct {
     char buf[CMD_PARAM_MAX];
     int pos;
@@ -921,7 +916,10 @@ static bool cmd_set_lane_params(const char *base_param, int lane_mask, int iv, f
     } else if (!strcmp(base_param, "HOLD_CURRENT_MA")) {
         SET_LANE({ g_tmc_hold_current_ma[idx] = clamp_i(iv, 0, DRIVER_CURRENT_MAX_MA); });
     } else if (!strcmp(base_param, "MICROSTEPS")) {
-        SET_LANE({ g_tmc_microsteps[idx] = clamp_i(iv, 1, DRIVER_MICROSTEPS_MAX); });
+        if (iv < 1 || iv > DRIVER_MICROSTEPS_MAX || (iv & (iv - 1)) != 0) {
+            return false;
+        }
+        SET_LANE({ g_tmc_microsteps[idx] = iv; });
     } else if (!strcmp(base_param, "ROTATION_DIST")) {
         SET_LANE({
             g_tmc_rotation_distance[idx] = clamp_f(fv, TMC_ROTATION_MIN_MM, TMC_ROTATION_MAX_MM);
@@ -1288,8 +1286,11 @@ static bool cmd_handle_cutter(const char *cmd, const char *p, uint32_t now_ms) {
             return true;
         }
         sync_retract_assist_set(false);
-        cutter_test_us(us);
-        cmd_reply("OK", NULL);
+        if (!cutter_test_us(us)) {
+            cmd_reply("ER", "BUSY");
+        } else {
+            cmd_reply("OK", NULL);
+        }
         return true;
     }
     return false;
@@ -1297,6 +1298,10 @@ static bool cmd_handle_cutter(const char *cmd, const char *p, uint32_t now_ms) {
 
 static bool cmd_handle_unload(const char *cmd, const char *p, uint32_t now_ms) {
     if (!strcmp(cmd, "UL")) {
+        if (tc_busy()) {
+            cmd_reply("ER", "BUSY");
+            return true;
+        }
         lane_t *lane = get_active_lane_and_clear_error();
         if (!lane)
             return true;
@@ -1329,6 +1334,10 @@ static bool cmd_handle_unload(const char *cmd, const char *p, uint32_t now_ms) {
         }
 
         bool active_target = !explicit_lane || target_lane == g_active_lane;
+        if (active_target && tc_busy()) {
+            cmd_reply("ER", "BUSY");
+            return true;
+        }
         lane_t *lane = active_target ? get_active_lane_and_clear_error() : lane_ptr(target_lane);
         if (!lane) {
             cmd_reply("ER", "ARG");
@@ -1429,6 +1438,10 @@ static bool cmd_handle_mv_command(const char *p, uint32_t now_ms) {
 
 static bool cmd_handle_load_commands(const char *cmd, const char *p, uint32_t now_ms) {
     if (!strcmp(cmd, "LO")) {
+        if (tc_busy()) {
+            cmd_reply("ER", "BUSY");
+            return true;
+        }
         lane_t *lane = get_active_lane_and_clear_error();
         if (!lane)
             return true;
@@ -1438,6 +1451,10 @@ static bool cmd_handle_load_commands(const char *cmd, const char *p, uint32_t no
         cmd_reply("OK", NULL);
         return true;
     } else if (!strcmp(cmd, "FL")) {
+        if (tc_busy()) {
+            cmd_reply("ER", "BUSY");
+            return true;
+        }
         lane_t *lane = get_active_lane_and_clear_error();
         if (!lane)
             return true;
@@ -1461,6 +1478,10 @@ static bool cmd_handle_load_commands(const char *cmd, const char *p, uint32_t no
         cmd_reply("OK", NULL);
         return true;
     } else if (!strcmp(cmd, "RL")) {
+        if (tc_busy()) {
+            cmd_reply("ER", "BUSY");
+            return true;
+        }
         lane_t *lane = get_active_lane_and_clear_error();
         if (!lane)
             return true;
@@ -1501,6 +1522,10 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
     }
 
     if (!strcmp(cmd, "TC")) {
+        if (tc_busy()) {
+            cmd_reply("ER", "BUSY");
+            return true;
+        }
         int ln = atoi(p);
         if (ln == 1 || ln == 2) {
             if (g_active_lane != 1 && g_active_lane != 2) {
@@ -1543,6 +1568,10 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
                 set_active_lane(ln);
                 cmd_reply("OK", NULL);
             } else {
+                if (tc_busy()) {
+                    cmd_reply("ER", "BUSY");
+                    return true;
+                }
                 sync_retract_assist_set(false);
                 set_active_lane(ln);
                 cmd_reply("OK", NULL);
@@ -1552,6 +1581,10 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
         }
         return true;
     } else if (!strcmp(cmd, "FD")) {
+        if (tc_busy()) {
+            cmd_reply("ER", "BUSY");
+            return true;
+        }
         lane_t *lane = get_active_lane_and_clear_error();
         if (!lane)
             return true;
@@ -1728,6 +1761,10 @@ static bool cmd_handle_sensor_status(const char *cmd, const char *p, uint32_t no
 
 static bool cmd_handle_system(const char *cmd, const char *p, uint32_t now_ms) {
     if (!strcmp(cmd, "CAL")) {
+        if (controller_activity_in_progress()) {
+            cmd_reply("ER", "PERSIST_BUSY");
+            return true;
+        }
         if (!strcmp(p, "PSF_COMP")) {
             buf_analog_update();
             g_buf_psf_max_comp = clamp_f(g_buf_pos_raw_status, 0.0f, 1.0f);
