@@ -28,7 +28,7 @@ FLARE = cooperative firmware for RP2040, no RTOS. Main loop calls non-blocking m
 ### Host Tooling
 
 - `scripts/flare_cmd.py`: Serial helper for commands and live config dumps.
-- `scripts/flare_live_tuner.py`: Observe-only calibration bucket learner; emits reviewable patches.
+- `scripts/flare_live_tuner.py`: observe-only by default; guarded SET writes via --allow-* flags.
 - `scripts/flare_analyze.py`: Offline calibration analyzer; emits deterministic schedules and review patches.
 - `scripts/flare_baseline_recommender.py`: Advisory print guidance; pure stdlib + pyserial.
 - `scripts/gcode_marker.py`: G-code metadata injector and sidecar JSON generator.

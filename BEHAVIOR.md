@@ -176,7 +176,7 @@ four sub-states inside `SYNC_RETRACT_ASSIST`:
    `PSF_HOME_THRESHOLD_NORM` (0.90) and slam the `±1.0` rail before the motor reads
    the threshold and stops. The prime is bounded to `BUF_MAX_TRAVEL_MM / 2` of
    travel. When the target extreme is reached or the deadline elapses the state
-   advances to LOCKED and emits `EV:BL,PRIME_BOUND` on deadline or `EV:BL,LOCKED`
+   advances to LOCKED and emits `EV:BL:PRIME_BOUND` on deadline or `EV:BL:LOCKED`
    on success.
 2. **LOCKED** — motor stays energized at zero feed, holding the buffer at the
    extreme. Any external force (printer-side retract) that breaks away from the
@@ -184,13 +184,13 @@ four sub-states inside `SYNC_RETRACT_ASSIST`:
    for type-P) fires the follow-on if one was armed (`BL:<T|C>:<follow_mm>:<rate>`).
 3. **FOLLOW** — open-loop concurrent retract in the prime direction, feeding
    `follow_mm` at `follow_rate` to mass-balance the extruder move, then returning
-   to LOCKED (`EV:BL,FOLLOW_DONE`). For type-P the open-loop feed is **position-gated**:
+   to LOCKED (`EV:BL:FOLLOW_DONE`). For type-P the open-loop feed is **position-gated**:
    if `g_buf_pos` reaches `PSF_FOLLOW_RAIL_NORM` (0.95) the feed stops early and
-   drops back to LOCKED (`EV:BL,FOLLOW_GATED`) so it never slams the armed rail; if
+   drops back to LOCKED (`EV:BL:FOLLOW_GATED`) so it never slams the armed rail; if
    backflow later pushes the buffer off the extreme the lock re-breaks and the
    follow re-fires. Type-D has no analog position and relies on the elapsed-distance
    budget alone. A watchdog caps total arm time (`BL_WATCHDOG_DEFAULT_MS`, default
-   30 s); timeout emits `EV:BL,WATCHDOG` and releases.
+   30 s); timeout emits `EV:BL:TIMEOUT` and releases.
 4. **Release / replacement** — `BS` sent by the host releases BL and starts a
    full buffer stabilize. A new `BL:T` / `BL:C` may also replace an active `BS`
    stabilize; the stabilize drive is stopped and the requested BL prime starts
@@ -404,7 +404,7 @@ the raw position approaches `TENSION`. This keeps drift compensation from
 masking a real wall contact. `RDC:` (0–100) shows the final correction activity
 after sample ramp, clamp, confidence gating, and wall taper. The observer state
 resets on sync stop, `EST_FALLBACK`, and sensor hot-swap, emitting
-`EV:BUF,DRIFT_RESET`.
+`EV:BUF:DRIFT_RESET`.
 
 #### Zone bias and recovery behavior
 
@@ -459,7 +459,7 @@ long runs. This term is active only in `BUF_NEUTRAL` when estimator confidence i
 high. It is capped by `SYNC_INT_CLAMP` and frozen during pin events, toolchanges,
 or low-confidence dwells. `RC:` shows the active gain percentage (0% = disabled
 or frozen). If the integral saturates toward the tension side,
-`EV:SYNC,TENSION_DWELL_WARN` is emitted as an upstream warning before an tension
+`EV:SYNC:TENSION_DWELL_WARN` is emitted as an upstream warning before an tension
 pin occurs.
 
 A transition-residual drift correction layer (`RDC:`) can also be enabled. When
@@ -470,7 +470,7 @@ opposite endstop, so a learned bias can help through the neutral-zone without
 hiding a physical wall. When enabled and the integral is also active, the
 integral operates on the corrected position so both terms do not double-correct
 for the same bias. `TPX:` counts recent
-tension-pin events; `EV:SYNC,TENSION_RISK_HIGH` fires when the density exceeds
+tension-pin events; `EV:SYNC:TENSION_RISK_HIGH` fires when the density exceeds
 `TENSION_RISK_THR` in the `TENSION_RISK_WINDOW` rolling window.
 
 After a deep negative reserve excursion, firmware also latches a
@@ -499,11 +499,11 @@ tension stop remain active. Operators can re-enable the ramp as a runtime
 escape hatch if hardware evidence supports it.
 
 If the arm remains pinned for longer than `SYNC_TENSION_STOP_MS` (default 6000
-ms), sync enters a non-destructive fault hold with `EV:SYNC,FAULT_HOLD`. This
+ms), sync enters a non-destructive fault hold with `EV:SYNC:FAULT_HOLD`. This
 is the safety net for genuine extruder-overload conditions where no amount of
 speed increase will refill the buffer. Sync automatically recovers after
 `CONF_SYNC_FAULT_HOLD_RECOVERY_MS` (default 5000 ms), emitting
-`EV:SYNC,FAULT_HOLD_RECOVERY` and attempting to re-arm. `SYNC_TENSION_STOP_MS: 0`
+`EV:SYNC:FAULT_HOLD_RECOVERY` and attempting to re-arm. `SYNC_TENSION_STOP_MS: 0`
 disables the hard stop.
 
 The `TT:` status field exposes the current tension-dwell timer in real time

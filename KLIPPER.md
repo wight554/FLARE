@@ -19,7 +19,10 @@ To allow Klipper macros and WebUIs (Mainsail/Fluidd) to talk to FLARE at the sam
    cd ~/FLARE
    bash scripts/install_daemon.sh
    ```
-   *The installer copies the required Klipper python mock files (`mmu.py`, `mmu_sensors.py`) into your Klipper installation, registers a `systemd` background service (`flare_daemon.service`), and creates the serial symlink `/dev/ttyACM0` proxy.*
+   *The installer copies the required Klipper python mock files (`mmu.py`, `mmu_sensors.py`) into your Klipper installation, and registers a `systemd` background service (`flare_daemon.service`).*
+
+   > [!IMPORTANT]
+   > Klipper updates will overwrite Klipper's `klippy/extras` directory and delete the FLARE mock files. You must re-run `sudo bash scripts/install_daemon.sh` (or manually copy the mock files back) after updating Klipper.
 
 ---
 
@@ -124,6 +127,21 @@ Because the install daemon registers mock `[mmu]` and `[mmu_sensors]` modules, M
 If your WebUI console still shows historical `SET_MMU` status traffic, add
 `^SET_MMU` to the Mainsail/Fluidd hidden-command filter. This only hides console
 echo; it does not change daemon behavior or MMU dashboard updates.
+
+---
+
+## 🌐 Daemon HTTP API
+
+The FLARE daemon runs an HTTP & SSE server on port `8088`. By default, it binds to loopback (`127.0.0.1`) for security. To expose the API to your local network (e.g., for viewing the dashboard from another device), you can run the daemon with `--host 0.0.0.0` (opt-in).
+
+### Endpoints:
+- `GET /` or `GET /index.html` - Returns the interactive HTML dashboard/status visualizer.
+- `GET /status` - Returns a JSON object with the current controller state.
+- `GET /telemetry` - Server-Sent Events (SSE) stream of real-time event logs.
+- `GET /config` - Returns JSON configuration.
+- `GET /gatemap` - Returns JSON representation of the gate mapping.
+- `POST /gatemap` - Update gate configuration details.
+- `POST /cmd` - Accepts a JSON payload containing a serial command to execute directly on the controller, e.g. `{"cmd": "LO:1"}`.
 
 ---
 

@@ -40,11 +40,11 @@
 
 ## 6. Docs — drift fixes
 
-- [ ] 6.1 D1: comma → colon event format, all 13 sites (MANUAL.md:226,227,234,308; BEHAVIOR.md:179,187,189,193,407,462,473,502,506)
-- [ ] 6.2 D2+D3: BEHAVIOR.md:193 `EV:BL,WATCHDOG` → `EV:BL:TIMEOUT`; MANUAL.md events table add BL family (`PRIME`,`LOCKED`,`FOLLOW`,`FOLLOW_DONE`,`FOLLOW_GATED`,`PRIME_BOUND`,`TIMEOUT`), `CUT:DONE`/`CUT:ERROR`, `BUF_STAB` `REVERSE`, `SYNC` subtypes (`RELIEF_PAUSE`,`NEUTRAL_CREEP_CAP`,`cannot_refill`,`cannot_relieve`)
-- [ ] 6.3 D4+D5: KLIPPER.md document daemon HTTP API (port 8088, loopback default, explicit `--host` LAN opt-in, endpoints); fix KLIPPER.md:22 false symlink claim to match `install_daemon.sh` reality
-- [ ] 6.4 D6+D7: CONTEXT.md:31 + MANUAL.md:374 tuner wording → "observe-only by default; guarded SET writes via --allow-* flags"; MANUAL.md CAL rows add `ER:PERSIST_BUSY`, CP row add busy rejection, `T:`/`TC:`/load rows add TC-busy note; note fault-class events exempt from best-effort drop (MANUAL.md:12)
-- [ ] 6.5 D8+D9+D10: MANUAL.md add core `?:` status-field table (`LN`..`SC`, field order per protocol_status.c); fix `CW:lane:reg:val` → `TW` (MANUAL.md:102 vs protocol_tmc.c:57); remove stale "appended after `SS:`" wording (MANUAL.md:282)
+- [x] 6.1 D1: comma → colon event format, all 13 sites (MANUAL.md:226,227,234,308; BEHAVIOR.md:179,187,189,193,407,462,473,502,506)
+- [x] 6.2 D2+D3: BEHAVIOR.md:193 `EV:BL,WATCHDOG` → `EV:BL:TIMEOUT`; MANUAL.md events table add BL family (`PRIME`,`LOCKED`,`FOLLOW`,`FOLLOW_DONE`,`FOLLOW_GATED`,`PRIME_BOUND`,`TIMEOUT`), `CUT:DONE`/`CUT:ERROR`, `BUF_STAB` `REVERSE`, `SYNC` subtypes (`RELIEF_PAUSE`,`NEUTRAL_CREEP_CAP`,`cannot_refill`,`cannot_relieve`)
+- [x] 6.3 D4+D5: KLIPPER.md document daemon HTTP API (port 8088, loopback default, explicit `--host` LAN opt-in, endpoints); fix KLIPPER.md:22 false symlink claim to match `install_daemon.sh` reality
+- [x] 6.4 D6+D7: CONTEXT.md:31 + MANUAL.md:374 tuner wording → "observe-only by default; guarded SET writes via --allow-* flags"; MANUAL.md CAL rows add `ER:PERSIST_BUSY`, CP row add busy rejection, `T:`/`TC:`/load rows add TC-busy note; note fault-class events exempt from best-effort drop (MANUAL.md:12)
+- [x] 6.5 D8+D9+D10: MANUAL.md add core `?:` status-field table (`LN`..`SC`, field order per protocol_status.c); fix `CW:lane:reg:val` → `TW` (MANUAL.md:102 vs protocol_tmc.c:57); remove stale "appended after `SS:`" wording (MANUAL.md:282)
 
 ## 7. Klipper / WebUI integration
 

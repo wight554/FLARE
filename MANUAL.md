@@ -9,7 +9,7 @@ Response:  OK:DATA\n       (data absent if not applicable: OK\n)
 Events:    EV:TYPE:DATA\n  (unsolicited, emitted any time)
 ```
 
-Unsolicited `EV:` traffic is best-effort. Firmware drops events when USB CDC is not connected and rate-limits event emission to protect the control loop from serial backpressure.
+Unsolicited `EV:` traffic is best-effort. Firmware drops events when USB CDC is not connected and rate-limits event emission to protect the control loop from serial backpressure (critical fault-class events are exempt from this budget limit).
 
 ---
 
@@ -63,20 +63,20 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 ### Motion Control
 | Command | Mode | Description |
 |---------|------|-------------|
-| `T:n` | Both | **Select Active Lane** — set active lane to `1` or `2` without moving filament. |
-| `LO:` | Manual| **Preload** — runs forward until OUT sensor triggers. Limit: `AUTOLOAD_MAX`. |
-| `FL:` | Manual| **Full Load** — runs forward until `TS:1`, `TS_BUF_MS`, or sane buffer geometry reports loaded. Limit: `LOAD_MAX`. |
-| `RL:` | Manual| **Reload Load** — manually triggers RELOAD sync. Pushes active lane to approach and follow a disconnected tail. |
-| `UL:` | Both  | **Unload (Extruder)** — reverse until OUT clears. If `CUTTER=1` and `UNLOAD_CUT=1`, runs clear → cut → clear. Limit: `UNLOAD_MAX`. |
-| `UM[:lane]` | Both  | **Unload (MMU)** — reverse until IN clears. `UM` / `UM:` unload the active lane; if fully loaded and `UNLOAD_CUT=1`, they run the full `UL:` cut sequence first, then continue to IN clear. `UM:1` / `UM:2` target a specific lane; inactive targets must be idle and preloaded (`IN=1`, `OUT=0`) and never run the cutter. Limit: `UNLOAD_MAX`. |
-| `TC:n` | Manual| **Toolchange** — If `TH:1` is latched, wait for `TS:0`/`TC_TH_MS`, then unload active lane, cut if enabled, and load lane `n`. |
+| `T:n` | Both | **Select Active Lane** — set active lane to `1` or `2` without moving filament. Returns `ER:BUSY` if toolchange/motion is active. |
+| `LO:` | Manual| **Preload** — runs forward until OUT sensor triggers. Limit: `AUTOLOAD_MAX`. Returns `ER:BUSY` if toolchange/motion is active. |
+| `FL:` | Manual| **Full Load** — runs forward until `TS:1`, `TS_BUF_MS`, or sane buffer geometry reports loaded. Limit: `LOAD_MAX`. Returns `ER:BUSY` if toolchange/motion is active. |
+| `RL:` | Manual| **Reload Load** — manually triggers RELOAD sync. Pushes active lane to approach and follow a disconnected tail. Returns `ER:BUSY` if toolchange/motion is active. |
+| `UL:` | Both  | **Unload (Extruder)** — reverse until OUT clears. If `CUTTER=1` and `UNLOAD_CUT=1`, runs clear → cut → clear. Limit: `UNLOAD_MAX`. Returns `ER:BUSY` if toolchange/motion is active. |
+| `UM[:lane]` | Both  | **Unload (MMU)** — reverse until IN clears. `UM` / `UM:` unload the active lane; if fully loaded and `UNLOAD_CUT=1`, they run the full `UL:` cut sequence first, then continue to IN clear. `UM:1` / `UM:2` target a specific lane; inactive targets must be idle and preloaded (`IN=1`, `OUT=0`) and never run the cutter. Limit: `UNLOAD_MAX`. Returns `ER:BUSY` if toolchange/motion is active. |
+| `TC:n` | Manual| **Toolchange** — If `TH:1` is latched, wait for `TS:0`/`TC_TH_MS`, then unload active lane, cut if enabled, and load lane `n`. Returns `ER:BUSY` if toolchange/motion is active. |
 | `MV:mm:F[:D][:I]`| Both | **Exact Move** — move `abs(mm)` at `F` mm/min. Direction from sign of `mm` or optional `D` (`F`/`R`/`B`, `+`/`-`). Optional `I` ignores buffer compression/tension guards for this finite move. Disables sync. |
-| `FD:` | Both  | **Continuous Feed** — runs forward until `ST:`. |
+| `FD:` | Both  | **Continuous Feed** — runs forward until `ST:`. Returns `ER:BUSY` if toolchange/motion is active. |
 | `BS:` | Both  | **Buffer Stabilize** — cancels compatible buffer service/sync/simple lane motion, then runs buffer neutralization to bring a dual-endstop buffer back toward `NEUTRAL`. Hard activities (`TC`, cutter, manual unload) still return `ER:BUSY`. |
 | `ST:` | Both  | **Stop** — aborts all motion and resets toolchange state. |
 | `CU:` | Both  | **Cut** — performs the full cutter sequence (Open -> Feed -> Close -> Open -> Repeat -> Block) on the active lane. Requires both lanes idle and preloaded (`IN=1`, `OUT=0`); otherwise returns `ER:NOT_PRELOADED`. |
 | `CX:` | Both  | **Bare Cut** — performs the cutter sequence without filament movement (Open -> Close -> Open -> Repeat -> Block). |
-| `CP:us` | Both  | **Cutter Position** — moves the cutter servo to the specified pulse width (400-2700 us) and stays there. Useful for mechanical tuning. |
+| `CP:us` | Both  | **Cutter Position** — moves the cutter servo to the specified pulse width (400-2700 us) and stays there. Useful for mechanical tuning. Returns `ER:BUSY` if not idle or in boot park. |
 
 ### Status & Configuration
 | Command | Response | Description |
@@ -86,9 +86,9 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `TS:<0\|1>`| OK | **Toolhead Sensor** — report toolhead filament status (sent by host). |
 | `BL:<T|C>` | OK | **Buffer Lock** — arm the active lane to drive the buffer to the requested extreme and hold there. `BL:T` (tension, default) or `BL:C` (compression). The prime move is capped at `BUF_MAX_TRAVEL_MM / 2`; once at the extreme the lane holds with motor energized. On any external force (printer retract) the lock breaks automatically and the catch drive engages. Cancels active buffer stabilize or sync before arming; returns `ER:BUSY` for hard activities or unrelated lane tasks. Use `BS` to release manually. |
 | `SM:<0\|1>`| OK | **Sync Mode** — manually toggle buffer sync. |
-| `CAL:PSF_COMP` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_COMP`. |
-| `CAL:PSF_TENS` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_TENS`. |
-| `CAL:PSF_NEUT` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_NEUTRAL`. |
+| `CAL:PSF_COMP` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_COMP`. Rejected with `ER:PERSIST_BUSY` if controller activity is in progress. |
+| `CAL:PSF_TENS` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_TENS`. Rejected with `ER:PERSIST_BUSY` if controller activity is in progress. |
+| `CAL:PSF_NEUT` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_NEUTRAL`. Rejected with `ER:PERSIST_BUSY` if controller activity is in progress. |
 | `MARK:<tag>` | `OK:MARK` | **Telemetry Marker** — stores a short host marker in firmware. Subsequent status replies expose it as `MK:<seq>:<tag>`. |
 | `SV:` | OK | **Save Settings** — persist current runtime parameters to flash. Rejected with `ER:PERSIST_BUSY` while motion, toolchange, cutter activity, or buffer stabilization is active. |
 | `LD:` | OK | **Load Settings** — reload persisted settings from flash. Rejected with `ER:PERSIST_BUSY` while motion, toolchange, cutter activity, or buffer stabilization is active. |
@@ -99,7 +99,7 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 ### Driver Access
 | Command | Response | Description |
 |---------|----------|-------------|
-| `CW:lane:reg:val` | OK | **TMC Write** — write raw TMC register value. Bring-up / diagnostics only. |
+| `TW:lane:reg:val` | OK | **TMC Write** — write raw TMC register value. Bring-up / diagnostics only. |
 | `TR:lane:reg` | `OK:lane:reg:0x...` | **TMC Read** — read raw TMC register value. |
 | `RR:lane` | Probe dump | **UART Probe** — try TMC addresses `0..3` and return the raw reply frames for bring-up/debug. |
 
@@ -223,15 +223,15 @@ The asymmetric analyzer is read-only and uses existing `OK:` fields `BP`, `BUF`,
 | `SYNC_INT_CLAMP` | `sync_reserve_integral_clamp_mm` | Maximum integral correction magnitude in mm. The integral cannot shift the effective reserve target by more than this amount. | 0.6 |
 | `SYNC_INT_DECAY_MS` | `sync_reserve_integral_decay_ms` | Reserved for future integral decay rate. 0 = hold integral value when frozen. | 0 |
 | `EST_SIGMA_CAP` | `est_sigma_hard_cap_mm` | Estimator sigma hard cap in mm. Confidence (`EC`) drops to 0 when the physics-based position uncertainty reaches this level. | 1.5 |
-| `EST_LOW_CF_THR` | `est_low_cf_warn_threshold` | `EV:BUF,EST_LOW_CF` fires when estimator confidence falls below this threshold (runtime-only, not persisted). | 0.5 |
-| `EST_FALLBACK_THR` | `est_fallback_cf_threshold` | Integral centering freezes when confidence falls below this threshold. Also the floor below which `EV:BUF,EST_FALLBACK` is eligible (runtime-only). | 0.2 |
+| `EST_LOW_CF_THR` | `est_low_cf_warn_threshold` | `EV:BUF:EST_LOW_CF` fires when estimator confidence falls below this threshold (runtime-only, not persisted). | 0.5 |
+| `EST_FALLBACK_THR` | `est_fallback_cf_threshold` | Integral centering freezes when confidence falls below this threshold. Also the floor below which `EV:BUF:EST_FALLBACK` is eligible (runtime-only). | 0.2 |
 | `BUF_DRIFT_TAU_MS` | `buf_drift_ewma_tau_ms` | EWMA time constant for per-transition residual drift estimate (ms). Longer = more stable; shorter = adapts faster. | 60000 |
 | `BUF_DRIFT_MIN_SMP` | `buf_drift_min_samples` | Transition samples required for full-strength drift correction. When correction is explicitly enabled, it ramps in from the first sample to this count. | 3 |
 | `BUF_DRIFT_THR_MM` | `buf_drift_apply_thr_mm` | Minimum `|BPD|` required to apply correction (mm). **0.0 = disabled**. Provisional print default applies correction only after meaningful observed drift. | 2.0 |
 | `BUF_DRIFT_CLAMP` | `buf_drift_clamp_mm` | Hard clamp on applied drift correction magnitude in mm. Runtime range: 0.0–8.0. | 3.0 |
 | `BUF_DRIFT_MIN_CF` | `buf_drift_apply_min_cf` | Minimum estimator confidence (`EC`/100) required to apply drift correction. Correction freezes (but EWMA continues accumulating) when below this. | 0.5 |
 | `TENSION_RISK_WINDOW` | `tension_risk_window_ms` | Rolling window for `TPX` tension-pin density (ms). Runtime-only, not persisted. | 60000 |
-| `TENSION_RISK_THR` | `tension_risk_threshold` | `EV:SYNC,TENSION_RISK_HIGH` fires when `TPX >= this`. 0 = disable. Runtime-only, not persisted. | 4 |
+| `TENSION_RISK_THR` | `tension_risk_threshold` | `EV:SYNC:TENSION_RISK_HIGH` fires when `TPX >= this`. 0 = disable. Runtime-only, not persisted. | 4 |
 | `POST_PRINT_STAB_MS` | `post_print_stab_delay_ms` | Delay before idle+`COMPRESSION` recovery starts; once triggered, the low-speed post-print stabilization move settles the buffer back to `NEUTRAL` and only falls back to the tension-side handoff if it overshoots center. `0` starts immediately | 0 |
 | `RELOAD_Y_MS` | `reload_y_timeout_ms` | Max time for tail to clear Y during RELOAD | 10000 |
 | `RELOAD_JOIN_MS` | `reload_join_delay_ms` | Extra RELOAD-only settling delay after tail and Y clear before `RELOAD:JOINING` starts | 10000 |
@@ -276,37 +276,60 @@ Pre-rename half-travel and size serial tokens are removed; use full-range
 |-----------|-------------|
 | `GET:BL` | Returns `BL:T`, `BL:C`, or `BL:0` for the current buffer-lock arm state. |
 
-### Diagnostic Status Fields
+### Core Status Fields
 
-These fields are included in the `?:` response. Most diagnostics are appended
-after `SS:`; `BL` and `BF` appear with the core sync fields near `SM`.
+These core fields are returned in the first part of the `?:` status response:
 
 | Field | Unit | Description |
 |-------|------|-------------|
-| `RT` | mm (signed) | Reserve target position. Negative = compression side. Set by `SYNC_RESERVE_PCT`, active flow-schedule bias (or scalar `COMPRESSION_BIAS_FRAC` fallback), and half of `BUF_SWITCH_SPAN`. |
-| `BL` | T/C/0 | Buffer-lock arm state: `T` = tension-armed, `C` = compression-armed, `0` = disarmed. Set by `BL:T` / `BL:C`; cleared by `BS` or watchdog timeout. |
-| `BF` | SPS | Active control baseline after flow-schedule lookup and any live-segment ratchet. |
-| `CB` | % (int) | Active compression bias fraction × 100 after flow-schedule lookup. |
-| `NC` | SPS | Neutral-zone creep component added to target rate |
-| `VB` | % (int) | Variance blend distrust percentage |
-| `BPV`| mm × 100 | Post-blend effective position used by control loops |
-| `MK` | seq:tag | Telemetry marker tag and sequence number set by the most recent `MARK:` command. |
-| `RD` | mm | Reserve deadband width around the target. |
-| `TT` | ms | Time the buffer arm has been continuously pinned at the tension-side switch. Zero when not in `BUF_TENSION`. |
-| `CT` | ms | Time the buffer arm has been continuously pinned at the compression-side switch. Zero when not in `BUF_COMPRESSION`. |
-| `TW` | ms | Estimated time to compression wall (remaining physical margin ÷ current net push velocity). Capped at 99999 when not applicable or well out of range. |
-| `EA` | ms | Age of the extruder velocity estimate — time since the estimator was last updated by a zone transition or bleed. |
-| `SK` | enum | Active buffer sensor kind: `0` = virtual endstop, `1` = analog. |
-| `CF` | 0.0–1.0 | Signal confidence from the active source. Below ~0.5 indicates saturation or stale data; the control loop treats values below 0.4 as unreliable. |
-| `RI` | mm (signed) | Reserve integral term — slow centering correction added to the reserve target. |
-| `RC` | 0–100 | Effective integral gain scalar (0 = frozen/disabled, 100 = active). |
-| `ES` | mm | Estimator sigma — physics-based position uncertainty in mm. |
-| `EC` | 0–100 | Estimator confidence based on sigma (independent of source `CF`). |
-| `BPR` | mm (signed) | Last per-transition residual: `g_buf_pos − switch_pos_mm` measured just before the virtual position snaps to the switch threshold. Non-zero values indicate virtual/physical mismatch at that crossing. |
-| `BPD` | mm (signed) | Drift EWMA — exponentially weighted average of `BPR` samples (time constant `BUF_DRIFT_TAU_MS`). A stable non-zero value indicates systematic virtual-position bias. |
-| `BPN` | int | Number of zone transitions sampled into `BPD`. Drift correction ramps in until `BPN >= BUF_DRIFT_MIN_SMP`, then can apply at full configured strength away from the opposite wall. |
-| `TPX` | int | Count of `BUF_TENSION` pin entries within the last `TENSION_RISK_WINDOW` ms. `EV:SYNC,TENSION_RISK_HIGH` fires when this reaches `TENSION_RISK_THR`. |
-| `RDC` | 0–100 | Drift-correction activity scalar after confidence gating, sample ramp, clamp, and opposite-wall taper. `100` means correction is applying at the configured clamp; values can drop near a physical endstop so correction cannot hide the wall. |
+| `LN`  | int  | Active lane (`1` or `2`). |
+| `TC`  | string | Toolchange state name (e.g. `IDLE`, `UNLOADING`, `LOADING`, `ERROR`). |
+| `L1T` | string | Lane 1 active task name. |
+| `L2T` | string | Lane 2 active task name. |
+| `I1`  | 0/1  | Lane 1 input filament sensor state (`0` = empty, `1` = present). |
+| `O1`  | 0/1  | Lane 1 output filament sensor state (`0` = empty, `1` = present). |
+| `I2`  | 0/1  | Lane 2 input filament sensor state (`0` = empty, `1` = present). |
+| `O2`  | 0/1  | Lane 2 output filament sensor state (`0` = empty, `1` = present). |
+| `TH`  | 0/1  | Toolhead filament sensor state (`0` = empty, `1` = present). |
+| `YS`  | 0/1  | Y-splitter sensor state (`0` = empty, `1` = present). |
+| `BUF` | string | Buffer physical zone status (`NEUTRAL`, `COMPRESSION`, `TENSION`, `UNKNOWN`). |
+| `MM`  | mm/min | MMU feed motor rate. |
+| `BF`  | mm/min | Active control baseline rate. |
+| `BP`  | mm   | Buffer virtual position. |
+| `SM`  | 0/1  | Sync mode enabled (`0` = disabled, `1` = enabled). |
+| `BL`  | string | Buffer lock arm state (`T` = tension-armed, `C` = compression-armed, `0` = disarmed). |
+| `ST`  | int  | Sync controller state. |
+| `TPR` | 0/1  | Auto preload state (`0` = disabled, `1` = enabled). |
+| `CU`  | 0/1  | Cutter enabled (`0` = disabled, `1` = enabled). |
+| `RELOAD` | 0/1 | Reload mode enabled (`0` = disabled, `1` = enabled). |
+| `UC`  | 0/1  | Unload cut state (`0` = disabled, `1` = enabled). |
+| `BST` | 0/1  | Buffer sensor type (`0` = switch/type-D, `1` = analog/type-P). |
+| `EST` | mm/min | Extruder estimated rate. |
+| `RE`  | mm   | Reserve error. |
+| `AV`  | mm/s | Buffer arm velocity. |
+| `SC`  | mm/min | Stealthchop threshold velocity. |
+
+### Diagnostic Status Fields
+
+These extra diagnostic fields are returned in the second part of the `?:` status response:
+
+| Field | Unit | Description |
+|-------|------|-------------|
+| `RT`  | mm (signed) | Reserve target position. Negative = compression side. |
+| `TT`  | ms   | Time the buffer arm has been continuously pinned at the tension-side switch. |
+| `CT`  | ms   | Time the buffer arm has been continuously pinned at the compression-side switch. |
+| `SK`  | 0/1  | Active buffer sensor kind (`0` = virtual endstop, `1` = analog). |
+| `CF`  | 0.0–1.0 | Signal confidence from the active source. |
+| `ES`  | mm   | Estimator sigma — physics-based position uncertainty in mm. |
+| `TPX` | int  | Count of `BUF_TENSION` pin entries within the last `TENSION_RISK_WINDOW` ms. `EV:SYNC:TENSION_RISK_HIGH` fires when this reaches `TENSION_RISK_THR`. |
+| `CB`  | % (int) | Active compression bias fraction × 100 after flow-schedule lookup. |
+| `BPV` | mm × 100 | Post-blend effective position used by control loops. |
+| `MK`  | seq:tag | Telemetry marker tag and sequence number set by the most recent `MARK:` command. |
+| `SYNC_REFILL_MM` | mm | Sync refill effort. |
+| `SYNC_RELIEVE_MM` | mm | Sync relieve effort. |
+| `TF`  | mm   | Total filament moved. |
+| `FL_RATE` | mm/min | Feed rate limit. |
+| `UL_RATE` | mm/min | Unload rate limit. |
 
 ---
 
@@ -324,14 +347,15 @@ after `SS:`; `BL` and `BF` appear with the core sync fields near `SM`.
 | `MOVE_DONE` | `lane` | Exact move completed. |
 | `ACTIVE` | `lane\|NONE`| Reported when the active lane changes. |
 | `FAULT:DRY_SPIN`| `lane` | Motor spinning > 8s without filament (`IN` clear). |
-| `SYNC` | `AUTO_START\|AUTO_STOP\|FAULT_HOLD\|FAULT_HOLD_RECOVERY\|TENSION_DWELL_WARN\|TENSION_RISK_HIGH` | Automatic sync state transitions. `FAULT_HOLD` fires on tension-dwell timeout or hard-wall critical; recovers automatically after `CONF_SYNC_FAULT_HOLD_RECOVERY_MS`. `TENSION_DWELL_WARN` fires when centering drift reaches a significant threshold. `TENSION_RISK_HIGH` fires when tension-pin density in the rolling window reaches `TENSION_RISK_THR`. |
+| `SYNC` | `AUTO_START\|AUTO_STOP\|FAULT_HOLD\|FAULT_HOLD_RECOVERY\|TENSION_DWELL_WARN\|TENSION_RISK_HIGH\|RELIEF_PAUSE\|NEUTRAL_CREEP_CAP\|cannot_refill\|cannot_relieve` | Automatic sync state transitions and warnings. `FAULT_HOLD` fires on tension-dwell timeout; recovers automatically. `TENSION_DWELL_WARN` fires when centering drift reaches a significant threshold. `TENSION_RISK_HIGH` fires when tension-pin density reaches `TENSION_RISK_THR`. `RELIEF_PAUSE` indicates a temporary relief pause; `NEUTRAL_CREEP_CAP` fires when creep velocity hits its cap; `cannot_refill` and `cannot_relieve` fire when sync limits are exceeded. |
 | `BUF` | `DRIFT_RESET` | Drift EWMA was reset. Fires when sync stops, `EST_FALLBACK` occurs, or sensor is hot-swapped. Subsequent `BPN` will restart from 0. |
 | `BUF` | `EST_LOW_CF\|EST_FALLBACK` | Buffer estimator events. `EST_LOW_CF` fires when confidence drops; `EST_FALLBACK` fires when sigma exceeds the hard cap. |
-| `BUF_STAB` | `START\|DONE\|TIMEOUT\|STAGNANT_TIMEOUT` | Buffer neutralization started, reached `NEUTRAL`, hit its safety timeout, or stopped because the buffer did not track the stabilize move. |
+| `BUF_STAB` | `START\|DONE\|TIMEOUT\|STAGNANT_TIMEOUT\|REVERSE` | Buffer neutralization started, reached `NEUTRAL`, hit its safety timeout, stopped because the buffer did not track the stabilize move, or reversed direction to clear static friction. |
+| `BL` | `PRIME\|LOCKED\|FOLLOW\|FOLLOW_DONE\|FOLLOW_GATED\|PRIME_BOUND\|TIMEOUT` | Buffer-lock sequence events. `PRIME` on prime start; `LOCKED` on successful lock; `FOLLOW` on following extruder; `FOLLOW_DONE` on follow finish; `FOLLOW_GATED` on early position gate; `PRIME_BOUND` on travel boundary; `TIMEOUT` on watchdog timeout. |
 | `BS` | Mode-specific snapshot | Periodic buffer/sync status event used during sync and RELOAD follow. |
 | `TC:*` | Phase-specific | Toolchange progress events such as `TC:UNLOADING`, `TC:SWAPPING`, `TC:LOADING`, `TC:DONE`, `TC:ERROR`. |
 | `RELOAD:*` | Phase-specific | RELOAD progress and fault events such as `RELOAD:SWITCHING`, `RELOAD:JOINING`, `RELOAD:LOADED`, `RELOAD:FAULT`. |
-| `CUT:FEEDING` | — | Cutter feed phase started. |
+| `CUT` | `FEEDING\|DONE\|ERROR` | Cutter execution events. `FEEDING` on feed start; `DONE` on successful cut; `ERROR` on cutter failure. |
 
 ### Fault Recovery
 Most faults (`TIMEOUT`, sensor-related faults) are transient and reset on the next command.
@@ -371,7 +395,7 @@ cp ~/flare-state/buckets-<id>.json ~/flare-state/buckets-<id>.json.schema2.bak
    ```
    By default, layer changes are recognized (both `;LAYER:<n>` and OrcaSlicer
    `;LAYER_CHANGE` comments). Use `--no-layer-markers` to disable.
-3. Capture data using the observe-only tuner in daemon mode, emitting CSV:
+3. Capture data using the tuner (observe-only by default; guarded SET writes via --allow-* flags) in daemon mode, emitting CSV:
    ```bash
    python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 \
        --machine-id myprinter \
