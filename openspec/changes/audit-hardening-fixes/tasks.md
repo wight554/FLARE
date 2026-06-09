@@ -48,15 +48,15 @@
 
 ## 7. Klipper / WebUI integration
 
-- [ ] 7.1 K1: `FLARE_WAIT_UNLOAD` guard `active_gate ∈ {0,1}` before lane sensor/task pick; derive from loaded gate or raise (klipper/mmu.py:897-906)
-- [ ] 7.2 K3: daemon force-full `SET_MMU` includes `GATE_COLOR`/`GATE_MATERIAL`/`GATE_SPOOL_ID`/gate names (flare_daemon.py:1206-1216); verify klippy-restart recovers gate map with daemon already up
-- [ ] 7.3 K5: replace hardcoded `/15.0` piston scale with half of board `BUF_MAX_TRAVEL` (flare_daemon.py:518,1092,1096,1134)
-- [ ] 7.4 K2+K4: wait loops report daemon-unreachable after consecutive failures (mmu.py:911,1047-ish); align mmu.py fallback `bowden_length`/`extruder_to_nozzle` defaults with flare_mmu.cfg (1800/125)
-- [ ] 7.5 K6+K8: install_daemon.sh installs (or explicitly instructs copying) `flare_mmu.cfg`; KLIPPER.md reinstall-after-Klipper-update note for extras copies; fix NC color typo (install_daemon.sh:10)
-- [ ] 7.6 K7: unify mmu_sensors.py blanking with mmu.py path-cascade model (gear-clear anchored)
+- [x] 7.1 K1: `FLARE_WAIT_UNLOAD` guard `active_gate ∈ {0,1}` before lane sensor/task pick; derive from loaded gate or raise (klipper/mmu.py:897-906)
+- [x] 7.2 K3: daemon force-full `SET_MMU` includes `GATE_COLOR`/`GATE_MATERIAL`/`GATE_SPOOL_ID`/gate names (flare_daemon.py:1206-1216); verify klippy-restart recovers gate map with daemon already up
+- [x] 7.3 K5: replace hardcoded `/15.0` piston scale with half of board `BUF_MAX_TRAVEL` (flare_daemon.py:518,1092,1096,1134)
+- [x] 7.4 K2+K4: wait loops report daemon-unreachable after consecutive failures (mmu.py:911,1047-ish); align mmu.py fallback `bowden_length`/`extruder_to_nozzle` defaults with flare_mmu.cfg (1800/125)
+- [x] 7.5 K6+K8: install_daemon.sh installs (or explicitly instructs copying) `flare_mmu.cfg`; KLIPPER.md reinstall-after-Klipper-update note for extras copies; fix NC color typo (install_daemon.sh:10)
+- [x] 7.6 K7: unify mmu_sensors.py blanking with mmu.py path-cascade model (gear-clear anchored)
 
 ## 8. Validation
 
-- [ ] 8.1 `scripts/validate_regression.sh` full pass
+- [x] 8.1 `scripts/validate_regression.sh` full pass
 - [ ] 8.2 Hardware checks (TEST_CASES.md additions): CAL during motion → `ER:PERSIST_BUSY`; CP mid-cut → `ER:BUSY` + cut completes; `T:`/`TC:` mid-TC → `ER:BUSY`, sequence unaffected; BL timeout emits single-prefix `EV:BL:TIMEOUT` visible in daemon history; `flare_cmd RL` via daemon exits 0 on completion
 - [ ] 8.3 Klipper-side checks: klippy restart with daemon up → gate map restored in Fluidd; `FLARE_WAIT_UNLOAD` with no active gate → clean error not premature complete; type-D piston deflection spans full range at configured `BUF_MAX_TRAVEL`
