@@ -27,21 +27,38 @@
 
 ## 3. BS no-op from mid-tension
 
-- [ ] 3.1 **Capture**: reproduce `BS` no-op while streaming events. Could NOT repro
-  via `MV → BS` from mid-tension (BS drove cleanly to goal even from `BP −0.45`/`−0.03`
-  with residual velocity) — so predict-on-residual-velocity is **ruled out**. The
-  original no-op happened **during hand-loading, settled at `−0.4`** (lane/presence
-  in flux). New lead: the cause is likely an **early-return before arming**
-  (controller-not-idle / presence / lane), not predict/stagnant. KEY QUESTION to
-  capture next time: **does the no-op `BS` emit `BUF_STAB:START`?** No START →
-  early-return (check `L1T/L2T/TC` for an active load/preload task at that moment);
-  START-but-no-move → predict/stagnant.
-- [ ] 3.2 If `DONE` instantly: guard the predict-reached so it cannot fire on the
-  first tick after `START`, or require a minimum off-start displacement before
-  honoring `reached` (residual `g_vel_norm_f` makes `predicted >= goal` spuriously).
-- [ ] 3.3 If `STAGNANT`: the desaturated stagnant window is firing before the drive
-  registers — re-check `g_stab_stagnant_since_ms` init / the 0.03 threshold at this
-  position.
+- [ ] 3.1 **Root cause narrowed by audit-hardening-fixes code audit (2026-06-10)** —
+  live-recurrence wait no longer needed; bench repro below. Decision tree closed by
+  code reading:
+  - Every *visible* BS failure replies `ER` (`ER:BUSY` protocol.c:1636/1659,
+    `ER:BUF_STAB_UNAVAILABLE` on `false` return protocol.c:1671-1673). The
+    "check `L1T/L2T/TC` active task" hypothesis is **ruled out** — task-active
+    paths are never silent.
+  - No-op with `OK` = `buffer_stabilize_start_internal` returned **true without
+    arming**. Exactly two reachable silent-success paths, both BEFORE the
+    `BUF_STAB:START` emit (sync.c:245-246, unconditional once armed):
+    1. **Type-P presence gate (sync.c:197-207) — prime suspect.**
+       `pick_boot_stabilize_lane()` (sync.c:514-516) returns the ACTIVE lane
+       unconditionally when set — never falls through to OUT-sensor checks. Active
+       lane with empty IN+OUT → `return true` → `OK`, no motion, no START. Matches
+       hand-loading incident: filament in flux on the *other* lane, buffer at −0.4,
+       gate inspects wrong lane's sensors.
+    2. Raw-NEUTRAL skip (sync.c:221-222) — secondary; −0.4 vs compression-side goal
+       should classify TENSION, unlikely here.
+  - Caveat: `BUF_STAB:START` is budget-limited best-effort (8/100 ms shared window);
+    during hand-loading event chatter a real START can drop on the wire — absence of
+    START alone is weak evidence, require "no motion" too. (audit F6 fixes fault-class
+    events only; START stays droppable.)
+- [ ] 3.2 **Bench repro** (replaces live-recurrence wait): set active lane = empty
+  lane (`T:n`), hand-feed other lane until `BP ≈ −0.4`, send `BS` while streaming
+  events. Expect `OK` + no `BUF_STAB:START` + no motion → confirms presence-gate
+  path.
+- [ ] 3.3 **Fix** (on confirmed repro): make presence gate / `pick_boot_stabilize_lane`
+  pick the lane that actually has filament (IN or OUT) instead of blind active-lane;
+  or return `false` (→ `ER:BUF_STAB_UNAVAILABLE`) instead of silent `true` so the
+  operator sees the refusal. Predict/stagnant guards (old 3.2/3.3 hypotheses) only
+  if bench repro instead shows START-but-no-move: predict-reached first-tick guard
+  or `g_stab_stagnant_since_ms` init — currently NOT implicated.
 
 ## 4. Auto-start trigger sensitivity
 
@@ -57,6 +74,8 @@
 
 ## 5. Closeout
 
-- [ ] 5.1 Only the **BS no-op (section 3)** remains open — needs a captured repro
-  (DONE vs STAGNANT) before a fix. Hunting / auto-start items accepted per the real
-  print. Archive once 3.x is resolved.
+- [ ] 5.1 Only the **BS no-op (section 3)** remains open — root cause narrowed to
+  silent pre-arm early-return (presence gate, prime suspect) by the
+  audit-hardening-fixes code audit; bench repro 3.2 replaces the live-recurrence
+  wait. Hunting / auto-start items accepted per the real print. Archive once 3.x
+  is resolved.
