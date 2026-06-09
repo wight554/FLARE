@@ -265,6 +265,11 @@ def run_tests():
         "FEED_RATE": "50.25",
         "REV_RATE": "40.50",
         "BYPASS": "0",
+        "GATE_MATERIAL": "'PLA,PETG'",
+        "GATE_COLOR": "'#FF0000,#00FF00'",
+        "GATE_SPOOL_ID": "'12,34'",
+        "GATE_NAME": "'Gate 0,Gate 1'",
+        "GATE_FILAMENT_NAME": "'Gate 0,Gate 1'",
     }
     m, p = new_mock()
     m.cmd_SET_MMU(FakeGcmd(fields))

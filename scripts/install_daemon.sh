@@ -7,7 +7,6 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0;68m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}==================================================${NC}"
@@ -139,6 +138,30 @@ else
     else
         echo -e "${YELLOW}Warning: Klipper extras directory not found. Skipping mmu.py and mmu_sensors.py installation.${NC}"
         echo -e "If Klipper is installed in a non-standard location, please copy 'klipper/mmu.py' and 'klipper/mmu_sensors.py' to your 'klippy/extras/' directory manually."
+    fi
+
+    # Install flare_mmu.cfg
+    KLIPPER_CONFIG_DIR="/home/${REAL_USER}/printer_data/config"
+    if [ ! -d "$KLIPPER_CONFIG_DIR" ]; then
+        if [ -d "/home/pi/printer_data/config" ]; then
+            KLIPPER_CONFIG_DIR="/home/pi/printer_data/config"
+        elif [ -d "/home/klipper/printer_data/config" ]; then
+            KLIPPER_CONFIG_DIR="/home/klipper/printer_data/config"
+        fi
+    fi
+
+    if [ -d "$KLIPPER_CONFIG_DIR" ]; then
+        TARGET_CFG="$KLIPPER_CONFIG_DIR/flare_mmu.cfg"
+        if [ -f "$TARGET_CFG" ]; then
+            echo -e "Found existing flare_mmu.cfg at $TARGET_CFG. Preserving existing configuration."
+        else
+            echo -e "Installing flare_mmu.cfg to $TARGET_CFG"
+            cp "${PROJECT_DIR}/klipper/flare_mmu.cfg" "$TARGET_CFG"
+            chown "${REAL_USER}:${REAL_USER}" "$TARGET_CFG" || true
+        fi
+    else
+        echo -e "${YELLOW}Warning: Klipper printer_data/config directory not found. Skipping flare_mmu.cfg installation.${NC}"
+        echo -e "Please copy '${PROJECT_DIR}/klipper/flare_mmu.cfg' to your Klipper config directory manually."
     fi
 
     echo -e "Ensure Klipper config includes flare macro file."

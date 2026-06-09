@@ -305,6 +305,18 @@ class MMUMock:
             except ValueError:
                 pass
 
+        # Parse gate_name list with quote stripping
+        gate_name_str = gcmd.get('GATE_NAME', None)
+        if gate_name_str is not None:
+            gate_name_str = gate_name_str.strip("'\"")
+            self.gate_name = [x.strip("'\" ") for x in gate_name_str.split(',')]
+
+        # Parse gate_filament_name list with quote stripping
+        gate_filament_name_str = gcmd.get('GATE_FILAMENT_NAME', None)
+        if gate_filament_name_str is not None:
+            gate_filament_name_str = gate_filament_name_str.strip("'\"")
+            self.gate_filament_name = [x.strip("'\" ") for x in gate_filament_name_str.split(',')]
+
         # Derive filament loaded state
         loaded_gate = -1
         for g, status in enumerate(self.gate_status):
@@ -875,6 +887,7 @@ class MMUMock:
         # _update_phase push (cmd_SET_MMU) so a post-unload RELOAD/auto-preload
         # re-stage cannot race it into a phantom load count-up.
         self.is_unloading = True
+        failures = 0
         while not self.unload_completed:
             if reactor.monotonic() - start_time > timeout:
                 self.is_unloading = False
@@ -894,8 +907,16 @@ class MMUMock:
                     toolhead = state.get("toolhead", 0)
                     tc_state = state.get("tc_state", "UNKNOWN").strip().upper()
                     
-                    self.gate_sensor_active = out1 if self.active_gate == 0 else out2
-                    self.pre_gate_sensor_active = in1 if self.active_gate == 0 else in2
+                    active_gate = self.active_gate
+                    if active_gate not in (0, 1):
+                        loaded_gates = [g for g, status in enumerate(self.gate_status) if status == 2]
+                        if len(loaded_gates) == 1:
+                            active_gate = loaded_gates[0]
+                        else:
+                            raise gcmd.error("FLARE Error: No active gate selected and unable to uniquely derive lane from gate status.")
+
+                    self.gate_sensor_active = out1 if active_gate == 0 else out2
+                    self.pre_gate_sensor_active = in1 if active_gate == 0 else in2
                     self.hub_sensor_active = y_split
                     self.toolhead_sensor = toolhead
 
@@ -903,13 +924,20 @@ class MMUMock:
                     
                     lane1_task = state.get("lane1_task", "IDLE").strip().upper()
                     lane2_task = state.get("lane2_task", "IDLE").strip().upper()
-                    active_task = lane1_task if self.active_gate == 0 else lane2_task
+                    active_task = lane1_task if active_gate == 0 else lane2_task
                     
                     # Update status completed flag if active lane task is IDLE and OUT is clear
                     if active_task == "IDLE" and not self.gate_sensor_active:
                         self.unload_completed = True
-            except Exception:
-                pass
+                failures = 0
+            except Exception as e:
+                if hasattr(e, "__class__") and e.__class__.__name__ == "error":
+                    raise
+                failures += 1
+                if failures >= 15:
+                    self.is_unloading = False
+                    self.current_phase = "idle"
+                    raise gcmd.error("FLARE Error: Background daemon is unreachable. Check if flare_daemon is running.")
                 
             reactor.pause(reactor.monotonic() + 0.2)
 
@@ -973,10 +1001,10 @@ class MMUMock:
         self.loading_start_time = start_time
         
         macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
-        bowden_length = 1000.0
+        bowden_length = 1800.0
         if macro is not None:
             v = getattr(macro, 'variables', {})
-            bowden_length = float(v.get('bowden_length', 1000.0))
+            bowden_length = float(v.get('bowden_length', 1800.0))
         
         speed_override = 100.0
         if 0 <= target_gate < len(self.gate_speed_override):
@@ -1000,6 +1028,7 @@ class MMUMock:
         self.cut_phase_start = 0.0
         self.load_phase_start = None
 
+        failures = 0
         try:
             while not self._is_toolhead_sensor_triggered():
                 if reactor.monotonic() - start_time > timeout:
@@ -1042,8 +1071,13 @@ class MMUMock:
                         self.pre_gate_sensor_active = in1 if current_gate == 0 else (in2 if current_gate == 1 else 0)
                         self.hub_sensor_active = y_split
                         self.extruder_sensor_active = y_split
-                except Exception:
-                    pass
+                    failures = 0
+                except Exception as e:
+                    if hasattr(e, "__class__") and e.__class__.__name__ == "error":
+                        raise
+                    failures += 1
+                    if failures >= 15:
+                        raise gcmd.error("FLARE Error: Background daemon is unreachable. Check if flare_daemon is running.")
 
                 reactor.pause(reactor.monotonic() + 0.2)
         finally:
@@ -1061,6 +1095,7 @@ class MMUMock:
 
         # Additional stabilization delay with active HTTP status polling
         if load_delay > 0:
+            failures = 0
             stab_start = reactor.monotonic()
             while reactor.monotonic() - stab_start < load_delay:
                 try:
@@ -1081,8 +1116,13 @@ class MMUMock:
                         self.pre_gate_sensor_active = in1 if target_gate == 0 else (in2 if target_gate == 1 else 0)
                         self.hub_sensor_active = y_split
                         self.extruder_sensor_active = y_split
-                except Exception:
-                    pass
+                    failures = 0
+                except Exception as e:
+                    if hasattr(e, "__class__") and e.__class__.__name__ == "error":
+                        raise
+                    failures += 1
+                    if failures >= 15:
+                        raise gcmd.error("FLARE Error: Background daemon is unreachable. Check if flare_daemon is running.")
                 reactor.pause(reactor.monotonic() + 0.2)
 
         gcmd.respond_info("FLARE: FLARE_WAIT_TC wait complete.")
@@ -1303,13 +1343,13 @@ class MMUMock:
         """Approximate gate->nozzle load-path length from _FLARE_VARS toolhead
         geometry. Used only to scale the synthetic filament_position readout."""
         macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
-        bowden_length = 1000.0
-        extruder_to_nozzle = 117.0
+        bowden_length = 1800.0
+        extruder_to_nozzle = 125.0
         if macro is not None:
             v = getattr(macro, 'variables', {})
             try:
-                bowden_length = float(v.get('bowden_length', 1000.0))
-                extruder_to_nozzle = float(v.get('extruder_to_nozzle', 117.0))
+                bowden_length = float(v.get('bowden_length', 1800.0))
+                extruder_to_nozzle = float(v.get('extruder_to_nozzle', 125.0))
             except (TypeError, ValueError):
                 pass
         return bowden_length + extruder_to_nozzle
@@ -1337,13 +1377,13 @@ class MMUMock:
         # Synthesize a filament tip position (mm) for the Fluidd "Filament: X mm"
         # readout. FLARE has no continuous encoder, so we compute from config variables:
         macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
-        bowden_length = 1000.0
-        extruder_to_nozzle = 117.0
+        bowden_length = 1800.0
+        extruder_to_nozzle = 125.0
         if macro is not None:
             v = getattr(macro, 'variables', {})
             try:
-                bowden_length = float(v.get('bowden_length', 1000.0))
-                extruder_to_nozzle = float(v.get('extruder_to_nozzle', 117.0))
+                bowden_length = float(v.get('bowden_length', 1800.0))
+                extruder_to_nozzle = float(v.get('extruder_to_nozzle', 125.0))
             except (TypeError, ValueError):
                 pass
         path_len = bowden_length + extruder_to_nozzle

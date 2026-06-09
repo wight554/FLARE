@@ -213,6 +213,13 @@ _spool_cache = {}
 _spool_cache_lock = threading.Lock()
 SPOOL_CACHE_TTL = 30.0
 
+def _get_piston_scale():
+    with status_lock:
+        val = status_cache.get("buf_max_travel")
+    if val is not None and val > 0:
+        return val / 2.0
+    return 15.0
+
 def _read_gate_map():
     """Read the gate map from SQLite."""
     def pad(key, default):
@@ -230,6 +237,7 @@ def _read_gate_map():
         "gate_color": pad("gate_color", ""),
         "gate_spool_id": pad("gate_spool_id", -1),
         "gate_name": pad("gate_name", lambda i: f"Gate {i}"),
+        "gate_filament_name": pad("gate_filament_name", lambda i: f"Gate {i}"),
     }
 
 def _write_gate_map_db(gate, fields):
@@ -515,7 +523,7 @@ def parse_status_line(line):
                 if stype == 1:
                     new_data["sync_feedback"] = max(-1.0, min(1.0, bp_val))
                 else:
-                    new_data["sync_feedback"] = max(-1.0, min(1.0, bp_val / 15.0))
+                    new_data["sync_feedback"] = max(-1.0, min(1.0, bp_val / _get_piston_scale()))
             elif key == "BST":
                 val_int = int(val)
                 new_data["buf_sensor_type"] = val_int
@@ -599,6 +607,13 @@ def serial_reader(port_name, baud):
             with status_lock:
                 status_cache["board_online"] = True
 
+            # Query BUF_MAX_TRAVEL immediately on connection
+            try:
+                serial_port.write(b"GET:BUF_MAX_TRAVEL\n")
+                serial_port.flush()
+            except Exception:
+                pass
+
             while True:
                 line_bytes = serial_port.readline()
                 if not line_bytes:
@@ -629,6 +644,17 @@ def serial_reader(port_name, baud):
 
                 # Check for command reply
                 elif line.startswith("OK:") or line.startswith("ER:") or line == "OK":
+                    if "BUF_MAX_TRAVEL:" in line:
+                        try:
+                            parts = line.split(":")
+                            val = float(parts[-1])
+                            with status_lock:
+                                status_cache["buf_max_travel"] = val
+                            print(f"flare_daemon: cached buf_max_travel = {val} mm")
+                        except Exception:
+                            pass
+                        continue
+
                     # If it's a status dump response (starts with OK:LN: or OK:LN=)
                     if "LN:" in line:
                         parse_status_line(line)
@@ -954,6 +980,11 @@ _MMU_RECONCILE_STATUS_KEYS = {
     "FEED_RATE": "board_feed_rate",
     "REV_RATE": "board_rev_rate",
     "BYPASS": "bypass",
+    "GATE_MATERIAL": "gate_material",
+    "GATE_COLOR": "gate_color",
+    "GATE_SPOOL_ID": "gate_spool_id",
+    "GATE_NAME": "gate_name",
+    "GATE_FILAMENT_NAME": "gate_filament_name",
 }
 
 _MMU_RECONCILE_FLOATS = {
@@ -972,6 +1003,11 @@ _MMU_RECONCILE_STRINGS = {
     "PRINT_JOB_STATE",
     "PRINT_STATE",
     "MMU_LAST_ERROR",
+    "GATE_MATERIAL",
+    "GATE_COLOR",
+    "GATE_SPOOL_ID",
+    "GATE_NAME",
+    "GATE_FILAMENT_NAME",
 }
 
 def _moonraker_get_mmu_status(moonraker_url):
@@ -1089,11 +1125,11 @@ def klipper_syncer(moonraker_url):
         # Check if sync_feedback changed significantly to update Mainsail/Fluidd piston
         stype = state.get("buf_sensor_type", 0)
         g_buf_pos = state.get("g_buf_pos", 0.0)
-        sync_feedback = max(-1.0, min(1.0, g_buf_pos)) if stype == 1 else max(-1.0, min(1.0, g_buf_pos / 15.0))
+        sync_feedback = max(-1.0, min(1.0, g_buf_pos)) if stype == 1 else max(-1.0, min(1.0, g_buf_pos / _get_piston_scale()))
 
         last_stype = last_sync.get("buf_sensor_type", 0)
         last_g_buf_pos = last_sync.get("g_buf_pos", 0.0)
-        last_sync_feedback = max(-1.0, min(1.0, last_g_buf_pos)) if last_stype == 1 else max(-1.0, min(1.0, last_g_buf_pos / 15.0))
+        last_sync_feedback = max(-1.0, min(1.0, last_g_buf_pos)) if last_stype == 1 else max(-1.0, min(1.0, last_g_buf_pos / _get_piston_scale()))
 
         if abs(sync_feedback - last_sync_feedback) > 0.05:
             changed = True
@@ -1131,7 +1167,7 @@ def klipper_syncer(moonraker_url):
         if stype == 1:
             sync_feedback = max(-1.0, min(1.0, g_buf_pos))
         else:
-            sync_feedback = max(-1.0, min(1.0, g_buf_pos / 15.0))
+            sync_feedback = max(-1.0, min(1.0, g_buf_pos / _get_piston_scale()))
         sync_feedback_enabled = 1
         buf_state = state.get("buf_state", "NEUTRAL").lower()
         if buf_state in ["+", "tension"]:
@@ -1247,7 +1283,14 @@ def klipper_syncer(moonraker_url):
         if reconcile_due:
             last_force_sync = time.time()
             mmu_status = _moonraker_get_mmu_status(moonraker_url)
-            if not _mmu_status_matches_fields(mmu_status, fields):
+            check_fields = dict(fields)
+            gm = _read_gate_map()
+            check_fields["GATE_MATERIAL"] = f"'{','.join(gm['gate_material'])}'"
+            check_fields["GATE_COLOR"] = f"'{','.join(gm['gate_color'])}'"
+            check_fields["GATE_SPOOL_ID"] = f"'{','.join(str(x) for x in gm['gate_spool_id'])}'"
+            check_fields["GATE_NAME"] = f"'{','.join(gm['gate_name'])}'"
+            check_fields["GATE_FILAMENT_NAME"] = f"'{','.join(gm['gate_filament_name'])}'"
+            if not _mmu_status_matches_fields(mmu_status, check_fields):
                 changed = True
                 force_full = True
 
@@ -1264,7 +1307,13 @@ def klipper_syncer(moonraker_url):
                       file=sys.stderr, flush=True)
 
         if force_full:
-            delta = fields
+            delta = dict(fields)
+            gm = _read_gate_map()
+            delta["GATE_MATERIAL"] = f"'{','.join(gm['gate_material'])}'"
+            delta["GATE_COLOR"] = f"'{','.join(gm['gate_color'])}'"
+            delta["GATE_SPOOL_ID"] = f"'{','.join(str(x) for x in gm['gate_spool_id'])}'"
+            delta["GATE_NAME"] = f"'{','.join(gm['gate_name'])}'"
+            delta["GATE_FILAMENT_NAME"] = f"'{','.join(gm['gate_filament_name'])}'"
         else:
             delta = {k: v for k, v in fields.items() if last_pushed_fields.get(k) != v}
 

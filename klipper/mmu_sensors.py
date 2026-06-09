@@ -20,14 +20,16 @@ class MockFilamentSensor:
         toolhead = bool(mmu.toolhead_sensor)
         hub = bool(mmu.hub_sensor_active)
 
-        # Override shared/global sensors if another gate is physically loaded
-        active_gate = getattr(mmu, 'active_gate', -1)
-        loaded_gate = getattr(mmu, 'gate', -1)
-        if loaded_gate != -1 and loaded_gate != active_gate:
+        # Unify blanking with mmu.py path-cascade model (gear-clear anchored)
+        bypass = getattr(mmu, 'bypass', False)
+        if bypass:
+            pre_gate_0 = False
+            pre_gate_1 = False
             gate = False
+        elif not gate:
+            hub = False
             extruder = False
             toolhead = False
-            hub = False
 
         detected = False
         if 'pre_gate_0' in self.sensor_type:
@@ -92,14 +94,16 @@ class MMUSensorsMock:
         toolhead = bool(mmu.toolhead_sensor)
         hub = bool(mmu.hub_sensor_active)
 
-        # Override shared/global sensors if another gate is physically loaded
-        active_gate = getattr(mmu, 'active_gate', -1)
-        loaded_gate = getattr(mmu, 'gate', -1)
-        if loaded_gate != -1 and loaded_gate != active_gate:
+        # Unify blanking with mmu.py path-cascade model (gear-clear anchored)
+        bypass = getattr(mmu, 'bypass', False)
+        if bypass:
+            pre_gate_0 = False
+            pre_gate_1 = False
             gate = False
+        elif not gate:
+            hub = False
             extruder = False
             toolhead = False
-            hub = False
 
         tension = mmu.sync_feedback_state == "tension"
         compression = mmu.sync_feedback_state == "compressed"
