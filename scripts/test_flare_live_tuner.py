@@ -113,7 +113,7 @@ def test_tension_risk_freeze_and_rollback():
         )
         t.buckets[b.label] = b
         t.active_label = b.label
-        t.on_event("EV:SYNC,TENSION_RISK_HIGH")
+        t.on_event("EV:SYNC:TENSION_RISK_HIGH")
         assert "SET:BASELINE_SPS:1850" in fake.writes, fake.writes
         before = len(fake.writes)
         for _ in range(20):
@@ -129,7 +129,7 @@ def test_fault_hold_halts():
     with tempfile.TemporaryDirectory() as td:
         clock = Clock()
         t, fake = make_tuner(os.path.join(td, "state.json"), clock)
-        t.on_event("EV:SYNC,FAULT_HOLD")
+        t.on_event("EV:SYNC:FAULT_HOLD")
         for _ in range(250):
             clock.step(0.25)
             t.on_status(status(est=2200))

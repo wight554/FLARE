@@ -613,7 +613,7 @@ def serial_reader(port_name, baud):
                     evt_body = line[3:]
                     parts = evt_body.split(":")
                     if len(parts) > 1:
-                        if parts[0] in ("TC", "CUT", "FAULT", "BL", "BUF_STAB", "SYNC") and len(parts) >= 2:
+                        if parts[0] in ("TC", "CUT", "FAULT", "BL", "BUF_STAB", "SYNC", "RELOAD") and len(parts) >= 2:
                             evt_type = f"{parts[0]}:{parts[1]}"
                             evt_data = ":".join(parts[2:])
                         else:

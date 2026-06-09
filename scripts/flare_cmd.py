@@ -335,7 +335,7 @@ def run_send_daemon(args):
                             evt_data = evt.get("event_data", "")
                             evt_line = f"EV:{evt_type}"
                             if evt_data:
-                                evt_line += f",{evt_data}"
+                                evt_line += f":{evt_data}"
                             print(evt_line, flush=True)
 
                             if any(evt_line.startswith(ev) for ev in err_evs):

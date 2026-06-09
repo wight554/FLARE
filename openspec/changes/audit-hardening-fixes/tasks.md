@@ -21,9 +21,9 @@
 
 ## 3. Scripts — protocol drift
 
-- [ ] 3.1 S4: daemon event whitelist += `RELOAD` (flare_daemon.py:616); flare_cmd event rebuild comma → colon (flare_cmd.py:336-338)
-- [ ] 3.2 S3: tuner `EVENT_RE` and `startswith` patterns comma → colon (flare_live_tuner.py:133,582-588)
-- [ ] 3.3 Wire-format unit test: literal firmware lines (`EV:SYNC:FAULT_HOLD`, `EV:SYNC:TENSION_RISK_HIGH`, `EV:BUF:EST_FALLBACK`, `EV:BL:TIMEOUT`, `EV:RELOAD:LOADED:1`) against tuner patterns + daemon split logic
+- [x] 3.1 S4: daemon event whitelist += `RELOAD` (flare_daemon.py:616); flare_cmd event rebuild comma → colon (flare_cmd.py:336-338)
+- [x] 3.2 S3: tuner `EVENT_RE` and `startswith` patterns comma → colon (flare_live_tuner.py:133,582-588)
+- [x] 3.3 Wire-format unit test: literal firmware lines (`EV:SYNC:FAULT_HOLD`, `EV:SYNC:TENSION_RISK_HIGH`, `EV:BUF:EST_FALLBACK`, `EV:BL:TIMEOUT`, `EV:RELOAD:LOADED:1`) against tuner patterns + daemon split logic
 
 ## 4. Scripts — security & ownership
 

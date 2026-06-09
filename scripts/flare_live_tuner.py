@@ -130,7 +130,7 @@ PATCH_KEYS = [
 ]
 
 STATUS_FIELD_RE = re.compile(r"(?P<key>[A-Z0-9]+):(?P<val>-?\d+(?:\.\d+)?|[A-Z_]+|[^,]*)")
-EVENT_RE = re.compile(r"^EV:([A-Z_]+),([A-Z_]+)")
+EVENT_RE = re.compile(r"^EV:([A-Z_]+):([A-Z_]+)")
 MARK_RE = re.compile(r"MK:(?P<seq>\d+):(?P<tag>[^,]*)")
 M118_RE = re.compile(
     r"FLARE_TUNE:(?P<feature>[^:]+):V(?P<vfil>[^:]+):W(?P<w>[^:]+):H(?P<h>[^:\s]+)"
@@ -579,13 +579,13 @@ class Tuner:
 
     def on_event(self, line: str) -> None:
         now = self.now_fn()
-        if line.startswith("EV:SYNC,TENSION_RISK_HIGH"):
+        if line.startswith("EV:SYNC:TENSION_RISK_HIGH"):
             self.frozen_until = now + 30.0
             self._rollback_active()
-        elif line.startswith("EV:SYNC,FAULT_HOLD"):
+        elif line.startswith("EV:SYNC:FAULT_HOLD"):
             self.halted = True
             print("[tuner] HALT: FAULT_HOLD; operator resume required", file=sys.stderr)
-        elif line.startswith("EV:BUF,EST_FALLBACK"):
+        elif line.startswith("EV:BUF:EST_FALLBACK"):
             self.frozen_until = now + 30.0
 
     def on_status(self, line: str) -> None:
