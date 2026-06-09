@@ -144,6 +144,72 @@ find_and_mount_rp2() {
         return 0
     fi
 
+    # Device detection:
+    local rp2_dev=""
+    if [[ "$(uname)" == "Darwin" ]]; then
+        # On macOS, search via diskutil or look for /dev/disk*
+        if command -v diskutil >/dev/null 2>&1; then
+            rp2_dev="$(diskutil list | grep -i 'RPI-RP2' | awk '{print $NF}' | head -n1)"
+            if [[ -n "$rp2_dev" ]]; then
+                rp2_dev="/dev/$rp2_dev"
+            fi
+        fi
+        if [[ -z "$rp2_dev" ]]; then
+            # Fallback: scan disk names
+            for dev in /dev/disk[0-9]s[0-9]*; do
+                if [[ -b "$dev" ]]; then
+                    if diskutil info "$dev" 2>/dev/null | grep -iq "RPI-RP2"; then
+                        rp2_dev="$dev"
+                        break
+                    fi
+                fi
+            done
+        fi
+    else
+        # Linux / lsblk
+        if command -v lsblk >/dev/null 2>&1; then
+            rp2_dev="$(lsblk -n -d -o NAME,MODEL 2>/dev/null | grep -i 'rpi-rp2' | head -1 | awk '{print "/dev/" $1}')"
+        fi
+        if [[ -z "$rp2_dev" ]]; then
+            # Fallback: try common sd* names (usually /dev/sda1 on Raspberry Pi).
+            for dev in /dev/sd{a,b,c,d,e,f}1; do
+                if [[ -b "$dev" ]]; then
+                    local size=$(lsblk -bn -o SIZE "$dev" 2>/dev/null || echo "0")
+                    if [[ $size -gt 100000000 && $size -lt 600000000 ]]; then
+                        rp2_dev="$dev"
+                        break
+                    fi
+                fi
+            done
+        fi
+    fi
+
+    if [[ -z "$rp2_dev" ]]; then
+        return 1
+    fi
+
+    local rp2_mount=""
+    if [[ "$(uname)" == "Darwin" ]]; then
+        # On macOS, if it's not mounted, warn and try to mount.
+        echo "Warning: macOS usually auto-mounts RPI-RP2 to /Volumes/RPI-RP2." >&2
+        echo "Attempting diskutil mount on $rp2_dev..." >&2
+        if command -v diskutil >/dev/null 2>&1; then
+            diskutil mount "$rp2_dev" >&2 || true
+        fi
+        rp2_mount="/Volumes/RPI-RP2"
+    else
+        rp2_mount="/mnt/RPI-RP2"
+        echo "Mounting $rp2_dev to $rp2_mount..." >&2
+        sudo mkdir -p "$rp2_mount"
+        sudo mount "$rp2_dev" "$rp2_mount" || return 1
+    fi
+
+    # Check if successfully mounted
+    if [[ -d "$rp2_mount" ]]; then
+        echo "$rp2_mount"
+        return 0
+    fi
+
     return 1
 }
 
@@ -282,63 +348,83 @@ else
         exit 1
     fi
 
-    # Wait for RPI-RP2 device to appear after BOOTSEL trigger.
-    echo "=== Waiting for RPI-RP2 device ==="
-    RP2_DEV=""
+    # Wait for RPI-RP2 device to appear or be mounted after BOOTSEL trigger.
+    echo "=== Locating/Mounting RPI-RP2 device ==="
+    RP2_MOUNT=""
+
+    # Try finding and mounting first (covers already mounted, and tries to mount detected)
     for i in {1..20}; do
-        # Look for a small USB block device (RP2040 boot is typically ~128M).
-        # Check for /dev/sda1, /dev/sdb1, /dev/sdc1, etc.
-        for dev in /dev/sd{a,b,c,d,e,f}1; do
-            if [[ -b "$dev" ]]; then
-                # Verify it's a small device (likely the RP2040).
-                size=$(lsblk -bn -o SIZE "$dev" 2>/dev/null || echo "0")
-                if [[ $size -gt 100000000 && $size -lt 600000000 ]]; then  # 100MB - 600MB
-                    RP2_DEV="$dev"
-                    echo "Found device $dev (${size} bytes) after ${i}s"
-                    break 2
-                fi
-            fi
-        done
-        
-        if [[ $i -lt 20 ]]; then
-            echo "Waiting... ${i}s"
-            sleep 1
+        if RP2_MOUNT="$(find_and_mount_rp2)"; then
+            echo "RPI-RP2 successfully located/mounted at: $RP2_MOUNT"
+            break
         fi
+        echo "Waiting for RPI-RP2... ${i}s"
+        sleep 1
     done
 
-    if [[ -z "$RP2_DEV" ]]; then
-        echo "Error: Could not find RPI-RP2 device."
-        echo "lsblk output:"
-        lsblk 2>/dev/null || echo "(lsblk unavailable)"
-        echo "Available block devices:"
-        ls -la /dev/sd* /dev/mmcblk* 2>/dev/null || echo "(none found)"
-        echo ""
-        echo "Ensure the board is in BOOT mode and connected, then rerun this script."
-        exit 1
+    # Fallback to legacy device scanning and raw mount if not found/mounted
+    if [[ -z "$RP2_MOUNT" ]]; then
+        echo "Already-mounted check / automatic mount failed. Attempting legacy raw mount fallback..."
+        RP2_DEV=""
+        for i in {1..10}; do
+            for dev in /dev/sd{a,b,c,d,e,f}1; do
+                if [[ -b "$dev" ]]; then
+                    size=$(lsblk -bn -o SIZE "$dev" 2>/dev/null || echo "0")
+                    if [[ $size -gt 100000000 && $size -lt 600000000 ]]; then
+                        RP2_DEV="$dev"
+                        echo "Found device $dev (${size} bytes)"
+                        break 2
+                    fi
+                fi
+            done
+            sleep 1
+        done
+
+        if [[ -z "$RP2_DEV" ]]; then
+            echo "Error: Could not find RPI-RP2 device."
+            if [[ "$(uname)" == "Darwin" ]]; then
+                echo "Note: On macOS, ensure the RPI-RP2 volume is mounted under /Volumes/RPI-RP2."
+            fi
+            exit 1
+        fi
+
+        RP2_MOUNT="/mnt/RPI-RP2"
+        sudo mkdir -p "$RP2_MOUNT"
+        sudo mount "$RP2_DEV" "$RP2_MOUNT" || {
+            echo "Error: Failed to mount $RP2_DEV"
+            exit 1
+        }
     fi
 
-    # Mount, copy, and unmount.
-    RP2_MOUNT="/mnt/RPI-RP2"
-    echo "=== Mounting and flashing ==="
-    sudo mkdir -p "$RP2_MOUNT"
-    sudo mount "$RP2_DEV" "$RP2_MOUNT" || {
-        echo "Error: Failed to mount $RP2_DEV"
-        exit 1
-    }
-
     echo "Copying UF2 to $RP2_MOUNT..."
-    sudo cp "$UF2_PATH" "$RP2_MOUNT/" || {
-        echo "Error: Failed to copy UF2 file"
-        sudo umount "$RP2_MOUNT" 2>/dev/null || true
-        exit 1
-    }
+    if [[ "$RP2_MOUNT" == /Volumes/* ]]; then
+        # macOS volumes don't need sudo
+        cp "$UF2_PATH" "$RP2_MOUNT/" || {
+            echo "Error: Failed to copy UF2 file"
+            exit 1
+        }
+    else
+        sudo cp "$UF2_PATH" "$RP2_MOUNT/" || {
+            echo "Error: Failed to copy UF2 file"
+            sudo umount "$RP2_MOUNT" 2>/dev/null || true
+            exit 1
+        }
+    fi
 
     sync
     echo "Unmounting $RP2_MOUNT..."
-    sudo umount "$RP2_MOUNT" || {
-        echo "Error: Failed to unmount $RP2_MOUNT"
-        exit 1
-    }
+    if [[ "$RP2_MOUNT" == /Volumes/* ]]; then
+        if command -v diskutil >/dev/null 2>&1; then
+            diskutil unmount "$RP2_MOUNT" || true
+        else
+            umount "$RP2_MOUNT" || true
+        fi
+    else
+        sudo umount "$RP2_MOUNT" || {
+            echo "Error: Failed to unmount $RP2_MOUNT"
+            exit 1
+        }
+    fi
 
     # Wait for USB serial to re-enumerate after unmount.
     echo "=== Waiting for USB serial ==="

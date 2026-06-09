@@ -467,10 +467,10 @@ class Tuner:
         for attempt in range(1, 6):
             time.sleep(1.0)
             try:
-                self.ser = serial.Serial(self.port, self.baud, timeout=0.05)
+                self.ser = serial.Serial(self.port, self.baud, timeout=0.05, exclusive=True)
                 print(f"[tuner] serial reconnected on attempt {attempt}", file=sys.stderr)
                 return True
-            except serial.SerialException as exc:
+            except (serial.SerialException, OSError) as exc:
                 print(f"[tuner] reconnect attempt {attempt} failed: {exc}", file=sys.stderr)
         return False
 
@@ -1224,9 +1224,9 @@ def open_serial(port: str, baud: int):
         print("flare_live_tuner: 'pyserial' not installed. Run: pip install pyserial", file=sys.stderr)
         sys.exit(1)
     try:
-        return serial.Serial(port, baud, timeout=0.05)
-    except serial.SerialException as exc:
-        print(f"flare_live_tuner: could not open {port}: {exc}", file=sys.stderr)
+        return serial.Serial(port, baud, timeout=0.05, exclusive=True)
+    except (serial.SerialException, OSError) as exc:
+        print(f"flare_live_tuner error: could not open serial port exclusively ({exc}). Is flare_daemon running and owning the port?", file=sys.stderr)
         sys.exit(1)
 
 

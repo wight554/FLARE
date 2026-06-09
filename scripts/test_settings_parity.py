@@ -78,11 +78,11 @@ class TestSettingsParity(unittest.TestCase):
             text = f.read()
         fields = struct_fields(text)
         save_b = func_body(text, "settings_save")
-        
+
         load_funcs = re.findall(r"\b(settings_load\w*)\s*\([^)]*\)\s*\{", text)
         self.assertTrue(load_funcs, "Could not find any settings_load functions")
         load_b = "\n".join(func_body(text, name) for name in sorted(set(load_funcs)))
-        
+
         defs_funcs = re.findall(r"\b(settings_defaults\w*)\s*\([^)]*\)\s*\{", text)
         self.assertTrue(defs_funcs, "Could not find any settings_defaults functions")
         defs_b = "\n".join(func_body(text, name) for name in sorted(set(defs_funcs)))

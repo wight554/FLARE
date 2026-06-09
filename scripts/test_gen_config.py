@@ -107,11 +107,33 @@ reload_y_timeout_ms: 20000
     assert "CONF_RELOAD_Y_TIMEOUT_MS" not in text
 
 
+def test_invalid_microsteps_exits_1():
+    bad_config = BASE_CONFIG.replace("microsteps: 16", "microsteps: 15")
+    try:
+        generate(bad_config)
+        raise AssertionError("gen_config succeeded with invalid microsteps!")
+    except subprocess.CalledProcessError:
+        pass
+    return "invalid microsteps exits 1"
+
+
+def test_invalid_rotation_distance_exits_1():
+    bad_config = BASE_CONFIG.replace("rotation_distance: 22.679", "rotation_distance: -1")
+    try:
+        generate(bad_config)
+        raise AssertionError("gen_config succeeded with invalid rotation distance!")
+    except subprocess.CalledProcessError:
+        pass
+    return "invalid rotation distance exits 1"
+
+
 def main():
     test_scalar_config_emits_one_point()
     test_schedule_section_sorts_points()
     test_demoted_key_is_ignored_not_emitted()
     test_demoted_watchdog_timeouts_not_emitted()
+    test_invalid_microsteps_exits_1()
+    test_invalid_rotation_distance_exits_1()
     print("gen_config schedule tests PASS")
 
 

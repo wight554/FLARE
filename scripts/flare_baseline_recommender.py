@@ -105,7 +105,7 @@ def main():
             print("Error: pyserial not installed. Run 'pip install pyserial'.", file=sys.stderr)
             sys.exit(1)
         try:
-            ser = serial.Serial(args.port, args.baud, timeout=1.0)
+            ser = serial.Serial(args.port, args.baud, timeout=1.0, exclusive=True)
             print(f"[*] Listening on {args.port}...")
             while True:
                 line = ser.readline()
@@ -117,8 +117,8 @@ def main():
                         rec.process_line(line_str)
                 except Exception:
                     pass
-        except serial.SerialException as e:
-            print(f"Error: {e}", file=sys.stderr)
+        except (serial.SerialException, OSError) as e:
+            print(f"flare_baseline_recommender error: could not open serial port exclusively ({e}). Is flare_daemon running and owning the port?", file=sys.stderr)
             sys.exit(1)
         except KeyboardInterrupt:
             rec.report()

@@ -458,7 +458,10 @@ def find_serial_port():
 
 def open_port(port):
     try:
-        return serial.Serial(port, 115200, timeout=0.5)
+        return serial.Serial(port, 115200, timeout=0.5, exclusive=True)
+    except (serial.SerialException, OSError) as e:
+        print(f"flare_cmd error: could not open serial port exclusively ({e}). Is flare_daemon running and owning the port?", file=sys.stderr)
+        sys.exit(1)
     except Exception as e:
         print(f"flare_cmd: {e}", file=sys.stderr)
         sys.exit(1)

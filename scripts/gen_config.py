@@ -345,7 +345,13 @@ def main():
             return g_val or default
 
         microsteps = int(gm("microsteps", "16"))
+        if microsteps < 1 or microsteps > 256 or (microsteps & (microsteps - 1)) != 0:
+            print(f"gen_config error: microsteps must be a power of two in range 1..256, got {microsteps}", file=sys.stderr)
+            sys.exit(1)
         rotation_distance = float(gm("rotation_distance", "0"))
+        if rotation_distance <= 0:
+            print(f"gen_config error: rotation_distance must be greater than zero, got {rotation_distance}", file=sys.stderr)
+            sys.exit(1)
         run_current = float(gm("run_current", "0.8"))
         full_steps = int(gm("full_steps_per_rotation", "200"))
         gear_ratio = parse_gear_ratio(gm("gear_ratio", "1:1"))

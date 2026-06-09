@@ -27,11 +27,11 @@
 
 ## 4. Scripts — security & ownership
 
-- [ ] 4.1 S1: daemon `--host` default `0.0.0.0` → `127.0.0.1`; startup warning when binding non-loopback (flare_daemon.py:1333)
-- [ ] 4.2 S5: `exclusive=True` on all `serial.Serial` opens (daemon:595, flare_cmd:461, live_tuner:470/1227, sync_check:850, baseline_recommender:108); catch + actionable conflict message
-- [ ] 4.3 S6: gen_config validate `microsteps` pow2 + hard-error `rotation_distance <= 0` (gen_config.py:347,359); error path test in test_gen_config.py
-- [ ] 4.4 S7: `klipper_motion_tracker.py` wait loops scan `_messages` for matching id instead of requeue-and-poll (design D12); unit test feeding unsolicited message mid-wait must not spin (klipper_motion_tracker.py:130-143)
-- [ ] 4.5 S8: `flash_flare.sh` UF2 fallback — use `find_and_mount_rp2` (already-mounted check) before raw `sudo mount`; document macOS limitation or add `/dev/disk*` scan (flash_flare.sh:139-148,320-343)
+- [x] 4.1 S1: daemon `--host` default `0.0.0.0` → `127.0.0.1`; startup warning when binding non-loopback (flare_daemon.py:1333)
+- [x] 4.2 S5: `exclusive=True` on all `serial.Serial` opens (daemon:595, flare_cmd:461, live_tuner:470/1227, sync_check:850, baseline_recommender:108); catch + actionable conflict message
+- [x] 4.3 S6: gen_config validate `microsteps` pow2 + hard-error `rotation_distance <= 0` (gen_config.py:347,359); error path test in test_gen_config.py
+- [x] 4.4 S7: `klipper_motion_tracker.py` wait loops scan `_messages` for matching id instead of requeue-and-poll (design D12); unit test feeding unsolicited message mid-wait must not spin (klipper_motion_tracker.py:130-143)
+- [x] 4.5 S8: `flash_flare.sh` UF2 fallback — use `find_and_mount_rp2` (already-mounted check) before raw `sudo mount`; document macOS limitation or add `/dev/disk*` scan (flash_flare.sh:139-148,320-343)
 
 ## 5. Scripts — dead guard repair
 

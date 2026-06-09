@@ -264,6 +264,23 @@ def test_filename_change_loads_new_sidecar():
         td.cleanup()
 
 
+def test_list_objects_unsolicited_message_mid_wait():
+    client, peer = make_client_pair()
+    try:
+        unsolicited = {"method": "notify_status_update", "params": {"heater_bed": {"temperature": 50.0}}}
+        send_msg(peer, unsolicited)
+        response = {"id": 1, "result": {"objects": ["gcode", "extruder"]}}
+        send_msg(peer, response)
+        objs = client.list_objects()
+        assert objs == ["gcode", "extruder"], objs
+        assert len(client._messages) == 1, list(client._messages)
+        assert client._messages[0] == unsolicited
+        return "list_objects processes unsolicited message without spinning"
+    finally:
+        client.close()
+        peer.close()
+
+
 def main():
     tests = [
         ("framing", test_framing_roundtrip),
@@ -278,6 +295,7 @@ def main():
         ("retract", test_retract_no_event),
         ("pause", test_pause_resume_segment_state_survives),
         ("filename", test_filename_change_loads_new_sidecar),
+        ("list-objects-unsolicited", test_list_objects_unsolicited_message_mid_wait),
     ]
     print(f"{'case':<14} result")
     print(f"{'-' * 14} {'-' * 40}")

@@ -847,7 +847,11 @@ def capture_live(port: Optional[str], poll_ms: int, duration: Optional[float]
     if not dev:
         print("flare_sync_check: no serial port found", file=sys.stderr)
         sys.exit(1)
-    ser = serial.Serial(dev, 115200, timeout=0.5)
+    try:
+        ser = serial.Serial(dev, 115200, timeout=0.5, exclusive=True)
+    except (serial.SerialException, OSError) as e:
+        print(f"flare_sync_check error: could not open serial port exclusively ({e}). Is flare_daemon running and owning the port?", file=sys.stderr)
+        sys.exit(1)
     interval = poll_ms / 1000.0
     lines: List[str] = []
     deadline = time.time() + duration if duration else None

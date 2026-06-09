@@ -129,18 +129,31 @@ class KlipperApiClient:
 
     def list_objects(self) -> List[str]:
         req_id = self._send_request("objects/list")
+        deadline = time.time() + 1.0
         while True:
-            msg = self.poll(1.0)
-            if msg is None:
+            for i, msg in enumerate(self._messages):
+                if msg.get("id") == req_id:
+                    del self._messages[i]
+                    result = msg.get("result", {})
+                    objects = result.get("objects", [])
+                    if isinstance(objects, dict):
+                        return sorted(objects)
+                    return list(objects)
+
+            rem = deadline - time.time()
+            if rem <= 0:
                 raise TimeoutError("timeout waiting for objects/list response")
-            if msg.get("id") != req_id:
-                self._messages.append(msg)
-                continue
-            result = msg.get("result", {})
-            objects = result.get("objects", [])
-            if isinstance(objects, dict):
-                return sorted(objects)
-            return list(objects)
+
+            msg = self.poll(max(0.01, rem))
+            if msg is not None:
+                if msg.get("id") == req_id:
+                    result = msg.get("result", {})
+                    objects = result.get("objects", [])
+                    if isinstance(objects, dict):
+                        return sorted(objects)
+                    return list(objects)
+                else:
+                    self._messages.append(msg)
 
     def subscribe(self, objects: Dict[str, List[str]]) -> int:
         return self._send_request(

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Wire-format unit test validating literal firmware lines against patterns/logic."""
 import os
-import re
 import sys
 import unittest
 
