@@ -10,7 +10,7 @@ it compares the assignment LHS globals of load() against defaults() directly.
 """
 import os
 import re
-import sys
+import unittest
 
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                    "..", "firmware", "src", "settings_store.c")
@@ -23,9 +23,9 @@ ASSIGN = re.compile(r"\s*([A-Za-z_]\w*)\s*(?:\[[^\]]*\])?\s*=(?!=)")
 
 
 def func_body(text, name):
-    m = re.search(r"void\s+" + name + r"\(void\)\s*\{", text)
+    m = re.search(r"\bvoid\s+" + name + r"\s*\([^)]*\)\s*\{", text)
     if not m:
-        sys.exit(f"parity: cannot locate {name}()")
+        raise ValueError(f"parity: cannot locate {name}()")
     i, depth = m.end(), 1
     while depth and i < len(text):
         depth += {"{": 1, "}": -1}.get(text[i], 0)
@@ -36,7 +36,7 @@ def func_body(text, name):
 def struct_fields(text):
     m = re.search(r"typedef struct \{(.*?)\}\s*settings_t;", text, re.S)
     if not m:
-        sys.exit("parity: cannot locate settings_t")
+        raise ValueError("parity: cannot locate settings_t")
     fields = []
     for line in m.group(1).splitlines():
         line = line.split("//")[0].strip()
@@ -64,36 +64,50 @@ def assigned_globals(body, require_sref=False):
     return out
 
 
-def main():
-    text = open(SRC).read()
-    fields = struct_fields(text)
-    save_b = func_body(text, "settings_save")
-    load_b = func_body(text, "settings_load")
-    defs_b = func_body(text, "settings_defaults")
+def strip_comments(text):
+    # Remove single-line comments
+    text = re.sub(r"//.*", "", text)
+    # Remove multi-line comments
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    return text
 
-    saved = {f for f in fields if re.search(r"s\." + f + r"\b", save_b)}
-    loaded = {f for f in fields if re.search(r"s->" + f + r"\b", load_b)}
-    load_globals = assigned_globals(load_b, require_sref=True)
-    def_globals = assigned_globals(defs_b)
 
-    errors = []
-    write_only = sorted(saved - loaded)
-    if write_only:
-        errors.append("saved but never loaded (write-only flash field): "
-                      + ", ".join(write_only))
-    loaded_not_defaulted = sorted(load_globals - def_globals)
-    if loaded_not_defaulted:
-        errors.append("loaded from flash but not seeded in settings_defaults(): "
-                      + ", ".join(loaded_not_defaulted))
+class TestSettingsParity(unittest.TestCase):
+    def test_settings_parity(self):
+        with open(SRC, encoding="utf-8") as f:
+            text = f.read()
+        fields = struct_fields(text)
+        save_b = func_body(text, "settings_save")
+        
+        load_funcs = re.findall(r"\b(settings_load\w*)\s*\([^)]*\)\s*\{", text)
+        self.assertTrue(load_funcs, "Could not find any settings_load functions")
+        load_b = "\n".join(func_body(text, name) for name in sorted(set(load_funcs)))
+        
+        defs_funcs = re.findall(r"\b(settings_defaults\w*)\s*\([^)]*\)\s*\{", text)
+        self.assertTrue(defs_funcs, "Could not find any settings_defaults functions")
+        defs_b = "\n".join(func_body(text, name) for name in sorted(set(defs_funcs)))
 
-    if errors:
-        print("FAIL settings parity:")
-        for e in errors:
-            print("  - " + e)
-        sys.exit(1)
-    print(f"OK settings parity: {len(saved)} saved fields all loaded; "
-          f"{len(load_globals)} loaded globals all defaulted")
+        save_clean = strip_comments(save_b)
+        load_clean = strip_comments(load_b)
+
+        saved = {f for f in fields if re.search(r"s\." + f + r"\b", save_clean)}
+        loaded = {f for f in fields if re.search(r"s->" + f + r"\b", load_clean)}
+        load_globals = assigned_globals(load_clean, require_sref=True)
+        def_globals = assigned_globals(strip_comments(defs_b))
+
+        errors = []
+        write_only = sorted(saved - loaded)
+        if write_only:
+            errors.append("saved but never loaded (write-only flash field): "
+                          + ", ".join(write_only))
+        loaded_not_defaulted = sorted(load_globals - def_globals)
+        if loaded_not_defaulted:
+            errors.append("loaded from flash but not seeded in settings_defaults(): "
+                          + ", ".join(loaded_not_defaulted))
+
+        if errors:
+            self.fail("FAIL settings parity:\n" + "\n".join(f"  - {e}" for e in errors))
 
 
 if __name__ == "__main__":
-    main()
+    unittest.main()

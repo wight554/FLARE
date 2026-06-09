@@ -35,8 +35,8 @@
 
 ## 5. Scripts — dead guard repair
 
-- [ ] 5.1 S2a: parity script scans all `settings_load\w*` function bodies (test_settings_parity.py:26,70-76); verify it passes on current tree after fix
-- [ ] 5.2 S2b: wrap parity check in `unittest.TestCase` so `unittest discover` executes it; confirm failure injection (temporarily comment a load line) fails `validate_regression.sh`
+- [x] 5.1 S2a: parity script scans all `settings_load\w*` function bodies (test_settings_parity.py:26,70-76); verify it passes on current tree after fix
+- [x] 5.2 S2b: wrap parity check in `unittest.TestCase` so `unittest discover` executes it; confirm failure injection (temporarily comment a load line) fails `validate_regression.sh`
 
 ## 6. Docs — drift fixes
 
