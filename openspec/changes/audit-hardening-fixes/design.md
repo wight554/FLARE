@@ -101,6 +101,21 @@ BUF_STAB REVERSE, SYNC subtypes); BEHAVIOR BL watchdog event renamed
 exactly one documented shape at merge. The tuner wire-format unit test (3.3)
 is the mechanical guard; docs follow it.
 
+**D11 — Live-delta ratchet: reset at sync-OFF, not decay.**
+F10 fix = zero `g_flow_sched_live_delta[]` when sync transitions to OFF
+(auto-stop or `SM:0`), keeping raise-only behavior *within* a sync session
+(intentional: avoids learning idle lulls). Alternative — time-decay toward
+schedule baseline — rejected: adds a tuning constant and fights the in-print
+learner; session-boundary reset matches the mental model "learned flow is
+per-print". Hardware judgment at apply may keep cross-print persistence if
+prints prove it beneficial — then add a clamp instead.
+
+**D12 — Motion-tracker wait loops scan, never requeue.**
+Replace requeue-and-poll with: scan buffered `_messages` once for matching id,
+else poll socket against a deadline. `poll()` keeps popping buffered messages
+first; the bug is the producer-consumer requeue cycle in `list_objects`, fixed
+at the call site.
+
 ## Risks / Trade-offs
 
 - [BL `TIMEOUT` consumers] Hosts parsing the buggy `EV:EV:BL:*` today — none

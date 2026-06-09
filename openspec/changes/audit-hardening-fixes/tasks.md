@@ -14,7 +14,10 @@
 - [ ] 2.4 F5: `cutter_test_us` returns false unless `CUT_IDLE`/`CUT_BOOT_PARK`; `CP` handler replies `ER:BUSY` on refusal (cutter.c:196, protocol.c:1275)
 - [ ] 2.5 F7: `TW` reg==CHOPCONF mirrors value into `tmc->chopconf` (protocol_tmc.c:69-74)
 - [ ] 2.6 F8: shared `tc_busy()` gate → `ER:BUSY` for `T:`/`TC:`/`RL:`/`UL:`/`UM:`(active)/`LO:`/`FL:`/`FD:` while TC active; remove silent-no-op-with-OK in `TC:`/`RL:` handlers; `MV:` untouched (protocol.c:1426-1568, toolchange.c tc_start/tc_manual_reload)
-- [ ] 2.7 Build gate: `ninja -C build_local` + dev superset (`-DFLARE_DEV_TUNING=ON`) clean
+- [ ] 2.7 F9: NULL guard at top of `tc_tick_reload_follow` mirroring `tc_tick_reload_approach` (toolchange.c:526-527 inverted deref-then-check)
+- [ ] 2.8 F10: zero `g_flow_sched_live_delta[]` on sync OFF transition (design D11); verify learned baseline no longer carries across prints in one power-on session
+- [ ] 2.9 F11: `g_buf_signal.age_ms` truthful — stamp `g_buf_analog_last_sample_ms` only on actual fresh sample, or compute age from real sample timestamp (sync_buf.c:892/896/910)
+- [ ] 2.10 Build gate: `ninja -C build_local` + dev superset (`-DFLARE_DEV_TUNING=ON`) clean
 
 ## 3. Scripts — protocol drift
 
@@ -27,6 +30,8 @@
 - [ ] 4.1 S1: daemon `--host` default `0.0.0.0` → `127.0.0.1`; startup warning when binding non-loopback (flare_daemon.py:1333)
 - [ ] 4.2 S5: `exclusive=True` on all `serial.Serial` opens (daemon:595, flare_cmd:461, live_tuner:470/1227, sync_check:850, baseline_recommender:108); catch + actionable conflict message
 - [ ] 4.3 S6: gen_config validate `microsteps` pow2 + hard-error `rotation_distance <= 0` (gen_config.py:347,359); error path test in test_gen_config.py
+- [ ] 4.4 S7: `klipper_motion_tracker.py` wait loops scan `_messages` for matching id instead of requeue-and-poll (design D12); unit test feeding unsolicited message mid-wait must not spin (klipper_motion_tracker.py:130-143)
+- [ ] 4.5 S8: `flash_flare.sh` UF2 fallback — use `find_and_mount_rp2` (already-mounted check) before raw `sudo mount`; document macOS limitation or add `/dev/disk*` scan (flash_flare.sh:139-148,320-343)
 
 ## 5. Scripts — dead guard repair
 
@@ -39,6 +44,7 @@
 - [ ] 6.2 D2+D3: BEHAVIOR.md:193 `EV:BL,WATCHDOG` → `EV:BL:TIMEOUT`; MANUAL.md events table add BL family (`PRIME`,`LOCKED`,`FOLLOW`,`FOLLOW_DONE`,`FOLLOW_GATED`,`PRIME_BOUND`,`TIMEOUT`), `CUT:DONE`/`CUT:ERROR`, `BUF_STAB` `REVERSE`, `SYNC` subtypes (`RELIEF_PAUSE`,`NEUTRAL_CREEP_CAP`,`cannot_refill`,`cannot_relieve`)
 - [ ] 6.3 D4+D5: KLIPPER.md document daemon HTTP API (port 8088, loopback default, explicit `--host` LAN opt-in, endpoints); fix KLIPPER.md:22 false symlink claim to match `install_daemon.sh` reality
 - [ ] 6.4 D6+D7: CONTEXT.md:31 + MANUAL.md:374 tuner wording → "observe-only by default; guarded SET writes via --allow-* flags"; MANUAL.md CAL rows add `ER:PERSIST_BUSY`, CP row add busy rejection, `T:`/`TC:`/load rows add TC-busy note; note fault-class events exempt from best-effort drop (MANUAL.md:12)
+- [ ] 6.5 D8+D9+D10: MANUAL.md add core `?:` status-field table (`LN`..`SC`, field order per protocol_status.c); fix `CW:lane:reg:val` → `TW` (MANUAL.md:102 vs protocol_tmc.c:57); remove stale "appended after `SS:`" wording (MANUAL.md:282)
 
 ## 7. Validation
 
