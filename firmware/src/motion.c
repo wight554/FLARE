@@ -500,11 +500,11 @@ static void lane_tick_move(lane_t *lane, uint32_t now_ms, const char *lane_s) {
         if (lane->task_forward && g_buf.state == BUF_COMPRESSION) {
             lane_stop(lane);
             lane->fault = FAULT_BUF;
-            cmd_event("FAULT:MOVE_COMPRESSION", lane_s);
+            cmd_event_critical("FAULT:MOVE_COMPRESSION", lane_s);
         } else if (!lane->task_forward && g_buf.state == BUF_TENSION) {
             lane_stop(lane);
             lane->fault = FAULT_BUF;
-            cmd_event("FAULT:MOVE_TENSION", lane_s);
+            cmd_event_critical("FAULT:MOVE_TENSION", lane_s);
         }
     }
 
@@ -542,7 +542,7 @@ static void lane_tick_dry_spin_tail(lane_t *lane, uint32_t now_ms, const char *l
         if ((int32_t)(now_ms - lane->dry_spin_ms) > DRY_SPIN_TIMEOUT_MS) {
             lane_stop(lane);
             lane->fault = FAULT_DRY_SPIN;
-            cmd_event("FAULT:DRY_SPIN", lane_s);
+            cmd_event_critical("FAULT:DRY_SPIN", lane_s);
         }
     } else {
         lane->dry_spin_ms = 0;

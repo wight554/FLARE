@@ -715,7 +715,7 @@ void sync_retract_assist_release(uint32_t now_ms) {
 }
 
 void handle_bl_watchdog_timeout(uint32_t now_ms) {
-    cmd_event("EV:BL", "TIMEOUT");
+    cmd_event_critical("BL", "TIMEOUT");
     sync_retract_assist_release(now_ms);
     sync_bl_clear_autostart_suppress();
     (void)buffer_stabilize_request(now_ms);
@@ -860,7 +860,7 @@ static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
         /* motor_enable stays true: locked hold needs energized stepper */
 
         if (deadline_hit) {
-            cmd_event("EV:BL", "PRIME_BOUND");
+            cmd_event("BL", "PRIME_BOUND");
         }
 
         g_bl_sub_state = BL_LOCKED;
@@ -929,7 +929,7 @@ static void sync_buffer_lock_follow(lane_t *lane, uint32_t now_ms) {
         if (rail_hit) {
             motor_set_rate_sps(&lane->m, 0);
             g_bl_sub_state = BL_LOCKED;
-            cmd_event("EV:BL", "FOLLOW_GATED");
+            cmd_event("BL", "FOLLOW_GATED");
             g_bl_last_tick_ms = now_ms;
             return;
         }

@@ -55,10 +55,11 @@ bool cmd_handle_tmc_advanced(const char *cmd, const char *p, uint32_t now_ms) {
         }
         return true;
     } else if (!strcmp(cmd, "TW")) {
-        int ln, reg;
-        uint32_t val;
-        if (sscanf(p, "%d:%d:%i", &ln, &reg, &val) == 3 && (ln == 1 || ln == 2) && reg >= 0 &&
+        int ln = 0, reg = 0;
+        char val_str[32] = {0};
+        if (sscanf(p, "%d:%d:%31s", &ln, &reg, val_str) == 3 && (ln == 1 || ln == 2) && reg >= 0 &&
             reg <= TMC_REGISTER_MAX) {
+            uint32_t val = (uint32_t)strtoul(val_str, NULL, 0);
             tmc_t *t = (ln == 1) ? &g_tmc_l1 : &g_tmc_l2;
             if (tmc_write(t, (uint8_t)reg, val)) {
                 int idx = lane_to_idx(ln);
@@ -67,6 +68,7 @@ bool cmd_handle_tmc_advanced(const char *cmd, const char *p, uint32_t now_ms) {
                     g_shadow_ihold_irun_valid[idx] = true;
                     sync_currents_from_ihold_irun(ln, val);
                 } else if (reg == TMC_REG_CHOPCONF) {
+                    t->chopconf = val;
                     g_shadow_vsense[idx] = ((val >> TMC_CHOPCONF_VSENSE_BIT) & 0x1u) != 0u;
                     if (g_shadow_ihold_irun_valid[idx]) {
                         sync_currents_from_ihold_irun(ln, g_shadow_ihold_irun[idx]);
@@ -113,15 +115,26 @@ bool cmd_handle_tmc_advanced(const char *cmd, const char *p, uint32_t now_ms) {
             tmc_t probe = (ln == 1) ? g_tmc_l1 : g_tmc_l2;
             char out[TMC_RAW_REPLY_MAX];
             int pos = snprintf(out, sizeof(out), "%d:", ln);
+            if (pos < 0) pos = 0;
+            if (pos >= (int)sizeof(out)) pos = (int)sizeof(out) - 1;
             for (int addr = 0; addr < TMC_UART_ADDR_COUNT; addr++) {
                 probe.addr = (uint8_t)addr;
                 uint8_t buf[TMC_RAW_REPLY_LEN] = {0};
                 int n = tmc_read_raw(&probe, TMC_REG_GCONF, buf);
-                pos += snprintf(out + pos, sizeof(out) - pos,
-                                "A%u:N=%d:%02X%02X%02X%02X%02X%02X%02X%02X ", (unsigned int)addr, n,
-                                buf[0], buf[1], buf[RAW_REPLY_REG_IDX], buf[RAW_REPLY_DATA3_IDX],
-                                buf[RAW_REPLY_DATA2_IDX], buf[RAW_REPLY_DATA1_IDX],
-                                buf[RAW_REPLY_DATA0_IDX], buf[RAW_REPLY_CRC_IDX]);
+                int rem = (int)sizeof(out) - pos;
+                if (rem > 0) {
+                    int written = snprintf(out + pos, rem,
+                                    "A%u:N=%d:%02X%02X%02X%02X%02X%02X%02X%02X ", (unsigned int)addr, n,
+                                    buf[0], buf[1], buf[RAW_REPLY_REG_IDX], buf[RAW_REPLY_DATA3_IDX],
+                                    buf[RAW_REPLY_DATA2_IDX], buf[RAW_REPLY_DATA1_IDX],
+                                    buf[RAW_REPLY_DATA0_IDX], buf[RAW_REPLY_CRC_IDX]);
+                    if (written > 0) {
+                        pos += written;
+                        if (pos >= (int)sizeof(out)) {
+                            pos = (int)sizeof(out) - 1;
+                        }
+                    }
+                }
             }
             cmd_reply("OK", out);
         }

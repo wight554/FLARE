@@ -179,7 +179,7 @@ void cutter_abort(void) {
     if (g_cut.lane)
         motor_stop(&g_cut.lane->m);
     g_cut.state = CUT_IDLE;
-    cmd_event("CUT:ERROR", "ABORTED");
+    cmd_event_critical("CUT:ERROR", "ABORTED");
 }
 
 static void cutter_fail(const char *reason) {
@@ -190,7 +190,7 @@ static void cutter_fail(const char *reason) {
     if (g_cut.lane)
         motor_stop(&g_cut.lane->m);
     g_cut.state = CUT_IDLE;
-    cmd_event("CUT:ERROR", reason);
+    cmd_event_critical("CUT:ERROR", reason);
 }
 
 void cutter_test_us(uint32_t us) {

@@ -13,7 +13,7 @@
 #include <string.h>
 
 enum {
-    STATUS_LINE_MAX = 768,
+    STATUS_LINE_MAX = CMD_LINE_MAX - 8,
     BIAS_MILLI_PER_PERCENT = 10,
     BIAS_MILLI_ROUND_TO_PERCENT = 5,
 };

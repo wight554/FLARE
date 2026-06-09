@@ -217,7 +217,6 @@ int g_buf_body_len = CONF_BUF_BODY_LEN;
 int g_buf_max_travel_mm = CONF_BUF_MAX_TRAVEL_MM;
 
 // Derived Physical Path Constants
-#define Y_TO_BUF_NEUTRAL ((float)DIST_Y_BUF + (float)BUF_MAX_TRAVEL_MM / 2.0f)
 
 float g_mm_per_step[NUM_LANES] = {CONF_L1_MM_PER_STEP, CONF_L2_MM_PER_STEP};
 

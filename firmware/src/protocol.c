@@ -33,7 +33,6 @@
 #define CMD_PARAM_SCAN_FMT "%63[^:]"
 #define CMD_VALUE_MAX 32
 #define CMD_VALUE_SCAN_FMT "%31s"
-#define CMD_LINE_MAX 768
 #define CMD_OPTION_TOKEN_MAX 8
 #define CMD_OPTION_TOKEN_SCAN_FMT "%7[^:]:%7s"
 #define BUF_SWITCH_SPAN_MIN_MM 2.0f
@@ -270,6 +269,12 @@ void cmd_reply(const char *status, const char *data) {
 
 void cmd_event(const char *type, const char *data) {
     cmd_write_line("EV:", type, data, true);
+}
+
+void cmd_event_critical(const char *type, const char *data) {
+    if (!stdio_usb_connected())
+        return;
+    cmd_write_line("EV:", type, data, false);
 }
 
 static lane_t *get_active_lane_and_clear_error(void) {
@@ -1046,7 +1051,7 @@ static bool cmd_set_sync_advanced_params(const char *base_param, int iv, float f
     else if (!strcmp(base_param, "SYNC_TENSION_STOP_MS"))
         g_sync_tension_dwell_stop_ms = clamp_i(iv, 0, 30000);
     else if (!strcmp(base_param, "SYNC_TENSION_RAMP_MS"))
-        g_sync_tension_ramp_delay_ms = clamp_i(iv, 0, PATH_DIST_MAX_MM);
+        g_sync_tension_ramp_delay_ms = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
     else if (!strcmp(base_param, "SYNC_OVERSHOOT_NEUTRAL_EXT"))
         g_sync_overshoot_neutral_extend = clamp_i(iv, 0, 1);
     else if (!strcmp(base_param, "SYNC_INT_GAIN"))
@@ -1073,9 +1078,9 @@ static bool cmd_set_sync_relay_probe_params(const char *base_param, int iv, floa
     else if (!strcmp(base_param, "RELAY_NEUTRAL_FRAC"))
         g_relay_neutral_frac = clamp_f(fv, RELAY_FRAC_MIN, RELAY_FRAC_MAX);
     else if (!strcmp(base_param, "SYNC_RELAY_TRIM_STEP_SPS"))
-        g_sync_relay_trim_step_sps = clamp_i(iv, 0, PATH_DIST_MAX_MM);
+        g_sync_relay_trim_step_sps = clamp_i(iv, 0, RELAY_TRIM_STEP_MAX_SPS);
     else if (!strcmp(base_param, "SYNC_RELAY_TRIM_CLAMP_SPS"))
-        g_sync_relay_trim_clamp_sps = clamp_i(iv, 0, MAX_RUN_RATE_SPS);
+        g_sync_relay_trim_clamp_sps = clamp_i(iv, 0, RELAY_TRIM_CLAMP_MAX_SPS);
     else if (!strcmp(base_param, "SYNC_COMPRESSION_DRAIN_FRAC"))
         g_sync_compression_drain_frac = clamp_f(fv, 0.0f, COMPRESSION_DRAIN_MAX_FRAC);
     else if (!strcmp(base_param, "SYNC_COMPRESSION_DRAIN_BUDGET_MM"))
@@ -1100,11 +1105,11 @@ static bool cmd_set_sync_relay_probe_params(const char *base_param, int iv, floa
     else if (!strcmp(base_param, "RELAY_MIN_FLIP_MM"))
         g_relay_min_flip_mm = clamp_f(fv, 0.0f, 100.0f);
     else if (!strcmp(base_param, "RELAY_COLLAPSE_DELAY_MS"))
-        g_relay_collapse_delay_ms = clamp_i(iv, 0, PATH_DIST_MAX_MM);
+        g_relay_collapse_delay_ms = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
     else if (!strcmp(base_param, "RELAY_COLLAPSE_RAMP_MULT"))
         g_relay_collapse_ramp_mult = clamp_i(iv, 1, 16);
     else if (!strcmp(base_param, "RELAY_COLLAPSE_CAP_MS"))
-        g_relay_collapse_cap_ms = clamp_i(iv, 0, PATH_DIST_MAX_MM);
+        g_relay_collapse_cap_ms = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
     else if (!strcmp(base_param, "BUF_DRIFT_TAU_MS"))
         g_buf_drift_ewma_tau_ms = clamp_i(iv, 5000, 600000);
     else if (!strcmp(base_param, "BUF_DRIFT_MIN_SMP"))

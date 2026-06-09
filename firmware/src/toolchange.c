@@ -35,7 +35,7 @@ tc_state_t tc_state(void) {
 }
 
 void tc_enter_error(const char *reason) {
-    cmd_event("TC:ERROR", reason);
+    cmd_event_critical("TC:ERROR", reason);
     stop_all();
     cutter_abort();
     g_tc_ctx.state = TC_ERROR;
@@ -102,7 +102,7 @@ void tc_abort(void) {
     cutter_abort();
     set_toolhead_filament(false);
     g_tc_ctx.state = TC_IDLE;
-    cmd_event("TC:ERROR", "ABORTED");
+    cmd_event_critical("TC:ERROR", "ABORTED");
 }
 
 void reload_trigger(int runout_lane, uint32_t now_ms) {
@@ -111,7 +111,7 @@ void reload_trigger(int runout_lane, uint32_t now_ms) {
     lane_t *other_lane_ptr = lane_ptr(other);
     if (!other_lane_ptr || !lane_in_present(other_lane_ptr)) {
         sync_disable(true);
-        cmd_event("RELOAD:FAULT", "NO_FILAMENT");
+        cmd_event_critical("RELOAD:FAULT", "NO_FILAMENT");
         return;
     }
     char event[TC_EVENT_BUF_LEN];

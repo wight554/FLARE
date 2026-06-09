@@ -2,9 +2,9 @@
 
 ## 1. Firmware — protocol correctness
 
-- [ ] 1.1 F1: `sync.c:718,863,932` — `cmd_event("EV:BL", ...)` → `cmd_event("BL", ...)`; grep firmware for other `cmd_event("EV` instances (must be zero)
-- [ ] 1.2 F6: add critical-event path bypassing `cmd_event_permitted()` budget (keep `stdio_usb_connected()` check); switch `FAULT:*` (motion.c), `CUT:ERROR` (cutter.c), `TC:ERROR` + `RELOAD:FAULT` (toolchange.c), BL `TIMEOUT` (sync.c) to it
-- [ ] 1.3 Cleanups: delete dead `Y_TO_BUF_NEUTRAL` (main.c:220); clamp `pos` in RR chained snprintf (protocol_tmc.c:115-124); `TW` value scan `%i` → `%x` with unsigned temp (protocol_tmc.c:60); `STATUS_LINE_MAX` → `CMD_LINE_MAX - 8` (protocol_status.c:16); fix ms clamps misusing `PATH_DIST_MAX_MM` + use/delete dead `RELAY_TRIM_*_MAX_SPS` consts (protocol.c:1049,1076-1078,1103-1107)
+- [x] 1.1 F1: `sync.c:718,863,932` — `cmd_event("EV:BL", ...)` → `cmd_event("BL", ...)`; grep firmware for other `cmd_event("EV` instances (must be zero)
+- [x] 1.2 F6: add critical-event path bypassing `cmd_event_permitted()` budget (keep `stdio_usb_connected()` check); switch `FAULT:*` (motion.c), `CUT:ERROR` (cutter.c), `TC:ERROR` + `RELOAD:FAULT` (toolchange.c), BL `TIMEOUT` (sync.c) to it
+- [x] 1.3 Cleanups: delete dead `Y_TO_BUF_NEUTRAL` (main.c:220); clamp `pos` in RR chained snprintf (protocol_tmc.c:115-124); `TW` value scan `%i` → `%x` with unsigned temp (protocol_tmc.c:60); `STATUS_LINE_MAX` → `CMD_LINE_MAX - 8` (protocol_status.c:16); fix ms clamps misusing `PATH_DIST_MAX_MM` + use/delete dead `RELAY_TRIM_*_MAX_SPS` consts (protocol.c:1049,1076-1078,1103-1107)
 
 ## 2. Firmware — guards & validation
 
