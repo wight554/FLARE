@@ -1770,17 +1770,17 @@ static bool cmd_handle_system(const char *cmd, const char *p, uint32_t now_ms) {
             return true;
         }
         if (!strcmp(p, "PSF_COMP")) {
-            buf_analog_update();
+            buf_analog_update((uint32_t)g_sync_tick_ms);
             g_buf_psf_max_comp = clamp_f(g_buf_pos_raw_status, 0.0f, 1.0f);
             settings_save();
             cmd_reply("OK", NULL);
         } else if (!strcmp(p, "PSF_TENS")) {
-            buf_analog_update();
+            buf_analog_update((uint32_t)g_sync_tick_ms);
             g_buf_psf_max_tens = clamp_f(g_buf_pos_raw_status, 0.0f, 1.0f);
             settings_save();
             cmd_reply("OK", NULL);
         } else if (!strcmp(p, "PSF_NEUT")) {
-            buf_analog_update();
+            buf_analog_update((uint32_t)g_sync_tick_ms);
             g_buf_psf_neutral = clamp_f(g_buf_pos_raw_status, 0.0f, 1.0f);
             settings_save();
             cmd_reply("OK", NULL);

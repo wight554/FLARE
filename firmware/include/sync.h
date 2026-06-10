@@ -37,7 +37,7 @@ void sync_fault_hold(void);
 void flow_schedule_reset_runtime(void);
 void flow_schedule_refresh_scalar(void);
 flow_param_t flow_param(int flow_sps);
-void buf_analog_update(void);
+void buf_analog_update(uint32_t elapsed_ms);
 
 const char *buf_state_name(buf_state_t s);
 buf_state_t buf_state_raw(void);

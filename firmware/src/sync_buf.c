@@ -376,7 +376,7 @@ bool predict_tension_coming(void) {
 // Analog read & normalized position/target (Type-P)
 // ============================================================================
 
-void buf_analog_update(void) {
+void buf_analog_update(uint32_t elapsed_ms) {
     g_buf_analog_last_sample_ms = to_ms_since_boot(get_absolute_time());
     adc_select_input(PIN_PSF - ADC_PIN_BASE);
     uint32_t sum = 0;
@@ -412,7 +412,8 @@ void buf_analog_update(void) {
 
     g_buf_pos = g_buf_analog_alpha * norm + (1.0f - g_buf_analog_alpha) * g_buf_pos;
 
-    float dt_s = (float)g_sync_tick_ms / MS_PER_SECOND_F;
+    uint32_t dt_ms = (elapsed_ms == 0) ? 1 : elapsed_ms;
+    float dt_s = (float)dt_ms / MS_PER_SECOND_F;
     if (dt_s < ANALOG_SPAN_MIN_F)
         dt_s = ANALOG_SPAN_MIN_F;
     float vel = (g_buf_pos - g_buf_pos_prev) / dt_s;
@@ -913,7 +914,7 @@ void buf_sensor_tick(uint32_t now_ms) {
         g_buf_pos_last_ms = now_ms;
 
     if (g_buf_sensor_type == BUF_SENSOR_TYPE_P && do_pos)
-        buf_analog_update();
+        buf_analog_update(elapsed_ms);
 
     buf_state_t prev = g_buf.state;
     buf_state_t s = buf_read_stable(now_ms);
