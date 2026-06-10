@@ -34,5 +34,5 @@ Docs/config only — no firmware, no `scripts/`, no `config.ini`. Each task self
 
 - [x] 6.1 Doc sync: (verified 2026-06-11 — links resolve, AI.md not contradicted) cross-references consistent — `AGENTS.md` ↔ `REVIEW.md` ↔ `memories/repo/README.md` ↔ `openspec/COMPRESSION.md` links resolve; `AI.md` workspace rules not contradicted (memories/repo is committed BY DESIGN — team store, not tool-local config).
 - [x] 6.2 (passes 2026-06-11) `openspec validate agent-token-efficiency --strict` passes.
-- [ ] 6.3 `openspec validate --specs --strict` passes for touched specs after archive folding; set real `## Purpose` on new `openspec/specs/team-memory-store/spec.md` before archive commit (archive stamps placeholder otherwise).
+- [x] 6.3 (done at archive 2026-06-11 — real Purpose set, --specs --strict pass) `openspec validate --specs --strict` passes for touched specs after archive folding; set real `## Purpose` on new `openspec/specs/team-memory-store/spec.md` before archive commit (archive stamps placeholder otherwise).
 - [x] 6.4 (written 2026-06-11) Append `memories/repo/agent-token-efficiency.md` observation (3–5 lines) before archiving.
