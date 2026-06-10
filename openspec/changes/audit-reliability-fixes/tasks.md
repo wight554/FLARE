@@ -37,10 +37,10 @@
 
 ## 7. M5/L7 — Event attribution (motion.c, protocol.c)
 
-- [ ] 7.1 `UNLOAD_TIMEOUT` carries lane payload
-- [ ] 7.2 Manual-unload terminal fault event (`UNLOAD:FAULT:<CUT_FAILED|OUT_BLOCKED>`, critical-class) replacing silent resets
-- [ ] 7.3 `ER:BUSY:<src>` suffix (TC/LANE/CUTTER/UNLOAD/BL); verify daemon/tuner regex tolerance + wire-format test; MANUAL.md events/errors tables
-- [ ] 7.4 Daemon two-part event whitelist updated for new event shapes (S4 lesson)
+- [x] 7.1 `UNLOAD_TIMEOUT` carries lane payload
+- [x] 7.2 Manual-unload terminal fault event (`UNLOAD:FAULT:<CUT_FAILED|OUT_BLOCKED>`, critical-class) replacing silent resets
+- [x] 7.3 `ER:BUSY:<src>` suffix (TC/LANE/CUTTER/UNLOAD/BL); verify daemon/tuner regex tolerance + wire-format test; MANUAL.md events/errors tables
+- [x] 7.4 Daemon two-part event whitelist updated for new event shapes (S4 lesson)
 
 ## 8. Low cleanups
 

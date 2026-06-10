@@ -365,7 +365,7 @@ static void lane_tick_unload(lane_t *lane, uint32_t now_ms, const char *lane_s) 
 
         if (lane->task_limit_mm > 0 && lane->task_dist_mm >= lane->task_limit_mm) {
             lane_stop(lane);
-            cmd_event("UNLOAD_TIMEOUT", NULL);
+            cmd_event("UNLOAD_TIMEOUT", lane_s);
         }
 
         /* UNLOAD_TENSION_BLOCK: if the buffer stays in TENSION throughout

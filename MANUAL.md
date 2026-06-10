@@ -63,20 +63,20 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 ### Motion Control
 | Command | Mode | Description |
 |---------|------|-------------|
-| `T:n` | Both | **Select Active Lane** — set active lane to `1` or `2` without moving filament. Returns `ER:BUSY` if toolchange/motion is active. |
-| `LO:` | Manual| **Preload** — runs forward until OUT sensor triggers. Limit: `AUTOLOAD_MAX`. Returns `ER:BUSY` if toolchange/motion is active. |
-| `FL:` | Manual| **Full Load** — runs forward until `TS:1`, `TS_BUF_MS`, or sane buffer geometry reports loaded. Limit: `LOAD_MAX`. Returns `ER:BUSY` if toolchange/motion is active. |
-| `RL:` | Manual| **Reload Load** — manually triggers RELOAD sync. Pushes active lane to approach and follow a disconnected tail. Returns `ER:BUSY` if toolchange/motion is active. |
-| `UL:` | Both  | **Unload (Extruder)** — reverse until OUT clears. If `CUTTER=1` and `UNLOAD_CUT=1`, runs clear → cut → clear. Limit: `UNLOAD_MAX`. Returns `ER:BUSY` if toolchange/motion is active. |
-| `UM[:lane]` | Both  | **Unload (MMU)** — reverse until IN clears. `UM` / `UM:` unload the active lane; if fully loaded and `UNLOAD_CUT=1`, they run the full `UL:` cut sequence first, then continue to IN clear. `UM:1` / `UM:2` target a specific lane; inactive targets must be idle and preloaded (`IN=1`, `OUT=0`) and never run the cutter. Limit: `UNLOAD_MAX`. Returns `ER:BUSY` if toolchange/motion is active. |
-| `TC:n` | Manual| **Toolchange** — If `TH:1` is latched, wait for `TS:0`/`TC_TH_MS`, then unload active lane, cut if enabled, and load lane `n`. Returns `ER:BUSY` if toolchange/motion is active. |
+| `T:n` | Both | **Select Active Lane** — set active lane to `1` or `2` without moving filament. Returns `ER:BUSY:LANE` if toolchange/motion is active. |
+| `LO:` | Manual| **Preload** — runs forward until OUT sensor triggers. Limit: `AUTOLOAD_MAX`. Returns `ER:BUSY:LANE` if toolchange/motion is active. |
+| `FL:` | Manual| **Full Load** — runs forward until `TS:1`, `TS_BUF_MS`, or sane buffer geometry reports loaded. Limit: `LOAD_MAX`. Returns `ER:BUSY:LANE` if toolchange/motion is active. |
+| `RL:` | Manual| **Reload Load** — manually triggers RELOAD sync. Pushes active lane to approach and follow a disconnected tail. Returns `ER:BUSY:LANE` if toolchange/motion is active. |
+| `UL:` | Both  | **Unload (Extruder)** — reverse until OUT clears. If `CUTTER=1` and `UNLOAD_CUT=1`, runs clear → cut → clear. Limit: `UNLOAD_MAX`. Returns `ER:BUSY:UNLOAD` if toolchange/motion is active. |
+| `UM[:lane]` | Both  | **Unload (MMU)** — reverse until IN clears. `UM` / `UM:` unload the active lane; if fully loaded and `UNLOAD_CUT=1`, they run the full `UL:` cut sequence first, then continue to IN clear. `UM:1` / `UM:2` target a specific lane; inactive targets must be idle and preloaded (`IN=1`, `OUT=0`) and never run the cutter. Limit: `UNLOAD_MAX`. Returns `ER:BUSY:UNLOAD` if toolchange/motion is active. |
+| `TC:n` | Manual| **Toolchange** — If `TH:1` is latched, wait for `TS:0`/`TC_TH_MS`, then unload active lane, cut if enabled, and load lane `n`. Returns `ER:BUSY:TC` if toolchange/motion is active. |
 | `MV:mm:F[:D][:I]`| Both | **Exact Move** — move `abs(mm)` at `F` mm/min. Direction from sign of `mm` or optional `D` (`F`/`R`/`B`, `+`/`-`). Optional `I` ignores buffer compression/tension guards for this finite move. Disables sync. |
-| `FD:` | Both  | **Continuous Feed** — runs forward until `ST:`. Returns `ER:BUSY` if toolchange/motion is active. |
-| `BS:` | Both  | **Buffer Stabilize** — cancels compatible buffer service/sync/simple lane motion, then runs buffer neutralization to bring a dual-endstop buffer back toward `NEUTRAL`. Hard activities (`TC`, cutter, manual unload) still return `ER:BUSY`. |
+| `FD:` | Both  | **Continuous Feed** — runs forward until `ST:`. Returns `ER:BUSY:LANE` if toolchange/motion is active. |
+| `BS:` | Both  | **Buffer Stabilize** — cancels compatible buffer service/sync/simple lane motion, then runs buffer neutralization to bring a dual-endstop buffer back toward `NEUTRAL`. Hard activities (`TC`, cutter, manual unload) still return `ER:BUSY:BL`. |
 | `ST:` | Both  | **Stop** — aborts all motion and resets toolchange state. |
 | `CU:` | Both  | **Cut** — performs the full cutter sequence (Open -> Feed -> Close -> Open -> Repeat -> Block) on the active lane. Requires both lanes idle and preloaded (`IN=1`, `OUT=0`); otherwise returns `ER:NOT_PRELOADED`. |
 | `CX:` | Both  | **Bare Cut** — performs the cutter sequence without filament movement (Open -> Close -> Open -> Repeat -> Block). |
-| `CP:us` | Both  | **Cutter Position** — moves the cutter servo to the specified pulse width (400-2700 us) and stays there. Useful for mechanical tuning. Returns `ER:BUSY` if not idle or in boot park. |
+| `CP:us` | Both  | **Cutter Position** — moves the cutter servo to the specified pulse width (400-2700 us) and stays there. Useful for mechanical tuning. Returns `ER:BUSY:CUTTER` if not idle or in boot park. |
 
 ### Status & Configuration
 | Command | Response | Description |
@@ -84,7 +84,7 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `?:` | Status | **Full Status** — returns all sensors, tasks, and rates. |
 | `VR:` | Version| **Version** — returns firmware version. |
 | `TS:<0\|1>`| OK | **Toolhead Sensor** — report toolhead filament status (sent by host). |
-| `BL:<T|C>` | OK | **Buffer Lock** — arm the active lane to drive the buffer to the requested extreme and hold there. `BL:T` (tension, default) or `BL:C` (compression). The prime move is capped at `BUF_MAX_TRAVEL_MM / 2`; once at the extreme the lane holds with motor energized. On any external force (printer retract) the lock breaks automatically and the catch drive engages. Cancels active buffer stabilize or sync before arming; returns `ER:BUSY` for hard activities or unrelated lane tasks. Use `BS` to release manually. |
+| `BL:<T\|C>` | OK | **Buffer Lock** — arm the active lane to drive the buffer to the requested extreme and hold there. `BL:T` (tension, default) or `BL:C` (compression). The prime move is capped at `BUF_MAX_TRAVEL_MM / 2`; once at the extreme the lane holds with motor energized. On any external force (printer retract) the lock breaks automatically and the catch drive engages. Cancels active buffer stabilize or sync before arming; returns `ER:BUSY:BL` for hard activities or unrelated lane tasks. Use `BS` to release manually. |
 | `SM:<0\|1>`| OK | **Sync Mode** — manually toggle buffer sync. |
 | `CAL:PSF_COMP` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_COMP`. Rejected with `ER:PERSIST_BUSY` if controller activity (including buffer-lock motor motion) is in progress. |
 | `CAL:PSF_TENS` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_TENS`. Rejected with `ER:PERSIST_BUSY` if controller activity (including buffer-lock motor motion) is in progress. |
@@ -344,6 +344,7 @@ These extra diagnostic fields are returned in the second part of the `?:` status
 | `UNLOADED`| `lane` | Filament successfully retracted past the OUT or IN sensor. |
 | `LOAD_TIMEOUT` | `lane` | A load task hit its configured distance limit before completion. |
 | `UNLOAD_TIMEOUT` | `lane` | An unload task hit its configured distance limit before completion. |
+| `UNLOAD:FAULT` | `CUT_FAILED\|OUT_BLOCKED` | Manual-unload terminal fault event. |
 | `MOVE_DONE` | `lane` | Exact move completed. |
 | `ACTIVE` | `lane\|NONE`| Reported when the active lane changes. |
 | `FAULT:DRY_SPIN`| `lane` | Motor spinning > 8s without filament (`IN` clear). |

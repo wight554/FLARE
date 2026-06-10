@@ -326,6 +326,7 @@ static void manual_unload_tick(uint32_t now_ms) {
     case MANUAL_UNLOAD_WAIT_CUT:
         if (!cutter_busy()) {
             if (cutter_failed()) {
+                cmd_event_critical("UNLOAD:FAULT", "CUT_FAILED");
                 manual_unload_reset();
             } else {
                 g_manual_unload.cut_pending = false;
@@ -342,6 +343,7 @@ static void manual_unload_tick(uint32_t now_ms) {
     case MANUAL_UNLOAD_WAIT_FIRST_CLEAR:
         if (lane->task == TASK_IDLE) {
             if (lane_out_present(lane)) {
+                cmd_event_critical("UNLOAD:FAULT", "OUT_BLOCKED");
                 manual_unload_reset();
                 return;
             }
@@ -973,7 +975,7 @@ static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, fl
     } else if (!strcmp(base_param, "BUF_SENSOR")) {
         if (sync_enabled || tc_state() != TC_IDLE || g_lane_l1.task != TASK_IDLE ||
             g_lane_l2.task != TASK_IDLE) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:LANE");
             return CMD_SET_REPLIED;
         }
         g_buf_sensor_type = clamp_i(iv, 0, 1);
@@ -1261,7 +1263,7 @@ static bool cmd_handle_cutter(const char *cmd, const char *p, uint32_t now_ms) {
             return true;
         }
         if (lane->task != TASK_IDLE || g_tc_ctx.state != TC_IDLE) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:CUTTER");
             return true;
         }
         sync_retract_assist_set(false);
@@ -1289,7 +1291,7 @@ static bool cmd_handle_cutter(const char *cmd, const char *p, uint32_t now_ms) {
         }
         sync_retract_assist_set(false);
         if (!cutter_test_us(us)) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:CUTTER");
         } else {
             cmd_reply("OK", NULL);
         }
@@ -1301,7 +1303,7 @@ static bool cmd_handle_cutter(const char *cmd, const char *p, uint32_t now_ms) {
 static bool cmd_handle_unload(const char *cmd, const char *p, uint32_t now_ms) {
     if (!strcmp(cmd, "UL")) {
         if (tc_busy()) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:UNLOAD");
             return true;
         }
         lane_t *lane = get_active_lane_and_clear_error();
@@ -1337,7 +1339,7 @@ static bool cmd_handle_unload(const char *cmd, const char *p, uint32_t now_ms) {
 
         bool active_target = !explicit_lane || target_lane == g_active_lane;
         if (active_target && tc_busy()) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:UNLOAD");
             return true;
         }
         lane_t *lane = active_target ? get_active_lane_and_clear_error() : lane_ptr(target_lane);
@@ -1376,7 +1378,7 @@ static bool cmd_handle_unload(const char *cmd, const char *p, uint32_t now_ms) {
             }
         } else {
             if (g_tc_ctx.state != TC_IDLE || lane->task != TASK_IDLE) {
-                cmd_reply("ER", "BUSY");
+                cmd_reply("ER", "BUSY:UNLOAD");
                 return true;
             }
             if (!lane_in_present(lane)) {
@@ -1441,7 +1443,7 @@ static bool cmd_handle_mv_command(const char *p, uint32_t now_ms) {
 static bool cmd_handle_load_commands(const char *cmd, const char *p, uint32_t now_ms) {
     if (!strcmp(cmd, "LO")) {
         if (tc_busy()) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:LANE");
             return true;
         }
         lane_t *lane = get_active_lane_and_clear_error();
@@ -1454,7 +1456,7 @@ static bool cmd_handle_load_commands(const char *cmd, const char *p, uint32_t no
         return true;
     } else if (!strcmp(cmd, "FL")) {
         if (tc_busy()) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:LANE");
             return true;
         }
         lane_t *lane = get_active_lane_and_clear_error();
@@ -1481,7 +1483,7 @@ static bool cmd_handle_load_commands(const char *cmd, const char *p, uint32_t no
         return true;
     } else if (!strcmp(cmd, "RL")) {
         if (tc_busy()) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:LANE");
             return true;
         }
         lane_t *lane = get_active_lane_and_clear_error();
@@ -1525,7 +1527,7 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
 
     if (!strcmp(cmd, "TC")) {
         if (tc_busy()) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:TC");
             return true;
         }
         int ln = atoi(p);
@@ -1571,7 +1573,7 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
                 cmd_reply("OK", NULL);
             } else {
                 if (tc_busy()) {
-                    cmd_reply("ER", "BUSY");
+                    cmd_reply("ER", "BUSY:LANE");
                     return true;
                 }
                 sync_retract_assist_set(false);
@@ -1584,7 +1586,7 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
         return true;
     } else if (!strcmp(cmd, "FD")) {
         if (tc_busy()) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:LANE");
             return true;
         }
         lane_t *lane = get_active_lane_and_clear_error();
@@ -1637,7 +1639,7 @@ static bool cmd_handle_bl_command(const char *p, uint32_t now_ms) {
         return true;
     }
     if (controller_hard_activity_in_progress()) {
-        cmd_reply("ER", "BUSY");
+        cmd_reply("ER", "BUSY:BL");
         return true;
     }
     buffer_stabilize_cancel();
@@ -1650,7 +1652,7 @@ static bool cmd_handle_bl_command(const char *p, uint32_t now_ms) {
         sync_disable(false);
     }
     if (controller_activity_in_progress()) {
-        cmd_reply("ER", "BUSY");
+        cmd_reply("ER", "BUSY:BL");
     } else {
         buf_state_t target = (dir_tok == 'C') ? BUF_COMPRESSION : BUF_TENSION;
         sync_buffer_lock_arm(target, follow_mm, follow_rate, now_ms);
@@ -1673,7 +1675,7 @@ static bool cmd_handle_sensor_status(const char *cmd, const char *p, uint32_t no
         return true;
     } else if (!strcmp(cmd, "BS")) {
         if (controller_hard_activity_in_progress()) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:BL");
             return true;
         }
         /* BS is the buffer-service preemptor. Stop compatible firmware-owned
@@ -1696,7 +1698,7 @@ static bool cmd_handle_sensor_status(const char *cmd, const char *p, uint32_t no
          * off the switch). Without clearing suppression the buffer can
          * stay stuck and sync never re-engages. */
         if (controller_activity_in_progress()) {
-            cmd_reply("ER", "BUSY");
+            cmd_reply("ER", "BUSY:BL");
             return true;
         }
         /* Always clear BL auto-start suppression on BS, not just when BL is
@@ -1838,7 +1840,7 @@ static bool cmd_handle_system(const char *cmd, const char *p, uint32_t now_ms) {
 static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
     if (manual_unload_active() && strcmp(cmd, "ST") != 0 && strcmp(cmd, "?") != 0 &&
         strcmp(cmd, "GET") != 0) {
-        cmd_reply("ER", "BUSY");
+        cmd_reply("ER", "BUSY:UNLOAD");
         return;
     }
 

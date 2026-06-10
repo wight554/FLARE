@@ -16,7 +16,7 @@ def daemon_split_logic(line):
     evt_body = line[3:]
     parts = evt_body.split(":")
     if len(parts) > 1:
-        if parts[0] in ("TC", "CUT", "FAULT", "BL", "BUF_STAB", "SYNC", "RELOAD") and len(parts) >= 2:
+        if parts[0] in ("TC", "CUT", "FAULT", "BL", "BUF_STAB", "SYNC", "RELOAD", "UNLOAD") and len(parts) >= 2:
             evt_type = f"{parts[0]}:{parts[1]}"
             evt_data = ":".join(parts[2:])
         else:
@@ -60,6 +60,12 @@ class TestWireFormat(unittest.TestCase):
         self.assertEqual(m5.group(1), "RELOAD")
         self.assertEqual(m5.group(2), "LOADED")
 
+        # EV:UNLOAD:FAULT:CUT_FAILED
+        m6 = EVENT_RE.match("EV:UNLOAD:FAULT:CUT_FAILED")
+        self.assertIsNotNone(m6)
+        self.assertEqual(m6.group(1), "UNLOAD")
+        self.assertEqual(m6.group(2), "FAULT")
+
     def test_daemon_split_logic(self):
         # EV:SYNC:FAULT_HOLD
         t, d = daemon_split_logic("EV:SYNC:FAULT_HOLD")
@@ -84,6 +90,16 @@ class TestWireFormat(unittest.TestCase):
         # EV:RELOAD:LOADED:1
         t, d = daemon_split_logic("EV:RELOAD:LOADED:1")
         self.assertEqual(t, "RELOAD:LOADED")
+        self.assertEqual(d, "1")
+
+        # EV:UNLOAD:FAULT:CUT_FAILED
+        t, d = daemon_split_logic("EV:UNLOAD:FAULT:CUT_FAILED")
+        self.assertEqual(t, "UNLOAD:FAULT")
+        self.assertEqual(d, "CUT_FAILED")
+
+        # EV:UNLOAD_TIMEOUT:1
+        t, d = daemon_split_logic("EV:UNLOAD_TIMEOUT:1")
+        self.assertEqual(t, "UNLOAD_TIMEOUT")
         self.assertEqual(d, "1")
 
 
