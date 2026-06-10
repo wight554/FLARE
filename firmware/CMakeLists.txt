@@ -70,6 +70,7 @@ target_link_libraries(flare_controller
   hardware_sync
   hardware_pio
   hardware_adc
+  hardware_watchdog
 )
 
 pico_enable_stdio_usb(flare_controller 1)

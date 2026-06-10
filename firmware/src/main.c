@@ -25,6 +25,7 @@
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
 #include "hardware/sync.h"
+#include "hardware/watchdog.h"
 
 #include "cutter.h"
 #include "motion.h"
@@ -515,6 +516,8 @@ static void settle_boot_sensors(void) {
 
 // ===================== Main =====================
 int main(void) {
+    bool watchdog_reboot_detected = watchdog_caused_reboot();
+    bool watchdog_reboot_reported = false;
     stdio_init_all();
     sleep_ms(USB_STARTUP_SETTLE_MS);
 
@@ -562,8 +565,15 @@ int main(void) {
     // hit the rail-break cap; tune BOOT_STAB_FIRST_MS until the single attempt
     // DONEs cleanly.
     bool boot_stab_armed = false;
+    watchdog_enable(1000, true);
     while (true) {
         g_now_ms = to_ms_since_boot(get_absolute_time());
+        watchdog_update();
+
+        if (watchdog_reboot_detected && !watchdog_reboot_reported && g_now_ms >= 2000) {
+            watchdog_reboot_reported = true;
+            cmd_event("SYSTEM", "WATCHDOG_RESET");
+        }
 
         if (!boot_stab_armed && g_active_lane != 0 && g_now_ms >= BOOT_STAB_FIRST_MS) {
             boot_stab_armed = true;

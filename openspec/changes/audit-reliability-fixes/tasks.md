@@ -16,8 +16,8 @@
 
 ## 3. H3 — Hardware watchdog (main.c)
 
-- [ ] 3.1 `watchdog_enable(1000, true)` after settings/sensor boot init; `watchdog_update()` once per superloop pass
-- [ ] 3.2 Verify BOOTSEL path (`sleep_ms(100)` + `reset_usb_boot`) and flash save fit inside the budget; note watchdog-reset cause in boot (optional status flag)
+- [x] 3.1 `watchdog_enable(1000, true)` after settings/sensor boot init; `watchdog_update()` once per superloop pass
+- [x] 3.2 Verify BOOTSEL path (`sleep_ms(100)` + `reset_usb_boot`) and flash save fit inside the budget; note watchdog-reset cause in boot (optional status flag)
 
 ## 4. M1 — BL motion vs persistence gate (protocol.c, sync.c)
 
