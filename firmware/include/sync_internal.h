@@ -235,6 +235,7 @@ void sync_apply_to_active(void);
 void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t now_ms);
 void buf_signal_publish(uint32_t now_ms);
 void sync_buffer_lock_tick(lane_t *lane, uint32_t now_ms);
+void sync_rearm_active(lane_t *lane, uint32_t now_ms);
 void handle_bl_watchdog_timeout(uint32_t now_ms);
 int sync_neutral_creep_sps(void);
 int sync_effective_kp_sps(buf_state_t s);

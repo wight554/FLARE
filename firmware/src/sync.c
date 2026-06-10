@@ -1051,6 +1051,21 @@ void sync_disable(bool reset_estimator) {
     }
 }
 
+void sync_rearm_active(lane_t *lane, uint32_t now_ms) {
+    bool was_tension = (g_buf.state == BUF_TENSION);
+    buf_force_stable_state(BUF_NEUTRAL, now_ms);
+    if (g_buf_sensor_type == BUF_SENSOR_TYPE_D) {
+        g_buf_pos = buf_target_reserve_mm();
+    }
+    g_sync_current_sps = sync_bootstrap_sps();
+    g_sync_tension_pin_since_ms = was_tension ? now_ms : 0;
+    sync_set_state(SYNC_ACTIVE);
+    g_sync_auto_started = true;
+    g_sync_tail_assist_active = lane && !lane_in_present(lane) && lane_out_present(lane);
+    g_sync_idle_since_ms = 0;
+    cmd_event("SYNC", "AUTO_START");
+}
+
 int sync_bootstrap_sps(void) {
     int max_sps = sync_clamp_max_sps(g_sync_max_sps);
     int startup_floor_sps = g_compression_sps + g_pre_ramp_sps;
@@ -1252,27 +1267,9 @@ static bool sync_tick_gated_checks(lane_t *lane, uint32_t now_ms) {
              * drains to COMPRESSION, never TENSION). Reseed the model to the
              * reserve target and re-enter ACTIVE directly, bootstrapped at
              * the baseline floor (F2b) so there is no overshoot. */
-            if (g_buf_sensor_type == BUF_SENSOR_TYPE_D)
-                g_buf_pos = buf_target_reserve_mm();
-            g_buf.state = BUF_NEUTRAL;
-            g_buf.entered_ms = now_ms;
-            g_sync_current_sps = sync_bootstrap_sps();
-            /* Type-P: clear the saturation timer so the recovered ACTIVE state gets
-               a fresh PSF_WALL_SAT_MS window for the refill snap to relieve the
-               rail. Without this, a buffer still pinned at -1.0 (extruder kept
-               pulling through the hold) carries a stale, long-expired timer and the
-               saturation check re-faults on the next tick -> infinite
-               FAULT_HOLD <-> RECOVERY <-> AUTO_START loop. */
             g_buf_analog_saturated_since_ms = 0;
-            /* Restart the tension-dwell timer so it counts from activation, not a
-               stale idle value (see the auto-start note below). */
-            g_sync_tension_pin_since_ms = (g_buf.state == BUF_TENSION) ? now_ms : 0;
-            sync_set_state(SYNC_ACTIVE);
-            g_sync_auto_started = true;
-            g_sync_tail_assist_active = !lane_in_present(lane) && lane_out_present(lane);
-            g_sync_idle_since_ms = 0;
             cmd_event("SYNC", "FAULT_HOLD_RECOVERY");
-            cmd_event("SYNC", "AUTO_START");
+            sync_rearm_active(lane, now_ms);
         } else {
             return true;
         }
@@ -1293,15 +1290,7 @@ static bool sync_tick_gated_checks(lane_t *lane, uint32_t now_ms) {
                     : ((g_buf_pos < TYPE_P_AUTO_START_POS_NORM) &&
                        (g_sync_tension_transitioned || g_vel_norm < TYPE_P_AUTO_START_VEL_NORM));
             if (relief_rearm) {
-                if (g_buf_sensor_type == BUF_SENSOR_TYPE_D)
-                    g_buf_pos = buf_target_reserve_mm();
-                g_sync_current_sps = sync_bootstrap_sps();
-                g_sync_tension_pin_since_ms = (g_buf.state == BUF_TENSION) ? now_ms : 0;
-                sync_set_state(SYNC_ACTIVE);
-                g_sync_auto_started = true;
-                g_sync_tail_assist_active = !lane_in_present(lane) && lane_out_present(lane);
-                g_sync_idle_since_ms = 0;
-                cmd_event("SYNC", "AUTO_START");
+                sync_rearm_active(lane, now_ms);
             } else {
                 return true;
             }
@@ -1401,8 +1390,8 @@ static bool sync_tick_auto_start_stop(lane_t *lane, uint32_t now_ms, buf_state_t
     return false;
 }
 
-static float sync_apply_drift_correction(buf_state_t s, float thr, float reserve_deadband_mm) {
-    float bp_eff = g_buf_pos;
+static float sync_apply_drift_correction(float bp_in, buf_state_t s, float thr, float reserve_deadband_mm) {
+    float bp_eff = bp_in;
     float drift_correction_mm = 0.0f;
     int drift_min_samples = g_buf_drift_min_samples;
     if (drift_min_samples < 1)
@@ -1420,16 +1409,16 @@ static float sync_apply_drift_correction(buf_state_t s, float thr, float reserve
             wall_taper_mm = DRIFT_WALL_TAPER_MIN_MM;
 
         if (drift_correction_mm < 0.0f) {
-            float dist_from_tension_mm = g_buf_pos + thr;
+            float dist_from_tension_mm = bp_in + thr;
             float wall_frac = clamp_f(dist_from_tension_mm / wall_taper_mm, 0.0f, 1.0f);
             drift_correction_mm *= wall_frac;
         } else if (drift_correction_mm > 0.0f) {
-            float dist_from_compression_mm = thr - g_buf_pos;
+            float dist_from_compression_mm = thr - bp_in;
             float wall_frac = clamp_f(dist_from_compression_mm / wall_taper_mm, 0.0f, 1.0f);
             drift_correction_mm *= wall_frac;
         }
 
-        bp_eff = g_buf_pos - drift_correction_mm;
+        bp_eff = bp_in - drift_correction_mm;
 
         /* SAFETY: Don't let correction push bp_eff to the opposite side of physical state.
          * If we are physically at a wall, the controller must see it as at or beyond that wall. */
@@ -1600,13 +1589,14 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
 
     g_buf_pos_raw_status = g_buf_pos;
     /* Variance-aware position blend (default OFF) */
+    float blended_pos = g_buf_pos;
     if (g_buf_variance_blend_frac > 0.0f && g_buf_sigma_mm > 0.0f) {
         float sigma_ref = (g_buf_variance_blend_ref_mm > VARIANCE_BLEND_REF_MIN_MM)
                               ? g_buf_variance_blend_ref_mm
                               : VARIANCE_BLEND_REF_FALLBACK_MM;
         float distrust = clamp_f(g_buf_sigma_mm / sigma_ref, 0.0f, 1.0f);
         float blend = distrust * g_buf_variance_blend_frac;
-        g_buf_pos = (1.0f - blend) * g_buf_pos + blend * raw_target;
+        blended_pos = (1.0f - blend) * g_buf_pos + blend * raw_target;
     }
 
     float thr = buf_threshold_mm();
@@ -1614,7 +1604,7 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
         thr = BUFFER_THRESHOLD_MIN_MM;
 
     /* Effective buffer position with drift correction (default OFF) */
-    float bp_eff = sync_apply_drift_correction(s, thr, reserve_deadband_mm);
+    float bp_eff = sync_apply_drift_correction(blended_pos, s, thr, reserve_deadband_mm);
 
     float effective_target = sync_effective_reserve_target(s, bp_eff, raw_target, now_ms);
 

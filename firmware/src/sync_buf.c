@@ -836,13 +836,7 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
 
     if (g_buf_sensor_type == BUF_SENSOR_TYPE_D && g_sync_state == SYNC_RELIEF_PAUSE && !g_boot_stabilizing &&
         (new_state == BUF_NEUTRAL || new_state == BUF_TENSION)) {
-        g_buf_pos = buf_target_reserve_mm();
-        g_sync_current_sps = sync_bootstrap_sps();
-        sync_set_state(SYNC_ACTIVE);
-        g_sync_auto_started = true;
-        g_sync_tail_assist_active = lane && !lane_in_present(lane) && lane_out_present(lane);
-        g_sync_idle_since_ms = 0;
-        cmd_event("SYNC", "AUTO_START");
+        sync_rearm_active(lane, now_ms);
     }
 
     buf_anchor_virtual_position(old, new_state);

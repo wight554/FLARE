@@ -27,8 +27,8 @@
 
 ## 5. M2/M3 — Estimator-state hygiene (sync.c, sync_buf.c)
 
-- [ ] 5.1 Variance blend → read-path transform feeding `bp_eff`; `g_buf_pos` never written by the control law
-- [ ] 5.2 Extract single `sync_rearm_active()` helper; use in FAULT_HOLD recovery, RELIEF tick re-arm, RELIEF transition re-arm; route state forcing through `buf_force_stable_state`; drop dead ternary (sync.c:1254)
+- [x] 5.1 Variance blend → read-path transform feeding `bp_eff`; `g_buf_pos` never written by the control law
+- [x] 5.2 Extract single `sync_rearm_active()` helper; use in FAULT_HOLD recovery, RELIEF tick re-arm, RELIEF transition re-arm; route state forcing through `buf_force_stable_state`; drop dead ternary (sync.c:1254)
 
 ## 6. M4 — Geometry/goal caching (sync_buf.c)
 
