@@ -211,6 +211,8 @@ static bool controller_activity_in_progress(void) {
         return true;
     if (g_lane_l1.task != TASK_IDLE || g_lane_l2.task != TASK_IDLE)
         return true;
+    if (sync_buffer_lock_motor_moving())
+        return true;
     return false;
 }
 

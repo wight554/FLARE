@@ -42,7 +42,6 @@ static const float BL_FALLBACK_TRAVEL_CAP_MM = 25.0f;
 static const float BL_FALLBACK_HALF_TRAVEL_MM = BL_FALLBACK_TRAVEL_CAP_MM * HALF_F;
 static const float BL_FOLLOW_DT_MIN_S = 0.0001f;
 static const float BL_FOLLOW_DT_MAX_S = 0.1f;
-static const float BL_FOLLOW_DT_FALLBACK_S = 0.001f;
 static const float TYPE_P_AUTO_START_POS_NORM = -0.6f;
 static const float TYPE_P_AUTO_START_VEL_NORM = -0.1f;
 static const float DRIFT_WALL_TAPER_MULT = 2.0f;
@@ -926,7 +925,7 @@ static void sync_buffer_lock_follow(lane_t *lane, uint32_t now_ms) {
     if (dt_s < BL_FOLLOW_DT_MIN_S)
         dt_s = BL_FOLLOW_DT_MIN_S;
     if (dt_s > BL_FOLLOW_DT_MAX_S)
-        dt_s = BL_FOLLOW_DT_FALLBACK_S;
+        dt_s = BL_FOLLOW_DT_MAX_S;
 
     if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
         bool rail_hit = (g_bl_target_state == BUF_TENSION) ? (g_buf_pos <= -PSF_FOLLOW_RAIL_NORM)

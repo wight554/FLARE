@@ -86,13 +86,13 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `TS:<0\|1>`| OK | **Toolhead Sensor** — report toolhead filament status (sent by host). |
 | `BL:<T|C>` | OK | **Buffer Lock** — arm the active lane to drive the buffer to the requested extreme and hold there. `BL:T` (tension, default) or `BL:C` (compression). The prime move is capped at `BUF_MAX_TRAVEL_MM / 2`; once at the extreme the lane holds with motor energized. On any external force (printer retract) the lock breaks automatically and the catch drive engages. Cancels active buffer stabilize or sync before arming; returns `ER:BUSY` for hard activities or unrelated lane tasks. Use `BS` to release manually. |
 | `SM:<0\|1>`| OK | **Sync Mode** — manually toggle buffer sync. |
-| `CAL:PSF_COMP` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_COMP`. Rejected with `ER:PERSIST_BUSY` if controller activity is in progress. |
-| `CAL:PSF_TENS` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_TENS`. Rejected with `ER:PERSIST_BUSY` if controller activity is in progress. |
-| `CAL:PSF_NEUT` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_NEUTRAL`. Rejected with `ER:PERSIST_BUSY` if controller activity is in progress. |
+| `CAL:PSF_COMP` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_COMP`. Rejected with `ER:PERSIST_BUSY` if controller activity (including buffer-lock motor motion) is in progress. |
+| `CAL:PSF_TENS` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_TENS`. Rejected with `ER:PERSIST_BUSY` if controller activity (including buffer-lock motor motion) is in progress. |
+| `CAL:PSF_NEUT` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_NEUTRAL`. Rejected with `ER:PERSIST_BUSY` if controller activity (including buffer-lock motor motion) is in progress. |
 | `MARK:<tag>` | `OK:MARK` | **Telemetry Marker** — stores a short host marker in firmware. Subsequent status replies expose it as `MK:<seq>:<tag>`. |
-| `SV:` | OK | **Save Settings** — persist current runtime parameters to flash. Rejected with `ER:PERSIST_BUSY` while motion, toolchange, cutter activity, or buffer stabilization is active. |
-| `LD:` | OK | **Load Settings** — reload persisted settings from flash. Rejected with `ER:PERSIST_BUSY` while motion, toolchange, cutter activity, or buffer stabilization is active. |
-| `RS:` | OK | **Reset Settings** — restore defaults and save them to flash. Rejected with `ER:PERSIST_BUSY` while motion, toolchange, cutter activity, or buffer stabilization is active. |
+| `SV:` | OK | **Save Settings** — persist current runtime parameters to flash. Rejected with `ER:PERSIST_BUSY` while motion (including buffer-lock motor motion), toolchange, cutter activity, or buffer stabilization is active. |
+| `LD:` | OK | **Load Settings** — reload persisted settings from flash. Rejected with `ER:PERSIST_BUSY` while motion (including buffer-lock motor motion), toolchange, cutter activity, or buffer stabilization is active. |
+| `RS:` | OK | **Reset Settings** — restore defaults and save them to flash. Rejected with `ER:PERSIST_BUSY` while motion (including buffer-lock motor motion), toolchange, cutter activity, or buffer stabilization is active. |
 | `CA:lane:ma` | OK | **Set Run Current** — immediately program the lane TMC run current in mA. |
 | `BOOT:` | OK | **Reboot To BOOTSEL** — reboot into RP2040 USB boot mode for flashing. |
 

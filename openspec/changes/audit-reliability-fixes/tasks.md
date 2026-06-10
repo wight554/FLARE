@@ -21,9 +21,9 @@
 
 ## 4. M1 — BL motion vs persistence gate (protocol.c, sync.c)
 
-- [ ] 4.1 `controller_activity_in_progress()`: add `sync_buffer_lock_motor_moving()` (PRIME/FOLLOW block persistence; LOCKED hold allowed)
-- [ ] 4.2 `sync_buffer_lock_follow` dt clamp: saturate at `BL_FOLLOW_DT_MAX_S` instead of collapsing to 1 ms fallback
-- [ ] 4.3 MANUAL.md: SV/LD/RS/CAL rows note BL-motion rejection
+- [x] 4.1 `controller_activity_in_progress()`: add `sync_buffer_lock_motor_moving()` (PRIME/FOLLOW block persistence; LOCKED hold allowed)
+- [x] 4.2 `sync_buffer_lock_follow` dt clamp: saturate at `BL_FOLLOW_DT_MAX_S` instead of collapsing to 1 ms fallback
+- [x] 4.3 MANUAL.md: SV/LD/RS/CAL rows note BL-motion rejection
 
 ## 5. M2/M3 — Estimator-state hygiene (sync.c, sync_buf.c)
 
