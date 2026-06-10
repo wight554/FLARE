@@ -391,7 +391,7 @@ static void tc_tick_reload_wait_y(lane_t *lane, uint32_t now_ms, uint32_t age) {
         g_tc_ctx.last_compression_ms = 0;
         g_tc_ctx.phase_start_ms = now_ms;
         g_tc_ctx.state = TC_RELOAD_APPROACH;
-    } else if ((!tail_cleared || !y_cleared) && age > (uint32_t)g_reload_y_timeout_ms) {
+    } else if (g_reload_y_timeout_ms > 0 && (!tail_cleared || !y_cleared) && age > (uint32_t)g_reload_y_timeout_ms) {
         tc_enter_error("RELOAD_Y_TIMEOUT");
     }
 }

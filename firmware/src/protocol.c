@@ -852,7 +852,7 @@ static bool cmd_set_reload_motion_params(const char *base_param, int iv, float f
     else if (!strcmp(base_param, "POST_PRINT_STAB_MS"))
         g_post_print_stab_delay_ms = clamp_i(iv, 0, 300000);
     else if (!strcmp(base_param, "RELOAD_Y_MS"))
-        g_reload_y_timeout_ms = clamp_i(iv, 100, 30000);
+        g_reload_y_timeout_ms = (iv == 0) ? 0 : clamp_i(iv, 100, 30000);
 #endif
     else if (!strcmp(base_param, "RELOAD_JOIN_MS"))
         g_reload_join_delay_ms = clamp_i(iv, 0, RELOAD_JOIN_MAX_MS);
