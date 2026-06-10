@@ -99,11 +99,12 @@ static bl_sub_state_t g_bl_sub_state = BL_IDLE;
 static buf_state_t g_bl_target_state = BUF_TENSION;
 buf_state_t g_bl_goal_override = BUF_NEUTRAL;
 static uint32_t g_bl_prime_start_ms = 0;      /* when prime search began */
-static float g_bl_prime_mm_per_s = 0.0f;      /* stab speed in mm/s */
-static float g_bl_prime_cap_mm = 0.0f;        /* abs 1: outer safety cap = BUF_MAX_TRAVEL_MM */
-static bool g_bl_prime_switch_hit = false;    /* switch fired during search phase */
-static uint32_t g_bl_prime_post_start_ms = 0; /* when post-click settle began */
-static float g_bl_prime_post_cap_mm = 0.0f;   /* abs 2: post-click extra travel = (max-span)/2 */
+static float g_bl_prime_mm_per_s = 0.0f;      /* speed in mm/s */
+static float g_bl_prime_cap_mm = 0.0f;        /* outer safety cap = BUF_MAX_TRAVEL_MM */
+static int g_bl_prime_cur_sps = 0;            /* PRIME current ramped rate */
+static int g_bl_prime_target_sps = 0;         /* PRIME target rate (clamped) */
+static uint32_t g_bl_prime_ramp_tick_ms = 0;  /* last PRIME ramp step */
+static float g_bl_prime_traveled_mm = 0.0f;   /* tracked travel distance in mm */
 static float g_bl_follow_mm = 0.0f;           /* armed follow-on distance; 0 = disabled */
 static float g_bl_follow_rate_mmpm = 0.0f;    /* armed follow-on rate (mm/min) */
 static uint32_t g_bl_follow_start_ms = 0;     /* when FOLLOW motion began */
@@ -695,9 +696,10 @@ void sync_retract_assist_set(bool enabled) {
             g_bl_prime_start_ms = 0;
             g_bl_prime_mm_per_s = 0.0f;
             g_bl_prime_cap_mm = 0.0f;
-            g_bl_prime_switch_hit = false;
-            g_bl_prime_post_start_ms = 0;
-            g_bl_prime_post_cap_mm = 0.0f;
+            g_bl_prime_cur_sps = 0;
+            g_bl_prime_target_sps = 0;
+            g_bl_prime_ramp_tick_ms = 0;
+            g_bl_prime_traveled_mm = 0.0f;
             g_bl_follow_mm = 0.0f;
             g_bl_follow_rate_mmpm = 0.0f;
             g_bl_follow_start_ms = 0;
@@ -773,15 +775,20 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
      * (switch) is bang-bang — the click stops it instantly, so full speed is fine. */
     int prime_sps = (g_buf_sensor_type == BUF_SENSOR_TYPE_P) ? sync_clamp_max_sps(g_buf_stab_sps)
                                            : sync_clamp_max_sps(g_sync_max_sps);
-    float mm_per_s = (float)prime_sps * g_mm_per_step[idx];
-    float max_cap_mm =
-        (g_buf_max_travel_mm > 0) ? (float)g_buf_max_travel_mm : BL_FALLBACK_TRAVEL_CAP_MM;
+    int start_sps = g_ramp_step_sps;
+    if (start_sps > prime_sps)
+        start_sps = prime_sps;
+    if (start_sps < 1)
+        start_sps = 1;
+
     g_bl_prime_start_ms = now_ms;
-    g_bl_prime_mm_per_s = mm_per_s;
-    g_bl_prime_cap_mm = max_cap_mm;
-    g_bl_prime_switch_hit = false;
-    g_bl_prime_post_start_ms = 0;
-    g_bl_prime_post_cap_mm = 0.0f;
+    g_bl_prime_cur_sps = start_sps;
+    g_bl_prime_target_sps = prime_sps;
+    g_bl_prime_ramp_tick_ms = now_ms;
+    g_bl_prime_mm_per_s = (float)start_sps * g_mm_per_step[idx];
+    g_bl_prime_cap_mm =
+        (g_buf_max_travel_mm > 0) ? (float)g_buf_max_travel_mm : BL_FALLBACK_TRAVEL_CAP_MM;
+    g_bl_prime_traveled_mm = 0.0f;
     /* Subtract BUF_MAX_TRAVEL_MM/2 so FOLLOW finishes near NEUTRAL rather
      * than at the switch click. After the extruder stops the MMU keeps
      * draining; parking at the switch click leaves one step before the
@@ -808,7 +815,7 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
     bool forward = (target == BUF_COMPRESSION);
     motor_enable(&lane->m, true);
     motor_set_dir(&lane->m, forward);
-    motor_set_rate_sps(&lane->m, prime_sps);
+    motor_set_rate_sps(&lane->m, start_sps);
 
     cmd_event("BL", "PRIME");
 }
@@ -836,29 +843,31 @@ static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
         reached = (raw == g_bl_target_state);
     }
 
-    /* Phase 1 — search: outer safety cap fires if switch never triggers */
-    float traveled_mm =
-        (g_bl_prime_mm_per_s > 0.0f)
-            ? ((float)(now_ms - g_bl_prime_start_ms) / MS_PER_SECOND_F * g_bl_prime_mm_per_s)
-            : g_bl_prime_cap_mm;
-    bool deadline_hit = (!g_bl_prime_switch_hit && traveled_mm >= g_bl_prime_cap_mm);
+    int idx = lane->lane_id - 1;
+    float dt_s = (float)(now_ms - g_bl_last_tick_ms) / MS_PER_SECOND_F;
+    if (dt_s < BL_FOLLOW_DT_MIN_S)
+        dt_s = BL_FOLLOW_DT_MIN_S;
+    if (dt_s > BL_FOLLOW_DT_MAX_S)
+        dt_s = BL_FOLLOW_DT_MAX_S;
+    g_bl_last_tick_ms = now_ms;
 
-    /* Switch click: transition to post-click settle phase */
-    if (!g_bl_prime_switch_hit && reached) {
-        g_bl_prime_switch_hit = true;
-        g_bl_prime_post_start_ms = now_ms;
+    /* Accelerate toward the target prime rate (pull-in-safe ramp). */
+    if (g_bl_prime_cur_sps < g_bl_prime_target_sps &&
+        (int32_t)(now_ms - g_bl_prime_ramp_tick_ms) >= g_ramp_tick_ms) {
+        g_bl_prime_ramp_tick_ms = now_ms;
+        g_bl_prime_cur_sps += g_ramp_step_sps;
+        if (g_bl_prime_cur_sps > g_bl_prime_target_sps)
+            g_bl_prime_cur_sps = g_bl_prime_target_sps;
+        motor_set_rate_sps(&lane->m, g_bl_prime_cur_sps);
+        g_bl_prime_mm_per_s = (float)g_bl_prime_cur_sps * g_mm_per_step[idx];
     }
 
-    /* Phase 2 — post-click settle: continue (max-span)/2 past the switch */
-    bool post_done = false;
-    if (g_bl_prime_switch_hit) {
-        float post_mm = (g_bl_prime_mm_per_s > 0.0f) ? ((float)(now_ms - g_bl_prime_post_start_ms) /
-                                                        MS_PER_SECOND_F * g_bl_prime_mm_per_s)
-                                                     : g_bl_prime_post_cap_mm;
-        post_done = (post_mm >= g_bl_prime_post_cap_mm);
-    }
+    /* Integrate distance at the current (ramping) rate */
+    g_bl_prime_traveled_mm += g_bl_prime_mm_per_s * dt_s;
 
-    if (post_done || deadline_hit) {
+    bool deadline_hit = (g_bl_prime_traveled_mm >= g_bl_prime_cap_mm);
+
+    if (reached || deadline_hit) {
         /* Prime done — stop motor but keep enabled for holding torque */
         motor_set_rate_sps(&lane->m, 0);
         /* motor_enable stays true: locked hold needs energized stepper */

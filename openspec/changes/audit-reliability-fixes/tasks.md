@@ -44,8 +44,8 @@
 
 ## 8. Low cleanups
 
-- [ ] 8.1 L1: ramp BL prime like FOLLOW (no instant SYNC_MAX step)
-- [ ] 8.2 L2: delete dead prime phase-2 (post-cap) machinery + stale comments
+- [x] 8.1 L1: ramp BL prime like FOLLOW (no instant SYNC_MAX step)
+- [x] 8.2 L2: delete dead prime phase-2 (post-cap) machinery + stale comments
 - [ ] 8.3 L3: `buf_analog_update` velocity uses actual elapsed ms (pass from `buf_sensor_tick`)
 - [ ] 8.4 L4: drop `BUF_HOME_STATE` knob (settings field + SET/GET + persistence; SETTINGS_VERSION bump) or document decision to keep reserved; delete dead `PSF_TENSION_PIN_NORM`/`PSF_UNLOAD_RELIEF_ARM_MS`
 - [ ] 8.5 L5: `RELOAD_Y_TIMEOUT_MS=0` disables Y gate without insta-failing tail-clear wait
