@@ -24,13 +24,13 @@ Repo SHALL carry a `pyproject.toml` `[tool.ruff]` config pinning `line-length`,
 
 ### Requirement: Python lint in the regression gate
 
-`scripts/validate_regression.sh` SHALL run `ruff check scripts/` so lint regressions
+`scripts/validate_regression.py` SHALL run `ruff check scripts/` so lint regressions
 fail the gate alongside the existing `py_compile` and `unittest` steps.
 
 #### Scenario: A lint regression is introduced
 
 - **WHEN** a script change introduces a selected-rule violation and the gate runs
-- **THEN** `validate_regression.sh` fails at the ruff step
+- **THEN** `validate_regression.py` fails at the ruff step
 
 ### Requirement: Behavior-preserving lint cleanup
 

@@ -437,7 +437,7 @@ cp ~/flare-state/buckets-<id>.json ~/flare-state/buckets-<id>.json.schema2.bak
    ```bash
    python3 scripts/gen_config.py
    ninja -C build_local
-   bash scripts/flash_flare.sh
+   python3 scripts/flash_flare.py
    ```
 7. Update the watermark in your state file so drift tracking works:
    ```bash

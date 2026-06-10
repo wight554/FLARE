@@ -50,7 +50,7 @@ breaks before you flash a board.
 Quick path:
 
 ```bash
-bash scripts/validate_regression.sh
+python3 scripts/validate_regression.py
 ```
 
 This runs the default static gate in one command. Use the detailed cases below
@@ -524,7 +524,7 @@ Confirm the board can re-enter BOOTSEL from firmware and return to a working ser
 
 ```bash
 python3 scripts/flare_cmd.py "BOOT:"
-bash scripts/flash_flare.sh
+python3 scripts/flash_flare.py
 python3 scripts/flare_cmd.py "VR:" "?:"
 ```
 

@@ -142,5 +142,5 @@ Firmware C is linted with clang-format/clang-tidy; the Python host tooling under
   portable because the tooling may run under an older (3.9) Klipper Python.
 - Framework/domain exceptions live in `[tool.ruff.lint.per-file-ignores]` (http.server
   handler names, pyserial-compat stub names, Kalman-filter matrix notation).
-- Run `ruff check scripts/`; it is part of `scripts/validate_regression.sh`.
+- Run `ruff check scripts/`; it is part of `scripts/validate_regression.py`.
 - Keep host tooling pure stdlib + pyserial (ruff is a dev-time tool, not a runtime dep).

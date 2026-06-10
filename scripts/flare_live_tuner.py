@@ -1184,7 +1184,7 @@ def emit_patch(state_path: str, machine_id: str, out_path: str) -> None:
         fh.write("# To apply, copy reviewed values into config.ini, then run:\n")
         fh.write("#   python3 scripts/gen_config.py\n")
         fh.write("#   ninja -C build_local\n")
-        fh.write("#   bash scripts/flash_flare.sh\n")
+        fh.write("#   python3 scripts/flash_flare.py\n")
     print(f"[tuner] wrote patch: {out_path}", file=sys.stderr)
 
 

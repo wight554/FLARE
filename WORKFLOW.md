@@ -56,7 +56,7 @@ ninja -C build_local
 Preferred one-command static gate:
 
 ```bash
-bash scripts/validate_regression.sh
+python3 scripts/validate_regression.py
 ```
 
 If scripts changed:

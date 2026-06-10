@@ -17,12 +17,12 @@ To allow Klipper macros and WebUIs (Mainsail/Fluidd) to talk to FLARE at the sam
 3. Run the installer script:
    ```bash
    cd ~/FLARE
-   bash scripts/install_daemon.sh
+   sudo python3 scripts/install_daemon.py
    ```
    *The installer copies the required Klipper python mock files (`mmu.py`, `mmu_sensors.py`) into your Klipper installation, and registers a `systemd` background service (`flare_daemon.service`).*
 
    > [!IMPORTANT]
-   > Klipper updates will overwrite Klipper's `klippy/extras` directory and delete the FLARE mock files. You must re-run `sudo bash scripts/install_daemon.sh` (or manually copy the mock files back) after updating Klipper.
+   > Klipper updates will overwrite Klipper's `klippy/extras` directory and delete the FLARE mock files. You must re-run `sudo python3 scripts/install_daemon.py` (or manually copy the mock files back) after updating Klipper.
 
 ---
 

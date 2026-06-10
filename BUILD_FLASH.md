@@ -38,7 +38,7 @@ If you want to configure motor settings and automatically build and flash in one
    ```
 2. **Run the script**:
    ```bash
-   bash scripts/flash_flare.sh
+   python3 scripts/flash_flare.py
    ```
    *The script automatically generates the config, compiles the firmware, detects the serial port, puts the board in bootloader mode, and flashes it using `picotool`.*
 
@@ -87,7 +87,7 @@ cmake -S firmware -B build_local -G Ninja -DPICO_SDK_PATH=/abs/path/to/pico-sdk
 ### Flashing script says picotool not found
 If `picotool` is not in your system PATH, you can pass the path to the script:
 ```bash
-PICOTOOL=/path/to/picotool bash scripts/flash_flare.sh
+PICOTOOL=/path/to/picotool python3 scripts/flash_flare.py
 ```
 
 ### Board does not show as a serial port after flashing

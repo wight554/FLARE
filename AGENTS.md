@@ -104,7 +104,7 @@ cmake -S firmware -B build_local -G Ninja -DPICO_SDK_PATH=/path/to/pico-sdk
 Build the **dev-tuning superset** before committing firmware: the Pi builds with
 `-DFLARE_DEV_TUNING=1`, and code behind `#ifdef FLARE_DEV_TUNING` (Tier-3 SET/GET in
 `protocol.c`) is invisible to a default (OFF) build and to `clang-tidy` (inactive
-preprocessor branch). `scripts/validate_regression.sh` configures `build_local` with
+preprocessor branch). `scripts/validate_regression.py` configures `build_local` with
 `-DFLARE_DEV_TUNING=ON`; reconfigure manually with `cmake -S firmware -B build_local
 -DFLARE_DEV_TUNING=ON` if building by hand. Bulk lint/refactor tooling must also cover
 dev-guarded code (`clang-tidy ... --extra-arg=-DFLARE_DEV_TUNING=1`).

@@ -29,7 +29,7 @@ and bad behavior look like) with no assumed firmware knowledge.
 Every command in `TUNING.md` MUST be copy-paste accurate against the
 current scripts as they are (`flare_live_tuner.py`, `gcode_marker.py`,
 `flare_analyze.py`, `flare_baseline_recommender.py`, `gen_config.py`,
-`flash_flare.sh`). The guide MUST cover prerequisites with exact commands
+`flash_flare.py`). The guide MUST cover prerequisites with exact commands
 (find serial port, find Klipper socket, install pyserial, back up the
 state file). Where a script cannot match an operator-friendly command
 as-is, the guide MUST describe the script as-is and the limitation MUST be

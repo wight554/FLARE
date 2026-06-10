@@ -983,7 +983,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
         fh.write("# To apply, copy reviewed values into config.ini, then run:\n")
         fh.write("#   python3 scripts/gen_config.py\n")
         fh.write("#   ninja -C build_local\n")
-        fh.write("#   bash scripts/flash_flare.sh\n")
+        fh.write("#   python3 scripts/flash_flare.py\n")
 
 
 

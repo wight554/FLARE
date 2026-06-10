@@ -29,7 +29,7 @@ Type-D buffers use simple limit switches to trigger feeding. They do not require
 3. **Re-flash**:
    ```bash
    python3 scripts/gen_config.py
-   bash scripts/flash_flare.sh
+   python3 scripts/flash_flare.py
    ```
 
 ---

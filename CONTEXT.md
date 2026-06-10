@@ -33,7 +33,7 @@ FLARE = cooperative firmware for RP2040, no RTOS. Main loop calls non-blocking m
 - `scripts/flare_baseline_recommender.py`: Advisory print guidance; pure stdlib + pyserial.
 - `scripts/gcode_marker.py`: G-code metadata injector and sidecar JSON generator.
 - `scripts/gen_config.py`: Generates `tune.h` from `config.ini`.
-- `scripts/validate_regression.sh`: One-command static regression gate.
+- `scripts/validate_regression.py`: One-command static regression gate.
 
 ---
 
@@ -168,7 +168,7 @@ Current `SETTINGS_VERSION`: `60` in `firmware/src/settings_store.c`.
 
 ### Run the static regression gate
 
-- `bash scripts/validate_regression.sh`
+- `python3 scripts/validate_regression.py`
 - Run before hardware testing — catches config, build, script, and diff-integrity regressions fast.
 
 ### Emit a reply or event

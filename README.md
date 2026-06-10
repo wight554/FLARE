@@ -45,7 +45,7 @@ cmake -S firmware -B build_local -G Ninja -DPICO_SDK_PATH=/path/to/pico-sdk
 cmake --build build_local
 
 # 4. Connect your ERB board and flash it
-bash scripts/flash_flare.sh
+python3 scripts/flash_flare.py
 ```
 *For detailed step-by-step flashing instructions, see [BUILD_FLASH.md](BUILD_FLASH.md).*
 
