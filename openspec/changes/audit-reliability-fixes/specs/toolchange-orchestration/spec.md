@@ -21,7 +21,7 @@ During runout RELOAD, the new lane SHALL approach until physical buffer contact 
 - **THEN** the Y-splitter gate is skipped but the tail-clear wait continues without raising `RELOAD_Y_TIMEOUT` immediately
 
 ### Requirement: RELOAD Bang-Bang Pressure Cycle
-During the RELOAD follow phase, the new lane SHALL over-feed to close the gap and maintain pressure on the old tail. The follow success signal SHALL be equivalent in strength for both sensor types: the physical `BUF_TENSION` switch for type-D, and deep tension (`g_buf_pos <= -PSF_HOME_THRESHOLD_NORM`) or the toolhead sensor for type-P. The shallow goal-relative tension zone SHALL NOT complete a type-P follow, because old-tail drainage crosses it without an extruder grab.
+During the RELOAD follow phase, the new lane SHALL over-feed to close the gap and maintain pressure on the old tail. The follow success signal SHALL preempt the control law's tension refill response on the same trigger for both sensor types: the physical `BUF_TENSION` switch for type-D, and the tension-zone crossing for type-P. A type-P tension-zone crossing SHALL NOT complete the follow during the touch-settle/boost window (`RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS` after contact), where the deliberately suppressed feed transiently dips the arm below the zone edge without an extruder grab. Success SHALL NOT require a position deeper than the zone edge, because the law's `JOIN_SPS` refill makes deeper positions unreachable.
 
 #### Scenario: Follow Phase
 - **WHEN** physical contact is established (`BUF_COMPRESSION`)
@@ -30,6 +30,6 @@ During the RELOAD follow phase, the new lane SHALL over-feed to close the gap an
 - **AND** repeats this cycle until `LOADED` (toolhead sensor triggered or `BUF_TENSION` sustained)
 
 #### Scenario: Type-P follow success requires extruder grab
-- **WHEN** RELOAD follow runs with `BUF_SENSOR_TYPE=1` and the buffer position falls below the goal-relative tension zone edge but stays above `-PSF_HOME_THRESHOLD_NORM`
-- **THEN** the follow phase continues feeding (no `RELOAD:LOADED`)
-- **AND** `RELOAD:LOADED` is emitted only on deep tension (`g_buf_pos <= -PSF_HOME_THRESHOLD_NORM`), toolhead sensor trigger, or the `LOAD_MAX` distance fallback
+- **WHEN** RELOAD follow runs with `BUF_SENSOR_TYPE=1` and the buffer crosses into the tension zone within `RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS` of contact (entry dip, feed still suppressed)
+- **THEN** the follow phase continues (no `RELOAD:LOADED`)
+- **AND** `RELOAD:LOADED` is emitted on a tension-zone crossing after that window, a toolhead sensor trigger at any time, or the `LOAD_MAX` distance fallback
