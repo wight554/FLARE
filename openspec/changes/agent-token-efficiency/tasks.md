@@ -9,11 +9,11 @@ Docs/config only — no firmware, no `scripts/`, no `config.ini`. Each task self
 
 ## 2. AGENTS.md Read Modes + Triage + Memory Protocol
 
-- [ ] 2.1 `AGENTS.md` Key Files table: add read-mode tag per row — `[always]` only for entries needed every session; `[lookup]` for `MANUAL.md`, `BEHAVIOR.md`, `TEST_CASES.md`, `TUNING.md`, `KLIPPER.md`, `HARDWARE.md`, specs. Add legend line: `[lookup]` = grep on demand, never wholesale. Accept: every row tagged.
-- [ ] 2.2 `AGENTS.md`: add grep recipes near lazy-spec rule — param lookup `grep -n '<PARAM>' MANUAL.md` read matched rows only; never read `openspec/changes/archive/**` dirs wholesale (grep topic, prefer `memories/repo/`). Accept: both recipes present.
-- [ ] 2.3 `AGENTS.md`: add "Flow Triage" subsection under OpenSpec Workflow — direct only when ALL: no spec'd-behavior change (`grep -ril '<topic>' openspec/specs/` empty or behavior unchanged), no `settings_t`/protocol/tunable surface, ≤2–3 files, single session, no HW validation; else OpenSpec; unsure → OpenSpec (wrong-direct loses spec sync, wrong-OpenSpec loses only tokens). Accept: criteria verbatim-equivalent to task-workflow delta.
-- [ ] 2.4 `AGENTS.md`: add "Memory" subsection — two layers, read protocol before re-deriving, observation written at archive readiness; link `memories/repo/README.md`. Accept: session-start protocol unchanged, subsection ≤6 lines.
-- [ ] 2.5 `AGENTS.md`: add self-review rule to Non-Negotiable Rules — before committing non-doc-only changes, check staged diff against `REVIEW.md`. Accept: rule references REVIEW.md, existing rule numbering preserved (append, don't renumber).
+- [x] 2.1 `AGENTS.md` Key Files table: add read-mode tag per row — `[always]` only for entries needed every session; `[lookup]` for `MANUAL.md`, `BEHAVIOR.md`, `TEST_CASES.md`, `TUNING.md`, `KLIPPER.md`, `HARDWARE.md`, specs. Add legend line: `[lookup]` = grep on demand, never wholesale. Accept: every row tagged.
+- [x] 2.2 `AGENTS.md`: add grep recipes near lazy-spec rule — param lookup `grep -n '<PARAM>' MANUAL.md` read matched rows only; never read `openspec/changes/archive/**` dirs wholesale (grep topic, prefer `memories/repo/`). Accept: both recipes present.
+- [x] 2.3 `AGENTS.md`: add "Flow Triage" subsection under OpenSpec Workflow — direct only when ALL: no spec'd-behavior change (`grep -ril '<topic>' openspec/specs/` empty or behavior unchanged), no `settings_t`/protocol/tunable surface, ≤2–3 files, single session, no HW validation; else OpenSpec; unsure → OpenSpec (wrong-direct loses spec sync, wrong-OpenSpec loses only tokens). Accept: criteria verbatim-equivalent to task-workflow delta.
+- [x] 2.4 `AGENTS.md`: add "Memory" subsection — two layers, read protocol before re-deriving, observation written at archive readiness; link `memories/repo/README.md`. Accept: session-start protocol unchanged, subsection ≤6 lines.
+- [x] 2.5 `AGENTS.md`: add self-review rule to Non-Negotiable Rules — before committing non-doc-only changes, check staged diff against `REVIEW.md`. Accept: rule references REVIEW.md, existing rule numbering preserved (append, don't renumber).
 
 ## 3. Compression Tiers + config.yaml Hardening
 
