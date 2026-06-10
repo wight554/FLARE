@@ -901,7 +901,6 @@ void buf_signal_publish(uint32_t now_ms) {
     g_buf_signal.pos_norm = norm;
     g_buf_signal.pos_mm = (g_buf_sensor_type == BUF_SENSOR_TYPE_D) ? g_buf_pos : (norm * half);
     g_buf_signal.confidence = g_buf_confidence;
-    g_buf_signal.age_ms = now_ms - g_buf_analog_last_sample_ms;
     g_buf_signal.zone = g_buf.state;
     g_buf_signal.kind = kind;
     g_buf_signal.fault = (g_buf.state == BUF_FAULT);

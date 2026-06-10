@@ -16,7 +16,6 @@ typedef struct {
     float pos_norm;         ///< Normalized [-1..+1]: -1 = full compression, +1 = full tension.
     float pos_mm;           ///< Physical mm: endstop virtual position or analog norm * half-travel.
     float confidence;       ///< Signal reliability, 0.0..1.0; low means treat as stale.
-    uint32_t age_ms;        ///< Milliseconds since this signal was last meaningfully updated.
     buf_state_t zone;       ///< Quantized buffer zone.
     buf_source_kind_t kind; ///< Source that produced this signal.
     bool fault;             ///< Source-reported hard fault.
