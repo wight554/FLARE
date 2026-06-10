@@ -525,11 +525,15 @@ static void lane_tick_feed_autoload(lane_t *lane, uint32_t now_ms, const char *l
         } else {
             cmd_event("RUNOUT", lane_s);
             lane->runout_block_until_ms = now_ms + (uint32_t)g_runout_cooldown_ms;
-            if (lane->task == TASK_FEED)
+            bool is_feed = (lane->task == TASK_FEED);
+            if (is_feed)
                 set_toolhead_filament(false);
             lane_stop(lane);
-            if (g_reload_mode && lane->task == TASK_FEED && tc_state() == TC_IDLE)
+            if (g_reload_mode && is_feed && tc_state() == TC_IDLE) {
                 reload_trigger(lane->lane_id, now_ms);
+            } else if (is_feed) {
+                sync_disable(true);
+            }
         }
     }
 }
@@ -551,15 +555,16 @@ static void lane_tick_dry_spin_tail(lane_t *lane, uint32_t now_ms, const char *l
     if (lane->reload_tail_ms != 0 &&
         (lane->task == TASK_FEED || lane->task == TASK_LOAD_FULL || lane->task == TASK_AUTOLOAD)) {
         if (lane_tail_runout_ready(lane)) {
-            bool tail_assist_finished = g_sync_tail_assist_active && lane->task == TASK_FEED;
-            if (tail_assist_finished)
+            bool is_feed = (lane->task == TASK_FEED);
+            bool was_reload = (g_reload_mode && is_feed && tc_state() == TC_IDLE);
+            bool disable_sync = (is_feed && (g_sync_tail_assist_active || !was_reload));
+            if (disable_sync)
                 sync_disable(true);
             lane->reload_tail_ms = 0;
             lane->runout_block_until_ms = now_ms + (uint32_t)g_runout_cooldown_ms;
             cmd_event("RUNOUT", lane_s);
-            if (lane->task == TASK_FEED)
+            if (is_feed)
                 set_toolhead_filament(false);
-            bool was_reload = (g_reload_mode && lane->task == TASK_FEED && tc_state() == TC_IDLE);
             lane_stop(lane);
             if (was_reload)
                 reload_trigger(lane->lane_id, now_ms);

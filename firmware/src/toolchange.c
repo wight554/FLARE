@@ -572,7 +572,7 @@ static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
         if (g_tc_ctx.reload_current_sps > 0) {
             if (lane->task != TASK_FEED && lane->fault == FAULT_NONE) {
                 lane_start(lane, TASK_FEED, g_tc_ctx.reload_current_sps, true, now_ms, 0);
-            } else if (lane->task == TASK_FEED) {
+            } else if (lane->task == TASK_FEED && lane->fault == FAULT_NONE) {
                 lane->current_sps = g_tc_ctx.reload_current_sps;
                 lane->target_sps = g_tc_ctx.reload_current_sps;
                 motor_enable(&lane->m, true);

@@ -9,10 +9,10 @@
 
 ## 2. H2 — Faulted-lane drive interlock (sync.c, toolchange.c, motion.c)
 
-- [ ] 2.1 `sync_apply_to_active`: bail out before any drive branch when `lane->fault != FAULT_NONE` (stop TASK_FEED if running); never drive a task-IDLE lane via the raw else branch
-- [ ] 2.2 `tc_tick_reload_follow` motor-drive else branch: same fault guard (toolchange.c:561-567)
-- [ ] 2.3 Non-reload RUNOUT on active lane during auto-started sync → `sync_disable(true)` (motion.c runout paths); confirm no double-disable with `reload_trigger`'s NO_FILAMENT abort
-- [ ] 2.4 Static check: build + grep no remaining `motor_set_rate_sps` call reachable with a faulted lane from background controllers
+- [x] 2.1 `sync_apply_to_active`: bail out before any drive branch when `lane->fault != FAULT_NONE` (stop TASK_FEED if running); never drive a task-IDLE lane via the raw else branch
+- [x] 2.2 `tc_tick_reload_follow` motor-drive else branch: same fault guard (toolchange.c:561-567)
+- [x] 2.3 Non-reload RUNOUT on active lane during auto-started sync → `sync_disable(true)` (motion.c runout paths); confirm no double-disable with `reload_trigger`'s NO_FILAMENT abort
+- [x] 2.4 Static check: build + grep no remaining `motor_set_rate_sps` call reachable with a faulted lane from background controllers
 
 ## 3. H3 — Hardware watchdog (main.c)
 

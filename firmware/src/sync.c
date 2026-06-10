@@ -973,6 +973,16 @@ void sync_buffer_lock_tick(lane_t *lane, uint32_t now_ms) {
     if (!lane)
         return;
 
+    if (lane->fault != FAULT_NONE) {
+        if (g_bl_sub_state != BL_IDLE) {
+            motor_stop(&lane->m);
+            lane->current_sps = 0;
+            lane->target_sps = 0;
+            g_bl_sub_state = BL_IDLE;
+        }
+        return;
+    }
+
     if (g_bl_sub_state == BL_PRIME) {
         sync_buffer_lock_prime(lane, now_ms);
     } else if (g_bl_sub_state == BL_LOCKED) {
@@ -1104,6 +1114,12 @@ void sync_apply_to_active(void) {
     }
     if (lane->task == TASK_MOVE)
         return;
+
+    if (lane->fault != FAULT_NONE) {
+        if (lane->task == TASK_FEED)
+            lane_stop(lane);
+        return;
+    }
 
     bool is_protected_task = (lane->task == TASK_UNLOAD || lane->task == TASK_AUTOLOAD);
 
