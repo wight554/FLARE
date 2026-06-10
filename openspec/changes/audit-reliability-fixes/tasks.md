@@ -54,6 +54,6 @@
 
 ## 9. Validation
 
-- [ ] 9.1 `bash scripts/validate_regression.sh` + dev-superset build (`-DFLARE_DEV_TUNING=ON`)
+- [x] 9.1 `bash scripts/validate_regression.sh` + dev-superset build (`-DFLARE_DEV_TUNING=ON`)
 - [ ] 9.2 Hardware (type-D rig): dry-spin re-fire after sync restart attempt; watchdog no-fire during SV; BL prime ramp at raised SYNC_MAX
 - [ ] 9.3 Hardware (type-P rig): runout RELOAD end-to-end + manual `RL:` — contact at compression, success only on grab; no instant `RELOAD:LOADED`
