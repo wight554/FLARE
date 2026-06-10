@@ -21,7 +21,7 @@
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 59u
+#define SETTINGS_VERSION 60u
 
 enum {
     SETTINGS_FLASH_BUFFER_BYTES = 512,
@@ -75,7 +75,6 @@ typedef struct {
     int runout_cooldown_ms;
 
     int buf_sensor_type;
-    int buf_home_state;
     float buf_psf_max_comp, buf_psf_max_tens, buf_psf_neutral, buf_psf_goal;
     int sync_kp_sps;
     int sync_reserve_pct;
@@ -176,7 +175,6 @@ static void settings_defaults_tmc(void) {
 
 static void settings_defaults_sync(void) {
     g_buf_sensor_type = CONF_BUF_SENSOR_TYPE;
-    g_buf_home_state = CONF_BUF_HOME_STATE;
     g_buf_psf_max_comp = CONF_BUF_PSF_MAX_COMP;
     g_buf_psf_max_tens = CONF_BUF_PSF_MAX_TENS;
     g_buf_psf_neutral = CONF_BUF_PSF_NEUTRAL;
@@ -317,7 +315,6 @@ void settings_save(void) {
     s.runout_cooldown_ms = g_runout_cooldown_ms;
 
     s.buf_sensor_type = g_buf_sensor_type;
-    s.buf_home_state = g_buf_home_state;
     s.buf_psf_max_comp = g_buf_psf_max_comp;
     s.buf_psf_max_tens = g_buf_psf_max_tens;
     s.buf_psf_neutral = g_buf_psf_neutral;
@@ -496,7 +493,6 @@ static void settings_load_servo_cutter(const settings_t *s) {
 
 static void settings_load_sync_reload(const settings_t *s) {
     g_buf_sensor_type = s->buf_sensor_type;
-    g_buf_home_state = clamp_i(s->buf_home_state, 0, 2);
     g_buf_psf_max_comp = s->buf_psf_max_comp;
     g_buf_psf_max_tens = s->buf_psf_max_tens;
     g_buf_psf_neutral = s->buf_psf_neutral;

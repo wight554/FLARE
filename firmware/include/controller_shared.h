@@ -18,13 +18,7 @@
 /// @brief Type-P compression-zone contact threshold during load.
 #define PSF_LOAD_CONTACT_THRESHOLD_NORM                                                            \
     0.50f /* load contact detection boundary (compression zone) */
-/// @brief Type-P unload over-tension guard boundary.
-///
-/// Type-P homes at the tension rail, so a pin there is a fault only while
-/// filament is still present during retract.
-#define PSF_TENSION_PIN_NORM 0.98f /* unload: pinned-at-tension fault boundary (rig-tune) */
-/// @brief Type-P pinned dwell before one-shot unload relief jog.
-#define PSF_UNLOAD_RELIEF_ARM_MS 300u /* unload: pinned dwell before one-shot relief jog */
+/// @brief
 /// @brief Maximum marker tag bytes including the terminating NUL.
 #define MARKER_TAG_LEN 32
 /// @brief Baseline settle history sample slots.
@@ -216,7 +210,7 @@ enum {
 };
 /// @brief Sync-Feedback Sensor type: D=0 dual-switch, P=1 proportional analog.
 extern int g_buf_sensor_type;
-extern int g_buf_home_state;
+
 extern float g_buf_psf_max_comp;
 extern float g_buf_psf_max_tens;
 extern float g_buf_psf_neutral;

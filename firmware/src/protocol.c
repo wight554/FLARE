@@ -498,8 +498,6 @@ static bool cmd_get_buffer_geometry_params(const char *param, int idx, char *out
 #endif
     else if (!strcmp(param, "BUF_SENSOR"))
         snprintf(out, out_len, "BUF_SENSOR:%d", g_buf_sensor_type);
-    else if (!strcmp(param, "BUF_HOME_STATE"))
-        snprintf(out, out_len, "BUF_HOME_STATE:%d", g_buf_home_state);
     else if (!strcmp(param, "BUF_PSF_MAX_COMP"))
         snprintf(out, out_len, "BUF_PSF_MAX_COMP:%.3f", (double)g_buf_psf_max_comp);
     else if (!strcmp(param, "BUF_PSF_MAX_TENS"))
@@ -980,9 +978,7 @@ static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, fl
         }
         g_buf_sensor_type = clamp_i(iv, 0, 1);
         sync_disable(false);
-    } else if (!strcmp(base_param, "BUF_HOME_STATE"))
-        g_buf_home_state = clamp_i(iv, 0, 2);
-    else if (!strcmp(base_param, "BUF_PSF_MAX_COMP"))
+    } else if (!strcmp(base_param, "BUF_PSF_MAX_COMP"))
         g_buf_psf_max_comp = clamp_f(fv, 0.0f, 1.0f);
     else if (!strcmp(base_param, "BUF_PSF_MAX_TENS"))
         g_buf_psf_max_tens = clamp_f(fv, 0.0f, 1.0f);

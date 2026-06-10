@@ -118,7 +118,7 @@ int g_tmc_hend[NUM_LANES] = {CONF_L1_HEND, CONF_L2_HEND};
 bool g_tmc_interpolate[NUM_LANES] = {CONF_L1_INTPOL, CONF_L2_INTPOL};
 
 int g_buf_sensor_type = CONF_BUF_SENSOR_TYPE;
-int g_buf_home_state = CONF_BUF_HOME_STATE;
+
 float g_buf_psf_max_comp = CONF_BUF_PSF_MAX_COMP;
 float g_buf_psf_max_tens = CONF_BUF_PSF_MAX_TENS;
 float g_buf_psf_neutral = CONF_BUF_PSF_NEUTRAL;
