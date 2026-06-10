@@ -49,7 +49,7 @@
 - [x] 8.3 L3: `buf_analog_update` velocity uses actual elapsed ms (pass from `buf_sensor_tick`)
 - [x] 8.4 L4: drop `BUF_HOME_STATE` knob (settings field + SET/GET + persistence; SETTINGS_VERSION bump) or document decision to keep reserved; delete dead `PSF_TENSION_PIN_NORM`/`PSF_UNLOAD_RELIEF_ARM_MS`
 - [x] 8.5 L5: `RELOAD_Y_TIMEOUT_MS=0` disables Y gate without insta-failing tail-clear wait
-- [ ] 8.6 L6: CONTEXT.md SETTINGS_VERSION 47 → current
+- [x] 8.6 L6: CONTEXT.md SETTINGS_VERSION 47 → current
 - [ ] 8.7 L8: decide `g_buf_signal.age_ms` semantics (fix stamp site or remove field); re-check prior-audit F11 intent
 
 ## 9. Validation
