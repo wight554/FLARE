@@ -14,8 +14,7 @@
 /// @brief Type-P BL_FOLLOW open-loop safety gate before the armed rail.
 #define PSF_FOLLOW_RAIL_NORM                                                                       \
     0.95f /* BL_FOLLOW open-loop safety gate: stop feed before slamming the armed rail */
-/// @brief Type-P non-home/contact detection boundary.
-#define PSF_HOME_DEVIATION_THRESHOLD_NORM 0.85f /* non-home / contact detection boundary */
+
 /// @brief Type-P compression-zone contact threshold during load.
 #define PSF_LOAD_CONTACT_THRESHOLD_NORM                                                            \
     0.50f /* load contact detection boundary (compression zone) */

@@ -460,6 +460,32 @@ python3 scripts/flare_cmd.py "SET:RELOAD_MODE:1" "SET:AUTO_MODE:1"
 - The new lane approaches until buffer contact, then follows with bounded under-feed.
 - RELOAD exits on successful pickup or fails with a visible timeout / fault instead of running forever.
 
+### 8.2 Type-P RELOAD Runout Recovery
+
+#### Goal
+Validate autonomous lane switching on runout with type-P (analog) buffer sensor.
+
+#### Steps
+1. Set the buffer sensor to type-P:
+   ```bash
+   python3 scripts/flare_cmd.py "SET:BUF_SENSOR_TYPE:1"
+   ```
+2. Enable RELOAD:
+   ```bash
+   python3 scripts/flare_cmd.py "SET:RELOAD_MODE:1" "SET:AUTO_MODE:1"
+   ```
+3. Prepare two lanes (e.g., Lane 1 active with a short tail, Lane 2 preloaded).
+4. Initiate a feed on Lane 1 and cut/runout Lane 1.
+5. Watch the `BP` (buffer position) value in status.
+6. During `RELOAD_APPROACH`, verify that `BP` must exceed `+0.5` (`PSF_LOAD_CONTACT_THRESHOLD_NORM`) to register contact and transition to `RELOAD_FOLLOW`. Check that it does not immediately declare success (`RELOAD:LOADED`).
+7. During the first `RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS` (~1 s) of `RELOAD_FOLLOW`, verify that even if `BP` dips into tension (below `+0.3`), the follow phase does not exit (no instant `RELOAD:LOADED`).
+8. Verify that success (`RELOAD:LOADED`) is only declared when the extruder gear grabs the filament, pulling the buffer arm persistently into tension after the settle/boost window has elapsed, or when the toolhead sensor trips.
+
+#### Expected Result
+- `RELOAD_APPROACH` transitions to `RELOAD_FOLLOW` only when `BP` > +0.5.
+- No instant `RELOAD:LOADED` is triggered during the settle/boost window.
+- RELOAD exits successfully with `EV:RELOAD:LOADED` on a post-settle tension crossing or toolhead sensor trigger.
+
 ---
 
 ## 9. Persistence Guarding

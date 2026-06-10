@@ -409,7 +409,7 @@ static void tc_tick_reload_approach(lane_t *lane, uint32_t now_ms, uint32_t age)
 
     bool contacted = false;
     if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
-        contacted = (g_buf_pos < PSF_HOME_DEVIATION_THRESHOLD_NORM);
+        contacted = (g_buf_pos > PSF_LOAD_CONTACT_THRESHOLD_NORM);
     } else {
         contacted = (g_buf.state == BUF_COMPRESSION);
     }
@@ -428,8 +428,6 @@ static void tc_tick_reload_approach(lane_t *lane, uint32_t now_ms, uint32_t age)
         g_tc_ctx.reload_tick_ms = now_ms;
         g_tc_ctx.phase_start_ms = now_ms;
         g_tc_ctx.state = TC_RELOAD_FOLLOW;
-    } else if (lane->task == TASK_IDLE) {
-        tc_enter_error("RELOAD_APPROACH_TIMEOUT");
     }
 }
 
@@ -520,7 +518,23 @@ static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
     // the filtered and the raw instantaneous buffer state so a sharp pull is not
     // missed between filter updates. Any of these = loaded, stop feeding and finish.
     buf_state_t instant_buf_state = buf_state_raw();
-    if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION || g_toolhead_has_filament) {
+    bool success = false;
+    if (g_toolhead_has_filament) {
+        success = true;
+    } else if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
+        if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION) {
+            uint32_t follow_age_ms = now_ms - g_tc_ctx.phase_start_ms;
+            if (follow_age_ms >= (uint32_t)(g_reload_touch_settle_ms + g_reload_touch_boost_ms)) {
+                success = true;
+            }
+        }
+    } else {
+        if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION) {
+            success = true;
+        }
+    }
+
+    if (success) {
         lane_stop(lane);
         set_toolhead_filament(true);
         char lane_s[2];

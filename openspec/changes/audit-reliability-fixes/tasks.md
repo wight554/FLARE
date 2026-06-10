@@ -2,10 +2,10 @@
 
 ## 1. H1 — Type-P RELOAD contact + follow success (toolchange.c)
 
-- [ ] 1.1 `tc_tick_reload_approach`: type-P contact → `g_buf_pos > PSF_LOAD_CONTACT_THRESHOLD_NORM` (replace stale `< PSF_HOME_DEVIATION_THRESHOLD_NORM`); remove dead `else if (lane->task == TASK_IDLE)` re-check (toolchange.c:431)
-- [ ] 1.2 `tc_tick_reload_follow`: type-P success = tension-zone crossing (existing check) gated on `follow_age_ms >= RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS` (entry-dip window excluded) OR toolhead sensor (any time); NOT a deep-position threshold — the law's JOIN_SPS tension refill (26.7 mm/s vs 2-10 mm/s draw) makes depths below the zone edge unreachable; parity with type-D = success preempts the refill on the same trigger signal. Type-D branch byte-identical (debounced + raw switch); LOAD_MAX fallback unchanged
-- [ ] 1.3 Delete `PSF_HOME_DEVIATION_THRESHOLD_NORM` (last reference gone) from controller_shared.h
-- [ ] 1.4 BEHAVIOR.md "RELOAD contact and follow": document type-P contact/success semantics; TEST_CASES.md: add type-P RELOAD hardware case (watch `BP` > +0.5 at contact, deep-tension dip at grab, no instant `RELOAD:LOADED`)
+- [x] 1.1 `tc_tick_reload_approach`: type-P contact → `g_buf_pos > PSF_LOAD_CONTACT_THRESHOLD_NORM` (replace stale `< PSF_HOME_DEVIATION_THRESHOLD_NORM`); remove dead `else if (lane->task == TASK_IDLE)` re-check (toolchange.c:431)
+- [x] 1.2 `tc_tick_reload_follow`: type-P success = tension-zone crossing (existing check) gated on `follow_age_ms >= RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS` (entry-dip window excluded) OR toolhead sensor (any time); NOT a deep-position threshold — the law's JOIN_SPS tension refill (26.7 mm/s vs 2-10 mm/s draw) makes depths below the zone edge unreachable; parity with type-D = success preempts the refill on the same trigger signal. Type-D branch byte-identical (debounced + raw switch); LOAD_MAX fallback unchanged
+- [x] 1.3 Delete `PSF_HOME_DEVIATION_THRESHOLD_NORM` (last reference gone) from controller_shared.h
+- [x] 1.4 BEHAVIOR.md "RELOAD contact and follow": document type-P contact/success semantics; TEST_CASES.md: add type-P RELOAD hardware case (watch `BP` > +0.5 at contact, deep-tension dip at grab, no instant `RELOAD:LOADED`)
 
 ## 2. H2 — Faulted-lane drive interlock (sync.c, toolchange.c, motion.c)
 

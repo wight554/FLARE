@@ -571,8 +571,9 @@ the new lane begins its join approach.
 **`TC_RELOAD_APPROACH` — buffer-driven contact detection**
 
 The motor runs at `JOIN_RATE` while the controller waits for the buffer to move
-into `BUF_COMPRESSION`, which is treated as the first reliable sign that the new
-lane has made contact and started pushing filament toward the extruder.
+into the compression zone:
+- For type-D, this means the physical `BUF_COMPRESSION` switch.
+- For type-P, this means the analog buffer position exceeds `PSF_LOAD_CONTACT_THRESHOLD_NORM` (+0.50), indicating the buffer arm is pushed into the compression side by the incoming filament. A parked or drifting home position (-1.0) does not satisfy this condition.
 
 If contact never arrives, the approach phase still has hard escape paths: the
 lane task has its configured travel limit and the RELOAD state machine has its
@@ -595,6 +596,9 @@ target = extruder_est_sps × RELOAD_LEAN
 - While in `BUF_NEUTRAL`, `TC_RELOAD_FOLLOW` intentionally **over-feeds** to ensure the new tip pushes faster than the extruder pulls, actively closing the gap to the old tail.
 - This causes the arm to gradually drift toward `BUF_COMPRESSION`.
 - If it hits `BUF_COMPRESSION`, it drops to `COMPRESSION_RATE` (usually 0), allowing the extruder to pull it back to `NEUTRAL`, creating a solid bang-bang pressure cycle.
+- **Follow success** (meaning extruder has grabbed the new filament):
+  - For type-D, when the physical switch hits `BUF_TENSION` (debounced or instantaneous) or the toolhead sensor detects filament.
+  - For type-P, when the buffer position crosses into the tension zone (`BUF_TENSION` debounced or instantaneous) after the settle/boost window (`RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS`) has elapsed, or when the toolhead sensor detects filament at any time. Success does not require a deep-tension position because the control law's `JOIN_SPS` refill prevents reaching deep-tension.
 - RELOAD follow also watches geometry-aware compression-wall time. If the lane is
   still pushing deeper into the compression wall and the predicted remaining time
   collapses, `FOLLOW_JAM` is raised early instead of waiting only on the static
