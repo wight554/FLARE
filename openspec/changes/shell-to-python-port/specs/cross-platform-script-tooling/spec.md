@@ -3,23 +3,17 @@
 ## Purpose
 Cross-platform Python host script contract — all operational scripts in `scripts/` SHALL be Python, working on Linux (Raspberry Pi, Debian/Ubuntu) and macOS without modification.
 
-## Requirements
+## ADDED Requirements
 
 ### Requirement: All operational scripts SHALL be Python
 
-Every operational script in `scripts/` SHALL be implemented in Python using only stdlib + pyserial. Bash `.sh` files MAY exist only as deprecated forwarding wrappers.
+Every operational script in `scripts/` SHALL be implemented in Python using only stdlib + pyserial. Operational `.sh` files SHALL NOT exist.
 
 #### Scenario: New script is added
 
-- **WHEN** a contributor adds new operational script to `scripts/`
+- **WHEN** a contributor adds a new operational script to `scripts/`
 - **THEN** it SHALL be a `.py` file using only stdlib + pyserial
 - **AND** it SHALL work on both Linux and macOS
-
-#### Scenario: Deprecated wrapper invocation
-
-- **WHEN** a user runs `bash scripts/foo.sh`
-- **THEN** wrapper forwards to `python3 scripts/foo.py` with all arguments
-- **AND** exit code is preserved
 
 ### Requirement: Linux and macOS compatibility
 
