@@ -48,6 +48,12 @@ Do not use caveman compression for:
 
 Excluded surfaces use normal readable prose.
 
+## Output Economy
+
+- Report edits as targeted changes only: never echo unchanged code blocks
+  into chat, commit messages, or PR descriptions — reference file paths and
+  line ranges instead.
+
 ## Auto-Clarity
 
 Temporarily switch to normal prose when compression would hide risk, order, or

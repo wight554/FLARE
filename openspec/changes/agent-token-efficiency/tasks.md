@@ -24,15 +24,15 @@ Docs/config only — no firmware, no `scripts/`, no `config.ini`. Each task self
 
 ## 4. REVIEW.md Checklist
 
-- [ ] 4.1 Create `REVIEW.md` (repo root): staged-diff self-review checklist distilled from AGENTS.md Non-Negotiable Rules — build superset passes; `SETTINGS_VERSION` bumped on `settings_t` field add/remove; runtime tunable full surface (`SET:`/`GET:`/`flare_cmd.py --dump`/docs); `config.ini` → `gen_config.py` → `tune.h` wiring for new tunables; doc sync (`MANUAL.md`, `BEHAVIOR.md`, …) on renames; regression impact review for new features (preload/load/unload/toolchange/sync/RELOAD/persistence/protocol); no local AI config committed; commit format + attribution. Reference rule numbers, don't restate detail. Accept: every checklist item maps to an AGENTS.md rule or spec; ≤40 lines; readable prose (operator-adjacent doc, no caveman).
+- [x] 4.1 Create `REVIEW.md` (repo root): staged-diff self-review checklist distilled from AGENTS.md Non-Negotiable Rules — build superset passes; `SETTINGS_VERSION` bumped on `settings_t` field add/remove; runtime tunable full surface (`SET:`/`GET:`/`flare_cmd.py --dump`/docs); `config.ini` → `gen_config.py` → `tune.h` wiring for new tunables; doc sync (`MANUAL.md`, `BEHAVIOR.md`, …) on renames; regression impact review for new features (preload/load/unload/toolchange/sync/RELOAD/persistence/protocol); no local AI config committed; commit format + attribution. Reference rule numbers, don't restate detail. Accept: every checklist item maps to an AGENTS.md rule or spec; ≤40 lines; readable prose (operator-adjacent doc, no caveman).
 
 ## 5. COMMS.md Output Rule
 
-- [ ] 5.1 `openspec/COMMS.md`: add targeted-edits rule to Exclusions-adjacent section — report edits as targeted changes; never echo unchanged code blocks in chat, commit messages, or PR descriptions; reference paths + line ranges. Accept: single bullet, placement coherent.
+- [x] 5.1 `openspec/COMMS.md`: add targeted-edits rule to Exclusions-adjacent section — report edits as targeted changes; never echo unchanged code blocks in chat, commit messages, or PR descriptions; reference paths + line ranges. Accept: single bullet, placement coherent.
 
 ## 6. Readiness and Delivery Checks
 
-- [ ] 6.1 Doc sync: cross-references consistent — `AGENTS.md` ↔ `REVIEW.md` ↔ `memories/repo/README.md` ↔ `openspec/COMPRESSION.md` links resolve; `AI.md` workspace rules not contradicted (memories/repo is committed BY DESIGN — team store, not tool-local config).
-- [ ] 6.2 `openspec validate agent-token-efficiency --strict` passes.
+- [x] 6.1 Doc sync: (verified 2026-06-11 — links resolve, AI.md not contradicted) cross-references consistent — `AGENTS.md` ↔ `REVIEW.md` ↔ `memories/repo/README.md` ↔ `openspec/COMPRESSION.md` links resolve; `AI.md` workspace rules not contradicted (memories/repo is committed BY DESIGN — team store, not tool-local config).
+- [x] 6.2 (passes 2026-06-11) `openspec validate agent-token-efficiency --strict` passes.
 - [ ] 6.3 `openspec validate --specs --strict` passes for touched specs after archive folding; set real `## Purpose` on new `openspec/specs/team-memory-store/spec.md` before archive commit (archive stamps placeholder otherwise).
-- [ ] 6.4 Append `memories/repo/agent-token-efficiency.md` observation (3–5 lines) before archiving.
+- [x] 6.4 (written 2026-06-11) Append `memories/repo/agent-token-efficiency.md` observation (3–5 lines) before archiving.
