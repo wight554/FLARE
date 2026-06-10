@@ -7,14 +7,20 @@ context load while preserving technical meaning. Any agent UI can apply these
 rules by reading this file; no Claude-specific skill, plugin, API, or binary is
 required.
 
-## Scope
+## Scope & Tiers
 
-Applies to prose in:
+- **`openspec/specs/**`**: keep **lightly compressed or uncompressed**. Specs
+  are stable, long-lived behavioral contracts where human readability and
+  precision are paramount.
+- **`openspec/changes/**`**: keep **fully compressed (caveman-full)**.
+  Proposals, designs, and task lists are rapid, iteration-heavy drafts where
+  saving token context maximizes agent productivity during the change life
+  cycle.
 
-- `openspec/specs/**`
-- `openspec/changes/**`
+The tier split is forward-only: do not rewrite existing specs for style alone;
+lighten compressed spec prose only when touching it for content reasons.
 
-Use for proposal, design, spec, and task body prose. Do not use as an automatic
+Use for proposal, design, and task body prose. Do not use as an automatic
 rewriter. Human review owns semantic correctness.
 
 ## Remove

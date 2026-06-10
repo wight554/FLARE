@@ -13,6 +13,8 @@ context: |
     changes; do not recreate repo-root TASK.md.
   Constraints: pure stdlib + pyserial for host tools; no local AI config in
     repo; firmware tunables live in config.ini and generated tune.h.
+  Prior art: grep memories/repo/ before re-deriving decisions; doc read
+    modes and flow triage per AGENTS.md.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
@@ -20,13 +22,19 @@ rules:
   proposal:
     - Author OpenSpec prose compressed per openspec/COMPRESSION.md.
     - Preserve RFC-2119 clauses and requirement/scenario structure exactly.
+    - 'Before drafting, grep memories/repo/ for observations touching the same specs/components; cite relevant findings instead of re-deriving them.'
   design:
     - Author OpenSpec prose compressed per openspec/COMPRESSION.md.
     - Preserve code blocks, inline code, paths, commands, and technical terms exactly.
+    - 'Check memories/repo/ observations for prior decisions/gotchas on touched areas before designing; cite them where they shape the design.'
   specs:
-    - Author OpenSpec prose compressed per openspec/COMPRESSION.md.
+    - Keep specs readable; light compression only per openspec/COMPRESSION.md.
     - Preserve SHALL/MUST/SHOULD/MAY/REQUIRED clauses exactly; do not drop, merge, split, or reorder normative clauses.
     - Preserve Requirement and Scenario headings plus WHEN/THEN structure exactly.
   tasks:
     - Author OpenSpec prose compressed per openspec/COMPRESSION.md.
     - Keep task checkboxes and task history reconstructable.
+    - 'Every task MUST name the target file path, exact change details, and specific acceptance criteria so it can be executed without consulting other context files of the change.'
+    - 'Express mechanical steps as CLI commands (e.g., `ninja -C build_local`, `python3 -m py_compile scripts/*.py`), never as manual-edit instructions.'
+    - 'Include a final section named "Readiness and Delivery Checks" as the last section in tasks.md. It MUST require: dev-tuning superset build for firmware-touching changes (`cmake -S firmware -B build_local -DFLARE_DEV_TUNING=ON` then `ninja -C build_local`); `python3 -m py_compile scripts/*.py` for script-touching changes; documentation sync verified (MANUAL.md, BEHAVIOR.md, etc.); `openspec validate <change-name> --strict` and `openspec validate --specs --strict` passing before archive; appending observation `memories/repo/<change-name>.md` (3-5 compressed lines: decisions, gotchas, deviations) before archiving.'
+    - 'Prefix every hardware-dependent validation task with `HW:`; HW: tasks are never checked off without explicit user confirmation backed by real-hardware test results.'
