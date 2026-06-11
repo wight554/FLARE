@@ -27,7 +27,7 @@
 
 ## 3. BS no-op from mid-tension
 
-- [ ] 3.1 **Root cause narrowed by audit-hardening-fixes code audit (2026-06-10)** —
+- [x] 3.1 **Root cause narrowed by audit-hardening-fixes code audit (2026-06-10)** —
   live-recurrence wait no longer needed; bench repro below. Decision tree closed by
   code reading:
   - Every *visible* BS failure replies `ER` (`ER:BUSY` protocol.c:1636/1659,
@@ -49,16 +49,38 @@
     during hand-loading event chatter a real START can drop on the wire — absence of
     START alone is weak evidence, require "no motion" too. (audit F6 fixes fault-class
     events only; START stays droppable.)
-- [ ] 3.2 **Bench repro** (replaces live-recurrence wait): set active lane = empty
-  lane (`T:n`), hand-feed other lane until `BP ≈ −0.4`, send `BS` while streaming
-  events. Expect `OK` + no `BUF_STAB:START` + no motion → confirms presence-gate
-  path.
-- [ ] 3.3 **Fix** (on confirmed repro): make presence gate / `pick_boot_stabilize_lane`
-  pick the lane that actually has filament (IN or OUT) instead of blind active-lane;
-  or return `false` (→ `ER:BUF_STAB_UNAVAILABLE`) instead of silent `true` so the
-  operator sees the refusal. Predict/stagnant guards (old 3.2/3.3 hypotheses) only
-  if bench repro instead shows START-but-no-move: predict-reached first-tick guard
-  or `g_stab_stagnant_since_ms` init — currently NOT implicated.
+- [x] 3.2 **Bench repro CONFIRMED (2026-06-11, type-P rig).** Presence gate convicted:
+  lane 1 loaded (`I1:1,O1:1`), lane 2 empty, buffer parked at `BP −0.58` (SM:0),
+  `T:2` then `BS` → `OK`, BP frozen at −0.58, `TF` unchanged, no gear motion.
+  Hypothesis 1 (blind active-lane pick) confirmed; hypothesis 2 (raw-NEUTRAL skip)
+  excluded by tension-side start. Control case: same BP band with loaded active
+  lane → BS arms and parks at goal `+0.40`. Bonus empirical confirmation of the
+  3.1 caveat: a *working* BS produced zero `BUF_STAB:*` entries in daemon event
+  history — event absence is no evidence; motion/BP trace is the only reliable
+  channel.
+- [x] 3.3 **Fix (shape decided 2026-06-11):** `pick_boot_stabilize_lane` falls
+  through to the filament-bearing lane (IN or OUT present) when the active lane
+  is empty, so hand-load BS does a real stabilize instead of silent `OK`.
+  (Loud-refusal `ER:BUF_STAB_UNAVAILABLE` alternative rejected — operator intent
+  during hand-load is motion; presence gate at sync.c:197-207 already requires
+  filament on the picked lane, so the fall-through closes the silent path.)
+- [x] 3.4 **NEW — stagnant guard false-positive aborts BS from deep tension.**
+  Found during 3.2 bench session: loaded lane, `BP −0.57`, `BS` → motor stops
+  ~0.2–0.5 s in, buffer stranded at ≈ −0.49; second `BS` completes to `+0.40`
+  (looks like "2-step recovery"). 100-% BP polling shows motion only in the
+  first ~0.5 s then 8 s flat — rail-break (1.5 s) and window deadline (10 s)
+  ruled out. Cause: single stagnant check (sync.c:291-299) fires 200 ms after
+  start requiring ≥0.03 norm displacement (`CONF_PSF_STAB_STAGNANT_MS 200`,
+  `CONF_PSF_STAB_STAGNANT_NORM 0.03`, tune.h:61-62); deep-tension spring drag +
+  motor spin-up + ~80 ms EMA lag leave the lagged reading at/under threshold →
+  spurious `STAGNANT_TIMEOUT`. From −0.41 it passes (control run) — deeper start
+  = slower first 200 ms = flaky abort. Same guard is also blind late: window
+  never re-arms, so a genuine stall after the first check goes undetected.
+  **Fix decided:** raise window 200 → ~600 ms AND re-anchor
+  `g_boot_stabilize_start_pos` + `g_stab_stagnant_since_ms` on each passing
+  check (rolling stagnation window) — fixes both early false-positive and
+  late-stall blindness. Repro: `SM:0`, park buffer ≤ −0.55 via `MV` nudges,
+  `BS`, poll BP at 100 ms.
 
 ## 4. Auto-start trigger sensitivity
 
@@ -74,8 +96,9 @@
 
 ## 5. Closeout
 
-- [ ] 5.1 Only the **BS no-op (section 3)** remains open — root cause narrowed to
-  silent pre-arm early-return (presence gate, prime suspect) by the
-  audit-hardening-fixes code audit; bench repro 3.2 replaces the live-recurrence
-  wait. Hunting / auto-start items accepted per the real print. Archive once 3.x
-  is resolved.
+- [ ] 5.1 Open items are the two **section 3 fixes**: 3.3 (presence-gate lane
+  fall-through — repro confirmed 2026-06-11) and 3.4 (stagnant-guard rolling
+  window — found same bench session). Both root-caused with decided fix shapes;
+  implementation + bench re-verify (3.2 repro must now MOVE; 3.4 repro must park
+  at goal in one BS) remain. Hunting / auto-start items accepted per the real
+  print. Archive once 3.3 + 3.4 land and re-verify.

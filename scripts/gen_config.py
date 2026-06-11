@@ -113,7 +113,7 @@ DEFAULTS = {
     "sync_tick_ms": "20",
     "sync_psf_slew_per_mm": "1500",   # type-P feed slew: max sps change per mm filament moved (lower = gentler)
     "sync_psf_filter_mm": "25.0",     # type-P feed target EMA length in mm (bigger = smoother)
-    "psf_stab_stagnant_ms": "200",    # type-P BS dry-spin window after leaving a saturated rail
+    "psf_stab_stagnant_ms": "600",    # type-P BS dry-spin window after leaving a saturated rail
     "psf_stab_stagnant_norm": "0.03", # type-P BS min normalized motion inside the dry-spin window
     "psf_stab_rail_break_ms": "1500", # type-P BS max drive time while still saturated at a rail
     "baseline_rate": "1600",

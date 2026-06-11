@@ -296,6 +296,9 @@ static bool boot_stabilize_tick_type_p(uint32_t now_ms) {
                     cmd_event("BUF_STAB", "STAGNANT_TIMEOUT");
                 boot_stabilize_stop();
                 return true;
+            } else {
+                g_boot_stabilize_start_pos = g_buf_pos;
+                g_stab_stagnant_since_ms = now_ms;
             }
         }
     }
@@ -512,11 +515,13 @@ int lane_motion_sps(lane_t *lane) {
 
 lane_t *pick_boot_stabilize_lane(void) {
     lane_t *stab_lane = lane_ptr(g_active_lane);
-    if (stab_lane)
+    if (stab_lane && (lane_out_present(stab_lane) || lane_in_present(stab_lane)))
         return stab_lane;
-    if (lane_out_present(&g_lane_l1) && !lane_out_present(&g_lane_l2))
+    bool l1_has = lane_out_present(&g_lane_l1) || lane_in_present(&g_lane_l1);
+    bool l2_has = lane_out_present(&g_lane_l2) || lane_in_present(&g_lane_l2);
+    if (l1_has && !l2_has)
         return &g_lane_l1;
-    if (lane_out_present(&g_lane_l2) && !lane_out_present(&g_lane_l1))
+    if (l2_has && !l1_has)
         return &g_lane_l2;
     return &g_lane_l1;
 }

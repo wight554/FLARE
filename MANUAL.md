@@ -154,7 +154,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `KD_PSF` | _(runtime only)_ | Type-P derivative gain: velocity damping applied to sync output (units: sps per normalised vel). Not persisted; resets to `0.0` on boot. | 0.0 |
 | `SYNC_PSF_SLEW_PER_MM` | _(runtime only)_ | Type-P feed slew limit: max sps change per mm of filament moved. Lower = gentler feed accel. Not persisted. | 1500 |
 | `SYNC_PSF_FILTER_MM` | _(runtime only)_ | Type-P feed target EMA length in mm (distance-based smoothing). Bigger = smoother. Not persisted. | 25.0 |
-| `PSF_STAB_STAGNANT_MS` | `psf_stab_stagnant_ms` | Type-P buffer-stabilize dry-spin window after leaving a saturated rail. Live-tunable; not persisted. | 200 |
+| `PSF_STAB_STAGNANT_MS` | `psf_stab_stagnant_ms` | Type-P buffer-stabilize dry-spin window after leaving a saturated rail. Live-tunable; not persisted. | 600 |
 | `PSF_STAB_STAGNANT_NORM` | `psf_stab_stagnant_norm` | Minimum normalized buffer motion inside the stagnant window before `BUF_STAB:STAGNANT_TIMEOUT`. Live-tunable; not persisted. | 0.03 |
 | `PSF_STAB_RAIL_BREAK_MS` | `psf_stab_rail_break_ms` | Max time type-P buffer-stabilize may drive while the analog signal remains saturated at a rail. Live-tunable; not persisted. | 1500 |
 
