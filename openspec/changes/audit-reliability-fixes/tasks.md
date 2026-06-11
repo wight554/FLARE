@@ -32,8 +32,19 @@
 
 ## 6. M4 — Geometry/goal caching (sync_buf.c)
 
-- [ ] 6.1 Cache `psf_goal_norm` / `buf_threshold_mm` / `buf_physical_half_travel_mm`; `buf_geometry_refresh()` from settings-apply paths + BL goal-override changes
-- [ ] 6.2 Verify bitwise-identical control outputs (status spot-check) + extend parity test to assert refresh on every geometry-affecting SET
+- [x] 6.1 **WON'T-DO (decided 2026-06-11).** Pure perf, no correctness payoff:
+  ~2 soft-float divides at 10 kHz + cheap compares ≈ 1-2% of one core, and the
+  audit itself measured headroom sufficient (fixed-point declared unwarranted —
+  same logic applies). The cache buys a staleness surface in this codebase's
+  worst bug family (cf. stale fault timers, stagnant-anchor no-rearm, saturated
+  flag vs rail-break race — all 2026-06 finds). D8's own risk note concedes the
+  forgotten-refresh hazard, and `psf_goal_norm` is not pure-config anyway: it
+  reads `g_bl_goal_override` (sync_buf.c:431-435), runtime state flipped at BL
+  arm/BS/timeout, so invalidation spreads beyond the settings-apply chokepoints
+  into motion-state transitions. **Escape hatch if profiling ever demands:**
+  hoist to a per-tick local at the hot caller (compute once per loop pass) — no
+  global cache, no invalidation protocol.
+- [x] 6.2 Moot with 6.1 won't-do (no cache → no parity/refresh assertions needed).
 
 ## 7. M5/L7 — Event attribution (motion.c, protocol.c)
 
