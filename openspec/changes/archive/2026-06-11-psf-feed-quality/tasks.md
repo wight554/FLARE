@@ -98,6 +98,26 @@
   recovery motion), fire `MV:-2` mid-recovery → relief must stop cleanly, MV
   runs alone, no rail stranding without an explicit operator move.
 
+- [x] 3.6 **NEW — rail-break deadline races sensor-flat pull-off from deep rail.**
+  Found post-3.5 (2026-06-11 evening bench): MV chain drives piston PAST the
+  sensing range (BP clamps −1.00, real position deeper); `BS` recovery then has
+  ~1.4 s of sensor-flat driving before BP unclamps (rewind several mm at stab
+  speed ≈2 mm/s). `psf_stab_rail_break_ms` default 1500 races that dead time:
+  100 ms traces show run 1 abort at the 1.5 s deadline → stranded at −1.00
+  (second BS recovers), run 2 motion surfaced at ~1.46 s → one-shot park +0.40
+  by 2.9 s. Coin-flip at default — explains intermittent "BS dead at rail".
+  Knob is live-tunable (`SET:PSF_STAB_RAIL_BREAK_MS`). **Fix:** bump default
+  1500 → 3000 (config.ini.example + gen_config.py + tune.h regen).
+  **Live confirm (same evening):** `SET:...:3000`, re-strand deep via MV chain →
+  dead time ~2.1 s this run (would abort at 1500), motion at 2.18 s, one-shot
+  park +0.40 by 3.6 s. Dead time scales with strand depth → 3000 = headroom,
+  hard stop bounds worst case. Default bump remains to land (SET is runtime
+  only, not persisted). Tonight's MV-during-relief chains also serve as the 3.5
+  bench check: clean takeovers, no dual-controller fights. Companion
+  observations, no action: MV chains can still strand at rail post-3.5 (each MV
+  legitimately cancels relief — raw-tool semantics, accepted); auto-start
+  re-engages during MV chains per 4.1 gate (accepted bench footgun).
+
 ## 4. Auto-start trigger sensitivity
 
 - [x] 4.1 **ACCEPTED — `-0.6` gate kept.** Real print: auto-start re-armed correctly
@@ -112,11 +132,18 @@
 
 ## 5. Closeout
 
-- [ ] 5.1 **3.3 + 3.4 BENCH RE-VERIFIED (2026-06-11, e81e48b flashed):**
+- [x] 5.1 **3.3 + 3.4 BENCH RE-VERIFIED (2026-06-11, e81e48b flashed):**
   Shot A — empty active lane (`T:2`) + `BS` from −0.56 → parks +0.40 one shot
   (old behavior: silent freeze). Shot B — loaded lane, `BS` from −0.55 → +0.41
   one shot, no stagnant abort. Bonus — `BS` from saturated tension rail −1.00 →
-  +0.42 one shot (rail-break path healthy). Regression gate green (29/29 +
-  dev-superset build). Remaining gate: **3.5 MV cancel-fix** (found during this
-  re-verify) — land + bench check, then archive. Hunting / auto-start items
-  accepted per the real print.
+  +0.42 one shot (rail-break race won that time — see 3.6). Regression gate
+  green (29/29 + dev-superset build). Remaining gates: **3.5 bench check**
+  (MV mid-relief → clean takeover) and **3.6 rail-break default bump**
+  (live `SET:PSF_STAB_RAIL_BREAK_MS:3000` confirm → default 1500→3000), then
+  archive. Hunting / auto-start items accepted per the real print.
+  **CLOSED 2026-06-11:** 3.5 bench check satisfied (clean MV-during-relief
+  takeovers, no dual-controller fights); 3.6 default bump landed
+  (config.ini.example + gen_config.py + MANUAL.md 1500→3000, tune.h regen);
+  regression gate green; spec delta extended with shipped scenarios
+  (lane fall-through, rail breakaway, MV takeover); observation file
+  `memories/repo/psf-feed-quality.md` written. Archiving.

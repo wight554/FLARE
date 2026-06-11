@@ -45,7 +45,7 @@ run_current:
 # sync_psf_filter_mm: 25.0     # type-P feed target EMA length in mm (bigger = smoother; live-tunable via SET)
 # psf_stab_stagnant_ms: 600    # type-P BS dry-spin window after leaving saturated rail (live-tunable via SET)
 # psf_stab_stagnant_norm: 0.03 # type-P BS min normalized motion inside stagnant window (live-tunable via SET)
-# psf_stab_rail_break_ms: 1500 # type-P BS max time to break away from saturated rail (live-tunable via SET)
+# psf_stab_rail_break_ms: 3000 # type-P BS max time to break away from saturated rail (live-tunable via SET)
 # baseline_rate: 1600        # starting sync speed (mm/min); set to your print feed rate
 # baseline_settle_count: 3
 # baseline_variance_reject_frac: 0.15
