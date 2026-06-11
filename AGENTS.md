@@ -49,7 +49,7 @@ Durable design history + behavioral contracts live in `openspec/`. Context windo
 **Flow triage — direct vs OpenSpec.** Direct implementation only when ALL hold: no spec'd-behavior change (`grep -ril '<topic>' openspec/specs/` empty, or hits but behavior unchanged); no `settings_t`, protocol command, or runtime-tunable surface change; ≤2–3 files; single session; no hardware validation needed. Anything else → OpenSpec change. Unsure → OpenSpec: wrong-direct loses spec sync, wrong-OpenSpec loses only tokens.
 
 **Required before writing any code:**
-1. **Research** — read source, grep symbols, understand current state. Substantial work: write findings into `design.md` (what read, what learned, constraints).
+1. **Research** — use CodeGraph call-graph MCP tools (`codegraph_query`, `codegraph_callers`, `codegraph_impact`) to trace dependencies and find symbol definitions instead of broad file reads/greps. Substantial work: write findings into `design.md` (what read, what learned, constraints).
 2. **Plan** — draft implementation plan in the change/design note before opening editor. Per file to modify: path, exact change + why, risk/invariant to watch. If task changes durable behavior or workflow, create/update the OpenSpec artifact first.
    ```
    ### firmware/src/protocol.c + firmware/src/settings_store.c
