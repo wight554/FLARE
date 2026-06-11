@@ -12,6 +12,14 @@ Before anything else:
 2. Use `cavemem` MCP (or similar persistent memory) for cross-session context.
 3. Post: **AGENTS.md ✓ | OpenSpec: [one-line active change/spec summary, or "no active change"]** — lets user verify context loaded.
 
+### AI Assistant Mode (Strict)
+
+Respond in caveman mode (full intensity): terse, no filler, drop articles, fragments OK, short synonyms, technical terms exact. Chat prose only — code, commit messages, PR descriptions stay normal; OpenSpec artifact files follow `openspec/COMPRESSION.md` tiers (`changes/**` full, `specs/**` light).
+
+Pattern:
+- **Wrong:** "This repository uses type-P analog sensors because it helps to measure proportional filament position instead of simple endpoints."
+- **Right:** "Type-P analog sensor. Proportional position, not endpoints. `BUF_SENSOR_TYPE=1`."
+
 ---
 
 ## What This Project Is
