@@ -38,11 +38,13 @@ scripts/test_stream.log
 .agents/
 .antigravitycli/
 .claude/
+.codegraph/
 .codex/
 .gemini/
 .github/skills/
 .github/prompts/
 skills-lock.json
+
 
 # IDE / LSP
 compile_commands.json
