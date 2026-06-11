@@ -517,9 +517,18 @@ def main() -> None:
             else:
                 subprocess.run(["umount", str(rp2_mount)])
         else:
-            result = subprocess.run(["sudo", "umount", str(rp2_mount)])
+            result = subprocess.run(
+                ["sudo", "umount", str(rp2_mount)],
+                capture_output=True,
+                text=True,
+            )
             if result.returncode != 0:
-                _die(f"Failed to unmount {rp2_mount}")
+                stderr_str = result.stderr.strip()
+                # If already unmounted, this is expected after a quick reboot.
+                if "not mounted" in stderr_str or "not found" in stderr_str:
+                    print(f"Note: {rp2_mount} already unmounted/disconnected.")
+                else:
+                    print(_red(f"Warning: Failed to unmount {rp2_mount}: {stderr_str}"))
 
         # Wait for USB serial re-enumeration
         print(_bold("=== Waiting for USB serial ==="))

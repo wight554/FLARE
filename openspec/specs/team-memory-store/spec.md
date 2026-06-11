@@ -1,13 +1,7 @@
 # team-memory-store Specification
 
 ## Purpose
-
-Define the git-tracked team memory store at `memories/repo/`: a tool-agnostic
-prior-art layer of curated per-change observations (decisions, gotchas,
-deviations) that any agent — Claude, Codex, Gemini, Copilot — reads before
-re-deriving past work, and writes as part of each change's readiness checks.
-Complements, never replaces, personal memory layers (cavemem, tool-private
-memory).
+Define the git-tracked team memory store at `memories/repo/`: a tool-agnostic prior-art layer of curated per-change observations (decisions, gotchas, deviations) that agents read before proposing changes and write before archiving, complementing personal memory layers.
 
 ## Requirements
 ### Requirement: Team memory store location and format
