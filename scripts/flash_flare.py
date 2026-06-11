@@ -132,7 +132,7 @@ def find_rp2_mountpoint() -> Optional[Path]:
         Path("/Volumes/RPI-RP2"),
     ]
     for p in candidates:
-        if p.is_dir():
+        if p.is_dir() and (p / "INFO_UF2.TXT").is_file():
             return p
     return None
 
