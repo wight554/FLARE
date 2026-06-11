@@ -67,7 +67,7 @@
 - [x] 3.4 **NEW — stagnant guard false-positive aborts BS from deep tension.**
   Found during 3.2 bench session: loaded lane, `BP −0.57`, `BS` → motor stops
   ~0.2–0.5 s in, buffer stranded at ≈ −0.49; second `BS` completes to `+0.40`
-  (looks like "2-step recovery"). 100-% BP polling shows motion only in the
+  (looks like "2-step recovery"). 100 ms BP polling shows motion only in the
   first ~0.5 s then 8 s flat — rail-break (1.5 s) and window deadline (10 s)
   ruled out. Cause: single stagnant check (sync.c:291-299) fires 200 ms after
   start requiring ≥0.03 norm displacement (`CONF_PSF_STAB_STAGNANT_MS 200`,
@@ -81,6 +81,22 @@
   check (rolling stagnation window) — fixes both early false-positive and
   late-stall blindness. Repro: `SM:0`, park buffer ≤ −0.55 via `MV` nudges,
   `BS`, poll BP at 100 ms.
+- [x] 3.5 **NEW — MV does not cancel in-flight stabilize (dual-controller race).**
+  Found during 3.3/3.4 bench re-verify (2026-06-11): MV issued while a
+  relief/stabilize is running leaves BOTH controllers driving the same motor —
+  `cmd_handle_mv_command` (protocol.c:1396-1437) disables sync but never calls
+  `buffer_stabilize_cancel()` (BL handler does, protocol.c:1641). Stabilize
+  predict-reach can `motor_stop` a live MV; an MV can stomp the compression
+  relief mid-flight, stranding the buffer at a rail (observed: second `MV:-12`
+  during relief → parked at −1.00, no recovery until manual `BS`).
+  **Fix:** add `buffer_stabilize_cancel()` to the MV handler before
+  `lane_start`. Out of scope by decision: type-P MOVE edge guard
+  (motion.c:499-509 is type-D only; MV stays unguarded for raw recovery per
+  protocol.c:1592 comment) and tension-rail auto-recover (idle-at-tension is a
+  legal rest state; `BS` recovers one-shot — verified from −1.00 → +0.42).
+  Bench check after fix: start relief (MV to compression rail, wait for
+  recovery motion), fire `MV:-2` mid-recovery → relief must stop cleanly, MV
+  runs alone, no rail stranding without an explicit operator move.
 
 ## 4. Auto-start trigger sensitivity
 
@@ -96,9 +112,11 @@
 
 ## 5. Closeout
 
-- [ ] 5.1 Open items are the two **section 3 fixes**: 3.3 (presence-gate lane
-  fall-through — repro confirmed 2026-06-11) and 3.4 (stagnant-guard rolling
-  window — found same bench session). Both root-caused with decided fix shapes;
-  implementation + bench re-verify (3.2 repro must now MOVE; 3.4 repro must park
-  at goal in one BS) remain. Hunting / auto-start items accepted per the real
-  print. Archive once 3.3 + 3.4 land and re-verify.
+- [ ] 5.1 **3.3 + 3.4 BENCH RE-VERIFIED (2026-06-11, e81e48b flashed):**
+  Shot A — empty active lane (`T:2`) + `BS` from −0.56 → parks +0.40 one shot
+  (old behavior: silent freeze). Shot B — loaded lane, `BS` from −0.55 → +0.41
+  one shot, no stagnant abort. Bonus — `BS` from saturated tension rail −1.00 →
+  +0.42 one shot (rail-break path healthy). Regression gate green (29/29 +
+  dev-superset build). Remaining gate: **3.5 MV cancel-fix** (found during this
+  re-verify) — land + bench check, then archive. Hunting / auto-start items
+  accepted per the real print.

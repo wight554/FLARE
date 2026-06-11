@@ -1427,6 +1427,7 @@ static bool cmd_handle_mv_command(const char *p, uint32_t now_ms) {
         return true;
     }
 
+    buffer_stabilize_cancel();
     sync_retract_assist_set(false);
     sync_set_state(SYNC_OFF);
     sync_disable(false);
