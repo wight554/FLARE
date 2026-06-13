@@ -93,6 +93,10 @@ def add_event_to_history(evt_type, evt_data):
         if len(event_history) > 100:
             event_history.pop(0)
 
+# Klipper mirror host-busy flag: True while gcode lock is held by a blocking command.
+# Set by klipper_syncer thread; read by HTTP handler (apply_gatemap_edit).
+_g_host_busy = False
+
 # MMU usage statistics, counted from board events and persisted across restarts.
 # The daemon is the single source of truth; absolute totals are pushed to the
 # Klipper mmu mock via SET_MMU so MMU_STATS / num_toolchanges reflect them.
@@ -478,7 +482,7 @@ def build_gatemap_response():
 def apply_gatemap_edit(gate, fields):
     """Persist a gate edit: push to Klipper if running, else write to SQLite.
     Invalidate the spool cache for the affected gate so the next read refreshes."""
-    pushed = _push_gate_map_to_klipper(gate, fields)
+    pushed = False if _g_host_busy else _push_gate_map_to_klipper(gate, fields)
     if not pushed:
         _write_gate_map_db(gate, fields)
     if fields.get("spool_id") is not None:
@@ -1021,6 +1025,19 @@ def _moonraker_get_mmu_status(moonraker_url):
     except Exception:
         return None
 
+# idle_timeout.state values that mean the gcode lock is free.
+IDLE_FREE_STATES = {"Idle", "Ready"}
+
+def _moonraker_get_idle_state(moonraker_url):
+    """Read idle_timeout.state via lock-free objects/query. Returns state string or None on error."""
+    try:
+        url = f"{moonraker_url}/printer/objects/query?idle_timeout"
+        with urllib.request.urlopen(url, timeout=1.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return data.get("result", {}).get("status", {}).get("idle_timeout", {}).get("state")
+    except Exception:
+        return None
+
 def _format_mmu_reconcile_value(key, status, desired_fields):
     """Return the SET_MMU-formatted value represented by a Moonraker mmu status."""
     status_key = _MMU_RECONCILE_STATUS_KEYS.get(key)
@@ -1084,6 +1101,7 @@ def _derive_action(tc_state, active_lane, lane1_task, lane2_task):
 
 def klipper_syncer(moonraker_url):
     """Background thread to push status updates to Moonraker at 4Hz."""
+    global _g_host_busy
     last_sync = {}
     backoff = 0.0
     last_force_sync = 0.0
@@ -1093,12 +1111,26 @@ def klipper_syncer(moonraker_url):
     last_pushed_fields = {}  # KEY -> last-pushed formatted value, for delta SET_MMU
     last_gate_dbg = None  # FLARE_GATE_DEBUG: last logged gate-input tuple
     gate_debug = bool(os.environ.get("FLARE_GATE_DEBUG"))
+    host_busy = False   # gcode lock held by blocking command (e.g. MPC_CALIBRATE)
+    next_idle_probe = 0.0  # throttle: earliest time to probe idle_timeout again
 
     while True:
         time.sleep(0.25)
 
         # Check backoff timer
         if backoff > time.time():
+            continue
+
+        # Busy mode: gcode lock held — suppress all gcode/script emitters and
+        # throttle-poll idle_timeout until lock is free before resuming.
+        if host_busy:
+            if time.time() >= next_idle_probe:
+                next_idle_probe = time.time() + 1.5
+                idle_state = _moonraker_get_idle_state(moonraker_url)
+                if idle_state is not None and idle_state in IDLE_FREE_STATES:
+                    host_busy = False
+                    _g_host_busy = False
+                    last_pushed_fields = {}  # force full resync on resume
             continue
 
         # Get copy of current cache
@@ -1323,7 +1355,7 @@ def klipper_syncer(moonraker_url):
         if delta:
             lines.append("SET_MMU " + " ".join(f"{k}={v}" for k, v in delta.items()))
 
-        if trigger_board_sync:
+        if trigger_board_sync and not host_busy:
             lines.append("_FLARE_SYNC_BOARD")
 
         if not lines:
@@ -1349,10 +1381,18 @@ def klipper_syncer(moonraker_url):
                     last_force_sync = time.time()
                     was_online = board_online
         except Exception:
-            # Moonraker offline, backoff for 5.0 seconds
-            last_sync = {}  # Clear cache to force push on recovery
-            last_pushed_fields = {}  # force a full SET_MMU on recovery
-            backoff = time.time() + 5.0
+            idle_state = _moonraker_get_idle_state(moonraker_url)
+            if idle_state is None:
+                # Moonraker unreachable — offline backoff
+                last_sync = {}
+                last_pushed_fields = {}
+                backoff = time.time() + 5.0
+            elif idle_state not in IDLE_FREE_STATES:
+                # Gcode lock busy (e.g. MPC_CALIBRATE) — suppress pushes
+                host_busy = True
+                _g_host_busy = True
+                next_idle_probe = time.time() + 1.5
+            # else: transient timeout with idle host — resume normally next tick
 
         # Spoolman: mirror the loaded gate's spool as Moonraker's active spool so
         # consumption is billed to the correct spool on toolchange (like Happy
