@@ -835,9 +835,12 @@ void buf_update(buf_state_t new_state, uint32_t now_ms) {
     g_sync_cannot_refill_warned = false;
     g_sync_cannot_relieve_warned = false;
 
-    if (g_buf_sensor_type == BUF_SENSOR_TYPE_D && g_sync_state == SYNC_RELIEF_PAUSE && !g_boot_stabilizing &&
-        (new_state == BUF_NEUTRAL || new_state == BUF_TENSION)) {
-        sync_rearm_active(lane, now_ms);
+    if (g_sync_state == SYNC_RELIEF_PAUSE && !g_boot_stabilizing) {
+        bool type_d_rearm = g_buf_sensor_type == BUF_SENSOR_TYPE_D &&
+                            (new_state == BUF_NEUTRAL || new_state == BUF_TENSION);
+        bool type_p_rearm = g_buf_sensor_type == BUF_SENSOR_TYPE_P && new_state == BUF_TENSION;
+        if (type_d_rearm || type_p_rearm)
+            sync_rearm_active(lane, now_ms);
     }
 
     buf_anchor_virtual_position(old, new_state);

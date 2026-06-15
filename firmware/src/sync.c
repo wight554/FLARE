@@ -176,7 +176,10 @@ void boot_stabilize_disarm(void) {
 
 bool buffer_stabilize_controller_idle(void) {
     /* TC_ERROR: TC concluded (failed), motors stopped — allow stabilize. */
-    if ((g_tc_ctx.state != TC_IDLE && g_tc_ctx.state != TC_ERROR) || cutter_busy() || sync_enabled)
+    /* RELIEF_PAUSE is a sync-recovery state, not idle: block stabilize so
+       g_boot_stabilizing cannot black out sync_tick's re-arm path. */
+    if ((g_tc_ctx.state != TC_IDLE && g_tc_ctx.state != TC_ERROR) || cutter_busy() ||
+        sync_enabled || g_sync_state == SYNC_RELIEF_PAUSE)
         return false;
     if (g_lane_l1.task != TASK_IDLE || g_lane_l2.task != TASK_IDLE)
         return false;
