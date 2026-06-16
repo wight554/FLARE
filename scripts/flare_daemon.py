@@ -657,7 +657,7 @@ def serial_reader(port_name, baud):
                             print(f"flare_daemon: cached buf_max_travel = {val} mm")
                         except Exception:
                             pass
-                        continue
+                        # fall through to signal command_event so /cmd callers don't time out
 
                     # If it's a status dump response (starts with OK:LN: or OK:LN=)
                     if "LN:" in line:
