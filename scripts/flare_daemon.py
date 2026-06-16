@@ -1387,8 +1387,13 @@ def klipper_syncer(moonraker_url):
                 last_sync = {}
                 last_pushed_fields = {}
                 backoff = time.time() + 5.0
+            elif idle_state == "Printing":
+                # Gcode lock held by a TC or print macro — skip this push, resume
+                # next tick. Do NOT enter host_busy: printing is normal and gate_status
+                # must keep flowing so subsequent TC checks see current state.
+                pass
             elif idle_state not in IDLE_FREE_STATES:
-                # Gcode lock busy (e.g. MPC_CALIBRATE) — suppress pushes
+                # Gcode lock busy during non-print (e.g. MPC_CALIBRATE) — suppress
                 host_busy = True
                 _g_host_busy = True
                 next_idle_probe = time.time() + 1.5
