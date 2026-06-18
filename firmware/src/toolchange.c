@@ -26,6 +26,13 @@
 #define RELOAD_APPROACH_LIMIT_MM 2000.0f
 #define RELOAD_TOUCH_FLOOR_PERCENT_DENOM 100
 #define RELOAD_FOLLOW_ABSOLUTE_TIMEOUT_MS 300000u
+/* Follow completion forks on whether the extruder is consuming the old tail.
+   Below this estimated draw the buffer cannot be pulled to TENSION (paused
+   print, manual `RL:` retrigger, or bench), so sustained COMPRESSION contact
+   past the touch-settle window means the new filament is staged at the
+   extruder mouth = LOADED, and the compression-jam timeout is suppressed
+   (a full buffer with no drain is the normal resting state, not a jam). */
+#define RELOAD_CONSUMER_MIN_SPS 80.0f
 #define RELOAD_STATUS_INTERVAL_MS 500u
 #define TC_EVENT_BUF_LEN 8
 #define TC_STATUS_EVENT_BUF_LEN 64
@@ -75,6 +82,21 @@ void tc_manual_reload(uint32_t now_ms) {
     lane_t *lane = lane_ptr(g_active_lane);
     if (!lane)
         return;
+
+    // State-aware resume of the auto-runout reload (manual RL = retrigger the
+    // auto sequence from wherever it stalled). If the active lane has already
+    // run out but the other lane is loaded, the swap never completed (auto
+    // trigger missed/aborted) -> run the full runout flow (swap + Y-clear +
+    // approach + follow on the other lane). Otherwise the active lane is the
+    // already-swapped fresh lane (or never ran out): resume approach->follow on
+    // it directly, no second swap, no Y wait.
+    if (!lane_in_present(lane)) {
+        lane_t *other = lane_ptr(other_lane(g_active_lane));
+        if (other && lane_in_present(other)) {
+            reload_trigger(g_active_lane, now_ms);
+            return;
+        }
+    }
 
     memset(&g_tc_ctx, 0, sizeof(g_tc_ctx));
     g_tc_ctx.target_lane = g_active_lane;
@@ -468,11 +490,22 @@ static int tc_reload_follow_target_sps(lane_t *lane, uint32_t now_ms, uint32_t f
     return target_sps;
 }
 
+// True while the extruder is drawing fast enough that the new filament can be
+// pulled to TENSION (a real grab). When false, the follow phase cannot reach
+// tension by design, so it completes on staged compression instead.
+static bool tc_reload_consumer_active(void) {
+    return g_extruder_est_sps > RELOAD_CONSUMER_MIN_SPS;
+}
+
 static bool tc_reload_follow_check_jam(lane_t *lane, uint32_t now_ms, uint32_t follow_age_ms) {
     float compression_push_mm_s = sync_compression_wall_velocity_mm_s(lane);
     float compression_wall_ms = sync_compression_wall_time_ms(lane);
 
-    if (g_buf.state == BUF_COMPRESSION) {
+    // The "stuck in compression" timeout and hard-push wall only mean a jam
+    // while the extruder is actively draining. With no consumer a full buffer
+    // is the expected resting state, so suppress them (the absolute timeout
+    // below still backstops a genuinely wedged feed).
+    if (tc_reload_consumer_active() && g_buf.state == BUF_COMPRESSION) {
         if (g_tc_ctx.last_compression_ms == 0)
             g_tc_ctx.last_compression_ms = now_ms;
         bool wall_critical = compression_push_mm_s > RELOAD_COMPRESSION_HARD_PUSH_MM_S &&
@@ -508,33 +541,42 @@ static bool tc_reload_follow_check_jam(lane_t *lane, uint32_t now_ms, uint32_t f
     return false;
 }
 
+// Follow-phase completion test. The toolhead sensor finishes any time. Without
+// it, completion forks on the consumer:
+//   - consumer present: new filament pulled to TENSION (real grab) — gated past
+//     the touch-settle/boost entry-dip window for type-P; raw or filtered switch
+//     for type-D.
+//   - no consumer: extruder cannot reach TENSION, so completion = staged at the
+//     extruder mouth = COMPRESSION contact held past the same window. Falls
+//     through to the tension path automatically if a consumer appears later.
+// Both the filtered (g_buf.state) and raw instantaneous state are checked so a
+// sharp transition is not missed between filter updates.
+static bool tc_reload_follow_succeeded(uint32_t now_ms, buf_state_t instant_buf_state) {
+    if (g_toolhead_has_filament)
+        return true;
+
+    uint32_t follow_age_ms = now_ms - g_tc_ctx.phase_start_ms;
+    bool past_settle =
+        follow_age_ms >= (uint32_t)(g_reload_touch_settle_ms + g_reload_touch_boost_ms);
+
+    if (!tc_reload_consumer_active()) {
+        bool at_contact = (g_buf.state == BUF_COMPRESSION || instant_buf_state == BUF_COMPRESSION);
+        return at_contact && past_settle;
+    }
+
+    bool at_tension = (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION);
+    if (g_buf_sensor_type == BUF_SENSOR_TYPE_P)
+        return at_tension && past_settle;
+    return at_tension;
+}
+
 static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
     if (!lane) {
         tc_enter_error("RELOAD_FOLLOW_FAULT");
         return;
     }
-    // Success signal: the new filament has reached the extruder and started pulling,
-    // which yanks the buffer to TENSION (or the toolhead sensor trips). Check both
-    // the filtered and the raw instantaneous buffer state so a sharp pull is not
-    // missed between filter updates. Any of these = loaded, stop feeding and finish.
     buf_state_t instant_buf_state = buf_state_raw();
-    bool success = false;
-    if (g_toolhead_has_filament) {
-        success = true;
-    } else if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
-        if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION) {
-            uint32_t follow_age_ms = now_ms - g_tc_ctx.phase_start_ms;
-            if (follow_age_ms >= (uint32_t)(g_reload_touch_settle_ms + g_reload_touch_boost_ms)) {
-                success = true;
-            }
-        }
-    } else {
-        if (g_buf.state == BUF_TENSION || instant_buf_state == BUF_TENSION) {
-            success = true;
-        }
-    }
-
-    if (success) {
+    if (tc_reload_follow_succeeded(now_ms, instant_buf_state)) {
         lane_stop(lane);
         set_toolhead_filament(true);
         char lane_s[2];

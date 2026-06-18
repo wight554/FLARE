@@ -599,14 +599,52 @@ target = extruder_est_sps × RELOAD_LEAN
 - **Follow success** (meaning extruder has grabbed the new filament):
   - For type-D, when the physical switch hits `BUF_TENSION` (debounced or instantaneous) or the toolhead sensor detects filament.
   - For type-P, when the buffer position crosses into the tension zone (`BUF_TENSION` debounced or instantaneous) after the settle/boost window (`RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS`) has elapsed, or when the toolhead sensor detects filament at any time. Success does not require a deep-tension position because the control law's `JOIN_SPS` refill prevents reaching deep-tension.
+
+**Consumer fork — what happens when the extruder is idle.** Tension-based
+success and the bang-bang pressure cycle both assume a *consumer*: an extruder
+drawing the old tail fast enough to pull the new filament to `BUF_TENSION`.
+When there is no consumer — a paused print, a manual `RL:` retrigger after the
+print stopped, or a bench with the extruder idle — the buffer is pushed to
+`BUF_COMPRESSION` and stays there, because nothing drains it; it can never reach
+`BUF_TENSION`. (This is correct sensor behavior, not a fault: at rest the arm is
+on the tension/home side, and feeding genuinely compresses it.) RELOAD follow
+forks on the estimated extruder draw (`extruder_est_sps` vs
+`RELOAD_CONSUMER_MIN_SPS`, ~0.5 mm/s):
+
+- **Consumer present** (`extruder_est_sps` above the threshold): the bang-bang
+  cycle and tension-based success above apply unchanged.
+- **No consumer** (below the threshold): completion is instead **sustained
+  `BUF_COMPRESSION` contact** held past the settle/boost window — the new
+  filament is *staged* at the extruder mouth, ready to be grabbed when the print
+  resumes. While no consumer is present the compression-jam detectors below are
+  **suppressed**, because a full buffer with nothing draining it is the normal
+  resting state, not a jam. The fork is re-evaluated every tick, so if the
+  extruder starts drawing mid-follow (print resumes) success reverts to the
+  tension rule.
+
 - RELOAD follow also watches geometry-aware compression-wall time. If the lane is
   still pushing deeper into the compression wall and the predicted remaining time
   collapses, `FOLLOW_JAM` is raised early instead of waiting only on the static
-  `FOLLOW_TIMEOUT_MS` dwell.
+  `FOLLOW_TIMEOUT_MS` dwell. **These compression-jam checks run only while a
+  consumer is present** (see the consumer fork above); without one, only the
+  absolute follow timeout backstops a genuinely wedged feed.
 
 Follow protection is now sensor- and timeout-driven: if the lane task faults or
 the state exceeds `FOLLOW_TIMEOUT_MS`, RELOAD aborts instead of trying to infer
 jam severity from driver load telemetry.
+
+**Manual `RL:` is a state-aware resume of the auto-runout sequence.** `RL:` does
+not run a separate fixed routine; it retriggers the automatic RELOAD from
+wherever the physical state currently sits, so it can recover a runout the auto
+trigger missed or that aborted mid-sequence:
+
+- Active lane run out (`IN=0`) but the other lane loaded (`IN=1`) → the swap
+  never completed; `RL:` runs the full runout flow (swap to the other lane,
+  Y-clear wait, approach, follow), emitting `RELOAD:SWITCHING`.
+- Active lane still loaded (`IN=1`) — the already-swapped fresh lane, or a lane
+  that never ran out → `RL:` resumes approach/follow on the active lane with no
+  second swap and no Y wait, emitting `RELOAD:JOINING`.
+- Neither lane holds filament → `ER:NO_FILAMENT`, no motion.
 
 ### Trailing behavior and auto-stop
 

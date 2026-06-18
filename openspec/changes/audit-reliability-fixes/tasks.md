@@ -63,8 +63,17 @@
 - [x] 8.6 L6: CONTEXT.md SETTINGS_VERSION 47 → current
 - [x] 8.7 L8: decide `g_buf_signal.age_ms` semantics (fix stamp site or remove field); re-check prior-audit F11 intent
 
-## 9. Validation
+## 9. H4 — Consumer-aware follow completion + RL state-aware resume (toolchange.c, protocol.c)
 
-- [x] 9.1 `bash scripts/validate_regression.sh` + dev-superset build (`-DFLARE_DEV_TUNING=ON`)
-- [ ] 9.2 Hardware (type-D rig): dry-spin re-fire after sync restart attempt; watchdog no-fire during SV; BL prime ramp at raised SYNC_MAX
-- [ ] 9.3 Hardware (type-P rig): runout RELOAD end-to-end + manual `RL:` — contact at compression, success only on grab; no instant `RELOAD:LOADED`
+- [x] 9a.1 `tc_reload_consumer_active()` helper (`g_extruder_est_sps > RELOAD_CONSUMER_MIN_SPS`); add the constant near the other RELOAD defines
+- [x] 9a.2 `tc_reload_follow_check_jam`: gate the hard-push wall + "stuck in compression" timeout on consumer present (`consumer && BUF_COMPRESSION`); keep the absolute timeout backstop
+- [x] 9a.3 `tc_tick_reload_follow` success: extract `tc_reload_follow_succeeded()`; no-consumer branch completes on `BUF_COMPRESSION` held past `RELOAD_TOUCH_SETTLE_MS + RELOAD_TOUCH_BOOST_MS` (staged at extruder mouth); consumer/type-P/type-D paths unchanged; per-tick fork
+- [x] 9a.4 `tc_manual_reload`: state-aware resume — active lane empty + other loaded → `reload_trigger(active)` (swap); else resume approach/follow on active lane
+- [x] 9a.5 `RL:` protocol handler: permit active-empty + other-present swap case (bypass same-lane `OTHER_LANE_ACTIVE` guards), keep `ER:NO_FILAMENT` only when neither lane holds filament
+- [x] 9a.6 BEHAVIOR.md "RELOAD contact and follow": document the consumer fork (staged-compression completion when idle) + `RL:` resume semantics; MANUAL.md `RL:` row
+
+## 10. Validation
+
+- [x] 10.1 `bash scripts/validate_regression.sh` + dev-superset build (`-DFLARE_DEV_TUNING=ON`)
+- [ ] 10.2 Hardware (type-D rig): dry-spin re-fire after sync restart attempt; watchdog no-fire during SV; BL prime ramp at raised SYNC_MAX
+- [ ] 10.3 Hardware (type-P rig): runout RELOAD end-to-end + manual `RL:` — contact at compression, success only on grab (consumer); no instant `RELOAD:LOADED`; **paused/no-consumer `RL:` completes on staged compression (no `FOLLOW_JAM`)**; missed-swap `RL:` (active lane empty, other loaded) resumes via swap

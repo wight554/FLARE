@@ -1486,15 +1486,26 @@ static bool cmd_handle_load_commands(const char *cmd, const char *p, uint32_t no
         lane_t *lane = get_active_lane_and_clear_error();
         if (!lane)
             return true;
+        lane_t *other = lane_ptr(other_lane(g_active_lane));
+        bool other_present = (other && lane_in_present(other));
         if (!lane_in_present(lane)) {
-            cmd_reply("ER", "NO_FILAMENT");
+            // Active lane ran out: resume the runout swap onto the other lane if
+            // it is loaded (tc_manual_reload delegates to reload_trigger). The
+            // same-lane guards below do not apply to a swap.
+            if (!other_present) {
+                cmd_reply("ER", "NO_FILAMENT");
+                return true;
+            }
+            sync_retract_assist_set(false);
+            sync_set_state(SYNC_OFF);
+            tc_manual_reload(now_ms);
+            cmd_reply("OK", NULL);
             return true;
         }
         if (on_al(&g_y_split) && !lane_out_present(lane)) {
             cmd_reply("ER", "OTHER_LANE_ACTIVE");
             return true;
         }
-        lane_t *other = lane_ptr(other_lane(g_active_lane));
         if (other && lane_out_present(other) && other->task == TASK_IDLE) {
             cmd_reply("ER", "OTHER_LANE_ACTIVE");
             return true;
