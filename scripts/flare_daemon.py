@@ -1424,7 +1424,7 @@ def main():
     parser = argparse.ArgumentParser(description="FLARE persistent host proxy daemon")
     parser.add_argument("--port", help="Serial port connection path (e.g. /dev/ttyACM0)")
     parser.add_argument("--baud", type=int, default=115200, help="Baud rate (default: 115200)")
-    parser.add_argument("--host", default="127.0.0.1", help="HTTP server bind host (default: 127.0.0.1)")
+    parser.add_argument("--host", default="0.0.0.0", help="HTTP server bind host (default: 0.0.0.0 - LAN accessible; pass 127.0.0.1 to restrict to loopback)")
     parser.add_argument("--api-port", type=int, default=8088, help="HTTP/SSE API server port (default: 8088)")
     parser.add_argument("--no-klipper", action="store_true", help="Bypass Moonraker/Klipper telemetry synchronization")
     parser.add_argument("--moonraker-url", default="http://localhost:7125", help="Moonraker base URL (default: http://localhost:7125)")
@@ -1467,7 +1467,7 @@ def main():
 
     # 4. Start HTTP & SSE proxy web server
     if args.host not in ("127.0.0.1", "localhost") and not args.host.startswith("127."):
-        print("WARNING: Binding HTTP server to a non-loopback interface exposes the API to the network!", file=sys.stderr)
+        print("NOTE: HTTP server bound to a non-loopback interface - API (incl. /cmd) is reachable from the LAN, unauthenticated. Pass --host 127.0.0.1 to restrict to loopback.", file=sys.stderr)
     try:
         server = ThreadedHTTPServer((args.host, args.api_port), FlareHTTPHandler)
         print(f"flare_daemon: HTTP and SSE server running on http://{args.host}:{args.api_port}")

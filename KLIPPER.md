@@ -132,7 +132,7 @@ echo; it does not change daemon behavior or MMU dashboard updates.
 
 ## 🌐 Daemon HTTP API
 
-The FLARE daemon runs an HTTP & SSE server on port `8088`. By default, it binds to loopback (`127.0.0.1`) for security. To expose the API to your local network (e.g., for viewing the dashboard from another device), you can run the daemon with `--host 0.0.0.0` (opt-in).
+The FLARE daemon runs an HTTP & SSE server on port `8088`. By default, it binds to all interfaces (`0.0.0.0`) so the dashboard is reachable from other devices on your local network. Note this exposes the API (including `/cmd`) to the LAN with no authentication, same trust model as Moonraker/Mainsail. To restrict access to the Pi itself, run the daemon with `--host 127.0.0.1`.
 
 ### Endpoints:
 - `GET /` or `GET /index.html` - Returns the interactive HTML dashboard/status visualizer.
