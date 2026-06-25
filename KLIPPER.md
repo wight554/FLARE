@@ -81,12 +81,27 @@ While FLARE can load and unload filament without a toolhead sensor, having one a
    ```
 
 3. Reconcile the board's toolhead state from the physical sensor at print
-   lifecycle edges by calling `_FLARE_SYNC_TOOLHEAD` from your own macros. This
-   recovers from desyncs where the board's view drifts from reality — e.g. a
-   print cancelled mid-toolchange can leave the board flagged empty while
-   filament is still loaded, which otherwise makes the next `T0` unload a
-   correctly-loaded toolhead.
+   lifecycle edges by calling `_FLARE_SYNC_TOOLHEAD`. This recovers from desyncs
+   where the board's view drifts from reality — e.g. a print cancelled
+   mid-toolchange can leave the board flagged empty while filament is still
+   loaded, which otherwise makes the next `T0` unload a correctly-loaded
+   toolhead. It also clears any stale slicer-set purge length (see Step 6) so a
+   leftover value can't fire on the next print's first load.
 
+   **Option A — slicer machine G-code (no Klipper macro edits).** In your slicer
+   printer profile:
+   - **Machine start G-code:** add `_FLARE_SYNC_TOOLHEAD` (after any homing/heat).
+   - **Machine end G-code:** add `_FLARE_SYNC_TOOLHEAD`.
+
+   Slicers have **no cancel/error hook**, so the abort path still needs a
+   Klipper-side `RESET=1` call — wire it into `[virtual_sdcard] on_error_gcode`
+   and/or your `CANCEL_PRINT` override:
+   ```ini
+   _FLARE_SYNC_TOOLHEAD RESET=1   ; cancel/error only — also clears stuck mmu_active
+   ```
+
+   **Option B — Klipper macros.** If you prefer to keep everything in firmware
+   config, call it from your own macros instead:
    ```ini
    # in your PRINT_START and PRINT_END
    _FLARE_SYNC_TOOLHEAD
@@ -114,6 +129,40 @@ Test your tip forming by running the command:
 FLARE_TEST_TIP_FORMING
 ```
 This loads filament, performs the tip forming shape, and unloads it for your physical inspection.
+
+---
+
+## 🎨 Step 6: Slicer-Driven Purge (Optional)
+
+By default each toolchange purges the static `_FLARE_VARS.variable_purge_len`. To
+instead flush the exact amount your slicer computes per colour transition, let
+the slicer set it before every change with `_FLARE_SET_PURGE`.
+
+> Adapted from LH-Stinger's `_SP_SET_PURGE` / Park Purge feature —
+> [LH-Stinger wiki: Park Purge](https://github.com/lhndo/LH-Stinger/wiki/Pico-MMU#park-purge).
+
+**OrcaSlicer** → printer profile → **Change filament G-code**, before the tool
+change line:
+```
+_FLARE_SET_PURGE PURGE=[flush_length]
+```
+- `[flush_length]` is the full flush length **in mm of filament** for the
+  configured flush volume — pass it directly, no conversion.
+- `[first_flush_volume]` is **half** of `flush_length` (its name is misleading —
+  it's a length, not a volume); use `_FLARE_SET_PURGE PURGE={first_flush_volume * 2}`
+  if you prefer that placeholder.
+- `PURGE=0` is honored as "no purge for this change" (the slicer emits `0` when
+  no flush is needed).
+- Tune the flush amounts in OrcaSlicer's **Flushing volumes** matrix (and the
+  optional **Minimum purge on wipe tower**).
+
+`_FLARE_SET_PURGE` stores the value in `_FLARE_TC_STATE.next_purge`;
+`_FLARE_LOAD_HOTEND` consumes it once, then falls back to `purge_len` for manual
+loads. Stale values are cleared by `_FLARE_SYNC_TOOLHEAD` at print start/end (see
+Step 4), so a leftover never fires on the next print or a manual swap.
+
+> For a hybrid bucket + prime-tower split, route a fraction to the bucket with
+> `PURGE={flush_length * 0.9}` and lower the prime tower's flush accordingly.
 
 ---
 

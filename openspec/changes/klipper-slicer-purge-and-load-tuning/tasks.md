@@ -54,8 +54,10 @@
 
 - [ ] No firmware touched; dev-tuning superset build N/A for this change
   (klipper-config only). Confirm no `firmware/` or `scripts/` edits in the diff.
-- [ ] Documentation sync: confirm no MANUAL.md / BEHAVIOR.md purge references
-  drift (none reference purge today; re-grep before archive).
+- [x] Documentation sync: `KLIPPER.md` Step 6 documents `_FLARE_SET_PURGE`
+  (`[flush_length]`, `PURGE=0`, hybrid split) and Step 4 documents
+  `_FLARE_SYNC_TOOLHEAD` via slicer Machine start/end G-code (+ cancel caveat).
+  MANUAL.md / BEHAVIOR.md carry no purge references (re-grep before archive).
 - [x] `openspec validate klipper-slicer-purge-and-load-tuning --strict` passing.
 - [x] `openspec validate --specs --strict` passing.
 - [ ] Append observation `memories/repo/klipper-slicer-purge-and-load-tuning.md`
