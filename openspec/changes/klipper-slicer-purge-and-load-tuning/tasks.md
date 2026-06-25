@@ -3,11 +3,11 @@
 - [x] 1.1 `klipper/flare_mmu.cfg` `_FLARE_TC_STATE`: add
   `variable_next_purge: -1.0` with a comment (`-1` = unset; load falls back to
   `_FLARE_VARS.purge_len`). Acceptance: variable present, default `-1.0`.
-- [x] 1.2 `klipper/flare_mmu.cfg`: add `[gcode_macro _FLARE_SET_PURGE]` that sets
-  `_FLARE_TC_STATE.next_purge` to `PURGE` when `> 0` else `_FLARE_VARS.purge_len`,
-  documenting `PURGE=[flush_length]` (Orca) and the `*2` note for
-  `[first_flush_volume]`. Acceptance: `_FLARE_SET_PURGE PURGE=107.7` sets
-  `next_purge=107.7`; `PURGE=0` sets it to `purge_len`.
+- [x] 1.2 `klipper/flare_mmu.cfg`: add `[gcode_macro _FLARE_SET_PURGE]` that
+  stores `max(PURGE, 0)` into `_FLARE_TC_STATE.next_purge`, documenting
+  `PURGE=[flush_length]` (Orca) and the `*2` note for `[first_flush_volume]`.
+  Acceptance: `_FLARE_SET_PURGE PURGE=107.7` sets `next_purge=107.7`; `PURGE=0`
+  sets `next_purge=0` (honored as no-purge, NOT purge_len).
 - [x] 1.3 `klipper/flare_mmu.cfg` `_FLARE_LOAD_HOTEND`: resolve
   `purge = next_purge if >= 0 else purge_len`, reset `next_purge` to `-1` when it
   was set, and call `_FLARE_PURGE` only when `purge > 0`. Acceptance: a set

@@ -3,8 +3,11 @@
 ### Requirement: Slicer-driven per-toolchange purge
 `flare_mmu.cfg` SHALL let the slicer set the next toolchange's purge length.
 `_FLARE_TC_STATE` SHALL hold a `next_purge` runtime variable (mm, default `-1`
-meaning unset). `_FLARE_SET_PURGE PURGE=<mm>` SHALL store its argument into
-`next_purge` when `> 0`, otherwise store `_FLARE_VARS.purge_len`. The argument
+meaning unset). `_FLARE_SET_PURGE PURGE=<mm>` SHALL store its argument, clamped
+to `>= 0`, into `next_purge`. An explicit `PURGE=0` SHALL be honored as "no
+purge for this change" (the slicer emits `0` when no flush is needed) and SHALL
+NOT fall back to `_FLARE_VARS.purge_len`; the static `purge_len` fallback applies
+ONLY to manual loads, where `next_purge` is left unset (`-1`). The argument
 SHALL be a filament length in mm: OrcaSlicer's `[flush_length]` placeholder (the
 full flush length, `purge_volume / filament_area`) is passed directly, with no
 multiplier. `[first_flush_volume]` is half of `flush_length` and SHALL be
@@ -21,9 +24,10 @@ reset it so a slicer-set value cannot leak into a later load.
 - **AND** the following `_FLARE_LOAD_HOTEND` purges that amount and resets
   `next_purge` to `-1`
 
-#### Scenario: Non-positive purge falls back to static default
-- **WHEN** `_FLARE_SET_PURGE PURGE=0` is called
-- **THEN** `next_purge` is set to `_FLARE_VARS.purge_len`
+#### Scenario: Explicit zero purge is honored
+- **WHEN** `_FLARE_SET_PURGE PURGE=0` is called (slicer emits `0` when no flush
+  is needed) and the following `_FLARE_LOAD_HOTEND` runs
+- **THEN** `next_purge` is set to `0` and no purge extrusion is performed
 
 #### Scenario: Unset default uses static purge_len
 - **WHEN** no `_FLARE_SET_PURGE` has run since the last load
