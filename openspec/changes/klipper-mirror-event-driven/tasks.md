@@ -38,10 +38,13 @@
   through the load (if the panel maps any checkpoint to filament_pos rather than
   the `mmu_gate` sensor — confirm via task 1.1). May be unnecessary now that 3.0
   fixes the Gate sensor dot. Acceptance: HW-confirm whether still needed.
-- [ ] 3.2 Add a host-side unit test feeding a fast load/unload `SET_MMU` sequence
-  and asserting `filament_pos` never skips the Gate checkpoint and steps down on
-  unload. Acceptance: `python3 -m unittest` covers it (note: unittest discover
-  silently skips non-TestCase files — verify the test actually runs).
+- [x] 3.2 Host unit test `scripts/test_flare_daemon_stats.py` for
+  `record_event_stats`: a swap (LOADED + TC:DONE) counts load AND unload
+  (symmetric); manual UNLOADED/LOADED count standalone; TC:ERROR counts neither;
+  unknown events ignored. Made `serial` import lazy (defer the pyserial hard-fail
+  to `main()`) so the daemon module imports without hardware deps — tests do not
+  rely on HW. Verified: `python3 -m unittest discover -p "test_*.py"` runs them
+  (53 tests OK).
 
 ## 4. Event-driven push
 

@@ -41,8 +41,10 @@ except ImportError:
 try:
     import serial
 except ImportError:
-    print("flare_daemon error: 'pyserial' not installed. Run: pip install pyserial", file=sys.stderr)
-    sys.exit(1)
+    # pyserial is only needed for the live daemon's serial I/O, not for
+    # importing this module (e.g. host unit tests that exercise pure logic like
+    # record_event_stats). Defer the hard failure to main(), where serial is used.
+    serial = None
 
 # Global runtime state
 serial_port = None
@@ -1428,6 +1430,9 @@ def klipper_syncer(moonraker_url):
 # Main Execution
 # ---------------------------------------------------------------------------
 def main():
+    if serial is None:
+        print("flare_daemon error: 'pyserial' not installed. Run: pip install pyserial", file=sys.stderr)
+        sys.exit(1)
     parser = argparse.ArgumentParser(description="FLARE persistent host proxy daemon")
     parser.add_argument("--port", help="Serial port connection path (e.g. /dev/ttyACM0)")
     parser.add_argument("--baud", type=int, default=115200, help="Baud rate (default: 115200)")
