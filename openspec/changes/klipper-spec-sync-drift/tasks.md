@@ -3,9 +3,11 @@
 - [x] 1.1 `specs/klipper-mmu-config` "Single-file" scenario: `T0`/`T1` (not
   `T1`/`T2`); add `FLARE_PRELOAD` and `_FLARE_SET_PURGE`. Acceptance: macro list
   matches `klipper/flare_mmu.cfg`.
-- [x] 1.2 "Removed development macros": drop `FLARE_PRELOAD`; keep
-  `FLARE_CUT_BARE` / `FLARE_CUT_TEST` (verified absent from cfg). Acceptance:
-  requirement + scenario name only the two still-absent macros.
+- [x] 1.2 Remove the `FLARE_CUT` macro from `klipper/flare_mmu.cfg`; drop it from
+  the "Single-file" macro list. Acceptance: `FLARE_CUT` absent from cfg.
+- [x] 1.2b "Removed development macros": drop `FLARE_PRELOAD`; add `FLARE_CUT`;
+  keep `FLARE_CUT_BARE` / `FLARE_CUT_TEST`. Acceptance: requirement + scenario
+  name `FLARE_CUT`, `FLARE_CUT_BARE`, `FLARE_CUT_TEST`.
 - [x] 1.3 Add "Preload macro routes selected lanes to the gate" requirement
   matching `FLARE_PRELOAD` in cfg (`T:{lane}`+`LO:` for 1/2, `LO:` for 0/none,
   error otherwise). Acceptance: scenarios mirror the cfg branches.

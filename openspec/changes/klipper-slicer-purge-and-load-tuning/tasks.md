@@ -34,6 +34,12 @@
   `load_park_dist`; comment out the Stage 1 `MV:` line with a re-enable note.
   Acceptance: `load_park_dist = dist_filament_park + dist_sensor_to_synced_move`;
   no MV approach runs by default.
+- [x] 3.4 `klipper/flare_mmu.cfg`: remove the dead `dist_meltzone_to_nozzle_tip`
+  var (unused after the buffer-lock tip-form rewrite). Update the "Variables
+  block" spec (drop the var clause + "full hotend path" scenario) and the
+  "Toolchange macro" spec (replace stale "ignore-buffer MV" tip-form wording with
+  the buffer-locked `_FLARE_BL_RETRACT` sequence). Acceptance: var absent;
+  `openspec validate --specs --strict` clean.
 
 ## 4. Validation
 

@@ -51,8 +51,7 @@ reset it so a slicer-set value cannot leak into a later load.
 `[gcode_macro _FLARE_VARS]` SHALL expose all user-configurable distances
 using the same names as the LH-Stinger Pico MMU wiki
 (`dist_sensor_to_extruder`, `dist_filament_park`,
-`dist_extruder_to_meltzone`) and SHALL add `dist_meltzone_to_nozzle_tip` for
-the hotend length needed by FLARE's tip-forming MMU assist.
+`dist_extruder_to_meltzone`).
 
 #### Scenario: Distance variable names match SP wiki
 - **WHEN** a user measures distances following the SP toolhead distance
@@ -60,11 +59,6 @@ the hotend length needed by FLARE's tip-forming MMU assist.
 - **THEN** they can set `variable_dist_sensor_to_extruder`,
   `variable_dist_filament_park`, and `variable_dist_extruder_to_meltzone` in
   `_FLARE_VARS` with no name translation required
-
-#### Scenario: Tip-forming MMU retract uses full hotend path
-- **WHEN** `_FLARE_TIP_FORMING` starts the ignore-buffer MMU retract
-- **THEN** the distance is derived as `dist_sensor_to_extruder +
-  dist_extruder_to_meltzone + dist_meltzone_to_nozzle_tip`
 
 #### Scenario: dist_filament_park constraint documented
 - **WHEN** `dist_filament_park` is set to a value ≥ `dist_extruder_to_meltzone`
@@ -114,8 +108,9 @@ is greater than zero.
 
 ### Requirement: Toolchange macro with derived gear retract
 `_FLARE_CHANGE_LANE` SHALL execute the full toolchange sequence: tip forming
-with an ignore-buffer FLARE `MV:` retract → gear retract (derived) →
-nonblocking `TC:` → toolhead-sensor-gated PICKUP → load hotend.
+with a buffer-locked (`_FLARE_BL_RETRACT`) retract → derived gear retract (also
+buffer-locked) → one `BS` to close the lock chain → nonblocking `TC:` →
+toolhead-sensor-gated PICKUP → load hotend.
 Gear retract distance SHALL be computed as
 `dist_filament_park + dist_sensor_to_extruder + 5` with no separate
 variable. Gear retract speed SHALL use `_FLARE_VARS.speed_hub_to_extruder`
@@ -127,10 +122,11 @@ delayed-TS:1 insert handler already seats the tip during FL.
 
 #### Scenario: Full toolchange sequence completes
 - **WHEN** `_FLARE_CHANGE_LANE LANE=2` is called during a print
-- **THEN** tip forming runs a derived `MV:-...:I` old-lane retract before the
-  final park move, gear retract clears the sensor, `TC:2` is started, and the
-  delayed toolhead-sensor gate waits 2 seconds after filament is detected again
-  before performing Stage 2 `G1 E{load_park_dist}` and `_FLARE_LOAD_HOTEND`
+- **THEN** tip forming runs a buffer-locked retract before the final park move,
+  the derived gear retract (buffer-locked) clears the sensor, one `BS` closes the
+  lock chain, `TC:2` is started, and the delayed toolhead-sensor gate waits 2
+  seconds after filament is detected again before performing Stage 2
+  `G1 E{load_park_dist}` and `_FLARE_LOAD_HOTEND`
 - **AND** `load_park_dist` is derived as
   `dist_filament_park + dist_sensor_to_synced_move`
 - **AND** the Stage 1 `MV:{dist_sensor_to_synced_move}:...` approach is present

@@ -28,7 +28,7 @@ that users can activate with a single `[include flare_mmu.cfg]` line in
 #### Scenario: Single include activates all macros
 - **WHEN** user adds `[include flare_mmu.cfg]` to `printer.cfg`
 - **THEN** macros `T0`, `T1`, `FLARE_LOAD`, `FLARE_PRELOAD`, `FLARE_UNLOAD`,
-  `FLARE_CUT`, `FLARE_EJECT`, `FLARE_TEST_TIP_FORMING`, `_FLARE_CHANGE_LANE`,
+  `FLARE_EJECT`, `FLARE_TEST_TIP_FORMING`, `_FLARE_CHANGE_LANE`,
   `_FLARE_CG28`, `_FLARE_TIP_FORMING`, `_FLARE_LOAD_HOTEND`, `_FLARE_PARK`,
   `_FLARE_PURGE`, `_FLARE_SET_PURGE` are all available without further
   configuration
@@ -54,9 +54,11 @@ final fast retract to park position) reading parameters from
   pull
 
 ### Requirement: Removed development macros
-`FLARE_CUT_BARE` and `FLARE_CUT_TEST` SHALL NOT be present in `flare_mmu.cfg`.
+`FLARE_CUT`, `FLARE_CUT_BARE`, and `FLARE_CUT_TEST` SHALL NOT be present in
+`flare_mmu.cfg`. The cutter cycle is driven by the firmware toolchange (`TC:`),
+so no standalone Klipper cut macro is needed.
 
 #### Scenario: Development macros absent
 - **WHEN** `flare_mmu.cfg` is loaded
-- **THEN** calling `FLARE_CUT_BARE` or `FLARE_CUT_TEST` results in a Klipper
-  "unknown command" error
+- **THEN** calling `FLARE_CUT`, `FLARE_CUT_BARE`, or `FLARE_CUT_TEST` results in
+  a Klipper "unknown command" error

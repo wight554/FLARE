@@ -11,7 +11,11 @@ catch-ups — the cfg is the source of truth and is already correct.
 - Correct the "Single-file" macro list: `T0`/`T1` (not `T1`/`T2`); add
   `FLARE_PRELOAD` and `_FLARE_SET_PURGE` to the available-macro list.
 - Drop `FLARE_PRELOAD` from "Removed development macros" (it is intentionally
-  present); keep `FLARE_CUT_BARE` / `FLARE_CUT_TEST` forbidden (still absent).
+  present); add `FLARE_CUT` to it (the standalone cut macro is removed from the
+  cfg — the cutter cycle is sequenced by the firmware toolchange `TC:`); keep
+  `FLARE_CUT_BARE` / `FLARE_CUT_TEST` forbidden.
+- Remove the `FLARE_CUT` macro from `klipper/flare_mmu.cfg` and drop it from the
+  "Single-file" macro list.
 - Add a "Preload macro" requirement describing `FLARE_PRELOAD` behavior.
 - Fix the tip-forming dip-defaults scenario to the shipped values
   (`dip_melt_gap=0.1`, `dip_speed=30.0`, `dip_pause=10`).
@@ -42,5 +46,6 @@ change's finalization. The dead var is intentionally NOT removed yet.
 
 ## Impact
 
-- Spec `klipper-mmu-config` only. No `klipper/flare_mmu.cfg`, firmware, or host
-  changes (cfg already matches the corrected spec).
+- Spec `klipper-mmu-config` + one `klipper/flare_mmu.cfg` edit (remove the
+  `FLARE_CUT` macro). No firmware or host changes; the remaining drift fixes are
+  spec-only (cfg already matches).
