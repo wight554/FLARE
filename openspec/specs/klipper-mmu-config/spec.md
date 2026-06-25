@@ -2,7 +2,6 @@
 
 ## Purpose
 Specifies the bundled Klipper MMU config surface that lets users include one file for FLARE macros and UI state.
-
 ## Requirements
 ### Requirement: Single-file Klipper MMU config
 `klipper/flare_mmu.cfg` SHALL provide a complete Klipper MMU integration
@@ -11,10 +10,11 @@ that users can activate with a single `[include flare_mmu.cfg]` line in
 
 #### Scenario: Single include activates all macros
 - **WHEN** user adds `[include flare_mmu.cfg]` to `printer.cfg`
-- **THEN** macros `T1`, `T2`, `FLARE_LOAD`, `FLARE_UNLOAD`, `FLARE_CUT`,
+- **THEN** macros `T0`, `T1`, `FLARE_LOAD`, `FLARE_PRELOAD`, `FLARE_UNLOAD`,
   `FLARE_EJECT`, `FLARE_TEST_TIP_FORMING`, `_FLARE_CHANGE_LANE`,
   `_FLARE_CG28`, `_FLARE_TIP_FORMING`, `_FLARE_LOAD_HOTEND`, `_FLARE_PARK`,
-  `_FLARE_PURGE` are all available without further configuration
+  `_FLARE_PURGE`, `_FLARE_SET_PURGE` are all available without further
+  configuration
 
 ### Requirement: Variables block with SP-compatible distance names
 `[gcode_macro _FLARE_VARS]` SHALL expose all user-configurable distances
@@ -59,7 +59,7 @@ final fast retract to park position) reading parameters from
 
 #### Scenario: Dip phase uses tuned defaults
 - **WHEN** `_FLARE_TIP_FORMING` runs with the shared defaults
-- **THEN** it uses `dip_melt_gap=2.5`, `dip_speed=30.0`, and `dip_pause=3`
+- **THEN** it uses `dip_melt_gap=0.1`, `dip_speed=30.0`, and `dip_pause=10`
 
 #### Scenario: Secondary cooldown moves enabled by default
 - **WHEN** `_FLARE_TIP_FORMING` runs with the shared defaults
@@ -182,10 +182,30 @@ tip-forming override parameters and write them into
 - **THEN** macro responds with an error message and does not move
 
 ### Requirement: Removed development macros
-`FLARE_PRELOAD`, `FLARE_CUT_BARE`, and `FLARE_CUT_TEST` SHALL NOT be
-present in `flare_mmu.cfg`.
+`FLARE_CUT`, `FLARE_CUT_BARE`, and `FLARE_CUT_TEST` SHALL NOT be present in
+`flare_mmu.cfg`. The cutter cycle is driven by the firmware toolchange (`TC:`),
+so no standalone Klipper cut macro is needed.
 
 #### Scenario: Development macros absent
 - **WHEN** `flare_mmu.cfg` is loaded
-- **THEN** calling `FLARE_PRELOAD`, `FLARE_CUT_BARE`, or `FLARE_CUT_TEST`
-  results in a Klipper "unknown command" error
+- **THEN** calling `FLARE_CUT`, `FLARE_CUT_BARE`, or `FLARE_CUT_TEST` results in
+  a Klipper "unknown command" error
+
+### Requirement: Preload macro routes selected lanes to the gate
+`FLARE_PRELOAD` SHALL advance a selected lane to its gate (OUT) without loading
+the toolhead. With `LANE=1` or `LANE=2` it SHALL send `T:{lane}` before `LO:`;
+with `LANE=0` (or no `LANE`) it SHALL send `LO:` for the active lane; any other
+`LANE` SHALL be rejected with an error and no command.
+
+#### Scenario: Selected lane preload
+- **WHEN** `FLARE_PRELOAD LANE=2` is invoked
+- **THEN** the macro sends `T:2` then `LO:`
+
+#### Scenario: Active-lane preload
+- **WHEN** `FLARE_PRELOAD` is invoked with `LANE=0` or no `LANE`
+- **THEN** the macro sends `LO:` for the active lane
+
+#### Scenario: Invalid lane rejected
+- **WHEN** `FLARE_PRELOAD LANE=5` is invoked
+- **THEN** the macro responds with an error and sends no command
+

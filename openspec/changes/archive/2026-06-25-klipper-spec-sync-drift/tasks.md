@@ -18,21 +18,17 @@
 
 - [x] 2.1 `openspec validate klipper-spec-sync-drift --strict` passes.
 - [x] 2.2 `openspec validate --specs --strict` passes.
-- [ ] 2.3 Cross-check every macro named in the corrected "Single-file" scenario
-  exists in `klipper/flare_mmu.cfg`, and `FLARE_CUT_BARE`/`FLARE_CUT_TEST` do
-  not (re-grep before archive).
+- [x] 2.3 Cross-check every macro named in the corrected "Single-file" scenario
+  exists in `klipper/flare_mmu.cfg`, and `FLARE_CUT`/`FLARE_CUT_BARE`/
+  `FLARE_CUT_TEST` do not (verified by grep; all present/absent as expected).
 
 ## Readiness and Delivery Checks
 
-- [ ] No firmware/script touched; build + py_compile N/A (spec-only change).
-- [ ] Confirm no cfg edit is required (cfg is the source of truth and already
-  matches the corrected spec).
+- [x] No firmware/script touched; build + py_compile N/A. One cfg edit (remove
+  FLARE_CUT macro); rest spec-only.
 - [x] `openspec validate klipper-spec-sync-drift --strict` passing.
 - [x] `openspec validate --specs --strict` passing.
-- [ ] Deferred items tracked: `dist_meltzone_to_nozzle_tip` dead-var + stale
-  "full hotend path" / "ignore-buffer MV" tip-form descriptions are NOT resolved
-  here (overlap `klipper-slicer-purge-and-load-tuning`; need tip-form domain
-  decision). Resolve when that change finalizes.
-- [ ] Append observation `memories/repo/klipper-spec-sync-drift.md` (3-5 lines:
-  drift items fixed, deferred tip-form/dist_meltzone entanglement) before
-  archiving.
+- [x] Deferred items moved to `klipper-slicer-purge-and-load-tuning` (which owns
+  the overlapping requirements): `dist_meltzone_to_nozzle_tip` removal + stale
+  tip-form wording resolved there.
+- [x] Observation appended: `memories/repo/klipper-spec-sync-drift.md`.
