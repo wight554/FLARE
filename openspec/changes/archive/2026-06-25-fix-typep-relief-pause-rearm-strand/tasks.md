@@ -25,7 +25,7 @@
 - [x] 3.2 Run host regression/parity tests; ensure type-P relief-pause scenarios
   in `psf-type-p-sensor` pass (note unittest-discover silent-skip gotcha,
   memories/repo/audit-hardening-fixes).
-- [ ] 3.3 Rig: reproduce slow-after-fast edge case; confirm no `BUF_STAB:START`
-  during RELIEF_PAUSE, sync re-arms (`SYNC:AUTO_START`) on fast-feature tension
-  without stranding, no manual perturbation needed.
+- [x] 3.3 Rig: HW VALIDATED over ~1000 swaps — no `BUF_STAB:START` during
+  RELIEF_PAUSE, sync re-arms (`SYNC:AUTO_START`) on fast-feature tension without
+  stranding, no manual perturbation needed.
 - [x] 3.4 Type-D relief-recovery regression check relocated to TEST_CASES.md "Pending Type-D Rig Session".
