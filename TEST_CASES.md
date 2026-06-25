@@ -768,6 +768,68 @@ well below the learned baseline on a long same-flow print.
 
 ---
 
+## Pending Type-D Rig Session
+
+Consolidated **type-D** hardware validation, grouped so one type-D rig session
+covers all of it. These were extracted from the `audit-reliability-fixes`,
+`audit-hardening-fixes`, and `fix-typep-relief-pause-rearm-strand` openspec
+changes (which retain only their type-P / general HW items). Each is
+**pending-manual-hardware** until an operator records the firmware commit, setup,
+commands, and observed status/events.
+
+### pending-manual-hardware: Type-D dry-spin, watchdog, BL prime (audit-reliability-fixes 10.2)
+
+#### Goal
+
+Confirm the H2 dry-spin interlock, H3 hardware watchdog, and BL prime ramp on a
+type-D buffer.
+
+#### Steps
+
+1. Attempt a sync restart that would re-fire a dry spin; confirm the interlock.
+2. Run `SV` and confirm the hardware watchdog does not fire during it.
+3. Raise `SYNC_MAX` and observe the BL prime ramp.
+
+#### Expected Result
+
+- Dry-spin does not re-fire after a sync restart attempt.
+- Watchdog stays silent throughout `SV`.
+- BL prime ramps cleanly at the raised `SYNC_MAX`.
+
+### pending-manual-hardware: Type-D piston full-range deflection (audit-hardening-fixes 8.3)
+
+#### Goal
+
+Confirm the type-D piston deflection spans the full range at the configured
+`BUF_MAX_TRAVEL`.
+
+#### Steps
+
+1. Set the target `BUF_MAX_TRAVEL`.
+2. Drive the buffer across its full travel and watch `BP` / piston in the UI.
+
+#### Expected Result
+
+- Piston deflection covers the full configured range, end to end, with no
+  premature clamp.
+
+### pending-manual-hardware: Type-D relief recovery regression (fix-typep-relief-pause-rearm-strand 3.4)
+
+#### Goal
+
+Confirm the type-P relief-pause rearm fix did not change type-D relief recovery.
+
+#### Steps
+
+1. On a type-D buffer, drive a relief-pause recovery scenario.
+2. Compare behavior against pre-fix type-D baseline.
+
+#### Expected Result
+
+- Type-D relief recovery is unchanged (no regression from the type-P rearm path).
+
+---
+
 ## Expected Status Snapshots
 
 These are reference patterns, not byte-for-byte golden outputs. Exact rates,

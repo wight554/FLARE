@@ -28,4 +28,4 @@
 - [ ] 3.3 Rig: reproduce slow-after-fast edge case; confirm no `BUF_STAB:START`
   during RELIEF_PAUSE, sync re-arms (`SYNC:AUTO_START`) on fast-feature tension
   without stranding, no manual perturbation needed.
-- [ ] 3.4 Rig: verify type-D relief recovery unchanged (regression check).
+- [x] 3.4 Type-D relief-recovery regression check relocated to TEST_CASES.md "Pending Type-D Rig Session".

@@ -59,4 +59,4 @@
 
 - [x] 8.1 `scripts/validate_regression.sh` full pass
 - [ ] 8.2 Hardware checks (TEST_CASES.md additions): CAL during motion → `ER:PERSIST_BUSY`; CP mid-cut → `ER:BUSY` + cut completes; `T:`/`TC:` mid-TC → `ER:BUSY`, sequence unaffected; BL timeout emits single-prefix `EV:BL:TIMEOUT` visible in daemon history; `flare_cmd RL` via daemon exits 0 on completion
-- [ ] 8.3 Klipper-side checks: klippy restart with daemon up → gate map restored in Fluidd; `FLARE_WAIT_UNLOAD` with no active gate → clean error not premature complete; type-D piston deflection spans full range at configured `BUF_MAX_TRAVEL`
+- [ ] 8.3 Klipper-side checks: klippy restart with daemon up → gate map restored in Fluidd; `FLARE_WAIT_UNLOAD` with no active gate → clean error not premature complete. (Type-D piston full-range deflection at `BUF_MAX_TRAVEL` relocated to TEST_CASES.md "Pending Type-D Rig Session".)

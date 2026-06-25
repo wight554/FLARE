@@ -75,5 +75,5 @@
 ## 10. Validation
 
 - [x] 10.1 `bash scripts/validate_regression.sh` + dev-superset build (`-DFLARE_DEV_TUNING=ON`)
-- [ ] 10.2 Hardware (type-D rig): dry-spin re-fire after sync restart attempt; watchdog no-fire during SV; BL prime ramp at raised SYNC_MAX
+- [x] 10.2 Type-D rig checks (dry-spin re-fire, watchdog no-fire during SV, BL prime ramp at raised SYNC_MAX) relocated to TEST_CASES.md "Pending Type-D Rig Session" for a single type-D session.
 - [ ] 10.3 Hardware (type-P rig): runout RELOAD end-to-end + manual `RL:` — contact at compression, success only on grab (consumer); no instant `RELOAD:LOADED`; **paused/no-consumer `RL:` completes on staged compression (no `FOLLOW_JAM`)**; missed-swap `RL:` (active lane empty, other loaded) resumes via swap
