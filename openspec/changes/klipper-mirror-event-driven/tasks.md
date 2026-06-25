@@ -10,12 +10,21 @@
 
 ## 2. Drop cosmetic/continuous mirror fields
 
-- [ ] 2.1 `scripts/flare_daemon.py`: remove `sync_feedback` (float offset) from the
-  mirrored `SET_MMU` field set; keep `sync_feedback_state`. Acceptance: no
-  `SYNC_FEEDBACK=` float in emitted pushes; `SYNC_FEEDBACK_STATE` still pushed.
+- [x] 2.1 `scripts/flare_daemon.py`: removed the continuous analog fields
+  (`SYNC_FEEDBACK` float piston, `SPS`, `FEED_RATE`, `REV_RATE`) from the mirrored
+  `SET_MMU` field set; kept `SYNC_FEEDBACK_STATE`. Reconcile compares only desired
+  `fields`, so dropping them causes no false-divergence/full-push.
 - [ ] 2.2 `klipper/mmu.py` `get_status`: delete the synthetic filament-mm
-  computation and the `bowden_length` / `extruder_to_nozzle` reads. Acceptance:
-  `get_status` references neither var; no mm field exported.
+  computation (1413-1481 animation block + `filament_position`/`bowden_progress`)
+  and the `bowden_length` / `extruder_to_nozzle` reads. DEFERRED — entangled with
+  the checkpoint latch (3.x) and depends on the Fluidd panel filament_pos/
+  bowden_progress contract (task 1.1). Do with 3.1.
+
+## 2b. Stats: a swap counts an unload
+
+- [x] 2b.1 `scripts/flare_daemon.py` `record_event_stats`: on `TC:DONE` also
+  `unloads_success += 1` (TC unload phase emits no standalone `UNLOADED`).
+  Acceptance: loads/unloads track across a print of swaps, not loads ≫ unloads.
 
 ## 3. Checkpoint latch
 
@@ -30,10 +39,11 @@
 
 ## 4. Event-driven push
 
-- [ ] 4.1 `scripts/flare_daemon.py`: push `SET_MMU` on discrete tracked-field change
-  on status/event ingest; keep the periodic tick only for full-resync + host-busy
-  reconcile (no emit when in sync). Acceptance: steady print with only analog
-  buffer motion emits zero `SET_MMU`; a discrete transition emits one promptly.
+- [x] 4.1 Event-driven achieved by removing the continuous analog fields (2.1):
+  the existing delta loop already emits nothing when no field changed
+  (`daemon-klipper-mirror` "No field changed"), so with the analog churn gone a
+  steady print emits zero `SET_MMU` and a discrete transition emits one promptly —
+  no loop restructure needed. Acceptance: confirmed by 2.1 + existing delta logic.
 - [ ] 4.2 Preserve "Full resync recovery" and "Host-busy backpressure" behavior
   unchanged. Acceptance: existing daemon-klipper-mirror scenarios still hold.
 

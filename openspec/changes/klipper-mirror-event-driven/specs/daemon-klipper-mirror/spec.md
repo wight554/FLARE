@@ -6,9 +6,9 @@ not continuous cosmetic values. The mirrored set SHALL include `gate_status`,
 the filament checkpoint position (`filament_pos`), the buffer state
 (`sync_feedback_state`: compression / tension / neutral), `action`,
 `print_state`, the filament-path sensor flags, `active_gate`, `tool`, and
-`num_toolchanges`. The daemon SHALL NOT mirror the continuous `sync_feedback`
-float (the cosmetic buffer-piston offset) nor any synthesized "Filament: X mm"
-distance readout.
+`num_toolchanges`. The daemon SHALL NOT mirror continuous analog values: the
+`sync_feedback` float (cosmetic buffer-piston offset), `sps`, `feed_rate`,
+`rev_rate`, nor any synthesized "Filament: X mm" distance readout.
 
 #### Scenario: Buffer state mirrored, piston offset dropped
 - **WHEN** the buffer moves under sync so the analog offset changes but its
@@ -39,6 +39,20 @@ mirror traffic.
   buffer-state transition)
 - **THEN** the daemon emits a `SET_MMU` carrying that change without waiting for a
   fixed tick boundary
+
+### Requirement: A swap counts an unload
+The daemon SHALL count an unload on each successful swap (`TC:DONE`) so the
+loads/unloads totals stay symmetric. The firmware toolchange emits no standalone
+`UNLOADED` event for its internal unload phase (only the trailing `LOADED`), so a
+swap is recorded as unload(old) + load(new), matching Happy-Hare. Standalone
+`UNLOADED` / `LOADED` events SHALL continue to count manual unloads / loads.
+
+#### Scenario: Swap increments both load and unload
+- **WHEN** a `TC:DONE` event is recorded for a successful swap
+- **THEN** `swaps_success`, `loads_success` (via the swap's `LOADED`), and
+  `unloads_success` each advance by one
+- **AND** `loads_success` and `unloads_success` track each other across a print
+  of swaps (not loads far exceeding unloads)
 
 ## MODIFIED Requirements
 

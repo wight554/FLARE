@@ -194,6 +194,12 @@ def record_event_stats(evt_type, evt_data):
         if evt_type == "TC:DONE":
             mmu_stats["swaps_total"] += 1
             mmu_stats["swaps_success"] += 1
+            # A swap unloads the outgoing lane then loads the new one. The TC
+            # unload phase emits no standalone UNLOADED event (only the trailing
+            # LOADED counts the load), so count the unload here to keep
+            # loads/unloads symmetric -- Happy-Hare counts a swap as
+            # unload(old)+load(new).
+            mmu_stats["unloads_success"] += 1
         elif evt_type == "TC:ERROR":
             mmu_stats["swaps_total"] += 1
             mmu_stats["swaps_failed"] += 1
@@ -1284,13 +1290,16 @@ def klipper_syncer(moonraker_url):
             "GATE_STATUS": f"'{gate_status_1},{gate_status_2}'",
             "GATE_SENSOR": f"'{in1},{in2}'",
             "TOOLHEAD_SENSOR": str(toolhead),
-            "SYNC_FEEDBACK": f"{sync_feedback:.3f}",
+            # Continuous analog fields (SYNC_FEEDBACK buffer-offset / piston, SPS,
+            # FEED_RATE, REV_RATE) are intentionally NOT mirrored: they change
+            # every tick and would make the delta non-empty on nearly every push,
+            # spamming the Klipper gcode queue. Only the discrete buffer STATE is
+            # mirrored.
             "SYNC_FEEDBACK_ENABLED": str(sync_feedback_enabled),
             "SYNC_FEEDBACK_STATE": f"'{buf_state}'",
             "PRINT_JOB_STATE": f"'{print_job_state}'",
             "PRINT_STATE": f"'{print_state}'",
             "BOARD_ONLINE": str(board_online),
-            "SPS": f"{sps:.3f}",
             "RELOAD_MODE": str(reload_mode),
             "ENABLE_CUTTER": str(enable_cutter),
             "UNLOAD_CUT": str(unload_cut),
@@ -1305,8 +1314,6 @@ def klipper_syncer(moonraker_url):
             "LOADS_SUCCESS": str(st["loads_success"]),
             "UNLOADS_SUCCESS": str(st["unloads_success"]),
             "MMU_LAST_ERROR": f"'{st['last_error']}'",
-            "FEED_RATE": f"{feed_rate:.2f}",
-            "REV_RATE": f"{rev_rate:.2f}",
             "BYPASS": str(1 if bypass else 0),
         }
 
