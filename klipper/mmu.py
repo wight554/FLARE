@@ -1489,9 +1489,16 @@ class MMUMock:
             else:
                 sensors_dict['filament_tension'] = self.sync_feedback_state == "tension"
                 sensors_dict['filament_compression'] = self.sync_feedback_state == "compressed"
+            # FLARE's hub/gate sensor (y_split) is transit-only: it clears once
+            # filament settles past the Y junction, which left the UI "Gate" dot
+            # stuck unchecked while a lane was loaded (Toolhead, a steady sensor,
+            # stayed checked). Latch "Gate" to filament being at or past the gate:
+            # a loaded lane, any downstream presence, or filament at the toolhead.
+            lane_loaded = (0 <= self.gate < len(self.gate_status)
+                           and self.gate_status[self.gate] == 2)
             sensors_dict['mmu_pre_gate'] = path_pre_gate
             sensors_dict['mmu_gear'] = path_gear
-            sensors_dict['mmu_gate'] = path_gate
+            sensors_dict['mmu_gate'] = bool(path_gate or path_toolhead or lane_loaded)
 
         return {
             'enabled': self.enabled,

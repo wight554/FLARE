@@ -28,10 +28,15 @@
 
 ## 3. Checkpoint latch
 
-- [ ] 3.1 `klipper/mmu.py`: track `filament_pos` as monotonic phase progress (latch
-  Gate-passed on gear/gate-seen or load phase; hold through toolhead; step down on
-  unload; clear on completed unload) per the task 1.1 ladder. Acceptance: a
-  simulated fast gate→toolhead transition leaves Gate + Toolhead both set.
+- [x] 3.0 `klipper/mmu.py` `get_status`: ROOT CAUSE of stuck Gate = `mmu_gate`
+  reads the transit-only hub/`y_split` sensor, which clears once filament settles
+  past the Y junction (Toolhead, a steady sensor, stays set). Latch `mmu_gate` to
+  filament at/past the gate (loaded lane OR downstream presence OR toolhead).
+  Acceptance: a loaded lane shows Gate checked alongside Toolhead.
+- [ ] 3.1 `klipper/mmu.py`: optionally also latch `filament_pos` monotonically
+  through the load (if the panel maps any checkpoint to filament_pos rather than
+  the `mmu_gate` sensor — confirm via task 1.1). May be unnecessary now that 3.0
+  fixes the Gate sensor dot. Acceptance: HW-confirm whether still needed.
 - [ ] 3.2 Add a host-side unit test feeding a fast load/unload `SET_MMU` sequence
   and asserting `filament_pos` never skips the Gate checkpoint and steps down on
   unload. Acceptance: `python3 -m unittest` covers it (note: unittest discover

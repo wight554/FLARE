@@ -1,5 +1,20 @@
 ## ADDED Requirements
 
+### Requirement: Gate indicator reflects filament past the gate
+`mmu.py` `get_status` SHALL report the UI "Gate" indicator (`sensors.mmu_gate`)
+as "filament at or past the gate", not as the raw hub/`y_split` sensor. FLARE's
+hub sensor is transit-only — it clears once filament settles past the Y junction
+— so a loaded lane otherwise leaves the Gate dot unchecked while the steady
+Toolhead sensor stays checked. `mmu_gate` SHALL be set whenever the active lane
+is loaded, any downstream sensor shows presence, or filament is at the toolhead,
+and SHALL clear when the lane is unloaded.
+
+#### Scenario: Gate stays checked while loaded
+- **WHEN** a lane is loaded to the toolhead and filament has settled past the
+  transit-only hub sensor
+- **THEN** the UI Gate indicator stays checked alongside the Toolhead indicator
+- **AND** it clears after the lane is unloaded
+
 ### Requirement: Load/unload checkpoint latch
 `mmu.py` SHALL report the filament checkpoint position (`filament_pos`) as
 monotonic progress through the active load/unload phase, not solely from
