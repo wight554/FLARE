@@ -14,11 +14,12 @@
   (`SYNC_FEEDBACK` float piston, `SPS`, `FEED_RATE`, `REV_RATE`) from the mirrored
   `SET_MMU` field set; kept `SYNC_FEEDBACK_STATE`. Reconcile compares only desired
   `fields`, so dropping them causes no false-divergence/full-push.
-- [ ] 2.2 `klipper/mmu.py` `get_status`: delete the synthetic filament-mm
-  computation (1413-1481 animation block + `filament_position`/`bowden_progress`)
-  and the `bowden_length` / `extruder_to_nozzle` reads. DEFERRED — entangled with
-  the checkpoint latch (3.x) and depends on the Fluidd panel filament_pos/
-  bowden_progress contract (task 1.1). Do with 3.1.
+- [x] 2.2 `klipper/mmu.py` `get_status`: deleted the synthetic filament-mm
+  animation block + `filament_position`/`bowden_progress` computation + the
+  `bowden_length`/`extruder_to_nozzle` reads, and removed the now-dead
+  `_load_path_len_mm` helper. `filament_pos` is now the discrete loaded-state
+  landmark ({0,4,10}); `filament_position`=0.0 and `bowden_progress`=-1.0 are kept
+  as static keys (no gliding tip, no fake mm). Panel shows discrete stops.
 
 ## 2b. Stats: a swap counts an unload
 

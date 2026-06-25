@@ -1339,21 +1339,6 @@ class MMUMock:
     def tool_filament_name(self):
         return [self.gate_filament_name[g] if 0 <= g < len(self.gate_filament_name) else f"Tool {i}" for i, g in enumerate(self.ttg_map)]
 
-    def _load_path_len_mm(self):
-        """Approximate gate->nozzle load-path length from _FLARE_VARS toolhead
-        geometry. Used only to scale the synthetic filament_position readout."""
-        macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
-        bowden_length = 1800.0
-        extruder_to_nozzle = 125.0
-        if macro is not None:
-            v = getattr(macro, 'variables', {})
-            try:
-                bowden_length = float(v.get('bowden_length', 1800.0))
-                extruder_to_nozzle = float(v.get('extruder_to_nozzle', 125.0))
-            except (TypeError, ValueError):
-                pass
-        return bowden_length + extruder_to_nozzle
-
     def get_status(self, eventtime):
         """Export state values back to Klipper & Moonraker."""
         # Filament-path sensor cascade: a strand cannot be past a sensor it has
@@ -1374,20 +1359,6 @@ class MMUMock:
         elif not path_gear:
             path_gate = False
             path_toolhead = False
-        # Synthesize a filament tip position (mm) for the Fluidd "Filament: X mm"
-        # readout. FLARE has no continuous encoder, so we compute from config variables:
-        macro = self.printer.lookup_object('gcode_macro _FLARE_VARS', None)
-        bowden_length = 1800.0
-        extruder_to_nozzle = 125.0
-        if macro is not None:
-            v = getattr(macro, 'variables', {})
-            try:
-                bowden_length = float(v.get('bowden_length', 1800.0))
-                extruder_to_nozzle = float(v.get('extruder_to_nozzle', 125.0))
-            except (TypeError, ValueError):
-                pass
-        path_len = bowden_length + extruder_to_nozzle
-
         # Derive filament loaded state in real-time to prevent status freeze during synchronous wait loops
         loaded_gate = -1
         for g, status in enumerate(self.gate_status):
@@ -1410,75 +1381,11 @@ class MMUMock:
             self.filament = "Unloaded"
             self.filament_pos = 0
 
-        if self.is_loading or self.current_phase in ["unload", "cut", "load"]:
-            reactor = self.printer.get_reactor()
-            now = reactor.monotonic()
-            
-            if self.current_phase == "unload":
-                # A cutting unload (cutter enabled + cut-on-unload) severs the tip
-                # near the toolhead, so the long downstream strand no longer
-                # exists. Hold 0 instead of the 1925->1800 toolhead clamp, and
-                # latch it through the trailing reverse states, so cut travel
-                # shows 0 rather than bowden_length (1800).
-                cut_unload = bool(self.enable_cutter) and bool(self.unload_cut)
-                if not path_gear or self.unload_completed or cut_unload:
-                    self.unload_completed = True
-                    filament_position = 0.0
-                else:
-                    elapsed = now - self.unload_phase_start
-                    
-                    if not path_toolhead:
-                        # Tip has left the toolhead sensor!
-                        if self.th_clear_time is None:
-                            self.th_clear_time = now
-                        elapsed_since_clear = now - self.th_clear_time
-                        # Count down from bowden_length to 0.0 mm
-                        filament_position = max(0.0, bowden_length - (elapsed_since_clear * self.loading_speed))
-                        if filament_position <= 0.0:
-                            self.unload_completed = True
-                    else:
-                        # Tip is still past toolhead sensor, count down from path_len, clamped above bowden_length
-                        filament_position = max(bowden_length, path_len - (elapsed * self.loading_speed))
-            elif self.current_phase == "cut":
-                # Filament is fully unloaded back to the gate/drive gears, hold at 0.0 mm
-                filament_position = 0.0
-            elif self.current_phase == "load":
-                elapsed = now - self.load_phase_start if self.load_phase_start is not None else 0.0
-                # Count up from 0.0 to path_len (1925 mm) instead of bowden_length (1800 mm)
-                filament_position = min(path_len, elapsed * self.loading_speed)
-            else:
-                filament_position = 0.0
-        else:
-            if path_toolhead:
-                filament_position = path_len
-            elif path_gate:
-                filament_position = max(30.0, bowden_length * 0.05)
-            elif path_gear:
-                filament_position = 20.0
-            elif path_pre_gate:
-                filament_position = 10.0
-            else:
-                filament_position = 0.0
-
-        # Refine filament_pos into Happy Hare landmark values and publish
-        # bowden_progress (0-100). Fluidd's MmuFilamentStatus only animates the
-        # drawn tip continuously when filament_pos is START_BOWDEN(2)/IN_BOWDEN(3)
-        # AND bowden_progress >= 0; for every other value the tip snaps to a
-        # discrete stop. Emitting only {0 (UNLOADED), 4 (END_BOWDEN), 10 (LOADED)}
-        # is why the tip parked at three fixed spots. Map the synthetic mm tip
-        # onto IN_BOWDEN + progress so the drawn tip glides with the strand. The
-        # `filament` string (load/unload button gating) is left untouched.
+        # Synthetic-mm tip animation removed: report discrete checkpoint
+        # stops only. filament_pos is the loaded-state landmark derived above
+        # ({0 unloaded, 4 partial, 10 loaded}); no gliding tip, no fake mm.
+        filament_position = 0.0
         bowden_progress = -1.0
-        if not self.bypass and self.filament_pos != 0:
-            if filament_position >= path_len - 1.0:
-                self.filament_pos = 10                       # LOADED
-            elif filament_position >= bowden_length:
-                self.filament_pos = 7                        # EXTRUDER_ENTRY
-            elif filament_position > 5.0 and bowden_length > 0.0:
-                self.filament_pos = 3                        # IN_BOWDEN (interpolated)
-                bowden_progress = max(0.0, min(100.0, filament_position / bowden_length * 100.0))
-            else:
-                self.filament_pos = 1                        # HOMED_GATE
 
         sensors_dict = {
             'toolhead': path_toolhead,

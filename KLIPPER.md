@@ -169,8 +169,8 @@ Step 4), so a leftover never fires on the next print or a manual swap.
 ## 📊 Mainsail / Fluidd Dashboard Integration
 
 Because the install daemon registers mock `[mmu]` and `[mmu_sensors]` modules, Mainsail and Fluidd will automatically discover the FLARE controller. You will see:
-1. **Gate Track Indicators**: Filament status dots for both lanes (preloaded, loaded, or empty).
-2. **Buffer Piston Visualizer**: A sliding block representing the live position of your spring-trolley buffer.
+1. **Gate Track Indicators**: Filament status dots for both lanes (preloaded, loaded, or empty) and the filament-path checkpoints (gate / toolhead).
+2. **Buffer State**: The buffer's discrete state (compression / tension / neutral). FLARE mirrors only discrete, UI-meaningful state — not a continuous piston animation or a synthesized "Filament: X mm" readout — so the dashboard stays informative without spamming the Klipper gcode queue.
 3. **Control Buttons**: `MMU_LOAD` and `MMU_EJECT` buttons on the dashboard will function correctly, selecting and loading the chosen gate automatically.
 
 If your WebUI console still shows historical `SET_MMU` status traffic, add
