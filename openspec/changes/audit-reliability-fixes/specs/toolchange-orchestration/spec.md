@@ -58,3 +58,8 @@ The manual `RL:` command SHALL resume the auto-runout RELOAD sequence from the c
 #### Scenario: RL with both lanes empty
 - **WHEN** `RL:` is issued and neither lane holds filament
 - **THEN** the command returns `ER:NO_FILAMENT` and no motion starts
+
+#### Scenario: RL on an already-loaded lane is a no-op
+- **WHEN** `RL:` is issued with the active lane loaded (`IN=1`) and the toolhead already confirms filament (a prior reload already completed, or this lane never ran out)
+- **THEN** the command emits `RELOAD:LOADED` immediately and does not restart `RELOAD_APPROACH`/`RELOAD_FOLLOW` or reset the toolhead-filament flag
+- **AND** no `FOLLOW_JAM` can be raised, because no motion is started into an already-seated buffer

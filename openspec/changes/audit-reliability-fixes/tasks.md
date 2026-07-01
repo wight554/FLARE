@@ -77,3 +77,16 @@
 - [x] 10.1 `bash scripts/validate_regression.sh` + dev-superset build (`-DFLARE_DEV_TUNING=ON`)
 - [x] 10.2 Type-D rig checks (dry-spin re-fire, watchdog no-fire during SV, BL prime ramp at raised SYNC_MAX) relocated to TEST_CASES.md "Pending Type-D Rig Session" for a single type-D session.
 - [ ] 10.3 Hardware (type-P rig): runout RELOAD end-to-end + manual `RL:` — contact at compression, success only on grab (consumer); no instant `RELOAD:LOADED`; **paused/no-consumer `RL:` completes on staged compression (no `FOLLOW_JAM`)**; missed-swap `RL:` (active lane empty, other loaded) resumes via swap
+
+## 11. H5 — RL on an already-loaded lane must not restart approach/follow (toolchange.c)
+
+- [x] 11.1 `tc_manual_reload`: after the swap-branch check, short-circuit on `g_toolhead_has_filament` — emit `RELOAD:LOADED` and return without resetting `g_tc_ctx` or starting motion
+- [x] 11.2 BEHAVIOR.md / MANUAL.md "RELOAD contact and follow" / `RL:` row: document the already-loaded no-op
+- [ ] 11.3 Hardware validation (any rig type, folds into 10.3): re-issue `RL:` immediately after a completed reload (or on a lane that never ran out) with a consumer active — confirm `RELOAD:LOADED` with no motion and no `FOLLOW_JAM`
+
+## 12. H6 — Genuine type-P runout must escalate to RELOAD, not loop FAULT_HOLD forever (sync.c)
+
+- [x] 12.1 Thread `lane` into `sync_check_tension_dwell_and_ramp`; update its one call site (`sync_tick_calculate_target`)
+- [x] 12.2 Before `sync_fault_hold()` on sustained tension dwell: if `lane && g_reload_mode && lane->task == TASK_FEED && tc_state() == TC_IDLE && !lane_in_present(lane) && !lane_out_present(lane)`, emit `RUNOUT`, clear toolhead filament, stop the lane, and call `reload_trigger(lane->lane_id, now_ms)` instead of fault-holding
+- [x] 12.3 Build verified (`ninja flare_controller` + dev-tuning superset via `validate_regression.py`); type-D path unchanged (dwell check already `!= BUF_SENSOR_TYPE_D`-gated)
+- [ ] 12.4 Hardware validation (type-P rig, folds into 10.3): reproduce a real runout during active sync with `RELOAD_MODE=1` and confirm `RUNOUT`/`RELOAD:SWITCHING` fires within ~1 `SYNC_TENSION_DWELL_STOP_MS` window instead of looping `SYNC:FAULT_HOLD`; confirm the pre-existing FAULT_HOLD loop still runs unchanged when `RELOAD_MODE=0`

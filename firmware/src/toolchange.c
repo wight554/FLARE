@@ -98,6 +98,17 @@ void tc_manual_reload(uint32_t now_ms) {
         }
     }
 
+    // Toolhead already confirms filament and no swap is pending: a prior
+    // reload already completed (or this lane never ran out). Re-running
+    // approach/follow would drive an already-seated buffer with zero travel
+    // room and false-fire FOLLOW_JAM; treat as already loaded instead.
+    if (g_toolhead_has_filament) {
+        char lane_s[2];
+        lane_id_str(lane_s, g_active_lane);
+        cmd_event("RELOAD:LOADED", lane_s);
+        return;
+    }
+
     memset(&g_tc_ctx, 0, sizeof(g_tc_ctx));
     g_tc_ctx.target_lane = g_active_lane;
     g_tc_ctx.from_lane = g_active_lane;

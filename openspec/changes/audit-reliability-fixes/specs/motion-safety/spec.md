@@ -23,6 +23,12 @@ The system SHALL halt any spinning motor if no filament is detected at the intak
 - **THEN** sync disables instead of restarting `TASK_FEED` on the empty lane
 - **AND** a later real load re-engages sync through the normal auto-start path
 
+#### Scenario: Sustained tension dwell with an empty lane escalates to RELOAD, not a fault-hold loop
+- **WHEN** the buffer dwells in `BUF_TENSION` past `SYNC_TENSION_DWELL_STOP_MS` (non-type-D) while the active lane's `TASK_FEED` is running with both `IN` and `OUT` sensors clear, `RELOAD_MODE` enabled, and no toolchange busy
+- **THEN** the system emits `RUNOUT`, stops the lane, and triggers the RELOAD swap/resume sequence
+- **AND** it does NOT enter `SYNC:FAULT_HOLD` and retry indefinitely, because a fault-hold retry (buffer-model reset + conservative restart) cannot recover a lane with no filament left
+- **AND** a tension dwell with the lane sensors still showing filament present (a genuine transient control-law stall) still fault-holds and recovers as before
+
 ## ADDED Requirements
 
 ### Requirement: Hardware watchdog bounds a hung control loop

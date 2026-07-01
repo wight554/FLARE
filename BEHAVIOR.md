@@ -506,6 +506,19 @@ speed increase will refill the buffer. Sync automatically recovers after
 `EV:SYNC:FAULT_HOLD_RECOVERY` and attempting to re-arm. `SYNC_TENSION_STOP_MS: 0`
 disables the hard stop.
 
+Before entering this fault hold, the check first looks at the active lane's own
+`IN`/`OUT` sensors: if the lane is genuinely empty (`RELOAD_MODE=1`, `TASK_FEED`
+active, no toolchange busy), a fault-hold retry cannot recover it — there is
+nothing left to feed — so the system emits `RUNOUT` and hands off directly to
+the same RELOAD swap/resume sequence auto-runout uses, instead of fault-holding.
+Without that check, the fault-hold loop's own recovery (reseeding the buffer
+model to `NEUTRAL` and restarting at a conservative bootstrap rate every
+`CONF_SYNC_FAULT_HOLD_RECOVERY_MS`) starves the distance-based runout escalation
+in `motion.c` of the travel it needs to fire on its own, and a genuine runout
+can loop `FAULT_HOLD`/`FAULT_HOLD_RECOVERY` indefinitely instead of ever
+reaching RELOAD. A tension dwell with the lane sensors still showing filament
+present is a real transient stall and still fault-holds/recovers as before.
+
 The `TT:` status field exposes the current tension-dwell timer in real time
 for tuning and regression monitoring.
 
@@ -641,9 +654,15 @@ trigger missed or that aborted mid-sequence:
 - Active lane run out (`IN=0`) but the other lane loaded (`IN=1`) → the swap
   never completed; `RL:` runs the full runout flow (swap to the other lane,
   Y-clear wait, approach, follow), emitting `RELOAD:SWITCHING`.
-- Active lane still loaded (`IN=1`) — the already-swapped fresh lane, or a lane
-  that never ran out → `RL:` resumes approach/follow on the active lane with no
-  second swap and no Y wait, emitting `RELOAD:JOINING`.
+- Active lane still loaded (`IN=1`) and the toolhead does **not** yet confirm
+  filament (reload genuinely incomplete) → `RL:` resumes approach/follow on the
+  active lane with no second swap and no Y wait, emitting `RELOAD:JOINING`.
+- Active lane still loaded (`IN=1`) and the toolhead **already** confirms
+  filament (a prior reload already completed, or this lane never ran out) →
+  `RL:` is a no-op: emits `RELOAD:LOADED` immediately, starts no motion, and
+  does not reset the toolhead-filament flag. Re-running approach/follow here
+  would drive an already-seated buffer with zero travel room and false-fire
+  `FOLLOW_JAM` when a consumer is present.
 - Neither lane holds filament → `ER:NO_FILAMENT`, no motion.
 
 ### Trailing behavior and auto-stop

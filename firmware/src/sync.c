@@ -1492,7 +1492,8 @@ static int sync_apply_type_d_probe_floor(buf_state_t s, int target_sps) {
     return target_sps;
 }
 
-static int sync_check_tension_dwell_and_ramp(buf_state_t s, int target_sps, uint32_t now_ms) {
+static int sync_check_tension_dwell_and_ramp(lane_t *lane, buf_state_t s, int target_sps,
+                                              uint32_t now_ms) {
     if (s == BUF_TENSION && g_sync_tension_pin_since_ms != 0) {
         uint32_t tension_dwell_ms = now_ms - g_sync_tension_pin_since_ms;
         /* RELAY: TENSION switch contact is the normal "buffer empty, refill"
@@ -1500,6 +1501,24 @@ static int sync_check_tension_dwell_and_ramp(buf_state_t s, int target_sps, uint
          * mode; the type-D relay catch-up path refills it. */
         if (g_buf_sensor_type != BUF_SENSOR_TYPE_D && g_sync_tension_dwell_stop_ms > 0 &&
             tension_dwell_ms >= (uint32_t)g_sync_tension_dwell_stop_ms) {
+            /* A sustained tension dwell with the lane's own sensors both clear
+             * is a genuine runout, not a transient control-law stall: hand off
+             * to the same RUNOUT/RELOAD escalation motion.c uses instead of
+             * looping FAULT_HOLD/AUTO_START forever. That loop resets the
+             * buffer model to NEUTRAL and restarts feed at a conservative
+             * bootstrap rate each cycle (sync_rearm_active), so the
+             * distance-since-IN-clear motion.c's own escalation needs
+             * accumulates too slowly (or not at all) to ever fire on its own. */
+            if (lane && g_reload_mode && lane->task == TASK_FEED && tc_state() == TC_IDLE &&
+                !lane_in_present(lane) && !lane_out_present(lane)) {
+                char lane_s[2];
+                lane_id_str(lane_s, lane->lane_id);
+                cmd_event("RUNOUT", lane_s);
+                set_toolhead_filament(false);
+                lane_stop(lane);
+                reload_trigger(lane->lane_id, now_ms);
+                return -1;
+            }
             sync_fault_hold();
             g_extruder_est_last_update_ms = now_ms;
             sync_apply_to_active();
@@ -1653,7 +1672,7 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
         target_sps += (int)(uncertainty * UNCERTAINTY_PROBE_BIAS_SPS);
     }
 
-    target_sps = sync_check_tension_dwell_and_ramp(s, target_sps, now_ms);
+    target_sps = sync_check_tension_dwell_and_ramp(lane, s, target_sps, now_ms);
     if (target_sps < 0) {
         return -1;
     }
