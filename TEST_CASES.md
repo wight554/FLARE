@@ -654,6 +654,19 @@ Validate autonomous lane switching on runout with type-P (analog) buffer sensor.
 - No instant `RELOAD:LOADED` is triggered during the settle/boost window.
 - RELOAD exits successfully with `EV:RELOAD:LOADED` on a post-settle tension crossing or toolhead sensor trigger.
 
+**Hardware confirmation (2026-07-27, `/telemetry` SSE capture, `reload_mode=1`, `buf_sensor_type=1`)**:
+this is audit-reliability-fixes H6 (genuine type-P runout escalates to RELOAD
+instead of looping `SYNC:FAULT_HOLD`), validated live — `RUNOUT,2` ->
+`RELOAD:SWITCHING,2->1` fire on the same tick, `RELOAD:JOINING,1` ~17.6s
+later (approach), `RELOAD:LOADED,1` ~3.8s after that. Zero `SYNC:FAULT_HOLD`,
+zero `FOLLOW_JAM` in the full capture. Bonus: post-load organic recovery
+(`SYNC:cannot_refill` -> `SYNC:RELIEF_PAUSE` -> `SYNC:AUTO_START`, ~4s apart)
+also observed clean, matching the sim-validated `sync_tick_auto_start_stop`
+re-arm path. `RELOAD_MODE=0` (confirm the pre-existing FAULT_HOLD loop is
+unchanged) not covered by this run — still open. See
+`openspec/changes/audit-reliability-fixes/tasks.md` task 12.4 and
+`memories/repo/host-sync-sim.md`.
+
 ---
 
 ## 9. Persistence Guarding
