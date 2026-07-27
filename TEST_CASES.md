@@ -667,6 +667,22 @@ unchanged) not covered by this run — still open. See
 `openspec/changes/audit-reliability-fixes/tasks.md` task 12.4 and
 `memories/repo/host-sync-sim.md`.
 
+**Bug found and fixed (2026-07-27, same session, second real-rig capture)**:
+a genuine FAST/complete runout did NOT escalate to RELOAD — instead looped
+`SYNC:FAULT_HOLD_RECOVERY -> SYNC:AUTO_START -> (re-saturate ~1s) ->
+SYNC:FAULT_HOLD` forever (10+ cycles observed, ~6.4s period), `reload_mode=1`.
+Root cause: the fast (~1s) analog-rail-saturation fault-hold path in
+`sync_tick_type_p_rail_guard` runs before, and short-circuits, H6's slower
+(~6s) tension-dwell escalation — so any runout fast enough to saturate the
+rail in under 6s (i.e. most complete runouts) never reached RELOAD at all.
+Fixed in `psf-runout-escalation-race-fix`: both fault-hold entry paths now
+share the same runout-escalation check. Reproduced RED then GREEN in
+`flare_sim` (`reload_fast_runout_rail_guard_race`), no regression to the
+existing slow-dwell path (`reload_genuine_runout_escalation`). Hardware
+re-validation of THIS fix is still open (task 3.5). See
+`openspec/changes/psf-runout-escalation-race-fix/` and
+`memories/repo/host-sync-sim.md`.
+
 ---
 
 ## 9. Persistence Guarding

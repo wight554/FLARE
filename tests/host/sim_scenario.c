@@ -153,6 +153,33 @@ const sim_scenario_t g_sim_scenarios[] = {
                                "headroom beyond the 60s default",
     },
     {
+        // psf-runout-escalation-race-fix: fast/complete runout (high 20mm/s
+        // demand, jam+sensor-clear at t=5000, same as
+        // reload_genuine_runout_escalation but WITHOUT the low-demand
+        // workaround) reproduces the real-rig race: the buffer saturates
+        // the tension rail well inside CONF_PSF_WALL_SAT_MS (1000ms),
+        // trips sync_tick_type_p_rail_guard's fault-hold before H6's 6s
+        // dwell-based escalation (sync_check_tension_dwell_and_ramp) ever
+        // gets a chance to run (sync_tick returns early once gated_checks
+        // fires). Before the fix: loops FAULT_HOLD/FAULT_HOLD_RECOVERY
+        // forever, RUNOUT/RELOAD:SWITCHING never fire. Confirmed against
+        // real firmware, matching a 2026-07-27 real-rig capture exactly.
+        .name = "reload_fast_runout_rail_guard_race", // psf-runout-escalation-race-fix
+        .demand = {.kind = DEMAND_STEADY, .level_mm_s = 20.0f},
+        .feed_gain = {.bp = {{0, 1.0f}, {5000, 0.0f}}, .count = 2},
+        .switch_script = {.ev = {{5000, SWITCH_L1_IN, false}, {5000, SWITCH_L1_OUT, false}},
+                          .count = 2},
+        .active_lane = 1, .start_sync_active = true, .reload_mode = true,
+        .force_no_consumer = true,
+        .tick_ceiling = 1150,
+        .tick_ceiling_reason = "before the fix the buffer stays continuously saturated across "
+                               "the whole FAULT_HOLD/RECOVERY loop (only the sync_state label "
+                               "changes, not the position) -- invariant 6's 20s saturation "
+                               "bound trips at t=25800 (saturation onset ~t=5800); 1150 ticks "
+                               "(23s) stays under that while still covering 3 full loop cycles "
+                               "(~6.4s period), plenty to prove the infinite-loop pattern",
+    },
+    {
         .name = "reload_idle_consumer_staged_completion", // H4
         .demand = {.kind = DEMAND_STEADY, .level_mm_s = 1.0f},
         .feed_gain = {.bp = {{0, 1.0f}, {5000, 0.0f}}, .count = 2},

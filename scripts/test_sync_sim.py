@@ -188,6 +188,23 @@ class ReloadFixEventTests(unittest.TestCase):
         self.assertEqual(fault_hold_count, 0,
                          "expected the H6 escalation path, not the SYNC:FAULT_HOLD loop it replaces")
 
+    def test_fast_runout_escalates_via_rail_guard_not_fault_hold_loop(self):
+        # psf-runout-escalation-race-fix: confirmed on real type-P rig
+        # 2026-07-27 that a fast/complete runout (high demand, saturates
+        # the tension rail within CONF_PSF_WALL_SAT_MS ~1s) never escalated
+        # to RELOAD -- sync_tick_type_p_rail_guard's fault-hold path fires
+        # first every cycle and short-circuits the tick before H6's slower
+        # (~6s) tension-dwell escalation ever runs. Fixed by sharing the
+        # runout-escalation check between both fault-hold entry paths.
+        run = run_scenario("reload_fast_runout_rail_guard_race", sensor_type="p", ticks=1150)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertIn("RUNOUT,1", events)
+        self.assertIn("RELOAD:SWITCHING,1->2", events)
+        self.assertEqual(events.count("SYNC,FAULT_HOLD"), 0,
+                         "expected escalation via the rail-saturation path, not the "
+                         "FAULT_HOLD/FAULT_HOLD_RECOVERY loop this fix replaces")
+
     def test_h4_idle_consumer_completes_on_staged_compression_no_follow_jam(self):
         run = run_scenario("reload_idle_consumer_staged_completion", sensor_type="p", ticks=None)
         self.assertEqual(run.returncode, 0, run.stderr)

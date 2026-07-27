@@ -1219,7 +1219,31 @@ void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t now_ms
     }
 }
 
-static bool sync_tick_type_p_rail_guard(uint32_t now_ms) {
+/* psf-runout-escalation-race-fix: a genuine runout (lane present, RELOAD
+   enabled, feeding, toolchange idle, both lane sensors clear) hands off to
+   the same RUNOUT/RELOAD escalation motion.c uses instead of looping
+   FAULT_HOLD/AUTO_START forever (see sync_check_tension_dwell_and_ramp's
+   original comment). Shared by both type-P fault-hold entry paths — the
+   fast (~1s) analog-rail-saturation path in sync_tick_type_p_rail_guard
+   and the slower (~6s) tension-dwell path below — so whichever timer
+   fires first still escalates a genuine runout rather than fault-holding.
+   Returns true if it escalated (caller must not also fault-hold/return its
+   own value that tick). */
+static bool sync_try_runout_escalation(lane_t *lane, uint32_t now_ms) {
+    if (!(lane && g_reload_mode && lane->task == TASK_FEED && tc_state() == TC_IDLE &&
+          !lane_in_present(lane) && !lane_out_present(lane))) {
+        return false;
+    }
+    char lane_s[2];
+    lane_id_str(lane_s, lane->lane_id);
+    cmd_event("RUNOUT", lane_s);
+    set_toolhead_filament(false);
+    lane_stop(lane);
+    reload_trigger(lane->lane_id, now_ms);
+    return true;
+}
+
+static bool sync_tick_type_p_rail_guard(lane_t *lane, uint32_t now_ms) {
     if (g_buf_sensor_type != BUF_SENSOR_TYPE_P || !sync_enabled) {
         return false;
     }
@@ -1260,6 +1284,9 @@ static bool sync_tick_type_p_rail_guard(uint32_t now_ms) {
             cmd_event("SYNC", "RELIEF_PAUSE");
             return true;
         } else if (g_buf_pos <= -TYPE_P_RAIL_NORM) {
+            if (sync_try_runout_escalation(lane, now_ms)) {
+                return true;
+            }
             sync_fault_hold();
             sync_apply_to_active();
             cmd_event("SYNC", "FAULT_HOLD");
@@ -1270,7 +1297,7 @@ static bool sync_tick_type_p_rail_guard(uint32_t now_ms) {
 }
 
 static bool sync_tick_gated_checks(lane_t *lane, uint32_t now_ms) {
-    if (sync_tick_type_p_rail_guard(now_ms)) {
+    if (sync_tick_type_p_rail_guard(lane, now_ms)) {
         return true;
     }
 
@@ -1509,14 +1536,7 @@ static int sync_check_tension_dwell_and_ramp(lane_t *lane, buf_state_t s, int ta
              * bootstrap rate each cycle (sync_rearm_active), so the
              * distance-since-IN-clear motion.c's own escalation needs
              * accumulates too slowly (or not at all) to ever fire on its own. */
-            if (lane && g_reload_mode && lane->task == TASK_FEED && tc_state() == TC_IDLE &&
-                !lane_in_present(lane) && !lane_out_present(lane)) {
-                char lane_s[2];
-                lane_id_str(lane_s, lane->lane_id);
-                cmd_event("RUNOUT", lane_s);
-                set_toolhead_filament(false);
-                lane_stop(lane);
-                reload_trigger(lane->lane_id, now_ms);
+            if (sync_try_runout_escalation(lane, now_ms)) {
                 return -1;
             }
             sync_fault_hold();
