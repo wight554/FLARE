@@ -3,6 +3,7 @@
 build/
 build_local/
 build_clang/
+build_sim/
 **/build/
 **/__pycache__/
 *.elf

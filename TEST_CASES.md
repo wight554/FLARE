@@ -209,15 +209,183 @@ Catch command, event, or parameter drift between code and the operator docs.
 - `firmware/src/protocol.c`
 - Any operator-facing documentation update tied to runtime behavior
 
+### G. Host Sync Simulation
+
+#### Goal
+
+Catch sync/motion/toolchange logic defects (deadlock, unreachable state, sign
+error, timer scoping, unbounded saturation) on a dev machine, without a rig,
+by compiling the real control sources against a host plant model and fake
+actuators.
+
+#### Steps
+
+```bash
+cmake -S tests/host -B build_sim -G Ninja
+ninja -C build_sim
+python3 -m unittest scripts.test_sync_sim -v
+```
+
+`scripts/validate_regression.py` runs this as part of the standard gate; a
+simulation build break is reported as a firmware source defect, not skipped.
+
+#### Scenario catalogue
+
+Declared in `tests/host/sim_scenario.c`, run against both sensor types
+(type-D dual-endstop and type-P analog) unless marked type-D-only:
+
+| Scenario | Exercises |
+|---|---|
+| `steady` | Demand exceeds feed briefly, then converges — baseline PD behavior |
+| `step_up` | Slow→fast demand transition (type-D step-skip risk) |
+| `burst` | Tip-form-style demand start/stop |
+| `idle_zero` | Abrupt extruder stop — frozen distance-clock overfeed risk |
+| `retract` / `long_retract` | Negative demand; `long_retract`'s magnitude exceeds half travel and saturates the **compression** rail (see the corrected scenario in `specs/host-sync-simulation/spec.md` — not tension, as an earlier draft said) |
+| `jam_upstream` | `feed_gain` → 0 mid-run: filament stuck upstream |
+| `grind_slip` | `demand_gain` → 0 mid-run: extruder grind/slip |
+| `underextrusion` | `demand_gain` → 0.5 mid-run: partial clog |
+| `retract_stuck` | `retract_gain` → 0: filament fails to leave the toolhead on retract |
+| `runout` | Lane OUT switch drops mid-run |
+| `y_splitter_toggle` | Y-splitter switch transitions |
+| `sensor_chatter` (type-D only) | Single-tick sensor flip |
+| `sensor_stuck` (type-D only) | Sensor latched asserted |
+| `both_switches_fault` (type-D only) | Both switches asserted → `BUF_FAULT` |
+| `reload_genuine_runout_escalation` (type-P only) | audit-reliability-fixes H6: genuine tension-pinned runout escalates to RELOAD instead of looping `SYNC:FAULT_HOLD` |
+| `reload_idle_consumer_staged_completion` (type-P only) | H4: RELOAD follow completes on staged compression (no consumer), no spurious `FOLLOW_JAM` |
+| `reload_already_loaded_noop` (type-P only) | H5: manual `RL:` on an already-loaded lane is a no-op — `RELOAD:LOADED`, no motion restart |
+| `sem_relief_pause_lifecycle` (type-P only) | sync-state-model: `SYNC_RELIEF_PAUSE` entered on compression saturation, preserves state, re-arms to `SYNC_ACTIVE` once demand resumes |
+| `sem_fault_hold_standalone_recovery` (type-P only) | sync-state-model: `SYNC_FAULT_HOLD` recovers standalone (`SYNC,FAULT_HOLD_RECOVERY`) exactly `CONF_SYNC_FAULT_HOLD_RECOVERY_MS` after entry, no host command |
+| `sem_bl_lock_catch` (type-D only) | buffer-state-lock: prime locks at the tension switch, holds against the buffer spring, catch engages on the same tick as an external-force lock-break |
+| `sem_bl_release_via_bs` (type-D only) | buffer-state-lock: `BS` releases an active lock/catch to `SYNC_OFF` |
+| `sem_bl_watchdog_timeout` (type-D only) | buffer-state-lock: an unreleased lock auto-releases (`BL,TIMEOUT`) after `BL_WATCHDOG_DEFAULT_MS` |
+| `sem_cutter_large_feed_completes` | cutter-feed-timeout: a long feed (~6s) completes normally under the default 30s timeout |
+| `sem_cutter_feed_timeout_jam` | cutter-feed-timeout: feed exceeding the (overridden) timeout aborts with `CUT:ERROR,FEED_TIMEOUT` |
+| `sem_cutter_settle_completes` | cutter-feed-timeout: default servo-settle timing completes the open/close/reopen/done cycle |
+| `sem_cutter_settle_timeout_abort` | cutter-feed-timeout: servo settle exceeding the timeout aborts with `CUT:ERROR,OPEN_TIMEOUT` |
+| `sem_motion_dry_spin_probe` | motion-safety: `FAULT:DRY_SPIN` after 8s of `TASK_FEED` with both switches clear and buffer not in `BUF_TENSION` |
+| `sem_relay_fallback_probe` | relay-fallback-only: type-D relay NEUTRAL/TENSION/COMPRESSION branches (`relay_control_law()`) |
+| `sem_persistence_fresh_board` | persistence-contract: `settings_load()` fallback on invalid magic/CRC (real code, checked against the RAM-flash fake) |
+| `sem_psf_stab_rail_breakaway` (type-P only) | psf-type-p-sensor: idle/`BS` stabilize breaks a saturated buffer off the tension rail before `PSF_STAB_RAIL_BREAK_MS`, emitting `BUF_STAB,DONE` |
+| `sem_psf_stab_rail_break_timeout` (type-P only) | psf-type-p-sensor: an uncoupled/jammed lane (`feed_gain=0`) stays saturated past `PSF_STAB_RAIL_BREAK_MS`, aborting with `BUF_STAB,STAGNANT_TIMEOUT` |
+| `sem_psf_unload_normal` | psf-type-p-sensor: `TASK_UNLOAD` with OUT clearing mid-retract completes (`UNLOADED,1`) for both sensor types, no guard interference |
+| `sem_psf_unload_stuck` | psf-type-p-sensor: `TASK_UNLOAD` with OUT held present (extruder-gripping jam) — type-D's `UNLOAD_TENSION_BLOCK` dwell fires `UNLOAD_BLOCKED`; type-P has no position-based guard and never blocks |
+| `sem_psf_no_fault_on_idle_engagement` | psf-type-p-sensor: 8s idle (sync OFF) then organic `SYNC,AUTO_START` — zero spurious `FAULT_HOLD`, both sensor types |
+| `sem_sync_overfill_budget_probe` (type-D) | sync-refactor: organic engage into sustained `BUF_COMPRESSION` — `RELIEF_PAUSE` fires off the ~5s dwell timer, not a distance budget |
+
+**Finding (motion-safety)**: `sync.c`'s "hard-wall critical" `FAULT_HOLD` path is
+provably unreachable for both sensor types (computed only under type-D,
+acted on only under not-type-D) — confirmed by driving a ~63 mm/s
+compression push via `idle_zero`/type-D and observing `SYNC,FAULT_HOLD`
+never fires there. See `memories/repo/host-sync-sim.md`.
+
+**Finding (relay-fallback-only)**: `relay_control_law()`'s `BUF_COMPRESSION`
+branch literally `return 0`, not `SYNC_MIN` as the spec states — confirmed
+via `idle_zero`/type-D converging to and holding exactly 0 for 56s+ of
+sustained compression.
+
+**Finding (persistence-contract)**: `settings_load()`'s fresh/invalid-magic
+fallback calls `settings_defaults()` and returns — it never calls
+`settings_save()`, so the defaulted settings are NOT written back to flash,
+contrary to the spec's "Fresh Board" scenario. Confirmed via direct
+flash-byte comparison in `sem_persistence_fresh_board`.
+
+**Finding (type-d-dynamic-flow)**: the spec's "decaying recovery feed floor"
+requirement names symbols (`SYNC_TENSION_RECOVERY_FLOOR`/`_MS`) that don't
+exist anywhere in the firmware. The real mechanism is the AIMD-style
+`sync_apply_type_d_probe_floor()` — a different design that replaced the
+one the spec describes (which memory records as a rejected, FAILED+removed
+pivot). See `memories/repo/host-sync-sim.md`.
+
+**sync-refactor** (30 requirements skimmed, mostly Klipper-sidecar/analyzer/
+protocol-rename scope): added `test_tension_feeds_compression_backs_off`
+(`SyncRefactorTests`) confirming TENSION commands materially more feed than
+COMPRESSION for both sensor types, no new C scenario needed (reuses
+`steady`/`burst`).
+
+**Finding (sync-refactor, 9th)**: "Type-D compression relief is
+overfill-budgeted" implies a small (~3mm) distance-based `RELIEF_PAUSE`
+trigger. The only reachable path (`sync_check_continuous_compression`) is
+actually TIME-based (`CONF_SYNC_AUTO_STOP_MS`, 5000ms dwell) — confirmed
+via `sem_sync_overfill_budget_probe` (organically-engaged, via
+`sync_tick_auto_start_stop` staged correctly rather than the sim's
+`start_sync_active` shortcut): `RELIEF_PAUSE` fires ~4780ms after
+compression onset, matching the 5s constant. The overfill-budget globals
+do exist but gate a different mechanism entirely (a partial-feed "drain"
+rate, not RELIEF_PAUSE entry). See `memories/repo/host-sync-sim.md`.
+
+**psf-type-p-sensor** (16 requirements, 48 scenarios): heavy overlap with
+already-built type-P coverage (relief-pause recovery, `PSF_WALL_SAT_MS`
+saturation entries, fault-hold no-instant-re-fault cadence — all covered
+by `sem_relief_pause_lifecycle`/`sem_fault_hold_standalone_recovery`).
+Net-new: "Type-P Stabilize Rail Breakaway" was untested by anything (no
+prior scenario ever exercised `BS`/stabilize under type-P) — added
+`sem_psf_stab_rail_breakaway`/`sem_psf_stab_rail_break_timeout` above via
+a new `bs_request_at_ms` trigger calling the real `buffer_stabilize_request()`.
+"Type-P Unload Uses No Position-Based Over-Tension Guard" also built, via
+a new `ul_start_at_ms` trigger calling the real `lane_start(...,
+TASK_UNLOAD, ...)` — see `sem_psf_unload_normal`/`sem_psf_unload_stuck`
+above. "Hard Catch and Print-Stop Detection"'s `sync_fast_brake` reversible
+path needed no new scenario at all: `retract`/`long_retract` under type-P
+already are the spec's "Slowdown recovers"/"Real stop confirmed" cases,
+just newly asserted. "Type-P Fault Timers Scoped to Active Sync"'s "Normal
+extrude does not fault on engagement" is now also confirmed
+(`sem_psf_no_fault_on_idle_engagement`, organically-engaged after an 8s
+idle) — holds by construction, not luck: nothing in the current codebase
+sets the tension-dwell timer while sync is idle. No spec/code mismatch
+found in this spec — implementation matches throughout. Most of the
+remaining requirements are
+protocol.c-gated (calibration, `BUF_GOAL`, `BUF_RANGE`/`BUF_INVERT`),
+internal-state shape (PD/dead-zone/soft-wall/filtered-derivative, not in
+the CSV trace), or explicitly bench-untestable by the spec's own words
+("measured against a real print"). Full requirement-by-requirement
+disposition in `memories/repo/host-sync-sim.md` and
+`openspec/changes/spec-derived-sim-coverage/tasks.md` task 11.
+
+**Known gap**: the type-P RELOAD sign regression and stale-fault-timers-
+while-sync-OFF are still unmodeled — those need more toolchange RELOAD
+state-machine setup than the current catalogue drives. `idle_zero` covers
+the frozen-distance-clock-on-abrupt-extruder-stop case; the `reload_*` and
+`sem_*` scenarios above cover the RELOAD/BL-follow and sync-lifecycle
+defects that were previously listed as gaps. Tracked in
+`memories/repo/host-sync-sim.md`.
+
+#### Global invariants (every tick, every scenario, no per-scenario authoring)
+
+1. **Finiteness** — no NaN/Inf in buffer position, feed rate, or estimator output.
+2. **Bounds** — commanded feed is non-negative and never exceeds `g_sync_max_sps`.
+3. **Liveness** — `SYNC_RETRACT_ASSIST` / `SYNC_RELIEF_PAUSE` exit within a
+   30 s simulated-time backstop; `SYNC_OFF` / `SYNC_ACTIVE` are exempt (both
+   legitimately persist indefinitely).
+4. **Fault quiescence** — while `SYNC_FAULT_HOLD`, commanded feed is zero and
+   event emission has ceased (except the entry tick's own announcement event).
+5. **Non-oscillation** — no sync state entered more than 50 times in one run.
+6. **Saturation bound** — rail saturation does not persist beyond 20 s simulated time.
+7. **Event rate** — no more than 16 `cmd_event`/`cmd_event_critical` calls in one tick.
+
+#### Expected Result
+
+- `ninja -C build_sim` links with zero undefined symbols, `-Wall -Wextra` clean.
+- Every catalogued scenario completes with no invariant violation, on both
+  sensor types where applicable.
+- A passing run does not check off any `HW:` task — the rig remains sole
+  authority on tuning quality, control gains, and sensor noise behavior.
+
+#### Use When
+
+- `firmware/src/sync.c`, `sync_buf.c`, `sync_relay.c`, `sync_analog.c`
+- `firmware/src/motion.c`, `toolchange.c`, `cutter.c`, `settings_store.c`
+- Any change to `tests/host/**` or `scripts/test_sync_sim.py` itself
+
 ### Suggested Minimum Static Gate By Change Type
 
 | Change Type | Minimum Checks |
 |-------------|----------------|
-| Firmware logic only | B, D, F |
+| Firmware logic only | B, D, F, G |
 | Settings or tunables | A, B, D, E, F |
 | Python scripts only | C, D |
 | Config generation only | A, B, D, E |
 | Docs-only protocol cleanup | D, F |
+| Sync/motion/toolchange logic | B, D, F, G |
 
 Do not skip the hardware tests later for motion, sync, or RELOAD changes. This
 gate is meant to fail fast on integration mistakes, not replace real-hardware

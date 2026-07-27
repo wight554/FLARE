@@ -113,6 +113,7 @@ Read modes: `[always]` = read every session (`AGENTS.md`, `openspec/COMMS.md` �
 | `REVIEW.md` | [lookup] | Pre-commit staged-diff self-review checklist |
 | `memories/repo/` | [lookup] | Team memory: per-change observations (prior art — grep first) |
 | `openspec/specs/` | [lookup] | Current OpenSpec behavioral contracts |
+| `tests/host/` | [lookup] | Host-compiled sync simulation (`flare_sim`) — links real `sync*.c`/`motion.c`/`toolchange.c`/`cutter.c`/`settings_store.c` against fakes; sim screens deadlock/sign/timer defects, rig remains sole authority on tuning quality — a sim pass never satisfies an `HW:` task |
 
 ---
 

@@ -85,6 +85,7 @@ Where to find details for your project phase:
 - ⚖️ **Calibration & Tuning**: [TUNING.md](TUNING.md) — Step-by-step guide to tune filament feed rates and buffer responsiveness.
 - 📖 **API Command Reference**: [MANUAL.md](MANUAL.md) — Detailed documentation of the USB serial protocol.
 - 🧪 **Hardware Test Cases**: [TEST_CASES.md](TEST_CASES.md) — Manual validation checks to perform on first startup.
+- 🧪 **Host Sync Simulation**: `cmake -S tests/host -B build_sim -G Ninja && ninja -C build_sim && python3 -m unittest scripts.test_sync_sim -v` — runs the sync control law against real firmware sources on your dev machine, no MMU required (see `tests/host/` in [AGENTS.md](AGENTS.md)).
 
 ---
 

@@ -77,12 +77,14 @@
 - [x] 10.1 `bash scripts/validate_regression.sh` + dev-superset build (`-DFLARE_DEV_TUNING=ON`)
 - [x] 10.2 Type-D rig checks (dry-spin re-fire, watchdog no-fire during SV, BL prime ramp at raised SYNC_MAX) relocated to TEST_CASES.md "Pending Type-D Rig Session" for a single type-D session.
 - [ ] 10.3 Hardware (type-P rig): runout RELOAD end-to-end + manual `RL:` — contact at compression, success only on grab (consumer); no instant `RELOAD:LOADED`; **paused/no-consumer `RL:` completes on staged compression (no `FOLLOW_JAM`)**; missed-swap `RL:` (active lane empty, other loaded) resumes via swap
+      Sim-level screen (not a substitute — see `host-sync-sim` design.md's authority boundary, sim never satisfies a `HW:` task): `tests/host/sim_scenario.c` scenarios `reload_idle_consumer_staged_completion` and `reload_genuine_runout_escalation` drive the real `toolchange.c` RELOAD state machine end to end and pass — `RELOAD:LOADED` reached via staged compression, no `FOLLOW_JAM`. See `python3 -m unittest scripts.test_sync_sim.ReloadFixEventTests -v` and `memories/repo/host-sync-sim.md`.
 
 ## 11. H5 — RL on an already-loaded lane must not restart approach/follow (toolchange.c)
 
 - [x] 11.1 `tc_manual_reload`: after the swap-branch check, short-circuit on `g_toolhead_has_filament` — emit `RELOAD:LOADED` and return without resetting `g_tc_ctx` or starting motion
 - [x] 11.2 BEHAVIOR.md / MANUAL.md "RELOAD contact and follow" / `RL:` row: document the already-loaded no-op
 - [ ] 11.3 Hardware validation (any rig type, folds into 10.3): re-issue `RL:` immediately after a completed reload (or on a lane that never ran out) with a consumer active — confirm `RELOAD:LOADED` with no motion and no `FOLLOW_JAM`
+      Sim-level screen: `tests/host/sim_scenario.c` scenario `reload_already_loaded_noop` calls `tc_manual_reload()` on an already-filament-loaded lane and passes — `RELOAD:LOADED` emitted, no `RELOAD:JOINING`/motion restart. See `ReloadFixEventTests.test_h5_rl_on_already_loaded_lane_is_a_noop`.
 
 ## 12. H6 — Genuine type-P runout must escalate to RELOAD, not loop FAULT_HOLD forever (sync.c)
 
@@ -90,3 +92,4 @@
 - [x] 12.2 Before `sync_fault_hold()` on sustained tension dwell: if `lane && g_reload_mode && lane->task == TASK_FEED && tc_state() == TC_IDLE && !lane_in_present(lane) && !lane_out_present(lane)`, emit `RUNOUT`, clear toolhead filament, stop the lane, and call `reload_trigger(lane->lane_id, now_ms)` instead of fault-holding
 - [x] 12.3 Build verified (`ninja flare_controller` + dev-tuning superset via `validate_regression.py`); type-D path unchanged (dwell check already `!= BUF_SENSOR_TYPE_D`-gated)
 - [ ] 12.4 Hardware validation (type-P rig, folds into 10.3): reproduce a real runout during active sync with `RELOAD_MODE=1` and confirm `RUNOUT`/`RELOAD:SWITCHING` fires within ~1 `SYNC_TENSION_DWELL_STOP_MS` window instead of looping `SYNC:FAULT_HOLD`; confirm the pre-existing FAULT_HOLD loop still runs unchanged when `RELOAD_MODE=0`
+      Sim-level screen: `tests/host/sim_scenario.c` scenario `reload_genuine_runout_escalation` (type-P) reproduces a genuine tension-pinned runout and confirms `RUNOUT`/`RELOAD:SWITCHING` fire with zero `SYNC,FAULT_HOLD` events — the loop this task guards against. Found in the process: the escalation and the pre-existing `CONF_PSF_WALL_SAT_MS`-based saturation fault-hold race on demand rate (a full/fast jam saturates and trips the 1 s wall-timeout before the 6 s dwell timer can act) — worth confirming on rig at realistic print speeds, not just this scenario's deliberately slow demand. Not yet run under `RELOAD_MODE=0` to confirm the pre-existing loop is unchanged (would need a fourth scenario).

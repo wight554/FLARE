@@ -197,8 +197,18 @@ activating at a specified simulated timestamp rather than only at scenario start
 #### Scenario: Retract longer than half travel is exercised
 - **WHEN** a scenario applies negative demand whose magnitude exceeds buffer half
   travel
-- **THEN** the tension rail saturates
+- **THEN** the compression rail saturates
 - **AND** the firmware's retract-catch behavior is observable in the trace
+
+Correction from the original draft (which said the tension rail saturates):
+negative demand means `slack_mm += (feed_mm_s - demand_mm_s) * dt` adds the
+demand magnitude rather than subtracting it, driving slack toward the
+compression rail — verified against this file's other two Buffer Plant Model
+scenarios ("Overfeed drives the buffer to the compression rail", "Demand
+exceeding feed drives tension"), which fix the model's sign convention and are
+unchanged. A retract is realized here as filament arriving at the buffer
+faster than it is drawn out, matching `retract_gain`'s description of a
+retract that does not clear the toolhead — not as buffer-side tension.
 
 ### Requirement: Global Invariants Checked Every Tick
 The simulation harness MUST evaluate the following invariants on every tick of every
@@ -206,14 +216,25 @@ scenario, without per-scenario authoring, and MUST fail the scenario on violatio
 
 1. **Finiteness** — all published floating-point control values are finite; no NaN,
    no infinity
-2. **Bounds** — commanded feed rate lies within the configured minimum and maximum
-   after clamping
+2. **Bounds** — commanded feed rate is non-negative and does not exceed the
+   configured maximum. Correction from the original draft (which also
+   required the configured minimum as a lower bound): `sync.c`'s final clamp
+   is `[0, max_sps]`, not `[min_sps, max_sps]` — `g_sync_min_sps` is an
+   intermediate target floor on specific paths (assist/demand floors, type-P
+   smoothing ramp-up), not a hard floor on the emitted value, so transient
+   sub-minimum values during ramp-up are legitimate and must not fail this
+   invariant
 3. **Liveness** — the transient sync states `SYNC_RETRACT_ASSIST` and
    `SYNC_RELIEF_PAUSE` exit within a universal simulated-time backstop.
    `SYNC_OFF` and `SYNC_ACTIVE` are exempt: both legitimately persist indefinitely.
 4. **Fault quiescence** — while `g_sync_state` is `SYNC_FAULT_HOLD`, commanded feed
-   is zero and event emission has ceased. A fault state that continues to command
-   motion or continues to emit events is a deadlock signature.
+   is zero and event emission has ceased. The tick on which the state is first
+   entered is exempt from the no-emission half of this check, since the
+   firmware's own fault-announcement event (e.g. `SYNC,FAULT_HOLD`) fires on
+   entry and is expected; it is emission on later ticks while still in
+   `SYNC_FAULT_HOLD` that is the deadlock signature. A fault state that
+   continues to command motion (on any tick, including entry) or continues to
+   emit events past entry is a deadlock signature.
 5. **Non-oscillation** — no sync state is entered more than a declared number of
    times within one scenario, catching re-entry loops.
 6. **Saturation bound** — rail saturation does not persist beyond a declared bound.
