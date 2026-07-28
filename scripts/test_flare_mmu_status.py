@@ -4,8 +4,10 @@
 Exercises get_status() synthesis and _update_phase() with a fake printer — no
 hardware, daemon, Moonraker, or filament feed. Validates the shipped behavior:
   #2  RELOAD/preload re-stage must NOT start a phantom load count-up
-  #3  cut unload holds filament_position at 0
-  #4  in-bowden load emits filament_pos=IN_BOWDEN(3) + bowden_progress (tip glide)
+  #3  cut unload latches unload_completed via _update_phase; filament_position
+      stays 0.0 always (94e27a2 removed the synthetic-mm tip animation)
+  #4  filament_pos reports discrete landmarks only (0/4/10); no bowden_progress
+      interpolation, no gliding tip
   bypass: omit filament_compression/tension sensors (hide piston), bowden_progress=-1
 
 Run: python3 scripts/test_flare_mmu_status.py   (exit 0 = all pass)
@@ -127,56 +129,46 @@ def check(name, cond, detail=""):
 
 def run_tests():
     global _PASS, _FAIL
-    print("#4 — in-bowden load animates the tip (filament_pos=3 + bowden_progress)")
+    print("#4 — discrete filament_pos landmarks only, no synthetic mm (94e27a2 removed the tip animation)")
     m, p = new_mock()
-    m.is_loading = True
     m.current_phase = "load"
-    m.load_phase_start = 0.0
-    m.loading_speed = 50.0
-    m.gate_sensor_active = 1
-    p._reactor.t = 10.0                      # elapsed 10s * 50 mm/s = 500 mm
+    m.gate_sensor_active = 1                 # path_gear true, not yet at toolhead
+    m.toolhead_sensor = 0
     s = m.get_status(0)
-    check("load mm ~= 500", abs(s["filament_position"] - 500.0) < 1.0, s["filament_position"])
-    check("filament_pos == 3 (IN_BOWDEN)", s["filament_pos"] == 3, s["filament_pos"])
-    check("bowden_progress ~= 27.7", 25.0 < s["bowden_progress"] < 30.0, s["bowden_progress"])
+    check("filament_pos == 4 (PARTIALLY_LOADED) mid-load", s["filament_pos"] == 4, s["filament_pos"])
+    check("filament_position stays 0.0 (no synthetic mm)", s["filament_position"] == 0.0, s["filament_position"])
+    check("bowden_progress stays -1.0 (no interpolation)", s["bowden_progress"] == -1.0, s["bowden_progress"])
     check("piston sensors present (not bypass)", "filament_compression" in s["sensors"], s["sensors"])
 
     m, p = new_mock()
-    m.is_loading = True
     m.current_phase = "load"
-    m.load_phase_start = 0.0
-    m.loading_speed = 50.0
     m.gate_sensor_active = 1
-    p._reactor.t = 40.0                      # 2000 mm -> clamps to path_len 1925
+    m.toolhead_sensor = 1                    # reached toolhead sensor
     s = m.get_status(0)
-    check("near-end clamps to 1925", abs(s["filament_position"] - 1925.0) < 1.0, s["filament_position"])
-    check("filament_pos == 10 (LOADED) at end", s["filament_pos"] == 10, s["filament_pos"])
+    check("filament_pos == 10 (LOADED) at toolhead", s["filament_pos"] == 10, s["filament_pos"])
+    check("filament_position still 0.0 at LOADED", s["filament_position"] == 0.0, s["filament_position"])
 
-    print("#3 — cut unload holds 0 (no 1800 clamp)")
+    print("#3 — cut unload completes via _update_phase (UNLOAD_WAIT_CUT), filament_position stays 0")
     m, p = new_mock()
     m.current_phase = "unload"
-    m.enable_cutter = 1
-    m.unload_cut = 1
     m.gate_sensor_active = 1                  # path_gear True (not the trivial 'gear clear' branch)
-    m.toolhead_sensor = 1                     # toolhead still set -> would otherwise clamp to 1800
+    m.toolhead_sensor = 1
     m.unload_phase_start = 0.0
-    p._reactor.t = 1.0
-    s = m.get_status(0)
-    check("cut unload holds 0", s["filament_position"] == 0.0, s["filament_position"])
+    m._update_phase("UNLOAD_WAIT_CUT", "Unloading", 1.0)
+    check("cut unload enters cut phase", m.current_phase == "cut", m.current_phase)
     check("unload_completed latched True", m.unload_completed is True, m.unload_completed)
-
-    m, p = new_mock()                         # contrast: non-cut unload counts down
-    m.current_phase = "unload"
-    m.enable_cutter = 0
-    m.unload_cut = 0
-    m.gate_sensor_active = 1
-    m.toolhead_sensor = 0                     # toolhead cleared -> countdown from bowden
-    m.unload_phase_start = 0.0
-    m.th_clear_time = 0.0
-    m.loading_speed = 50.0
-    p._reactor.t = 5.0                        # 1808 - 250 = 1558
     s = m.get_status(0)
-    check("non-cut unload counts down (0 < mm < 1808)", 0.0 < s["filament_position"] < 1808.0, s["filament_position"])
+    check("cut unload holds filament_position at 0", s["filament_position"] == 0.0, s["filament_position"])
+
+    m, p = new_mock()                         # contrast: in-progress (non-cut) unload
+    m.current_phase = "unload"
+    m.gate_sensor_active = 1
+    m.toolhead_sensor = 0
+    m.unload_completed = False
+    s = m.get_status(0)
+    check("in-progress unload reports filament_pos == 4 (PARTIALLY_LOADED)",
+          s["filament_pos"] == 4, s["filament_pos"])
+    check("filament_position stays 0.0 (no countdown mm)", s["filament_position"] == 0.0, s["filament_position"])
 
     print("#2 — RELOAD/preload re-stage must not start a phantom load")
     m, p = new_mock()

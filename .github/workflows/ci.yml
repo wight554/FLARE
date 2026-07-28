@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      PICO_SDK_FETCH_FROM_GIT: "ON"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi ninja-build cmake
+
+      - name: Install ruff
+        run: pip install ruff
+
+      # pico-sdk is fetched via PICO_SDK_FETCH_FROM_GIT into build_local/_deps
+      # (firmware/pico_sdk_import.cmake) -- it doesn't change often, cache it
+      # keyed on that file so a bump there busts the cache.
+      - name: Cache pico-sdk fetch
+        uses: actions/cache@v4
+        with:
+          path: build_local/_deps
+          key: pico-sdk-${{ hashFiles('firmware/pico_sdk_import.cmake') }}
+
+      - name: Run the static regression gate
+        run: python3 scripts/validate_regression.py

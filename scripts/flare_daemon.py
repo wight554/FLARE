@@ -1218,7 +1218,6 @@ def klipper_syncer(moonraker_url):
             buf_state = "neutral"
         tc_state = state.get("tc_state", "UNKNOWN")
         board_online = 1 if state.get("board_online", False) else 0
-        sps = state.get("sps", 0.0)
         reload_mode = state.get("reload_mode", 0)
         enable_cutter = state.get("enable_cutter", 0)
         unload_cut = state.get("unload_cut", 0)
@@ -1275,8 +1274,6 @@ def klipper_syncer(moonraker_url):
                                 state.get("lane1_task", "IDLE"),
                                 state.get("lane2_task", "IDLE"))
 
-        feed_rate = state.get("feed_rate_mms", 50.0)
-        rev_rate = state.get("rev_rate_mms", 50.0)
         bypass = bool(state.get("bypass", False))
 
         # All SET_MMU mirror fields as formatted strings, in a stable order. cmd_SET_MMU
