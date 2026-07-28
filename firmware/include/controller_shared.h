@@ -235,6 +235,7 @@ extern int g_tc_timeout_cut_ms;
 extern int g_load_max_mm;
 extern int g_unload_max_mm;
 extern int g_unload_tension_block_ms;
+extern uint32_t g_flash_erase_count;
 extern int g_tc_timeout_th_ms;
 extern int g_tc_timeout_y_ms;
 extern int g_sync_max_sps;

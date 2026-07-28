@@ -694,6 +694,8 @@ static bool cmd_get_reload_cutter_params(const char *param, int idx, char *out, 
         snprintf(out, out_len, "BUF_BODY_LEN:%d", g_buf_body_len);
     else if (!strcmp(param, "BUF_MAX_TRAVEL"))
         snprintf(out, out_len, "BUF_MAX_TRAVEL:%d", g_buf_max_travel_mm);
+    else if (!strcmp(param, "FLASH_ERASE_COUNT"))
+        snprintf(out, out_len, "FLASH_ERASE_COUNT:%lu", (unsigned long)g_flash_erase_count);
     else if (!strcmp(param, "JOIN_RATE"))
         snprintf(out, out_len, "JOIN_RATE:%.1f", (double)sps_to_mm_per_min_idx(g_join_sps, idx));
     else if (!strcmp(param, "PRESS_RATE"))

@@ -331,6 +331,12 @@ These extra diagnostic fields are returned in the second part of the `?:` status
 | `FL_RATE` | mm/min | Feed rate limit. |
 | `UL_RATE` | mm/min | Unload rate limit. |
 
+Not returned in `?:` (read via `GET:FLASH_ERASE_COUNT`, not persisted like the tunables in the table above — restored from flash, not user-settable):
+
+| Param | Description |
+|-------|-------------|
+| `FLASH_ERASE_COUNT` | Cumulative settings-sector erase/program cycles since the sector was last factory-reset or first flashed. Visibility only — no wear leveling. `EV:FLASH:WEAR_WARNING` fires once when it crosses `FLASH_WEAR_WARN_THRESHOLD` (80000, RP2040 NOR flash is typically rated ~100k cycles). |
+
 ---
 
 ## Events (`EV:`)
@@ -357,6 +363,7 @@ These extra diagnostic fields are returned in the second part of the `?:` status
 | `TC:*` | Phase-specific | Toolchange progress events such as `TC:UNLOADING`, `TC:SWAPPING`, `TC:LOADING`, `TC:DONE`, `TC:ERROR`. |
 | `RELOAD:*` | Phase-specific | RELOAD progress and fault events such as `RELOAD:SWITCHING`, `RELOAD:JOINING`, `RELOAD:LOADED`, `RELOAD:FAULT`. |
 | `CUT` | `FEEDING\|DONE\|ERROR` | Cutter execution events. `FEEDING` on feed start; `DONE` on successful cut; `ERROR` on cutter failure. |
+| `FLASH` | `WEAR_WARNING` | Fires once, on the settings save where `FLASH_ERASE_COUNT` first crosses `FLASH_WEAR_WARN_THRESHOLD`. |
 
 ### Fault Recovery
 Most faults (`TIMEOUT`, sensor-related faults) are transient and reset on the next command.

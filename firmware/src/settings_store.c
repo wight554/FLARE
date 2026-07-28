@@ -16,12 +16,18 @@
 
 #include "controller_shared.h"
 #include "motion.h"
+#include "protocol.h"
 #include "settings_store.h"
 #include "sync.h"
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 60u
+#define SETTINGS_VERSION 61u
+
+// RP2040's onboard NOR flash is typically rated ~100k erase cycles per
+// sector. Visibility only (ARCHITECTURE_BRIEF.md "no wear leveling, no
+// warning" gap) -- not a retunable value, so no CONF_*/config.ini entry.
+#define FLASH_WEAR_WARN_THRESHOLD 80000u
 
 enum {
     SETTINGS_FLASH_BUFFER_BYTES = 512,
@@ -102,6 +108,8 @@ typedef struct {
     float relay_neutral_frac;
 
     float sync_compression_bias_frac;
+
+    uint32_t flash_erase_count;
 
     uint32_t crc32;
 } settings_t;
@@ -247,6 +255,7 @@ static void settings_defaults_motion(void) {
     g_enable_cutter = CONF_ENABLE_CUTTER;
     g_unload_cut = CONF_UNLOAD_CUT;
     g_ramp_step_sps = CONF_RAMP_STEP_SPS;
+    g_flash_erase_count = 0;
 }
 
 static void settings_defaults_servo_cutter(void) {
@@ -334,6 +343,14 @@ void settings_save(void) {
     s.relay_neutral_frac = g_relay_neutral_frac;
 
     s.sync_compression_bias_frac = g_sync_compression_bias_frac;
+
+    // Count this save's erase before writing it, so the persisted value
+    // reflects the write about to happen (not the prior one).
+    g_flash_erase_count++;
+    s.flash_erase_count = g_flash_erase_count;
+    if (g_flash_erase_count == FLASH_WEAR_WARN_THRESHOLD) {
+        cmd_event("FLASH", "WEAR_WARNING");
+    }
 
     for (int i = 0; i < NUM_LANES; i++) {
         s.tmc_rotation_distance[i] = g_tmc_rotation_distance[i];
@@ -441,6 +458,7 @@ static void settings_load_motion(const settings_t *s) {
     g_autoload_retract_mm = s->autoload_retract_mm;
     g_enable_cutter = s->enable_cutter;
     g_unload_cut = s->unload_cut;
+    g_flash_erase_count = s->flash_erase_count;
 }
 
 static int snap_microsteps(int x) {

@@ -145,6 +145,13 @@ int g_tc_timeout_cut_ms = FLARE_INT_TC_TIMEOUT_CUT_MS;
 int g_load_max_mm = CONF_LOAD_MAX_MM;
 int g_unload_max_mm = CONF_UNLOAD_MAX_MM;
 int g_unload_tension_block_ms = CONF_UNLOAD_TENSION_BLOCK_MS;
+// Persisted flash-wear visibility counter (ARCHITECTURE_BRIEF.md's "no wear
+// leveling, no warning" gap): counts settings-sector erase cycles across
+// reflashes. Restored from flash on a valid load, seeded to 0 by
+// settings_defaults() (including on an explicit RS: reset — same rule every
+// other settings_t field already follows), incremented once per
+// settings_save() call, right before that save's own erase+program.
+uint32_t g_flash_erase_count = 0;
 int g_tc_timeout_th_ms = FLARE_INT_TC_TIMEOUT_TH_MS;
 int g_tc_timeout_y_ms = FLARE_INT_TC_TIMEOUT_Y_MS;
 
