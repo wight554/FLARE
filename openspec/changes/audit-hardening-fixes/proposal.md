@@ -23,7 +23,7 @@ Firmware:
 
 Scripts:
 
-- **S1** `flare_daemon.py`: default bind `127.0.0.1` (was `0.0.0.0`, no auth — LAN could drive motors/cutter/settings/BOOTSEL). Non-local bind requires explicit `--host`. **BREAKING** for remote WebUI setups relying on default.
+- **S1** `flare_daemon.py`: default bind `127.0.0.1` (was `0.0.0.0`, no auth — LAN could drive motors/cutter/settings/BOOTSEL). Non-local bind requires explicit `--host`. **BREAKING** for remote WebUI setups relying on default. **REVERTED 2026-06-19** (commit `4ae1a19`) — broke the LAN dashboard and the escape hatch didn't survive a systemd reinstall; see `tasks.md` task 4.1. Default is `0.0.0.0` again; `install_daemon.py` now preserves a manual `--host` override across reinstalls instead.
 - **S2** `test_settings_parity.py`: scan `settings_load_*` helper bodies (refactor broke it — fails on current tree); wrap in `unittest.TestCase` so `validate_regression.sh` discover actually executes it.
 - **S3** `flare_live_tuner.py`: event matching uses comma (`EV:SYNC,FAULT_HOLD`); firmware emits colon — FAULT_HOLD/TENSION_RISK_HIGH/EST_FALLBACK reactions dead. Fix to colon + wire-format test.
 - **S4** `flare_daemon.py:616`: add `RELOAD` to two-part event whitelist; `flare_cmd.py:336`: rebuild event line with colon not comma — `RL` daemon-path completion currently always times out.

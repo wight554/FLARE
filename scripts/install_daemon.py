@@ -15,6 +15,7 @@ import getpass
 import os
 import platform
 import pwd
+import re
 import shutil
 import subprocess
 import sys
@@ -147,6 +148,26 @@ def step_install_deps() -> None:
                 continue
 
 
+def _extract_execstart_extra_args(unit_text: str) -> str:
+    """Return any operator-added args (e.g. --host 127.0.0.1) already present
+    on an installed unit's ExecStart line, past the base flare_daemon.py
+    invocation -- so a reinstall doesn't silently drop a manual customization
+    like a non-default --host (see the 2026-06-19 LAN-access regression:
+    reinstalling from this template with no --host arg reverted any manual
+    0.0.0.0 override, and the same risk applies symmetrically to a manual
+    127.0.0.1 override)."""
+    for line in unit_text.splitlines():
+        line = line.strip()
+        if not line.startswith("ExecStart="):
+            continue
+        marker = "flare_daemon.py"
+        idx = line.find(marker)
+        if idx == -1:
+            return ""
+        return line[idx + len(marker):].strip()
+    return ""
+
+
 def step_systemd_unit(user: str) -> None:
     """[2/4] Generate and install the systemd unit file."""
     info(f"\n{BLUE}[2/4] Setting up systemd unit file...{NC}")
@@ -157,6 +178,20 @@ def step_systemd_unit(user: str) -> None:
 
     template = SERVICE_TEMPLATE.read_text()
     unit = template.replace("{{USER}}", user).replace("{{DIR}}", str(PROJECT_DIR))
+
+    extra_args = ""
+    if SERVICE_DEST.is_file():
+        extra_args = _extract_execstart_extra_args(SERVICE_DEST.read_text())
+    if extra_args:
+        unit = re.sub(
+            r"^(ExecStart=.*flare_daemon\.py)\s*$",
+            r"\1 " + extra_args.replace("\\", "\\\\"),
+            unit,
+            flags=re.MULTILINE,
+        )
+        info(f"{GREEN}Preserving existing ExecStart args across reinstall: "
+             f"{extra_args}{NC}")
+
     SERVICE_DEST.write_text(unit)
     os.chmod(SERVICE_DEST, 0o644)
 

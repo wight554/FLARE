@@ -27,7 +27,33 @@
 
 ## 4. Scripts — security & ownership
 
-- [x] 4.1 S1: daemon `--host` default `0.0.0.0` → `127.0.0.1`; startup warning when binding non-loopback (flare_daemon.py:1333)
+- [x] 4.1 ~~S1: daemon `--host` default `0.0.0.0` → `127.0.0.1`; startup warning when binding non-loopback (flare_daemon.py:1333)~~
+      REVERTED (commit `4ae1a19`, 2026-06-19, "fix: default daemon HTTP bind
+      to 0.0.0.0 for LAN dashboard access"): the loopback default broke the
+      primary real-world use case — the WebUI dashboard was only reachable
+      from the Pi itself — and, worse, reinstalling the systemd unit
+      (regenerated from a template with no `--host` arg at all) silently
+      reverted any manual `0.0.0.0` override on every reinstall, so the
+      "safe" default gave no durable protection anyway. This risk was
+      explicitly anticipated in this change's own design.md ("[Daemon bind
+      flip breaks remote WebUI] → explicit `--host 0.0.0.0` restores") but
+      underestimated — the escape hatch didn't survive a reinstall.
+      Default is `0.0.0.0` again, matching the Moonraker/Mainsail trust
+      model (2026-07-27 architecture review, `ARCHITECTURE_BRIEF.md`, and
+      2026-07-28 follow-up: this remains the single most serious open
+      finding — no auth, no allowlist, CORS `*` — a real fix needs either
+      token auth or a `/cmd` allowlist, not a bind-address flip, given the
+      LAN-dashboard requirement). What WAS fixed instead, addressing the
+      actual root cause without touching the default: `install_daemon.py`'s
+      `step_systemd_unit()` now preserves any operator-added ExecStart args
+      (e.g. a manual `--host 127.0.0.1`) across a reinstall instead of
+      silently dropping them — see `scripts/test_install_daemon.py`. So an
+      operator who deliberately wants loopback-only CAN now make that choice
+      durable; the default itself is unchanged.
+      The `daemon-klipper-mirror` spec delta below ("API binds loopback by
+      default") is correspondingly INVALID and should not be folded into
+      the live spec on archive — left in place for audit-trail purposes
+      only, not as current intent.
 - [x] 4.2 S5: `exclusive=True` on all `serial.Serial` opens (daemon:595, flare_cmd:461, live_tuner:470/1227, sync_check:850, baseline_recommender:108); catch + actionable conflict message
 - [x] 4.3 S6: gen_config validate `microsteps` pow2 + hard-error `rotation_distance <= 0` (gen_config.py:347,359); error path test in test_gen_config.py
 - [x] 4.4 S7: `klipper_motion_tracker.py` wait loops scan `_messages` for matching id instead of requeue-and-poll (design D12); unit test feeding unsolicited message mid-wait must not spin (klipper_motion_tracker.py:130-143)

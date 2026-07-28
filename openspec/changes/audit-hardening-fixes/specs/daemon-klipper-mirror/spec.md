@@ -2,12 +2,22 @@
 
 ## ADDED Requirements
 
-### Requirement: API binds loopback by default
+### Requirement: API binds loopback by default — SUPERSEDED, do not fold into the live spec
 
-The daemon HTTP/SSE API SHALL bind `127.0.0.1` unless the operator passes an
-explicit non-default `--host`. The API forwards raw firmware commands (motion,
-cutter, settings, bootloader), so non-local exposure MUST be a deliberate
-opt-in, never the default.
+The daemon HTTP/SSE API SHALL bind `127.0.0.1` unless the operator passes an explicit non-default `--host`. The API forwards raw firmware commands (motion, cutter, settings, bootloader), so non-local exposure MUST be a deliberate opt-in, never the default.
+
+STATUS (2026-07-28): this requirement shipped, then was reverted (commit
+`4ae1a19`, 2026-06-19) because the loopback default broke the primary
+real-world use case (LAN-reachable WebUI dashboard) and, worse, an
+operator's manual `0.0.0.0` override did not survive a systemd
+reinstall — the regenerated unit template had no `--host` arg at all, so
+the "safe" default provided no durable protection either way. Left above
+verbatim for audit-trail purposes only; see `tasks.md` task 4.1 for the
+full account and what was fixed instead (preserving manual ExecStart
+customizations, e.g. a deliberate `--host 127.0.0.1`, across a reinstall
+— `install_daemon.py`'s `step_systemd_unit()` — without touching the
+default). The daemon's actual current behavior is the inverse of the
+requirement text above: it binds `0.0.0.0` by default.
 
 #### Scenario: Default launch
 
