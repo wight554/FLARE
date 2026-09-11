@@ -68,6 +68,8 @@ target_include_directories(flare_sim PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
 )
 
+target_link_libraries(flare_sim PRIVATE m)
+
 # -Wall -Wextra scoped to tests/host/'s own sources only. firmware/src/*.c is
 # compiled unmodified and warning-clean under its own build (firmware/
 # CMakeLists.txt), but was not written against -Wextra specifically — applying
