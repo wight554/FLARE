@@ -7,10 +7,17 @@ Enforces persistence invariants:
 2. Default Initialization Parity: Every persistent global loaded from flash must be
    seeded in settings_defaults().
 3. Legacy v63 Parity: Every frozen field in settings_t_v63 must be read in settings_load_v63().
+4. Dump Rebuild Parity: Every config.ini key flare_cmd.py --dump emits must be a key
+   gen_config.py accepts, so a dumped config always rebuilds (config-surface-tiers).
 """
 import os
 import re
+import sys
 import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import flare_cmd  # noqa: E402
+import gen_config  # noqa: E402
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 HDR = os.path.join(ROOT, "..", "firmware", "include", "settings_store.h")
@@ -124,6 +131,16 @@ class TestSettingsParity(unittest.TestCase):
         if errors:
             self.fail("FAIL settings parity:\n" + "\n".join(f"  - {e}" for e in errors))
 
+
+    def test_dump_keys_rebuild_with_gen_config(self):
+        """A `flare_cmd.py --dump` config must pass gen_config's unknown-key check.
+        Runtime-only state (e.g. BYPASS) has no config.ini key and must not be dumped."""
+        bad = sorted(
+            key for (_, key, lane_aware) in flare_cmd.DUMP_PARAMS
+            for probe in ([f"{key}_l1", f"{key}_l2"] if lane_aware else [key])
+            if not gen_config.valid_config_key(probe) and probe not in gen_config.DEPRECATED_KEYS
+        )
+        self.assertEqual(bad, [], f"--dump emits keys gen_config.py rejects: {bad}")
 
 if __name__ == "__main__":
     unittest.main()

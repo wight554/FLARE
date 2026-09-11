@@ -182,7 +182,6 @@ DUMP_PARAMS = [
     ("TC_TS_RETRIES",     "tc_ts_retries",           False),
     ("TC_TS_RETRY_RETRACT_MM", "tc_ts_retry_retract_mm", False),
     ("TC_TS_PARK_MM",     "tc_ts_park_mm",           False),
-    ("BYPASS",            "bypass",                  False),
     # --- Cutter ---
     ("CUTTER",            "enable_cutter",           False),
     ("UNLOAD_CUT",        "unload_cut",              False),
