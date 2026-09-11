@@ -77,6 +77,8 @@ def main() -> None:
         "firmware",
         "-B",
         "build_local",
+        "-G",
+        "Ninja",
         "-DFLARE_DEV_TUNING=ON",
         stdout=subprocess.DEVNULL,
     )
