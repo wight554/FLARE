@@ -193,8 +193,11 @@ bool buffer_negative_sync_eligible(void) {
 
 bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events,
                                      buffer_service_mode_t mode) {
-    if (g_boot_stabilizing)
+    if (g_boot_stabilizing) {
+        if (emit_events)
+            g_buffer_stabilize_emit_events = true;
         return true;
+    }
     if (!buffer_stabilize_controller_idle())
         return false;
     if (g_buf_sensor_type != BUF_SENSOR_TYPE_D) {
@@ -205,8 +208,11 @@ bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events,
            rests at the tension/home rail by design, so driving the motor would
            dry-spin against the home stop. */
         lane_t *pl = pick_boot_stabilize_lane();
-        if (!(lane_out_present(pl) || lane_in_present(pl)))
+        if (!(lane_out_present(pl) || lane_in_present(pl))) {
+            if (emit_events)
+                cmd_event("BUF_STAB", "DONE");
             return true;
+        }
     }
     if (mode == BUFFER_SERVICE_NEG_SYNC && sync_guard_active)
         return true;
@@ -221,8 +227,12 @@ bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events,
         stab_lane = lane_ptr(g_active_lane);
         forward = false;
     } else {
-        if (buf_state != BUF_COMPRESSION && buf_state != BUF_TENSION)
+        if (buf_state != BUF_COMPRESSION && buf_state != BUF_TENSION) {
+            buf_force_stable_state(BUF_NEUTRAL, now_ms);
+            if (emit_events)
+                cmd_event("BUF_STAB", "DONE");
             return true;
+        }
         stab_lane = pick_boot_stabilize_lane();
         forward = (buf_state == BUF_TENSION);
     }

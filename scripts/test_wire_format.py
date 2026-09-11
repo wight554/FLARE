@@ -8,6 +8,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flare_live_tuner import EVENT_RE
+from flare_cmd import COMPLETION_EVENTS
 
 
 def daemon_split_logic(line):
@@ -101,6 +102,17 @@ class TestWireFormat(unittest.TestCase):
         t, d = daemon_split_logic("EV:UNLOAD_TIMEOUT:1")
         self.assertEqual(t, "UNLOAD_TIMEOUT")
         self.assertEqual(d, "1")
+
+    def test_completion_events(self):
+        self.assertIn("BL", COMPLETION_EVENTS)
+        bl_ok, bl_err = COMPLETION_EVENTS["BL"]
+        self.assertEqual(bl_ok, ['EV:BL:LOCKED', 'EV:BL:PRIME_BOUND'])
+        self.assertEqual(bl_err, ['EV:BL:TIMEOUT'])
+
+        self.assertIn("BS", COMPLETION_EVENTS)
+        bs_ok, bs_err = COMPLETION_EVENTS["BS"]
+        self.assertEqual(bs_ok, ['EV:BUF_STAB:DONE'])
+        self.assertEqual(bs_err, ['EV:BUF_STAB:TIMEOUT', 'EV:BUF_STAB:STAGNANT_TIMEOUT'])
 
 
 if __name__ == "__main__":

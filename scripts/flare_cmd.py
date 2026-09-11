@@ -47,6 +47,8 @@ COMPLETION_EVENTS = {
     'RL': (['EV:RELOAD:LOADED'], ['EV:TC:ERROR']),
     'CU': (['EV:CUT:DONE'], ['EV:CUT:ERROR']),
     'CX': (['EV:CUT:DONE'], ['EV:CUT:ERROR']),
+    'BL': (['EV:BL:LOCKED', 'EV:BL:PRIME_BOUND'], ['EV:BL:TIMEOUT']),
+    'BS': (['EV:BUF_STAB:DONE'], ['EV:BUF_STAB:TIMEOUT', 'EV:BUF_STAB:STAGNANT_TIMEOUT']),
 }
 
 # ---------------------------------------------------------------------------
@@ -493,6 +495,7 @@ def run_send(args):
         ser.write(f"{raw_cmd}\n".encode())
         deadline = time.time() + args.timeout
         got_ok   = False
+        got_completion = False
 
         while time.time() < deadline:
             line = ser.readline().decode('utf-8', errors='ignore').strip()
@@ -504,19 +507,21 @@ def run_send(args):
                 ser.close()
                 sys.exit(1)
 
-            if not got_ok and (line == 'OK' or line.startswith('OK:')):
-                got_ok = True
-                if events is None:
-                    break          # simple command done
-                continue
-
-            if events and got_ok:
+            if events:
                 ok_evs, err_evs = events
                 if any(line.startswith(ev) for ev in err_evs):
                     ser.close()
                     sys.exit(1)
                 if any(line.startswith(ev) for ev in ok_evs):
-                    break
+                    got_completion = True
+                    if got_ok:
+                        break
+
+            if not got_ok and (line == 'OK' or line.startswith('OK:')):
+                got_ok = True
+                if events is None or got_completion:
+                    break          # simple command done, or completion event already received
+                continue
         else:
             print("flare_cmd: timeout", file=sys.stderr)
             ser.close()
