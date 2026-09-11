@@ -85,6 +85,23 @@ class FlareDaemonSecurityTests(unittest.TestCase):
         flare_daemon.init_auth_token("127.0.0.1")
         self.assertFalse(flare_daemon.AUTH_REQUIRED)
 
+    def test_trust_proxy_requires_auth_even_on_loopback_bind(self):
+        # nginx on the same host forwards LAN clients to 127.0.0.1: the socket
+        # peer is loopback, so only the bearer token can gate them (12-SPEC §9.2).
+        old = flare_daemon.TRUST_PROXY
+        flare_daemon.TRUST_PROXY = True
+        try:
+            flare_daemon.init_auth_token("127.0.0.1", cli_token="proxy-secret")
+            self.assertTrue(flare_daemon.AUTH_REQUIRED)
+            remote = DummyHandler("127.0.0.1", {"X-Forwarded-For": "192.168.1.50"})
+            self.assertFalse(flare_daemon.is_request_authenticated(remote))
+            remote_ok = DummyHandler("127.0.0.1", {"X-Forwarded-For": "192.168.1.50",
+                                                   "Authorization": "Bearer proxy-secret"})
+            self.assertTrue(flare_daemon.is_request_authenticated(remote_ok))
+        finally:
+            flare_daemon.TRUST_PROXY = old
+            flare_daemon.init_auth_token("127.0.0.1")
+
     def test_is_request_authenticated_matrix(self):
         flare_daemon.init_auth_token("0.0.0.0", cli_token="secret-key-12345")
         self.assertTrue(flare_daemon.AUTH_REQUIRED)

@@ -56,6 +56,7 @@ command_event = threading.Event()
 command_reply = None
 current_executing_command = None
 klipper_sync_event = threading.Event()
+KLIPPER_PUSH_RETRY_S = 0.5  # retry cadence for a SET_MMU push skipped while Klipper is Printing
 
 def trigger_klipper_sync():
     """Signal klipper_syncer that a firmware event or relevant state change occurred."""
@@ -877,7 +878,10 @@ def init_auth_token(host: str, cli_token: str = None) -> str:
     If bound to non-loopback and no token configured, auto-generates 32-char hex token.
     """
     global AUTH_TOKEN, AUTH_REQUIRED
-    is_local_only = is_loopback(host)
+    # Behind a reverse proxy the socket peer is always the proxy (loopback), so
+    # the bind host says nothing about who is calling: require auth whenever
+    # X-Forwarded-For is trusted (12-SPEC §9.2).
+    is_local_only = is_loopback(host) and not TRUST_PROXY
 
     token = cli_token or os.environ.get("FLARE_AUTH_TOKEN")
     token_path = get_default_token_path()
@@ -1352,6 +1356,26 @@ def _derive_action(tc_state, active_lane, lane1_task, lane2_task):
         return "Unloading"
     return "Idle"
 
+def _syncer_wait_time(now, host_busy, next_idle_probe, backoff, last_force_sync, retry_at):
+    """Sleep budget for one klipper_syncer pass, and the (possibly cleared) retry deadline.
+
+    Priority: host-busy probe throttle, offline backoff, else the 10 s reconcile —
+    but a pending push retry (set when Klipper was Printing) always shortens the
+    wait so the mirror recovers within ~KLIPPER_PUSH_RETRY_S, not 10 s."""
+    if host_busy:
+        wait_time = max(0.1, next_idle_probe - now)
+    elif backoff > now:
+        wait_time = max(0.1, backoff - now)
+    else:
+        wait_time = max(0.1, (last_force_sync + 10.0) - now)
+    if retry_at > now:
+        wait_time = min(wait_time, max(0.1, retry_at - now))
+    elif retry_at:
+        retry_at = 0.0
+        wait_time = 0.1
+    return wait_time, retry_at
+
+
 def klipper_syncer(moonraker_url):
     """Background thread to push status updates to Moonraker event-driven."""
     global _g_host_busy
@@ -1366,16 +1390,13 @@ def klipper_syncer(moonraker_url):
     gate_debug = bool(os.environ.get("FLARE_GATE_DEBUG"))
     host_busy = False   # gcode lock held by blocking command (e.g. MPC_CALIBRATE)
     next_idle_probe = 0.0  # throttle: earliest time to probe idle_timeout again
+    retry_at = 0.0  # a push skipped while Printing is retried at this time, not the 10 s reconcile
 
     while True:
         # Event-driven wait: wake on firmware event, state change, or periodic reconcile (10s)
         now = time.time()
-        if host_busy:
-            wait_time = max(0.1, next_idle_probe - now)
-        elif backoff > now:
-            wait_time = max(0.1, backoff - now)
-        else:
-            wait_time = max(0.1, (last_force_sync + 10.0) - now)
+        wait_time, retry_at = _syncer_wait_time(now, host_busy, next_idle_probe, backoff,
+                                                last_force_sync, retry_at)
 
         klipper_sync_event.wait(timeout=wait_time)
         klipper_sync_event.clear()
@@ -1638,10 +1659,12 @@ def klipper_syncer(moonraker_url):
                 last_pushed_fields = {}
                 backoff = time.time() + 5.0
             elif idle_state == "Printing":
-                # Gcode lock held by a TC or print macro — skip this push, resume
-                # next tick. Do NOT enter host_busy: printing is normal and gate_status
-                # must keep flowing so subsequent TC checks see current state.
-                pass
+                # Gcode lock held by a TC or print macro — skip this push and retry
+                # shortly (daemon-klipper-mirror: recover within one tick, not the
+                # 10 s reconcile — _FLARE_CHANGE_LANE reads printer.mmu.gate_status at
+                # render time right after the macro releases the lock). Do NOT enter
+                # host_busy: printing is normal and gate_status must keep flowing.
+                retry_at = time.time() + KLIPPER_PUSH_RETRY_S
             elif idle_state not in IDLE_FREE_STATES:
                 # Gcode lock busy during non-print (e.g. MPC_CALIBRATE) — suppress
                 host_busy = True
@@ -1677,7 +1700,7 @@ def main():
     parser = argparse.ArgumentParser(description="FLARE persistent host proxy daemon")
     parser.add_argument("--port", help="Serial port connection path (e.g. /dev/ttyACM0)")
     parser.add_argument("--baud", type=int, default=115200, help="Baud rate (default: 115200)")
-    parser.add_argument("--host", default="127.0.0.1", help="HTTP server bind host (default: 127.0.0.1 - loopback only; pass 0.0.0.0 for LAN access)")
+    parser.add_argument("--host", default="0.0.0.0", help="HTTP server bind host (default: 0.0.0.0 - LAN dashboard reachable, remote mutations need the Bearer token; pass 127.0.0.1 for loopback only)")
     parser.add_argument("--api-port", type=int, default=8088, help="HTTP/SSE API server port (default: 8088)")
     parser.add_argument("--cors-origins", default="", help="Allowed CORS origins (default: loopback/same-host only; pass '*' or comma-separated origins)")
     parser.add_argument("--no-klipper", action="store_true", help="Bypass Moonraker/Klipper telemetry synchronization")

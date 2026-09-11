@@ -205,10 +205,10 @@ echo; it does not change daemon behavior or MMU dashboard updates.
 
 ## 🌐 Daemon HTTP API
 
-The FLARE daemon runs an HTTP & SSE server on port `8088`. By default, it binds to loopback (`127.0.0.1`) with origin-restricted CORS headers for security.
+The FLARE daemon runs an HTTP & SSE server on port `8088`. By default it binds to all interfaces (`0.0.0.0`) so the dashboard is reachable from the LAN like Mainsail/Moonraker, with origin-restricted CORS headers and Bearer-token authentication for every remote mutation.
 
-- **Loopback Default (`127.0.0.1`):** Restricts the API to local processes on the host. Loopback callers are fully exempt from authentication and rate limits with zero configuration overhead.
-- **LAN Access (`--host 0.0.0.0`):** To access the dashboard from other devices on your local network (e.g. tablet, phone, or remote PC), run the daemon with `--host 0.0.0.0` (or add `--host 0.0.0.0` to `ExecStart` in `flare_daemon.service`).
+- **LAN Default (`0.0.0.0`):** Dashboard reachable from any device on your network. Loopback callers (Klipper's `flare_cmd.py`, local scripts) are fully exempt from authentication and rate limits with zero configuration overhead.
+- **Loopback Only (`--host 127.0.0.1`):** Restricts the API to local processes on the host; add `--host 127.0.0.1` to `ExecStart` in `flare_daemon.service` (`install_daemon.py` preserves it on reinstall). With `--trust-proxy` (daemon behind nginx on the same host) authentication is still enforced, because the socket peer is then always the proxy.
   - **Authentication:** Remote mutating endpoints (`POST /cmd`, `POST /config`, `POST /gatemap`) require `Authorization: Bearer <token>`. When bound to non-loopback, a secure token is auto-generated into `~/.flare/auth.token` (mode `0600`) on startup if not already configured via `--auth-token` or the `FLARE_AUTH_TOKEN` environment variable.
   - **Public Telemetry:** Remote read-only endpoints (`GET /status`, `GET /telemetry`, `GET /config`, `GET /gatemap`, and static UI assets) remain unauthenticated for seamless dashboard widgets.
   - **Rate Limiting:** Remote `POST /cmd` requests are rate-limited via a per-client token bucket (10 req/s, burst 20). Requests exceeding capacity return HTTP 429 Too Many Requests to prevent serial ringbuffer starvation. Loopback callers are exempt.
@@ -232,7 +232,8 @@ The FLARE daemon runs an HTTP & SSE server on port `8088`. By default, it binds 
 | Symptom | Likely Cause | How to Fix |
 |---|---|---|
 | Console says `no serial port found` | The daemon is stopped or USB is unplugged. | Run `sudo systemctl status flare_daemon` to verify the background service is running. |
-| Dashboard unreachable from other PC/phone | Daemon binds to `127.0.0.1` by default | Pass `--host 0.0.0.0` to `flare_daemon.py` or edit the systemd unit (`sudo systemctl edit --full flare_daemon`) to add `--host 0.0.0.0` to `ExecStart`. If accessing cross-origin from another web app, also specify `--cors-origins "*"`. |
+| Dashboard unreachable from other PC/phone | Unit was edited to `--host 127.0.0.1`, or a firewall blocks 8088 | Check `ExecStart` in the systemd unit (`sudo systemctl edit --full flare_daemon`) — the default binds `0.0.0.0`. If accessing cross-origin from another web app, also specify `--cors-origins "*"`. |
+| Dashboard asks for a token | Non-loopback clients must authenticate for `POST /cmd` etc. | Paste the token from `~/.flare/auth.token` on the daemon host (printed at first start) into the WebUI prompt; or set `--auth-token` / `FLARE_AUTH_TOKEN`. |
 | Toolhead sensor trigger does not load hotend | Sensor state is not reaching Klipper. | Verify by pushing filament into the toolhead and running `QUERY_FILAMENT_SENSOR SENSOR=toolhead_sensor` in console. |
 | Toolchange `TC:` command times out | Filament travel is blocked or bowden is too long. | Verify path clearance. You can temporarily increase travel timeouts (`LOAD_MAX` / `UNLOAD_MAX`) in `config.ini`. |
 | Buffer piston stays frozen in WebUI | Sync feedback is disabled or type mismatch. | Check `buf_sensor_type` in `config.ini` matches your hardware (`0` for switches, `1` for Hall sensor/analog). |
