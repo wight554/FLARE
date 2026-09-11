@@ -10,16 +10,6 @@
 - type: nfr
 - content: Capture the OpenSpec-native contract for analyzer acceptance-gate
 
-## agent-comms-mode Specification
-- source: .planning/specs/agent-comms-mode/spec.md
-- type: nfr
-- content: Tool-agnostic caveman-full chat-response default for agents, sourced from `openspec/COMMS.md`, with explicit human-readable exclusions (commits/PRs, code, user docs, security/irreversible prose).
-
-## agent-context-compression Specification
-- source: .planning/specs/agent-context-compression/spec.md
-- type: nfr
-- content: Reviewed bulk-compression workflow for AI-facing context files and existing OpenSpec spec bodies, preserving normative clauses/structure and excluding operator/user documentation.
-
 ## Analyzer Rigor Specification
 - source: .planning/specs/analyzer-rigor/spec.md
 - type: nfr
@@ -155,16 +145,6 @@
 - type: nfr
 - content: Defines path expansion behavior for host tools so file inputs, globs, and output paths resolve predictably.
 
-## spec-compression-workflow Specification
-- source: .planning/specs/spec-compression-workflow/spec.md
-- type: nfr
-- content: Tool-agnostic semantic compression convention for OpenSpec artifacts — the in-repo `openspec/COMPRESSION.md` ruleset, the cross-UI authoring directive, and the density tripwire that gates uncompressed specs in regression.
-
-## spec-readability Specification
-- source: .planning/specs/spec-readability/spec.md
-- type: nfr
-- content: Human-oriented navigation of the agent-facing specs — a per-spec uncompressed `
-
 ## static-regression-validation Specification
 - source: .planning/specs/static-regression-validation/spec.md
 - type: nfr
@@ -194,11 +174,6 @@
 - source: .planning/specs/task-workflow/spec.md
 - type: nfr
 - content: Workflow contract (supersedes AGENTS.md and former TASK.md) behavioral requirements.
-
-## team-memory-store Specification
-- source: .planning/specs/team-memory-store/spec.md
-- type: nfr
-- content: Define the git-tracked team memory store at `memories/repo/`: a tool-agnostic prior-art layer of curated per-change observations (decisions, gotchas, deviations) that agents read before proposing changes and write before archiving, complementing...
 
 ## Toolchange Orchestration Specification
 - source: .planning/specs/toolchange-orchestration/spec.md

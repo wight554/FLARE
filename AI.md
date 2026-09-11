@@ -8,58 +8,15 @@
 
 ## Global Configuration Overview
 
-All AI tools use shared home-dir env:
+Skills and MCP servers are configured globally at user level, shared by Antigravity, Claude Code, and IDE tools.
 
-- **Primary Source**: `~/.gemini/extensions/caveman/`
-- **Claude Integration**: `~/.claude/skills/` (linked to Gemini source)
-- **MCP Servers**: Managed via global `node` and `npx`
-- **Memory**: Persistent cross-session memory via `cavemem` MCP
+## Active MCPs & Tooling
 
-## Prerequisites
-
-- **Node.js**: v22+ (v22.20.0 recommended)
-- **Python**: v3.12+ (v3.14.4 recommended)
-- **Anthropic / Google API Keys**: Export in shell profile
-
-## Initial Setup (One-Time Global)
-
-### 1. Install Caveman Extension
-Follow instructions at [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman).
-
-### 2. Link Claude Skills
-Create global symlinks so `claude-code` uses same skills:
-```bash
-ln -sfn ~/.gemini/extensions/caveman/skills/caveman ~/.claude/skills/caveman
-ln -sfn ~/.gemini/extensions/caveman/skills/caveman-commit ~/.claude/skills/caveman-commit
-ln -sfn ~/.gemini/extensions/caveman/skills/caveman-help ~/.claude/skills/caveman-help
-ln -sfn ~/.gemini/extensions/caveman/skills/caveman-review ~/.claude/skills/caveman-review
-ln -sfn ~/.gemini/extensions/caveman/skills/caveman-stats ~/.claude/skills/caveman-stats
-ln -sfn ~/.gemini/extensions/caveman/skills/cavecrew ~/.claude/skills/cavecrew
-ln -sfn ~/.gemini/extensions/caveman/skills/compress ~/.claude/skills/compress
-ln -sfn ~/.gemini/extensions/caveman/skills/caveman-compress ~/.claude/skills/caveman-compress
-```
-
-### 3. Configure MCP Servers
-Add `cavemem` MCP to `~/.claude/settings.json` and `~/.gemini/settings.json`:
-
-```json
-{
-  "mcpServers": {
-    "cavemem": {
-      "command": "node",
-      "args": ["/path/to/your/global/node_modules/cavemem/dist/index.js", "mcp"]
-    }
-  }
-}
-```
-
-## Active MCPs in this Repo
-
-| MCP | Purpose | Source |
+| Tool / MCP | Purpose | Source |
 |---|---|---|
-| `cavemem` | Persistent, compressed cross-agent memory | Global (via node) |
+| `git` | Version control integration | Global |
 | `context7` | Documentation & library search | Global (HTTP/S) |
-| `git` | Git integration (branching, commits) | Global (via npx) |
+| `codegraph` | Call-graph and dependency analysis | Global |
 
 ## Workspace Rules
 

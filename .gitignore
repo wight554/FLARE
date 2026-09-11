@@ -33,6 +33,7 @@ scratch/
 
 # transient local test streams
 scripts/test_stream.log
+*.log
 
 # local AI/agent config lives in home directories; keep repo to project specs
 .agent/

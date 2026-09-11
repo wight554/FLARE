@@ -8,17 +8,8 @@ For AI agents (Antigravity, Claude, Gemini, Codex, Opus, Copilot, etc.). Read th
 ## Session Start Protocol
 
 Before anything else:
-1. Use caveman-full chat style (terse, no filler, drop articles, fragments OK, technical terms exact).
-2. Use `cavemem` MCP (or similar persistent memory) for cross-session context.
-3. Post: **AGENTS.md ✓ | GSD: [current phase/task from .planning/STATE.md]** — lets user verify context loaded.
-
-### AI Assistant Mode (Strict)
-
-Respond in caveman mode (full intensity): terse, no filler, drop articles, fragments OK, short synonyms, technical terms exact. Chat prose only — code, commit messages, PR descriptions stay normal; planning files follow `.planning/` conventions.
-
-Pattern:
-- **Wrong:** "This repository uses type-P analog sensors because it helps to measure proportional filament position instead of simple endpoints."
-- **Right:** "Type-P analog sensor. Proportional position, not endpoints. `BUF_SENSOR_TYPE=1`."
+1. Post: **AGENTS.md ✓ | GSD: [current phase/task from .planning/STATE.md]** — lets user verify context loaded.
+2. Direct, concise engineering communication: terse, professional, clear technical terms, accurate symbol references, zero fluff.
 
 ---
 
@@ -60,13 +51,7 @@ Before planning or executing non-trivial changes, use Mat Pocock-style interacti
 
 **Grep recipes for `[lookup]` docs:**
 - Runtime parameter lookup: `grep -n '<PARAM>' MANUAL.md` — read matched rows only, never the whole file.
-- Prior-change context: grep `memories/repo/` first, then `.planning/intel/` — **never read entire trees wholesale**.
-
-## Memory
-
-Two layers: `memories/repo/` (team, git-tracked, one curated observation file per archived change) and cavemem / tool-private memory (personal, automatic). Full rules: `memories/repo/README.md`.
-Before proposing or re-deriving prior art: `grep -ril '<topic>' memories/repo/`, then personal memory — cite hits instead of re-investigating; verify stale refs against the tree.
-Observation file is written as part of each change's Readiness checklist, before archive. Never put secrets or source snippets in observations.
+- Prior-change context: grep `.planning/intel/` or git history — **never read entire trees wholesale**.
 
 ---
 
@@ -104,7 +89,6 @@ Read modes: `[always]` = read every session (`AGENTS.md`, `.planning/PROJECT.md`
 | `scripts/flare_cmd.py` | [lookup] | Single-command serial helper for Klipper shell integration |
 | `STYLE.md` | [lookup] | Coding style, naming standards, formatting, linting guide |
 | `REVIEW.md` | [lookup] | Pre-commit staged-diff self-review checklist |
-| `memories/repo/` | [lookup] | Team memory: per-change observations (prior art — grep first) |
 | `.planning/` | [lookup] | GSD planning context: `PROJECT.md`, `ROADMAP.md`, `REQUIREMENTS.md`, `STATE.md`, `intel/` |
 | `tests/host/` | [lookup] | Host-compiled sync simulation (`flare_sim`) — links real `sync*.c`/`motion.c`/`toolchange.c`/`cutter.c`/`settings_store.c` against fakes; sim screens deadlock/sign/timer defects, rig remains sole authority on tuning quality — a sim pass never satisfies an `HW:` task |
 
