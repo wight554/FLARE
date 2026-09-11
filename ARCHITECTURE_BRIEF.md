@@ -168,20 +168,10 @@ external calls are plain `urllib.request` against localhost.
 
 ## 5. Auth model
 
-**Not implemented. This is the most serious finding in the repo.**
-
-- The daemon HTTP server binds **`0.0.0.0` by default** (`flare_daemon.py:1439`).
-- There is no authentication, no authorization, no session, and no token anywhere in
-  `scripts/flare_daemon.py`. The only matches for "auth" in the file are in the warning
-  string itself.
-- `POST /cmd` (`flare_daemon.py:814`) accepts arbitrary JSON `{"cmd": "..."}` and forwards
-  it verbatim to the board — this includes motion commands, `SET:` writes to persisted
-  settings, and flash-write commands.
-- Responses set `Access-Control-Allow-Origin: *` (`flare_daemon.py:836`), so any web page
-  the operator visits can drive the board from their browser.
-- The code is aware of this and prints a startup NOTE (`flare_daemon.py:1481-1482`)
-  recommending `--host 127.0.0.1`. A warning is not a control; the insecure value is the
-  default.
+**Partially mitigated.**
+- The daemon HTTP server binds **`127.0.0.1` by default** (loopback only). Operators explicitly opt into LAN access via `--host 0.0.0.0`.
+- CORS headers (`Access-Control-Allow-Origin`) are strictly restricted to loopback and same-host origins by default, rejecting untrusted cross-origin requests (`403 Forbidden`). External origins can be explicitly whitelisted via `--cors-origins`.
+- There is currently no token/session authentication for raw `POST /cmd` when running in `--host 0.0.0.0` mode. Motion commands and flash settings writes over LAN remain unauthenticated if the operator exposes the daemon to the network.
 
 Serial link itself is unauthenticated by nature (physical USB), which is acceptable. The
 LAN-exposed HTTP bridge on top of it is not.
@@ -318,15 +308,13 @@ compatibility handshake beyond the daemon probing `GET:BUF_MAX_TRAVEL` at connec
 
 ## 9. Three worst design decisions
 
-**1. Unauthenticated LAN-bound command bridge, defaulting to `0.0.0.0`.**
-`scripts/flare_daemon.py:1439` + `:814`. `POST /cmd` is a raw passthrough to a machine that
-moves motors, actuates a blade (`cutter.c`), and writes flash. No auth, no allowlist of
-permitted commands, no rate limit, and `Access-Control-Allow-Origin: *` so a browser tab on
-the same network can drive it. The mitigation shipped is a printed warning suggesting the
-operator pass `--host 127.0.0.1`. The correct default is loopback with opt-in exposure, and
-`/cmd` should validate against an allowlist rather than forwarding arbitrary strings. The
-`ER:PERSIST_BUSY` interlock protects flash during motion but does nothing against a
-deliberate or accidental remote caller.
+**1. Unauthenticated command bridge via `POST /cmd`.**
+`scripts/flare_daemon.py:1494` + `:815`. `POST /cmd` is a raw passthrough to a machine that
+moves motors, actuates a blade (`cutter.c`), and writes flash. Default bind address is now
+`127.0.0.1` (loopback only) and CORS headers are restricted to loopback/same-host. However, when
+an operator runs `--host 0.0.0.0` for LAN access, there is no token auth, no command allowlist,
+and no rate limiting on the LAN. The `ER:PERSIST_BUSY` interlock protects flash during motion but
+does nothing against unauthorized remote callers on LAN.
 
 **2. `SETTINGS_VERSION` bump = full settings wipe, with a 10-step manual ritual to add a
 field.** `firmware/src/settings_store.c:24,537` + `CONTEXT.md:103-118`. A flat struct in a

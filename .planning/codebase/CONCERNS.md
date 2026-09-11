@@ -15,7 +15,7 @@ FLARE operates in a hybrid bare-metal and distributed host environment. While it
 3. **Hardware-Coupled Verification Gap (Phase 1)**: Core firmware state-machine fixes (e.g., flash write activity gating, cutter re-entry guards, runout escalation paths) are code-complete and simulated, but critically depend on pending physical bench validation on real rigs.
 4. **TMC2209 Single-Wire UART Hazards**: Bit-banged PIO communication over direct single-wire traces lacks bus isolation, carries strict bus turnaround timing requirements, risks trapping drivers in silent standby mode, and provides no runtime heartbeat to detect power-loss register erasure.
 5. **Flash Wear & Destructive Schema Migrations**: Settings persist to a single fixed 4 KB flash sector without wear leveling, ping-pong rotation, or power-loss journaling. Bumping `SETTINGS_VERSION` (currently `61u`) wipes all operator calibration back to factory defaults.
-6. **Unauthenticated LAN Command Bridge**: `scripts/flare_daemon.py` binds `0.0.0.0` by default with open CORS headers, exposing a raw `POST /cmd` endpoint capable of driving motors, firing blades, and erasing flash without authentication.
+6. **LAN Command Bridge**: `scripts/flare_daemon.py` default bind address is hardened to `127.0.0.1` and CORS is restricted to loopback/same-host origins (`403 Forbidden` on untrusted origins). However, when an operator explicitly passes `--host 0.0.0.0` for LAN access, raw `POST /cmd` lacks token authentication.
 
 ---
 
@@ -392,8 +392,7 @@ The Klipper integration in `klipper/mmu.py` is implemented as an API facade mimi
 ## 8. Prioritized Risk & Technical Debt Matrix
 
 | Category | Specific Risk / Debt | Severity | Failure Symptoms | Prescriptive Mitigation |
-|---|---|---|---|---|
-| **Security** | Unauthenticated `0.0.0.0` daemon with open CORS and raw `POST /cmd` | **CRITICAL** | Remote unauthorized motion, blade actuation, flash corruption via LAN | Change default bind to `127.0.0.1`; implement strict command allowlist; restrict CORS |
+| **Security** | Unauthenticated `POST /cmd` when running with `--host 0.0.0.0` | **MEDIUM** (mitigated from CRITICAL by `127.0.0.1` default & CORS restrictions) | Remote unauthorized motion, blade actuation, flash corruption via LAN | Change default bind to `127.0.0.1` (Done); restrict CORS (Done); implement strict command allowlist and token auth |
 | **Control** | Fast retract buffer rail slam on Type-P proportional buffer | **HIGH** | Stepper skipping, filament grinding, mechanical carriage impact (<0.5 s) | Implement Phase 2 fast prime, synchronous host completion waits, and retract guard macros |
 | **Firmware** | Single flash sector erase-then-program with no backup or wear leveling | **HIGH** | Complete loss of calibration on power glitch; sector death after ~100k writes | Implement A/B ping-pong sector swapping and atomic commit flags |
 | **Architecture** | Destructive `SETTINGS_VERSION` bumps wiping all operator tunings | **MEDIUM** | User frustration; loss of motor and buffer tuning on firmware upgrade | Migrate flat struct to a tagged TLV (Type-Length-Value) storage format |

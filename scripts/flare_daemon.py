@@ -20,6 +20,7 @@ import sqlite3
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
@@ -719,6 +720,42 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     allow_reuse_address = True
     daemon_threads = True
 
+# CORS configuration
+CORS_ALLOW_ALL = False
+ALLOWED_CORS_ORIGINS = set()
+
+
+def is_cors_origin_allowed(origin: str, request_host: str = None) -> bool:
+    """Validate whether an HTTP Origin header is permitted to access API endpoints."""
+    if not origin:
+        return False
+    if CORS_ALLOW_ALL:
+        return True
+    try:
+        parsed = urllib.parse.urlparse(origin)
+        hostname = (parsed.hostname or "").lower()
+    except Exception:
+        return False
+    if not hostname:
+        return False
+    # Always allow local loopback
+    if hostname in ("127.0.0.1", "localhost", "::1") or hostname.startswith("127."):
+        return True
+    # Allow same-origin matching request Host header
+    if request_host:
+        req_host_clean = request_host.split(":")[0].lower()
+        if parsed.netloc.lower() == request_host.lower() or hostname == req_host_clean:
+            return True
+    # Explicit allowed origins
+    origin_lower = origin.lower()
+    if origin_lower in ALLOWED_CORS_ORIGINS or (parsed.netloc and parsed.netloc.lower() in ALLOWED_CORS_ORIGINS):
+        return True
+    for pattern in ALLOWED_CORS_ORIGINS:
+        if pattern.endswith("*") and origin_lower.startswith(pattern[:-1].lower()):
+            return True
+    return False
+
+
 class FlareHTTPHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # Suppress spammy log dumps for telemetry requests
@@ -726,7 +763,19 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             return
         super().log_message(format, *args)
 
+    def send_cors_headers(self):
+        """Send Access-Control-Allow-Origin header if the request origin is allowed."""
+        origin = self.headers.get("Origin")
+        if origin and is_cors_origin_allowed(origin, self.headers.get("Host")):
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+
     def do_GET(self):
+        origin = self.headers.get("Origin")
+        if origin and not is_cors_origin_allowed(origin, self.headers.get("Host")):
+            self.send_error(403, "CORS origin forbidden")
+            return
+
         if self.path == "/status":
             with status_lock:
                 snapshot = dict(status_cache)
@@ -735,7 +784,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             res = json.dumps(snapshot)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(res.encode("utf-8"))
 
@@ -745,7 +794,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "keep-alive")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.end_headers()
 
             # Create a queue for this stream connection
@@ -790,7 +839,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                     data[key] = v
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(json.dumps(data).encode("utf-8"))
 
@@ -798,7 +847,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             res = json.dumps(build_gatemap_response())
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(res.encode("utf-8"))
 
@@ -812,6 +861,11 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             self.send_error(404, "File Not Found")
 
     def do_POST(self):
+        origin = self.headers.get("Origin")
+        if origin and not is_cors_origin_allowed(origin, self.headers.get("Host")):
+            self.send_error(403, "CORS origin forbidden")
+            return
+
         if self.path == "/cmd":
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
@@ -833,13 +887,13 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             if response is None:
                 self.send_response(504) # Gateway Timeout
                 self.send_header("Content-Type", "application/json")
-                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_cors_headers()
                 self.end_headers()
                 self.wfile.write(json.dumps({"error": "command_timeout"}).encode("utf-8"))
             else:
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
-                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_cors_headers()
                 self.end_headers()
                 self.wfile.write(json.dumps({"response": response}).encode("utf-8"))
 
@@ -858,7 +912,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             resp.update(result)
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(json.dumps(resp).encode("utf-8"))
 
@@ -880,7 +934,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                 broadcast_telemetry({"type": "bypass_update", "bypass": bypass_val})
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
 
@@ -889,8 +943,12 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self):
         # Support CORS pre-flight requests
+        origin = self.headers.get("Origin")
+        if origin and not is_cors_origin_allowed(origin, self.headers.get("Host")):
+            self.send_error(403, "CORS origin forbidden")
+            return
         self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_cors_headers()
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
@@ -1433,16 +1491,21 @@ def main():
     parser = argparse.ArgumentParser(description="FLARE persistent host proxy daemon")
     parser.add_argument("--port", help="Serial port connection path (e.g. /dev/ttyACM0)")
     parser.add_argument("--baud", type=int, default=115200, help="Baud rate (default: 115200)")
-    parser.add_argument("--host", default="0.0.0.0", help="HTTP server bind host (default: 0.0.0.0 - LAN accessible; pass 127.0.0.1 to restrict to loopback)")
+    parser.add_argument("--host", default="127.0.0.1", help="HTTP server bind host (default: 127.0.0.1 - loopback only; pass 0.0.0.0 for LAN access)")
     parser.add_argument("--api-port", type=int, default=8088, help="HTTP/SSE API server port (default: 8088)")
+    parser.add_argument("--cors-origins", default="", help="Allowed CORS origins (default: loopback/same-host only; pass '*' or comma-separated origins)")
     parser.add_argument("--no-klipper", action="store_true", help="Bypass Moonraker/Klipper telemetry synchronization")
     parser.add_argument("--moonraker-url", default="http://localhost:7125", help="Moonraker base URL (default: http://localhost:7125)")
     parser.add_argument("--spoolman-url", default="http://localhost:7912", help="Spoolman base URL for direct API fallback (default: http://localhost:7912)")
     args = parser.parse_args()
 
-    global MOONRAKER_URL, SPOOLMAN_URL
+    global MOONRAKER_URL, SPOOLMAN_URL, CORS_ALLOW_ALL, ALLOWED_CORS_ORIGINS
     MOONRAKER_URL = args.moonraker_url
     SPOOLMAN_URL = args.spoolman_url
+    if args.cors_origins == "*":
+        CORS_ALLOW_ALL = True
+    elif args.cors_origins:
+        ALLOWED_CORS_ORIGINS = {o.strip().lower() for o in args.cors_origins.split(",") if o.strip()}
 
     # 1. Resolve preferred serial port candidate
     port_name = serial_utils.find_port(args.port)

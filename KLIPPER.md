@@ -181,7 +181,11 @@ echo; it does not change daemon behavior or MMU dashboard updates.
 
 ## 🌐 Daemon HTTP API
 
-The FLARE daemon runs an HTTP & SSE server on port `8088`. By default, it binds to all interfaces (`0.0.0.0`) so the dashboard is reachable from other devices on your local network. Note this exposes the API (including `/cmd`) to the LAN with no authentication, same trust model as Moonraker/Mainsail. To restrict access to the Pi itself, run the daemon with `--host 127.0.0.1`.
+The FLARE daemon runs an HTTP & SSE server on port `8088`. By default, it binds to loopback (`127.0.0.1`) with origin-restricted CORS headers for security.
+
+- **Loopback Default (`127.0.0.1`):** Restricts the API (including `/cmd`) to local processes on the host.
+- **LAN Access (`--host 0.0.0.0`):** To access the dashboard from other devices on your local network (e.g. tablet, phone, or remote PC), run the daemon with `--host 0.0.0.0` (or add `--host 0.0.0.0` to `ExecStart` in `flare_daemon.service`). Note that running on `0.0.0.0` exposes the unauthenticated `/cmd` endpoint to your local network.
+- **CORS Policy:** By default, cross-origin requests are restricted to loopback and same-host origins. To allow external web interfaces (e.g. custom dashboards hosted on a separate machine or port), pass `--cors-origins <origin1,origin2>` or `--cors-origins "*"` to allow all.
 
 ### Endpoints:
 - `GET /` or `GET /index.html` - Returns the interactive HTML dashboard/status visualizer.
@@ -199,6 +203,7 @@ The FLARE daemon runs an HTTP & SSE server on port `8088`. By default, it binds 
 | Symptom | Likely Cause | How to Fix |
 |---|---|---|
 | Console says `no serial port found` | The daemon is stopped or USB is unplugged. | Run `sudo systemctl status flare_daemon` to verify the background service is running. |
+| Dashboard unreachable from other PC/phone | Daemon binds to `127.0.0.1` by default | Pass `--host 0.0.0.0` to `flare_daemon.py` or edit the systemd unit (`sudo systemctl edit --full flare_daemon`) to add `--host 0.0.0.0` to `ExecStart`. If accessing cross-origin from another web app, also specify `--cors-origins "*"`. |
 | Toolhead sensor trigger does not load hotend | Sensor state is not reaching Klipper. | Verify by pushing filament into the toolhead and running `QUERY_FILAMENT_SENSOR SENSOR=toolhead_sensor` in console. |
 | Toolchange `TC:` command times out | Filament travel is blocked or bowden is too long. | Verify path clearance. You can temporarily increase travel timeouts (`LOAD_MAX` / `UNLOAD_MAX`) in `config.ini`. |
 | Buffer piston stays frozen in WebUI | Sync feedback is disabled or type mismatch. | Check `buf_sensor_type` in `config.ini` matches your hardware (`0` for switches, `1` for Hall sensor/analog). |
