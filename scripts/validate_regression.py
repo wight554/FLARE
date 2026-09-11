@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import glob
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -56,6 +57,16 @@ def _run(*cmd: str, **kwargs: object) -> None:
 def main() -> None:
     # 1 — Generate config
     _header("Generate Config")
+    config_path = REPO_ROOT / "config.ini"
+    if not config_path.exists():
+        example_path = REPO_ROOT / "config.ini.example"
+        if example_path.exists():
+            content = example_path.read_text(encoding="utf-8")
+            content = re.sub(r"^microsteps:\s*$", "microsteps: 16", content, flags=re.MULTILINE)
+            content = re.sub(r"^rotation_distance:\s*$", "rotation_distance: 23.0", content, flags=re.MULTILINE)
+            content = re.sub(r"^run_current:\s*$", "run_current: 0.8", content, flags=re.MULTILINE)
+            config_path.write_text(content, encoding="utf-8")
+            print("Notice: generated baseline config.ini from config.ini.example for regression gate.")
     _run("python3", "scripts/gen_config.py")
 
     # 2+3 — Firmware build (dev-tuning superset)

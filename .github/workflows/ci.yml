@@ -22,8 +22,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-arm-none-eabi ninja-build cmake
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install python dependencies
+        run: pip install ruff pyserial
+
+      - name: Prepare config
+        run: |
+          if [ ! -f config.ini ]; then
+            sed -e 's/^microsteps:$/microsteps: 16/' \
+                -e 's/^rotation_distance:$/rotation_distance: 23.0/' \
+                -e 's/^run_current:$/run_current: 0.8/' \
+                config.ini.example > config.ini
+          fi
 
       # pico-sdk is fetched via PICO_SDK_FETCH_FROM_GIT into build_local/_deps
       # (firmware/pico_sdk_import.cmake) -- it doesn't change often, cache it

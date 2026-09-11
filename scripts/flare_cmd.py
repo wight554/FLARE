@@ -37,8 +37,8 @@ import urllib.request
 try:
     import serial
 except ImportError:
-    print("flare_cmd: 'pyserial' not installed. Run: pip install pyserial", file=sys.stderr)
-    sys.exit(1)
+    # pyserial only needed for direct serial I/O, not for daemon mode or module import
+    serial = None
 
 # ---------------------------------------------------------------------------
 # Commands that must wait for a completion event rather than just OK:
@@ -459,6 +459,9 @@ def find_serial_port():
 
 
 def open_port(port):
+    if serial is None:
+        print("flare_cmd: 'pyserial' not installed. Run: pip install pyserial", file=sys.stderr)
+        sys.exit(1)
     try:
         return serial.Serial(port, 115200, timeout=0.5, exclusive=True)
     except (serial.SerialException, OSError) as e:
