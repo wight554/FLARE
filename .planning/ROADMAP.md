@@ -18,6 +18,10 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 - [x] **Phase 10: TMC2209 Register Heartbeat & Auto-Recovery** - Idle-loop CHOPCONF sentinel verification, 1000ms alternating cadence, strict motion lockout, brownout auto-recovery, and host event escalation
 - [x] **Phase 11: Firmware Forensics & Main Loop Jitter Instrumentation** - Retention RAM blackbox crash logging across watchdog resets, GET:CRASHLOG retrieval, and high-resolution loop jitter benchmarking
 - [x] **Phase 12: Post-Phase 2–10 Regression Fixes** - Close spec/decision-note regressions from the 2026-09-11 review of `79f7a95..2a24a33` (load park FAULT_BUF, cutter abort limp servo, bare-BL catch creep, heartbeat lockout, --dump rebuild)
+- [ ] **Phase 13: Type-P Sync Relief & Fault Trip** - Happy-Hare borrow: bounded relief snap (≤1.33× demand) replacing snap-to-max, distance-based (mm) pegged-fault trip with arm-after-first-transition, firmware-local feed probe for the +1.0 tension ambiguity
+- [ ] **Phase 14: Klipper MMU Status Parity** - Happy-Hare v4 / Fluidd / Mainsail `develop` parity: `flowguard` dict, missing `printer.mmu` keys, `happy_hare_version`, dialog command stubs, richer `action` strings, status-schema test
+- [ ] **Phase 15: Daemon Moonraker Lane Data & Maintenance Counters** - Moonraker `lane_data` push for OrcaSlicer and persisted maintenance counters (blade cuts, swaps) with warning/limit thresholds
+- [ ] **Phase 16: TMC Tension Current Boost** - Happy-Hare tangle prevention: raise gear IRUN while type-P tension is pegged during active sync, routed through the heartbeat shadow registers
 
 ## Phase Details
 
@@ -165,6 +169,54 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   11. MANUAL.md lists `BL:BREAK`, `TC:TS_PARKED`/`LOAD_RETRY_RETRACT`/`LOAD_PARK`; STYLE §2/§3/§4 violations from `12-REVIEW.md` resolved
 **Plans**: 1 plan complete (12-01)
 
+### Phase 13: Type-P Sync Relief & Fault Trip
+**Goal**: Close the open type-P feed-hunting and tension-ambiguity items by borrowing Happy-Hare v4 sync-controller mechanics that fit FLARE's buffer-only (Klipper-agnostic) control loop
+**Depends on**: Phase 12 (touches `sync.c` refill path landed in 12-01); real-print baseline capture of current snap-to-max behaviour first (decision in `typep-feed-hunting`)
+**Requirements**: TBD (derive from `.planning/research/2026-09-11-happy-hare-borrow-scan.md` §1.1, §1.2, §1.4)
+**Research**: `.planning/research/2026-09-11-happy-hare-borrow-scan.md` — HH `main` @ `ef8431c` (2026-09-08)
+**Success Criteria** (what must be TRUE):
+  1. Urgent refill in the TENSION soft-wall (`sync.c` refill branch) targets `min(max_sps, est × SYNC_PSF_RELIEF_MULT)` (default 1.33, HH `extreme_relief_frac=0.25`) with a temporarily doubled slew cap, never `max_sps` directly; `g_psf_target_filt` still seeds at demand
+  2. New `SYNC_TENSION_STOP_MM` (config.ini + SET/GET + `--dump` + MANUAL.md) accumulates relief motion while pegged and trips `FAULT_HOLD` alongside the existing `sync_tension_dwell_stop_ms`; both arm only after the first observed buffer-state transition in the active-sync window
+  3. Bounded firmware-local feed probe distinguishes "home rail, no consumer" from "starved" at type-P +1.0 tension; result exposed in `ST:` and consumed by `mode × filament_present` resolution
+  4. `flare_sim` scenarios cover refill-without-overshoot, mm-trip vs ms-trip ordering, and probe outcomes; no regression in the 16 PSF scenarios
+  5. Nothing from the type-D relay path (confident estimator, mid-band estimator, EST pivots) is reintroduced; `HW:` items remain unchecked until rig validation
+**Plans**: TBD
+
+### Phase 14: Klipper MMU Status Parity
+**Goal**: Keep the `klipper/mmu.py` Happy-Hare facade and daemon mirror rendering correctly in current Fluidd/Mainsail/KlipperScreen builds (verified against their `develop` sources)
+**Depends on**: Nothing (host tooling); independent of Phase 13
+**Requirements**: TBD (derive from research §1.3, §5, §6, §7)
+**Research**: `.planning/research/2026-09-11-happy-hare-borrow-scan.md`
+**Success Criteria** (what must be TRUE):
+  1. `printer.mmu.flowguard` dict (`enabled/active/trigger/level/max_clog/max_tangle`) is published, `level` derived from firmware dwell/saturation timers and 0 whenever sync is inactive; Fluidd and Mainsail FlowGuard meters render
+  2. All `printer.mmu` keys read by current Fluidd/Mainsail exist with correct types (`endless_spool_groups/enabled` mapped to RELOAD, `sync_feedback_flow_rate`, `sync_drive`, `reason_for_pause`, `operation`, `last/next_tool`, `is_paused`, `has_bypass`, `unit`, `filament_direction`, `gate_temperature`, `slicer_tool_map`, `espooler`, `drying_state`, `encoder: None`, …) plus `mmu_machine.happy_hare_version`
+  3. `MMU_TEST_CONFIG`, `MMU_LED`, `MMU_GRIP`/`MMU_RELEASE`/`MMU_SERVO`, `MMU_PRINT_START`/`MMU_PRINT_END` and the `*_VARS` dialogs register as ack/no-op so panel dialogs don't error
+  4. `action` reports HH strings (`Cutting Filament`, `Preload`, `Loading`, `Unloading`, …) derived from existing `EV:` events
+  5. A `test_status_fields_exist_before_ready`-style unit test asserts the full status schema before the daemon connects
+**Plans**: TBD
+
+### Phase 15: Daemon Moonraker Lane Data & Maintenance Counters
+**Goal**: Extend `flare_daemon.py` with the two Happy-Hare Moonraker-side features FLARE lacks — slicer lane discovery and consumable maintenance tracking
+**Depends on**: Phase 14 (shares the status/mirror surface)
+**Requirements**: TBD (derive from research §5, §6)
+**Research**: `.planning/research/2026-09-11-happy-hare-borrow-scan.md`
+**Success Criteria** (what must be TRUE):
+  1. Daemon pushes `lane_data` to Moonraker in the shape OrcaSlicer reads (`mmu_server.py:1746-1846`), sourced from the existing gate map / Spoolman client
+  2. Persisted counters (blade cuts from `EV:CUT:DONE`, swaps, RELOAD failovers) with per-counter `limit`/`warning`/`pause` thresholds, exposed in `/status`, WebUI, and an `MMU_STATS COUNTER=` equivalent; reset command available
+  3. Counters survive daemon restart and are covered by unit tests
+**Plans**: TBD
+
+### Phase 16: TMC Tension Current Boost
+**Goal**: Add Happy-Hare tangle prevention — extra gear-motor torque only while the type-P buffer is pegged in tension during active sync — without breaking the Phase 10 heartbeat/recovery contract
+**Depends on**: Phase 13 (probe/fault semantics decide when boost is legitimate); Phase 10 shadow-register contract
+**Requirements**: TBD (derive from research §1.5)
+**Research**: `.planning/research/2026-09-11-happy-hare-borrow-scan.md`
+**Success Criteria** (what must be TRUE):
+  1. IRUN rises to `SYNC_TENSION_BOOST_IRUN` when type-P tension ≥ `SYNC_TENSION_BOOST_ON` (HH 0.3) and restores at ≤ `SYNC_TENSION_BOOST_OFF` (HH 0.2), only in `SYNC_ACTIVE`, always restored on unsync/fault/STOP
+  2. Boost writes go through `g_shadow_ihold_irun[]` so heartbeat re-apply restores the current (boosted or base) value, never a stale one
+  3. Knobs in config.ini / SET / GET / `--dump` / MANUAL.md; `flare_sim` asserts restore on every exit path; `HW:` thermal check on rig before default-on
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -181,3 +233,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 10. TMC2209 Register Heartbeat & Auto-Recovery | 1/1 | Complete | 2026-09-11 |
 | 11. Firmware Forensics & Main Loop Jitter | 1/1 | Complete | 2026-09-11 |
 | 12. Post-Phase 2–10 Regression Fixes | 1/1 | Complete (HW pending) | 2026-09-11 |
+| 13. Type-P Sync Relief & Fault Trip | 0/? | Not planned | - |
+| 14. Klipper MMU Status Parity | 0/? | Not planned | - |
+| 15. Daemon Moonraker Lane Data & Maintenance Counters | 0/? | Not planned | - |
+| 16. TMC Tension Current Boost | 0/? | Not planned | - |

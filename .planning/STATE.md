@@ -11,11 +11,15 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 ## Current Position
 
 - **Phase**: 12 - Post-Phase 2–10 Regression Fixes (`.planning/phases/12-post-phase-2-10-regression-fixes/`)
-- **Active Feature in Progress**: none — Phase 12 Plan 12-01 complete; HW validation pending
+- **Active Feature in Progress**: none — Phase 12 Plan 12-01 complete; HW validation pending. Next: `gsd-plan-phase 14` (host-only, no rig) or `13` after the real-print baseline capture
 - **Status**: Complete (software); `HW:` items in 12-SPEC.md unchecked
 - **Progress**: [====================] 100% complete
 
 ## Accumulated Context
+
+### Roadmap Evolution
+- 2026-09-12: Phases 13–16 added from Happy-Hare v4 borrow scan (`.planning/research/2026-09-11-happy-hare-borrow-scan.md`, HH `ef8431c`). Grouping: 13 = type-P firmware sync (bounded relief snap, mm fault trip, feed probe); 14 = Klipper mock/Fluidd/Mainsail status parity; 15 = daemon Moonraker lane_data + maintenance counters; 16 = TMC tension IRUN boost. Conflict-checked against reverted work (confident estimator, relay_min_flip_mm, type-D mid-band estimator, EST pivots, controller-side RD autotune) — none re-proposed. Note: host-side kp autotune (`flare_sync_check.py tune`) exists and is unaffected.
+- Deferred to backlog, not phased: stick-slip/hysteresis plant model for `sim_plant.c` (HH `utils/sync_feedback_sim.py`).
 
 ### Active Backlog Streams & Phases
 - `.planning/phases/12-post-phase-2-10-regression-fixes/`:
