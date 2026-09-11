@@ -231,7 +231,13 @@ bool buffer_stabilize_start_internal(uint32_t now_ms, bool emit_events,
         forward = false;
     } else {
         if (buf_state != BUF_COMPRESSION && buf_state != BUF_TENSION) {
-            buf_force_stable_state(BUF_NEUTRAL, now_ms);
+            /* Already NEUTRAL: nothing to drive. Type-D snaps the virtual
+               position to the zone centre; type-P measures position directly,
+               so zeroing its EMA (and, when idle, g_extruder_est_sps — see
+               fix-typep-relief-pause-rearm-strand D3) only injects a velocity
+               transient into the next PD sample. */
+            if (g_buf_sensor_type != BUF_SENSOR_TYPE_P)
+                buf_force_stable_state(BUF_NEUTRAL, now_ms);
             if (emit_events)
                 cmd_event("BUF_STAB", "DONE");
             return true;

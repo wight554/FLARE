@@ -73,7 +73,8 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `MV:mm:F[:D][:I]`| Both | **Exact Move** — move `abs(mm)` at `F` mm/min. Direction from sign of `mm` or optional `D` (`F`/`R`/`B`, `+`/`-`). Optional `I` ignores buffer compression/tension guards for this finite move. Disables sync. |
 | `FD:` | Both  | **Continuous Feed** — runs forward until `ST:`. Returns `ER:BUSY:LANE` if toolchange/motion is active. |
 | `BS:` | Both  | **Buffer Stabilize** — cancels compatible buffer service/sync/simple lane motion, then runs buffer neutralization to bring a dual-endstop buffer back toward `NEUTRAL`. Hard activities (`TC`, cutter, manual unload) still return `ER:BUSY:BL`. |
-| `ST:` / `STOP:` / `PA:` | Both  | **Stop** — aborts all motion, clears toolchange/sync/cutter activity, and enters safe hold state. |
+| `ST:` | Both  | **Stop (full reset)** — aborts all motion, clears toolchange/sync/cutter activity, clears the toolhead latch (`TH:0`), and enters safe hold state. |
+| `STOP:` / `PA:` | Both  | **Pause hold** (Klipper `MMU_PAUSE`) — same as `ST:` but keeps the toolhead latch and active lane, so the next `TC:` still waits for a real toolhead-clear. |
 | `CU:` | Both  | **Cut** — performs the full cutter sequence (Open -> Feed -> Close -> Open -> Repeat -> Block) on the active lane. Requires both lanes idle and preloaded (`IN=1`, `OUT=0`); otherwise returns `ER:NOT_PRELOADED`. |
 | `CX:` | Both  | **Bare Cut** — performs the cutter sequence without filament movement (Open -> Close -> Open -> Repeat -> Block). |
 | `CP:us` | Both  | **Cutter Position** — moves the cutter servo to the specified pulse width (400-2700 us) and stays there. Useful for mechanical tuning. Returns `ER:BUSY:CUTTER` if not idle or in boot park. |
@@ -154,7 +155,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `BUF_PSF_MAX_TENS` | `buf_psf_max_tens` | Raw ADC fraction at tension extreme | 1.0 |
 | `BUF_PSF_NEUTRAL` | `buf_psf_neutral` | Raw ADC fraction at neutral calibration point | 0.5 |
 | `BUF_GOAL` | `buf_psf_goal` | Raw ADC goal bias used by type-P zone control | 0.3 |
-| `BUF_POS_RAW` | _(read-only)_ | Live ADC fraction reading (0.0000 - 1.0000) for calibration and diagnostics | - |
+| `BUF_POS_RAW` | _(read-only)_ | Last sampled ADC fraction (0.0000 - 1.0000, refreshed every `SYNC_TICK_MS` by the sensor tick) for calibration and diagnostics. Type-P only (`ER:` on type-D); reading it never touches the estimator. | - |
 | `KD_PSF` | _(runtime only)_ | Type-P derivative gain: velocity damping applied to sync output (units: sps per normalised vel). Not persisted; resets to `0.0` on boot. | 0.0 |
 | `SYNC_PSF_SLEW_PER_MM` | _(runtime only)_ | Type-P feed slew limit: max sps change per mm of filament moved. Lower = gentler feed accel. Not persisted. | 1500 |
 | `SYNC_PSF_FILTER_MM` | _(runtime only)_ | Type-P feed target EMA length in mm (distance-based smoothing). Bigger = smoother. Not persisted. | 25.0 |

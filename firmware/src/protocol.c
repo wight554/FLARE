@@ -508,7 +508,12 @@ static bool cmd_get_buffer_geometry_params(const char *param, int idx, char *out
     else if (!strcmp(param, "BUF_GOAL"))
         snprintf(out, out_len, "BUF_GOAL:%.3f", (double)g_buf_goal);
     else if (!strcmp(param, "BUF_POS_RAW")) {
-        buf_analog_update((uint32_t)g_sync_tick_ms);
+        /* Read-only: report the last buf_sensor_tick() sample. Calling
+           buf_analog_update() here injected an off-cadence EMA/velocity sample
+           into the PD loop (type-P) or overwrote the virtual mm position with a
+           normalized ADC value (type-D) on every host poll (12-SPEC §4). */
+        if (g_buf_sensor_type != BUF_SENSOR_TYPE_P)
+            return false;
         snprintf(out, out_len, "BUF_POS_RAW:%.4f", (double)g_buf_pos_raw_status);
     }
 #ifdef FLARE_DEV_TUNING
@@ -1788,7 +1793,11 @@ static bool cmd_handle_sensor_status(const char *cmd, const char *p, uint32_t no
         sync_set_state(SYNC_OFF);
         sync_disable(false);
         stop_all();
-        set_toolhead_filament(false);
+        /* ST is the explicit full reset. STOP/PA are the MMU_PAUSE hold
+           (06-SPEC §3.2): halt motion but keep the toolhead latch so the next
+           TC: still waits for a real toolhead-clear instead of assuming empty. */
+        if (!strcmp(cmd, "ST"))
+            set_toolhead_filament(false);
         cmd_reply("OK", NULL);
         return true;
     } else if (!strcmp(cmd, "BS")) {
