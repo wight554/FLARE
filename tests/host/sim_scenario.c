@@ -197,6 +197,52 @@ const sim_scenario_t g_sim_scenarios[] = {
         .active_lane = 1, .start_sync_active = true, .reload_mode = true,
         .manual_reload_at_ms = 2000,
     },
+    {
+        .name = "reload_runout_lane2_to_lane1", // multi-lane symmetry (2->1)
+        .demand = {.kind = DEMAND_STEADY, .level_mm_s = 1.0f},
+        .feed_gain = {.bp = {{0, 1.0f}, {5000, 0.0f}}, .count = 2},
+        .switch_script = {.ev = {{5000, SWITCH_L2_IN, false}, {5000, SWITCH_L2_OUT, false}},
+                          .count = 2},
+        .active_lane = 2, .start_sync_active = true, .reload_mode = true,
+        .force_no_consumer = true,
+        .tick_ceiling = 4000,
+        .tick_ceiling_reason = "dwell(6s) + join-delay(10s) + approach/follow for lane 2->1 symmetry",
+    },
+    {
+        .name = "reload_target_empty_abort", // runout when target lane has no filament
+        .demand = {.kind = DEMAND_STEADY, .level_mm_s = 1.0f},
+        .feed_gain = {.bp = {{0, 1.0f}, {5000, 0.0f}}, .count = 2},
+        .switch_script = {.ev = {{0, SWITCH_L2_IN, false},
+                                 {5000, SWITCH_L1_IN, false},
+                                 {5000, SWITCH_L1_OUT, false}},
+                          .count = 3},
+        .active_lane = 1, .start_sync_active = true, .reload_mode = true,
+        .force_no_consumer = true,
+        .tick_ceiling = 1000,
+        .tick_ceiling_reason = "dwell(6s) triggers H6 runout escalation, which aborts on empty target lane",
+    },
+    {
+        .name = "reload_manual_resume_empty_active", // H4 missed-swap resume via swap
+        .demand = {.kind = DEMAND_STEADY, .level_mm_s = 1.0f},
+        .switch_script = {.ev = {{0, SWITCH_L1_IN, false}, {0, SWITCH_L1_OUT, false}},
+                          .count = 2},
+        .active_lane = 1, .start_sync_active = false, .reload_mode = true,
+        .manual_reload_at_ms = 1000,
+        .force_no_consumer = true,
+        .tick_ceiling = 4000,
+        .tick_ceiling_reason = "manual RL resumes reload via swap to loaded lane 2",
+    },
+    {
+        .name = "reload_mmu_mode_no_escalation", // reload_mode=0 suppresses auto-switch
+        .demand = {.kind = DEMAND_STEADY, .level_mm_s = 1.0f},
+        .feed_gain = {.bp = {{0, 1.0f}, {5000, 0.0f}}, .count = 2},
+        .switch_script = {.ev = {{5000, SWITCH_L1_IN, false}, {5000, SWITCH_L1_OUT, false}},
+                          .count = 2},
+        .active_lane = 1, .start_sync_active = true, .reload_mode = false,
+        .force_no_consumer = true,
+        .tick_ceiling = 1000,
+        .tick_ceiling_reason = "tension dwell under reload_mode=0 enters FAULT_HOLD, never RELOAD",
+    },
     // openspec/specs/sync-state-model scenarios. Type-P only: both mechanisms
     // below key off g_buf_pos / TYPE_P_RAIL_NORM, an analog-only concept.
     {

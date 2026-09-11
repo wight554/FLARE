@@ -253,6 +253,10 @@ Declared in `tests/host/sim_scenario.c`, run against both sensor types
 | `reload_genuine_runout_escalation` (type-P only) | audit-reliability-fixes H6: genuine tension-pinned runout escalates to RELOAD instead of looping `SYNC:FAULT_HOLD` |
 | `reload_idle_consumer_staged_completion` (type-P only) | H4: RELOAD follow completes on staged compression (no consumer), no spurious `FOLLOW_JAM` |
 | `reload_already_loaded_noop` (type-P only) | H5: manual `RL:` on an already-loaded lane is a no-op — `RELOAD:LOADED`, no motion restart |
+| `reload_runout_lane2_to_lane1` (type-P only) | Multi-lane runout failover symmetry (Lane 2 -> Lane 1) — `RUNOUT,2`, `RELOAD:SWITCHING,2->1`, `RELOAD:LOADED,1` |
+| `reload_target_empty_abort` (type-P only) | Runout failover edge case when target lane is empty — `RUNOUT,1`, `!RELOAD:FAULT,NO_FILAMENT`, sync disabled |
+| `reload_manual_resume_empty_active` (type-P only) | H4/H5 missed-swap recovery — manual `RL:` on empty active lane swaps to loaded lane 2 |
+| `reload_mmu_mode_no_escalation` (type-P only) | MMU mode isolation (`RELOAD_MODE=0`) — runout disables sync, never escalates to auto-switch |
 | `sem_relief_pause_lifecycle` (type-P only) | sync-state-model: `SYNC_RELIEF_PAUSE` entered on compression saturation, preserves state, re-arms to `SYNC_ACTIVE` once demand resumes |
 | `sem_fault_hold_standalone_recovery` (type-P only) | sync-state-model: `SYNC_FAULT_HOLD` recovers standalone (`SYNC,FAULT_HOLD_RECOVERY`) exactly `CONF_SYNC_FAULT_HOLD_RECOVERY_MS` after entry, no host command |
 | `sem_bl_lock_catch` (type-D only) | buffer-state-lock: prime locks at the tension switch, holds against the buffer spring, catch engages on the same tick as an external-force lock-break |

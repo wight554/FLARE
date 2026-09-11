@@ -41,8 +41,15 @@ SWITCH_SCENARIOS = ["runout", "y_splitter_toggle"]
 TYPE_D_ONLY_SCENARIOS = ["sensor_chatter", "sensor_stuck", "both_switches_fault"]
 # Type-P only: the H6 escalation path (sync.c sync_check_tension_dwell_and_ramp)
 # is gated `g_buf_sensor_type != BUF_SENSOR_TYPE_D`.
-RELOAD_SCENARIOS = ["reload_genuine_runout_escalation",
-                   "reload_idle_consumer_staged_completion", "reload_already_loaded_noop"]
+RELOAD_SCENARIOS = [
+    "reload_genuine_runout_escalation",
+    "reload_idle_consumer_staged_completion",
+    "reload_already_loaded_noop",
+    "reload_runout_lane2_to_lane1",
+    "reload_target_empty_abort",
+    "reload_manual_resume_empty_active",
+    "reload_mmu_mode_no_escalation",
+]
 
 ALL_DUAL_TYPE_SCENARIOS = BASELINE_SCENARIOS + FAULT_SCENARIOS + SWITCH_SCENARIOS
 
@@ -220,6 +227,42 @@ class ReloadFixEventTests(unittest.TestCase):
         # No RELOAD:JOINING / TC:* motion should follow the manual RL: call —
         # a restart of approach/follow is exactly the H5 regression.
         self.assertNotIn("RELOAD:JOINING", events)
+
+    def test_multi_lane_failover_symmetry_lane2_to_lane1(self):
+        run = run_scenario("reload_runout_lane2_to_lane1", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertIn("RUNOUT,2", events)
+        self.assertIn("RELOAD:SWITCHING,2->1", events)
+        self.assertIn("RELOAD:LOADED,1", events)
+        self.assertEqual(events.count("SYNC,FAULT_HOLD"), 0)
+        self.assertNotIn("FOLLOW_JAM", events)
+
+    def test_runout_target_empty_aborts_without_switching(self):
+        run = run_scenario("reload_target_empty_abort", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertIn("RUNOUT,1", events)
+        self.assertIn("!RELOAD:FAULT,NO_FILAMENT", events)
+        self.assertNotIn("RELOAD:SWITCHING", events)
+        self.assertNotIn("RELOAD:JOINING", events)
+        self.assertEqual(run.rows[-1]["sync_state"], "OFF")
+
+    def test_manual_resume_on_empty_active_lane_triggers_swap(self):
+        run = run_scenario("reload_manual_resume_empty_active", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertIn("RELOAD:SWITCHING,1->2", events)
+        self.assertIn("RELOAD:LOADED,2", events)
+        self.assertNotIn("FOLLOW_JAM", events)
+
+    def test_mmu_mode_runout_disables_sync_without_escalation(self):
+        run = run_scenario("reload_mmu_mode_no_escalation", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertIn("RUNOUT,1", events)
+        self.assertNotIn("RELOAD:SWITCHING", events)
+        self.assertEqual(run.rows[-1]["sync_state"], "OFF")
 
 
 @unittest.skipIf(_skip_reason(), _skip_reason())
@@ -695,6 +738,24 @@ class PsfTypePSensorTests(unittest.TestCase):
                 self.assertIn("SYNC,AUTO_START", events)
                 self.assertNotIn("FAULT_HOLD", events)
 
+    def test_type_p_tension_refill_snap(self):
+        # Requirement: Type-P Tension Refill Snap (psf-type-p-sensor spec).
+        # When demand pulls the type-P buffer into the tension soft-wall
+        # (buf_pos_norm() < -CONF_PSF_SOFT_WALL_START), feed snaps immediately to
+        # soft-wall max_sps (CONF_SYNC_MAX_SPS = 15004) rather than ramping slowly
+        # through the distance-EMA smoothing filter.
+        run = run_scenario("step_up", sensor_type="p", ticks=350)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        feeds = [int(r["feed_sps"]) for r in run.rows]
+        self.assertIn(15004, feeds, "expected feed to snap to max_sps in tension soft-wall")
+        # Verify snap occurs as a discrete step (jump > 5000 sps in 1 tick), not a gradual ramp
+        snap_detected = False
+        for i in range(1, len(feeds)):
+            if feeds[i] == 15004 and feeds[i] - feeds[i - 1] > 5000:
+                snap_detected = True
+                break
+        self.assertTrue(snap_detected, "expected discrete snap jump to max_sps")
+
 
 @unittest.skipIf(_skip_reason(), _skip_reason())
 class DeterminismTests(unittest.TestCase):
@@ -703,12 +764,14 @@ class DeterminismTests(unittest.TestCase):
     Without Hardware")."""
 
     def test_same_scenario_twice_is_byte_identical(self):
-        run1 = run_scenario("steady", sensor_type="d", ticks=200)
-        run2 = run_scenario("steady", sensor_type="d", ticks=200)
-        self.assertEqual(run1.returncode, 0)
-        self.assertEqual(run2.returncode, 0)
-        self.assertEqual(run1.stdout, run2.stdout,
-                         "two runs of the same scenario produced different traces")
+        for sensor_type in ("d", "p"):
+            with self.subTest(sensor_type=sensor_type):
+                run1 = run_scenario("steady", sensor_type=sensor_type, ticks=200)
+                run2 = run_scenario("steady", sensor_type=sensor_type, ticks=200)
+                self.assertEqual(run1.returncode, 0)
+                self.assertEqual(run2.returncode, 0)
+                self.assertEqual(run1.stdout, run2.stdout,
+                                 f"two runs of steady/{sensor_type} produced different traces")
 
 
 @unittest.skipIf(_skip_reason(), _skip_reason())
@@ -732,6 +795,11 @@ class StressSweepTests(unittest.TestCase):
         for scenario, lag in margins.items():
             print(f"  {scenario}: {lag}")
         self.assertEqual(len(margins), 3, "expected a margin entry for every swept scenario")
+        # Regression gate: baseline steady and step_up must hold at least 50ms transport lag
+        self.assertTrue(margins["steady"] is None or margins["steady"] >= 50,
+                        f"steady margin broke early at {margins['steady']}ms")
+        self.assertTrue(margins["step_up"] is None or margins["step_up"] >= 50,
+                        f"step_up margin broke early at {margins['step_up']}ms")
 
 
 if __name__ == "__main__":
