@@ -6,7 +6,7 @@ Enforces persistence invariants:
    and deserialized in settings_load_tlv_tag().
 2. Default Initialization Parity: Every persistent global loaded from flash must be
    seeded in settings_defaults().
-3. Legacy v63 Parity: Every frozen field in settings_t_v63 must be read in settings_load_v63().
+3. Legacy v63 Parity: Every frozen field in settings_v63_t must be read in settings_load_v63().
 4. Dump Rebuild Parity: Every config.ini key flare_cmd.py --dump emits must be a key
    gen_config.py accepts, so a dumped config always rebuilds (config-surface-tiers).
 """
@@ -50,9 +50,9 @@ def enum_tags(text):
 
 
 def struct_fields_v63(text):
-    m = re.search(r"typedef struct \{(.*?)\}\s*settings_t_v63;", text, re.S)
+    m = re.search(r"typedef struct \{(.*?)\}\s*settings_v63_t;", text, re.S)
     if not m:
-        raise ValueError("parity: cannot locate settings_t_v63")
+        raise ValueError("parity: cannot locate settings_v63_t")
     fields = []
     for line in m.group(1).splitlines():
         line = line.split("//")[0].strip()

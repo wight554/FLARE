@@ -384,8 +384,8 @@ static void tc_tick_load_states(lane_t *lane, uint32_t now_ms, uint32_t age) {
                 tc_enter_error("RUNOUT");
             } else if (g_tc_ctx.ts_retries < g_tc_ts_retries) {
                 g_tc_ctx.ts_retries++;
-                float retract_mm =
-                    (g_tc_ts_retry_retract_mm > 0.0f) ? g_tc_ts_retry_retract_mm : 50.0f;
+                float retract_mm = (g_tc_ts_retry_retract_mm > 0.0f) ? g_tc_ts_retry_retract_mm
+                                                                     : CONF_TC_TS_RETRY_RETRACT_MM;
                 lane_start(lane, TASK_MOVE, g_rev_sps, false, now_ms, retract_mm);
                 g_tc_ctx.phase_start_ms = now_ms;
                 g_tc_ctx.state = TC_LOAD_RETRY_RETRACT;

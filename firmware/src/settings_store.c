@@ -117,10 +117,10 @@ typedef struct {
     uint32_t flash_erase_count;
 
     uint32_t crc32;
-} settings_t_v63;
+} settings_v63_t;
 
-_Static_assert(sizeof(settings_t_v63) <= SETTINGS_FLASH_BUFFER_BYTES,
-               "settings_t_v63 exceeds flash buffer");
+_Static_assert(sizeof(settings_v63_t) <= SETTINGS_FLASH_BUFFER_BYTES,
+               "settings_v63_t exceeds flash buffer");
 
 typedef enum {
     SECTOR_INVALID = 0,
@@ -207,13 +207,14 @@ static void settings_defaults_sync(void) {
     g_sync_compression_drain_budget_mm =
         clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, COMPRESSION_DRAIN_BUDGET_MAX_MM);
     g_sync_est_attack_alpha = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, SYNC_EST_ATTACK_MIN_ALPHA, 1.0f);
-    g_sync_tension_fast_mm_s = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, SYNC_TENSION_FAST_MAX_MM_S);
+    g_sync_tension_fast_mm_s =
+        clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, SYNC_TENSION_FAST_MAX_MM_S);
     g_sync_tension_probe_max_sps =
         clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(TENSION_PROBE_MAX_MM_MIN));
     g_sync_tension_probe_up_sps_per_s = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0,
-                                              mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
-    g_sync_tension_probe_down_sps_per_s = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0,
                                                 mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
+    g_sync_tension_probe_down_sps_per_s = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0,
+                                                  mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
     g_sync_tension_probe_neutral_sps_per_s =
         clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0,
                 mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
@@ -234,7 +235,7 @@ static void settings_defaults_motion(void) {
     g_auto_sps = CONF_AUTO_SPS;
 
     g_global_max_sps = clamp_i(CONF_GLOBAL_MAX_SPS, mm_per_min_to_sps(GLOBAL_MAX_MIN_MM_MIN),
-                             mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
+                               mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
     g_sync_max_sps = sync_clamp_max_sps(CONF_SYNC_MAX_SPS);
     g_sync_min_sps = CONF_SYNC_MIN_SPS;
     g_sync_ramp_up_sps = CONF_SYNC_RAMP_UP_SPS;
@@ -332,7 +333,8 @@ static bool tlv_emit_bool(tlv_writer_t *w, uint8_t tag, bool val) {
 }
 
 static sector_version_t settings_validate_sector(const uint8_t *sector_base, uint32_t *out_seq) {
-    if (!sector_base) return SECTOR_INVALID;
+    if (!sector_base)
+        return SECTOR_INVALID;
 
     const settings_header_t *hdr = (const settings_header_t *)sector_base;
     if (hdr->magic != SETTINGS_MAGIC) {
@@ -340,7 +342,8 @@ static sector_version_t settings_validate_sector(const uint8_t *sector_base, uin
     }
 
     if (hdr->version == SETTINGS_VERSION) { // 64
-        if (hdr->payload_len + sizeof(settings_header_t) + sizeof(uint32_t) > SETTINGS_FLASH_BUFFER_BYTES) {
+        if (hdr->payload_len + sizeof(settings_header_t) + sizeof(uint32_t) >
+            SETTINGS_FLASH_BUFFER_BYTES) {
             return SECTOR_INVALID;
         }
         size_t total_payload = sizeof(settings_header_t) + hdr->payload_len;
@@ -350,26 +353,23 @@ static sector_version_t settings_validate_sector(const uint8_t *sector_base, uin
         if (computed_crc != stored_crc) {
             return SECTOR_INVALID;
         }
-        if (out_seq) *out_seq = hdr->seq;
+        if (out_seq)
+            *out_seq = hdr->seq;
         return SECTOR_V64;
     }
 
     if (hdr->version == SETTINGS_VERSION_V63) { // 63
-        const settings_t_v63 *s63 = (const settings_t_v63 *)sector_base;
-        uint32_t computed_crc = crc32_buf(sector_base, offsetof(settings_t_v63, crc32));
+        const settings_v63_t *s63 = (const settings_v63_t *)sector_base;
+        uint32_t computed_crc = crc32_buf(sector_base, offsetof(settings_v63_t, crc32));
         if (computed_crc != s63->crc32) {
             return SECTOR_INVALID;
         }
-        if (out_seq) *out_seq = s63->seq;
+        if (out_seq)
+            *out_seq = s63->seq;
         return SECTOR_V63;
     }
 
     return SECTOR_INVALID;
-}
-
-static bool settings_validate(const void *s) {
-    uint32_t seq = 0;
-    return settings_validate_sector((const uint8_t *)s, &seq) != SECTOR_INVALID;
 }
 
 void settings_save(void) {
@@ -450,7 +450,8 @@ void settings_save(void) {
     tlv_emit_bool(&w, TAG_UNLOAD_CUT, g_unload_cut);
     tlv_emit_i32(&w, TAG_RELOAD_MODE, g_reload_mode ? 1 : 0);
 
-    tlv_emit(&w, TAG_TMC_ROTATION_DISTANCE, sizeof(g_tmc_rotation_distance), g_tmc_rotation_distance);
+    tlv_emit(&w, TAG_TMC_ROTATION_DISTANCE, sizeof(g_tmc_rotation_distance),
+             g_tmc_rotation_distance);
     tlv_emit(&w, TAG_TMC_GEAR_RATIO, sizeof(g_tmc_gear_ratio), g_tmc_gear_ratio);
     tlv_emit(&w, TAG_TMC_FULL_STEPS, sizeof(g_tmc_full_steps), g_tmc_full_steps);
     tlv_emit(&w, TAG_TMC_MICROSTEPS, sizeof(g_tmc_microsteps), g_tmc_microsteps);
@@ -490,7 +491,8 @@ void settings_save(void) {
     // Verify readback before flipping active sector pointer
     uint32_t readback_seq = 0;
     const uint8_t *target_base = (const uint8_t *)(XIP_BASE + target_offset);
-    if (settings_validate_sector(target_base, &readback_seq) == SECTOR_V64 && readback_seq == hdr->seq) {
+    if (settings_validate_sector(target_base, &readback_seq) == SECTOR_V64 &&
+        readback_seq == hdr->seq) {
         g_active_sector = target;
     }
 }
@@ -504,15 +506,15 @@ void sync_tmc_settings(int lane) {
         ((float)g_tmc_full_steps[idx] * g_tmc_gear_ratio[idx] * (float)g_tmc_microsteps[idx]);
 
     tmc_set_pwmconf(tmc);
-    tmc_setup_chopconf(tmc, g_tmc_microsteps[idx], g_tmc_toff[idx], g_tmc_tbl[idx], g_tmc_hstrt[idx],
-                       g_tmc_hend[idx], g_tmc_interpolate[idx]);
+    tmc_setup_chopconf(tmc, g_tmc_microsteps[idx], g_tmc_toff[idx], g_tmc_tbl[idx],
+                       g_tmc_hstrt[idx], g_tmc_hend[idx], g_tmc_interpolate[idx]);
     tmc_set_stealthchop_sps(tmc, g_tmc_stealthchop_sps[idx], g_tmc_microsteps[idx]);
     tmc_set_run_current_ma(tmc, g_tmc_run_current_ma[idx], g_tmc_hold_current_ma[idx]);
 
     // Synchronize shadow state for protocol reporting
     g_shadow_vsense[idx] = (g_tmc_run_current_ma[idx] <= TMC_VSENSE_THRESHOLD_MA);
-    g_shadow_ihold_irun[idx] = build_ihold_irun_reg(g_tmc_run_current_ma[idx],
-                                                    g_tmc_hold_current_ma[idx], g_shadow_vsense[idx]);
+    g_shadow_ihold_irun[idx] = build_ihold_irun_reg(
+        g_tmc_run_current_ma[idx], g_tmc_hold_current_ma[idx], g_shadow_vsense[idx]);
     g_shadow_ihold_irun_valid[idx] = true;
 }
 
@@ -539,8 +541,10 @@ static void tmc_apply_all(void) {
 }
 
 static int snap_microsteps(int x) {
-    if (x <= 1) return 1;
-    if (x >= 256) return 256;
+    if (x <= 1)
+        return 1;
+    if (x >= 256)
+        return 256;
     int lower = 1;
     while (lower * 2 <= x) {
         lower *= 2;
@@ -555,11 +559,12 @@ static int snap_microsteps(int x) {
 
 static void settings_apply_clamps(float buf_switch_span_mm) {
     g_global_max_sps = clamp_i(g_global_max_sps, mm_per_min_to_sps(GLOBAL_MAX_MIN_MM_MIN),
-                             mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
+                               mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
     g_sync_max_sps = sync_clamp_max_sps(g_sync_max_sps);
-    g_tc_ts_retries = clamp_i(g_tc_ts_retries, 0, 10);
-    g_tc_ts_retry_retract_mm = clamp_f(g_tc_ts_retry_retract_mm, 5.0f, 500.0f);
-    g_tc_ts_park_mm = clamp_f(g_tc_ts_park_mm, 0.0f, 100.0f);
+    g_tc_ts_retries = clamp_i(g_tc_ts_retries, TC_TS_RETRIES_MIN, TC_TS_RETRIES_MAX);
+    g_tc_ts_retry_retract_mm =
+        clamp_f(g_tc_ts_retry_retract_mm, TC_TS_RETRY_RETRACT_MIN_MM, TC_TS_RETRY_RETRACT_MAX_MM);
+    g_tc_ts_park_mm = clamp_f(g_tc_ts_park_mm, TC_TS_PARK_MIN_MM, TC_TS_PARK_MAX_MM);
     g_buf_max_travel_mm = clamp_i(g_buf_max_travel_mm, BUF_TRAVEL_MIN_MM, BUF_TRAVEL_MAX_MM);
     g_buf_switch_span_half_mm =
         buf_switch_span_half_from_full(buf_switch_span_mm, g_buf_max_travel_mm);
@@ -567,12 +572,14 @@ static void settings_apply_clamps(float buf_switch_span_mm) {
     g_baseline_sps = g_baseline_target_sps;
 
     for (int i = 0; i < NUM_LANES; i++) {
-        g_tmc_rotation_distance[i] = clamp_f(g_tmc_rotation_distance[i], TMC_ROTATION_MIN_MM, TMC_ROTATION_MAX_MM);
+        g_tmc_rotation_distance[i] =
+            clamp_f(g_tmc_rotation_distance[i], TMC_ROTATION_MIN_MM, TMC_ROTATION_MAX_MM);
         g_tmc_gear_ratio[i] = clamp_f(g_tmc_gear_ratio[i], TMC_GEAR_RATIO_MIN, TMC_GEAR_RATIO_MAX);
         g_tmc_full_steps[i] = (g_tmc_full_steps[i] == 400) ? 400 : 200;
         g_tmc_microsteps[i] = snap_microsteps(g_tmc_microsteps[i]);
-        g_mm_per_step[i] = g_tmc_rotation_distance[i] /
-                         ((float)g_tmc_full_steps[i] * g_tmc_gear_ratio[i] * (float)g_tmc_microsteps[i]);
+        g_mm_per_step[i] =
+            g_tmc_rotation_distance[i] /
+            ((float)g_tmc_full_steps[i] * g_tmc_gear_ratio[i] * (float)g_tmc_microsteps[i]);
     }
 
     g_sync_reserve_pct = clamp_i(g_sync_reserve_pct, 0, SYNC_RESERVE_MAX_PCT);
@@ -583,13 +590,14 @@ static void settings_apply_clamps(float buf_switch_span_mm) {
     g_sync_compression_drain_budget_mm =
         clamp_f(CONF_SYNC_COMPRESSION_DRAIN_BUDGET_MM, 0.0f, COMPRESSION_DRAIN_BUDGET_MAX_MM);
     g_sync_est_attack_alpha = clamp_f(CONF_SYNC_EST_ATTACK_ALPHA, SYNC_EST_ATTACK_MIN_ALPHA, 1.0f);
-    g_sync_tension_fast_mm_s = clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, SYNC_TENSION_FAST_MAX_MM_S);
+    g_sync_tension_fast_mm_s =
+        clamp_f(CONF_SYNC_TENSION_FAST_MM_S, 1.0f, SYNC_TENSION_FAST_MAX_MM_S);
     g_sync_tension_probe_max_sps =
         clamp_i(CONF_SYNC_TENSION_PROBE_MAX_SPS, 0, mm_per_min_to_sps(TENSION_PROBE_MAX_MM_MIN));
     g_sync_tension_probe_up_sps_per_s = clamp_i(CONF_SYNC_TENSION_PROBE_UP_SPS_PER_S, 0,
-                                              mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
-    g_sync_tension_probe_down_sps_per_s = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0,
                                                 mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
+    g_sync_tension_probe_down_sps_per_s = clamp_i(CONF_SYNC_TENSION_PROBE_DOWN_SPS_PER_S, 0,
+                                                  mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
     g_sync_tension_probe_neutral_sps_per_s =
         clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0,
                 mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
@@ -601,207 +609,285 @@ static void settings_apply_clamps(float buf_switch_span_mm) {
     motion_limit_runtime_rates(false);
 }
 
-static void settings_load_tlv_tag(uint8_t tag, uint8_t len, const uint8_t *val, float *buf_switch_span_mm) {
+static void settings_load_tlv_tag(uint8_t tag, uint8_t len, const uint8_t *val,
+                                  float *buf_switch_span_mm) {
     switch ((settings_tag_t)tag) {
-        case TAG_FEED_SPS:
-            if (len == sizeof(int)) memcpy(&g_feed_sps, val, sizeof(int));
-            break;
-        case TAG_REV_SPS:
-            if (len == sizeof(int)) memcpy(&g_rev_sps, val, sizeof(int));
-            break;
-        case TAG_AUTO_SPS:
-            if (len == sizeof(int)) memcpy(&g_auto_sps, val, sizeof(int));
-            break;
-        case TAG_SYNC_MAX_SPS:
-            if (len == sizeof(int)) memcpy(&g_sync_max_sps, val, sizeof(int));
-            break;
-        case TAG_GLOBAL_MAX_SPS:
-            if (len == sizeof(int)) memcpy(&g_global_max_sps, val, sizeof(int));
-            break;
-        case TAG_SYNC_MIN_SPS:
-            if (len == sizeof(int)) memcpy(&g_sync_min_sps, val, sizeof(int));
-            break;
-        case TAG_SYNC_AUTO_STOP_MS:
-            if (len == sizeof(int)) memcpy(&g_sync_auto_stop_ms, val, sizeof(int));
-            break;
-        case TAG_LOAD_MAX_MM:
-            if (len == sizeof(int)) memcpy(&g_load_max_mm, val, sizeof(int));
-            break;
-        case TAG_TC_TS_RETRIES:
-            if (len == sizeof(int)) memcpy(&g_tc_ts_retries, val, sizeof(int));
-            break;
-        case TAG_TC_TS_RETRY_RETRACT_MM:
-            if (len == sizeof(float)) memcpy(&g_tc_ts_retry_retract_mm, val, sizeof(float));
-            break;
-        case TAG_TC_TS_PARK_MM:
-            if (len == sizeof(float)) memcpy(&g_tc_ts_park_mm, val, sizeof(float));
-            break;
-        case TAG_UNLOAD_MAX_MM:
-            if (len == sizeof(int)) memcpy(&g_unload_max_mm, val, sizeof(int));
-            break;
-        case TAG_UNLOAD_TENSION_BLOCK_MS:
-            if (len == sizeof(int)) memcpy(&g_unload_tension_block_ms, val, sizeof(int));
-            break;
-        case TAG_RELOAD_JOIN_DELAY_MS:
-            if (len == sizeof(int)) memcpy(&g_reload_join_delay_ms, val, sizeof(int));
-            break;
-        case TAG_AUTOLOAD_MAX_MM:
-            if (len == sizeof(int)) memcpy(&g_autoload_max_mm, val, sizeof(int));
-            break;
-        case TAG_AUTO_MODE:
-            if (len == sizeof(int)) memcpy(&g_auto_mode, val, sizeof(int));
-            break;
-        case TAG_DIST_IN_OUT:
-            if (len == sizeof(int)) memcpy(&g_dist_in_out, val, sizeof(int));
-            break;
-        case TAG_DIST_OUT_Y:
-            if (len == sizeof(int)) memcpy(&g_dist_out_y, val, sizeof(int));
-            break;
-        case TAG_DIST_Y_BUF:
-            if (len == sizeof(int)) memcpy(&g_dist_y_buf, val, sizeof(int));
-            break;
-        case TAG_BUF_BODY_LEN:
-            if (len == sizeof(int)) memcpy(&g_buf_body_len, val, sizeof(int));
-            break;
-        case TAG_BUF_MAX_TRAVEL_MM:
-            if (len == sizeof(int)) memcpy(&g_buf_max_travel_mm, val, sizeof(int));
-            break;
-        case TAG_BUF_SWITCH_SPAN_MM:
-            if (len == sizeof(float)) memcpy(buf_switch_span_mm, val, sizeof(float));
-            break;
-        case TAG_BASELINE_SPS:
-            if (len == sizeof(int)) memcpy(&g_baseline_sps, val, sizeof(int));
-            break;
-        case TAG_AUTOLOAD_RETRACT_MM:
-            if (len == sizeof(int)) memcpy(&g_autoload_retract_mm, val, sizeof(int));
-            break;
-        case TAG_SERVO_OPEN_US:
-            if (len == sizeof(int)) memcpy(&g_servo_open_us, val, sizeof(int));
-            break;
-        case TAG_SERVO_CLOSE_US:
-            if (len == sizeof(int)) memcpy(&g_servo_close_us, val, sizeof(int));
-            break;
-        case TAG_SERVO_BLOCK_US:
-            if (len == sizeof(int)) memcpy(&g_servo_block_us, val, sizeof(int));
-            break;
-        case TAG_SERVO_SETTLE_MS:
-            if (len == sizeof(int)) memcpy(&g_servo_settle_ms, val, sizeof(int));
-            break;
-        case TAG_CUT_FEED_SPS:
-            if (len == sizeof(int)) memcpy(&g_cut_feed_sps, val, sizeof(int));
-            break;
-        case TAG_CUT_FEED_MM:
-            if (len == sizeof(int)) memcpy(&g_cut_feed_mm, val, sizeof(int));
-            break;
-        case TAG_CUT_LENGTH_MM:
-            if (len == sizeof(int)) memcpy(&g_cut_length_mm, val, sizeof(int));
-            break;
-        case TAG_CUT_AMOUNT:
-            if (len == sizeof(int)) memcpy(&g_cut_amount, val, sizeof(int));
-            break;
-        case TAG_RUNOUT_COOLDOWN_MS:
-            if (len == sizeof(int)) memcpy(&g_runout_cooldown_ms, val, sizeof(int));
-            break;
-        case TAG_BUF_SENSOR_TYPE:
-            if (len == sizeof(int)) memcpy(&g_buf_sensor_type, val, sizeof(int));
-            break;
-        case TAG_BUF_PSF_MAX_COMP:
-            if (len == sizeof(float)) memcpy(&g_buf_psf_max_comp, val, sizeof(float));
-            break;
-        case TAG_BUF_PSF_MAX_TENS:
-            if (len == sizeof(float)) memcpy(&g_buf_psf_max_tens, val, sizeof(float));
-            break;
-        case TAG_BUF_PSF_NEUTRAL:
-            if (len == sizeof(float)) memcpy(&g_buf_psf_neutral, val, sizeof(float));
-            break;
-        case TAG_BUF_PSF_GOAL:
-            if (len == sizeof(float)) memcpy(&g_buf_goal, val, sizeof(float));
-            break;
-        case TAG_SYNC_KP_SPS:
-            if (len == sizeof(int)) memcpy(&g_sync_kp_sps, val, sizeof(int));
-            break;
-        case TAG_SYNC_RESERVE_PCT:
-            if (len == sizeof(int)) memcpy(&g_sync_reserve_pct, val, sizeof(int));
-            break;
-        case TAG_JOIN_SPS:
-            if (len == sizeof(int)) memcpy(&g_join_sps, val, sizeof(int));
-            break;
-        case TAG_PRESS_SPS:
-            if (len == sizeof(int)) memcpy(&g_press_sps, val, sizeof(int));
-            break;
-        case TAG_COMPRESSION_SPS:
-            if (len == sizeof(int)) memcpy(&g_compression_sps, val, sizeof(int));
-            break;
-        case TAG_FOLLOW_TIMEOUT_MS:
-            if (len == sizeof(g_follow_timeout_ms)) memcpy(g_follow_timeout_ms, val, sizeof(g_follow_timeout_ms));
-            break;
-        case TAG_AUTO_PRELOAD:
-            if (len == 1) g_auto_preload = (val[0] != 0);
-            else if (len == sizeof(int)) { int v; memcpy(&v, val, sizeof(int)); g_auto_preload = (v != 0); }
-            break;
-        case TAG_ENABLE_CUTTER:
-            if (len == 1) g_enable_cutter = (val[0] != 0);
-            else if (len == sizeof(int)) { int v; memcpy(&v, val, sizeof(int)); g_enable_cutter = (v != 0); }
-            break;
-        case TAG_UNLOAD_CUT:
-            if (len == 1) g_unload_cut = (val[0] != 0);
-            else if (len == sizeof(int)) { int v; memcpy(&v, val, sizeof(int)); g_unload_cut = (v != 0); }
-            break;
-        case TAG_RELOAD_MODE:
-            if (len == sizeof(int)) memcpy(&g_reload_mode, val, sizeof(int));
-            else if (len == 1) g_reload_mode = (val[0] != 0);
-            break;
-        case TAG_TMC_ROTATION_DISTANCE:
-            if (len == sizeof(g_tmc_rotation_distance)) memcpy(g_tmc_rotation_distance, val, sizeof(g_tmc_rotation_distance));
-            break;
-        case TAG_TMC_GEAR_RATIO:
-            if (len == sizeof(g_tmc_gear_ratio)) memcpy(g_tmc_gear_ratio, val, sizeof(g_tmc_gear_ratio));
-            break;
-        case TAG_TMC_FULL_STEPS:
-            if (len == sizeof(g_tmc_full_steps)) memcpy(g_tmc_full_steps, val, sizeof(g_tmc_full_steps));
-            break;
-        case TAG_TMC_MICROSTEPS:
-            if (len == sizeof(g_tmc_microsteps)) memcpy(g_tmc_microsteps, val, sizeof(g_tmc_microsteps));
-            break;
-        case TAG_TMC_TBL:
-            if (len == sizeof(g_tmc_tbl)) memcpy(g_tmc_tbl, val, sizeof(g_tmc_tbl));
-            break;
-        case TAG_TMC_TOFF:
-            if (len == sizeof(g_tmc_toff)) memcpy(g_tmc_toff, val, sizeof(g_tmc_toff));
-            break;
-        case TAG_TMC_HSTRT:
-            if (len == sizeof(g_tmc_hstrt)) memcpy(g_tmc_hstrt, val, sizeof(g_tmc_hstrt));
-            break;
-        case TAG_TMC_HEND:
-            if (len == sizeof(g_tmc_hend)) memcpy(g_tmc_hend, val, sizeof(g_tmc_hend));
-            break;
-        case TAG_TMC_INTERPOLATE:
-            if (len == sizeof(g_tmc_interpolate)) memcpy(g_tmc_interpolate, val, sizeof(g_tmc_interpolate));
-            break;
-        case TAG_TMC_STEALTHCHOP_SPS:
-            if (len == sizeof(g_tmc_stealthchop_sps)) memcpy(g_tmc_stealthchop_sps, val, sizeof(g_tmc_stealthchop_sps));
-            break;
-        case TAG_TMC_RUN_CURRENT_MA:
-            if (len == sizeof(g_tmc_run_current_ma)) memcpy(g_tmc_run_current_ma, val, sizeof(g_tmc_run_current_ma));
-            break;
-        case TAG_TMC_HOLD_CURRENT_MA:
-            if (len == sizeof(g_tmc_hold_current_ma)) memcpy(g_tmc_hold_current_ma, val, sizeof(g_tmc_hold_current_ma));
-            break;
-        case TAG_RELAY_CATCHUP_FRAC:
-            if (len == sizeof(float)) memcpy(&g_relay_catchup_frac, val, sizeof(float));
-            break;
-        case TAG_RELAY_NEUTRAL_FRAC:
-            if (len == sizeof(float)) memcpy(&g_relay_neutral_frac, val, sizeof(float));
-            break;
-        case TAG_SYNC_COMPRESSION_BIAS_FRAC:
-            if (len == sizeof(float)) memcpy(&g_sync_compression_bias_frac, val, sizeof(float));
-            break;
-        case TAG_FLASH_ERASE_COUNT:
-            if (len == sizeof(uint32_t)) memcpy(&g_flash_erase_count, val, sizeof(uint32_t));
-            break;
-        default:
-            // Unknown tag: skip cleanly
-            break;
+    case TAG_FEED_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_feed_sps, val, sizeof(int));
+        break;
+    case TAG_REV_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_rev_sps, val, sizeof(int));
+        break;
+    case TAG_AUTO_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_auto_sps, val, sizeof(int));
+        break;
+    case TAG_SYNC_MAX_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_sync_max_sps, val, sizeof(int));
+        break;
+    case TAG_GLOBAL_MAX_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_global_max_sps, val, sizeof(int));
+        break;
+    case TAG_SYNC_MIN_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_sync_min_sps, val, sizeof(int));
+        break;
+    case TAG_SYNC_AUTO_STOP_MS:
+        if (len == sizeof(int))
+            memcpy(&g_sync_auto_stop_ms, val, sizeof(int));
+        break;
+    case TAG_LOAD_MAX_MM:
+        if (len == sizeof(int))
+            memcpy(&g_load_max_mm, val, sizeof(int));
+        break;
+    case TAG_TC_TS_RETRIES:
+        if (len == sizeof(int))
+            memcpy(&g_tc_ts_retries, val, sizeof(int));
+        break;
+    case TAG_TC_TS_RETRY_RETRACT_MM:
+        if (len == sizeof(float))
+            memcpy(&g_tc_ts_retry_retract_mm, val, sizeof(float));
+        break;
+    case TAG_TC_TS_PARK_MM:
+        if (len == sizeof(float))
+            memcpy(&g_tc_ts_park_mm, val, sizeof(float));
+        break;
+    case TAG_UNLOAD_MAX_MM:
+        if (len == sizeof(int))
+            memcpy(&g_unload_max_mm, val, sizeof(int));
+        break;
+    case TAG_UNLOAD_TENSION_BLOCK_MS:
+        if (len == sizeof(int))
+            memcpy(&g_unload_tension_block_ms, val, sizeof(int));
+        break;
+    case TAG_RELOAD_JOIN_DELAY_MS:
+        if (len == sizeof(int))
+            memcpy(&g_reload_join_delay_ms, val, sizeof(int));
+        break;
+    case TAG_AUTOLOAD_MAX_MM:
+        if (len == sizeof(int))
+            memcpy(&g_autoload_max_mm, val, sizeof(int));
+        break;
+    case TAG_AUTO_MODE:
+        if (len == sizeof(int))
+            memcpy(&g_auto_mode, val, sizeof(int));
+        break;
+    case TAG_DIST_IN_OUT:
+        if (len == sizeof(int))
+            memcpy(&g_dist_in_out, val, sizeof(int));
+        break;
+    case TAG_DIST_OUT_Y:
+        if (len == sizeof(int))
+            memcpy(&g_dist_out_y, val, sizeof(int));
+        break;
+    case TAG_DIST_Y_BUF:
+        if (len == sizeof(int))
+            memcpy(&g_dist_y_buf, val, sizeof(int));
+        break;
+    case TAG_BUF_BODY_LEN:
+        if (len == sizeof(int))
+            memcpy(&g_buf_body_len, val, sizeof(int));
+        break;
+    case TAG_BUF_MAX_TRAVEL_MM:
+        if (len == sizeof(int))
+            memcpy(&g_buf_max_travel_mm, val, sizeof(int));
+        break;
+    case TAG_BUF_SWITCH_SPAN_MM:
+        if (len == sizeof(float))
+            memcpy(buf_switch_span_mm, val, sizeof(float));
+        break;
+    case TAG_BASELINE_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_baseline_sps, val, sizeof(int));
+        break;
+    case TAG_AUTOLOAD_RETRACT_MM:
+        if (len == sizeof(int))
+            memcpy(&g_autoload_retract_mm, val, sizeof(int));
+        break;
+    case TAG_SERVO_OPEN_US:
+        if (len == sizeof(int))
+            memcpy(&g_servo_open_us, val, sizeof(int));
+        break;
+    case TAG_SERVO_CLOSE_US:
+        if (len == sizeof(int))
+            memcpy(&g_servo_close_us, val, sizeof(int));
+        break;
+    case TAG_SERVO_BLOCK_US:
+        if (len == sizeof(int))
+            memcpy(&g_servo_block_us, val, sizeof(int));
+        break;
+    case TAG_SERVO_SETTLE_MS:
+        if (len == sizeof(int))
+            memcpy(&g_servo_settle_ms, val, sizeof(int));
+        break;
+    case TAG_CUT_FEED_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_cut_feed_sps, val, sizeof(int));
+        break;
+    case TAG_CUT_FEED_MM:
+        if (len == sizeof(int))
+            memcpy(&g_cut_feed_mm, val, sizeof(int));
+        break;
+    case TAG_CUT_LENGTH_MM:
+        if (len == sizeof(int))
+            memcpy(&g_cut_length_mm, val, sizeof(int));
+        break;
+    case TAG_CUT_AMOUNT:
+        if (len == sizeof(int))
+            memcpy(&g_cut_amount, val, sizeof(int));
+        break;
+    case TAG_RUNOUT_COOLDOWN_MS:
+        if (len == sizeof(int))
+            memcpy(&g_runout_cooldown_ms, val, sizeof(int));
+        break;
+    case TAG_BUF_SENSOR_TYPE:
+        if (len == sizeof(int))
+            memcpy(&g_buf_sensor_type, val, sizeof(int));
+        break;
+    case TAG_BUF_PSF_MAX_COMP:
+        if (len == sizeof(float))
+            memcpy(&g_buf_psf_max_comp, val, sizeof(float));
+        break;
+    case TAG_BUF_PSF_MAX_TENS:
+        if (len == sizeof(float))
+            memcpy(&g_buf_psf_max_tens, val, sizeof(float));
+        break;
+    case TAG_BUF_PSF_NEUTRAL:
+        if (len == sizeof(float))
+            memcpy(&g_buf_psf_neutral, val, sizeof(float));
+        break;
+    case TAG_BUF_PSF_GOAL:
+        if (len == sizeof(float))
+            memcpy(&g_buf_goal, val, sizeof(float));
+        break;
+    case TAG_SYNC_KP_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_sync_kp_sps, val, sizeof(int));
+        break;
+    case TAG_SYNC_RESERVE_PCT:
+        if (len == sizeof(int))
+            memcpy(&g_sync_reserve_pct, val, sizeof(int));
+        break;
+    case TAG_JOIN_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_join_sps, val, sizeof(int));
+        break;
+    case TAG_PRESS_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_press_sps, val, sizeof(int));
+        break;
+    case TAG_COMPRESSION_SPS:
+        if (len == sizeof(int))
+            memcpy(&g_compression_sps, val, sizeof(int));
+        break;
+    case TAG_FOLLOW_TIMEOUT_MS:
+        if (len == sizeof(g_follow_timeout_ms))
+            memcpy(g_follow_timeout_ms, val, sizeof(g_follow_timeout_ms));
+        break;
+    case TAG_AUTO_PRELOAD:
+        if (len == 1)
+            g_auto_preload = (val[0] != 0);
+        else if (len == sizeof(int)) {
+            int v;
+            memcpy(&v, val, sizeof(int));
+            g_auto_preload = (v != 0);
+        }
+        break;
+    case TAG_ENABLE_CUTTER:
+        if (len == 1)
+            g_enable_cutter = (val[0] != 0);
+        else if (len == sizeof(int)) {
+            int v;
+            memcpy(&v, val, sizeof(int));
+            g_enable_cutter = (v != 0);
+        }
+        break;
+    case TAG_UNLOAD_CUT:
+        if (len == 1)
+            g_unload_cut = (val[0] != 0);
+        else if (len == sizeof(int)) {
+            int v;
+            memcpy(&v, val, sizeof(int));
+            g_unload_cut = (v != 0);
+        }
+        break;
+    case TAG_RELOAD_MODE:
+        if (len == sizeof(int))
+            memcpy(&g_reload_mode, val, sizeof(int));
+        else if (len == 1)
+            g_reload_mode = (val[0] != 0);
+        break;
+    case TAG_TMC_ROTATION_DISTANCE:
+        if (len == sizeof(g_tmc_rotation_distance))
+            memcpy(g_tmc_rotation_distance, val, sizeof(g_tmc_rotation_distance));
+        break;
+    case TAG_TMC_GEAR_RATIO:
+        if (len == sizeof(g_tmc_gear_ratio))
+            memcpy(g_tmc_gear_ratio, val, sizeof(g_tmc_gear_ratio));
+        break;
+    case TAG_TMC_FULL_STEPS:
+        if (len == sizeof(g_tmc_full_steps))
+            memcpy(g_tmc_full_steps, val, sizeof(g_tmc_full_steps));
+        break;
+    case TAG_TMC_MICROSTEPS:
+        if (len == sizeof(g_tmc_microsteps))
+            memcpy(g_tmc_microsteps, val, sizeof(g_tmc_microsteps));
+        break;
+    case TAG_TMC_TBL:
+        if (len == sizeof(g_tmc_tbl))
+            memcpy(g_tmc_tbl, val, sizeof(g_tmc_tbl));
+        break;
+    case TAG_TMC_TOFF:
+        if (len == sizeof(g_tmc_toff))
+            memcpy(g_tmc_toff, val, sizeof(g_tmc_toff));
+        break;
+    case TAG_TMC_HSTRT:
+        if (len == sizeof(g_tmc_hstrt))
+            memcpy(g_tmc_hstrt, val, sizeof(g_tmc_hstrt));
+        break;
+    case TAG_TMC_HEND:
+        if (len == sizeof(g_tmc_hend))
+            memcpy(g_tmc_hend, val, sizeof(g_tmc_hend));
+        break;
+    case TAG_TMC_INTERPOLATE:
+        if (len == sizeof(g_tmc_interpolate))
+            memcpy(g_tmc_interpolate, val, sizeof(g_tmc_interpolate));
+        break;
+    case TAG_TMC_STEALTHCHOP_SPS:
+        if (len == sizeof(g_tmc_stealthchop_sps))
+            memcpy(g_tmc_stealthchop_sps, val, sizeof(g_tmc_stealthchop_sps));
+        break;
+    case TAG_TMC_RUN_CURRENT_MA:
+        if (len == sizeof(g_tmc_run_current_ma))
+            memcpy(g_tmc_run_current_ma, val, sizeof(g_tmc_run_current_ma));
+        break;
+    case TAG_TMC_HOLD_CURRENT_MA:
+        if (len == sizeof(g_tmc_hold_current_ma))
+            memcpy(g_tmc_hold_current_ma, val, sizeof(g_tmc_hold_current_ma));
+        break;
+    case TAG_RELAY_CATCHUP_FRAC:
+        if (len == sizeof(float))
+            memcpy(&g_relay_catchup_frac, val, sizeof(float));
+        break;
+    case TAG_RELAY_NEUTRAL_FRAC:
+        if (len == sizeof(float))
+            memcpy(&g_relay_neutral_frac, val, sizeof(float));
+        break;
+    case TAG_SYNC_COMPRESSION_BIAS_FRAC:
+        if (len == sizeof(float))
+            memcpy(&g_sync_compression_bias_frac, val, sizeof(float));
+        break;
+    case TAG_FLASH_ERASE_COUNT:
+        if (len == sizeof(uint32_t))
+            memcpy(&g_flash_erase_count, val, sizeof(uint32_t));
+        break;
+    default:
+        // Unknown tag: skip cleanly
+        break;
     }
 }
 
@@ -821,7 +907,7 @@ static void settings_load_tlv(const uint8_t *payload, size_t payload_len) {
     settings_apply_clamps(buf_switch_span_mm);
 }
 
-static void settings_load_v63(const settings_t_v63 *s) {
+static void settings_load_v63(const settings_v63_t *s) {
     g_feed_sps = s->feed_sps;
     g_rev_sps = s->rev_sps;
     g_auto_sps = s->auto_sps;
@@ -954,7 +1040,7 @@ void settings_load(void) {
         const settings_header_t *hdr = (const settings_header_t *)chosen;
         settings_load_tlv(chosen + sizeof(settings_header_t), hdr->payload_len);
     } else if (chosen_ver == SECTOR_V63) {
-        const settings_t_v63 *s63 = (const settings_t_v63 *)chosen;
+        const settings_v63_t *s63 = (const settings_v63_t *)chosen;
         settings_load_v63(s63);
     }
 

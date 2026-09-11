@@ -1225,11 +1225,12 @@ static bool cmd_set_cutter_params(const char *base_param, int iv, float fv) {
     else if (!strcmp(base_param, "CUT_AMT"))
         g_cut_amount = clamp_i(iv, 1, CUT_AMOUNT_MAX);
     else if (!strcmp(base_param, "TC_TS_RETRIES"))
-        g_tc_ts_retries = clamp_i(iv, 0, 10);
+        g_tc_ts_retries = clamp_i(iv, TC_TS_RETRIES_MIN, TC_TS_RETRIES_MAX);
     else if (!strcmp(base_param, "TC_TS_RETRY_RETRACT_MM"))
-        g_tc_ts_retry_retract_mm = clamp_f(fv, 5.0f, 500.0f);
+        g_tc_ts_retry_retract_mm =
+            clamp_f(fv, TC_TS_RETRY_RETRACT_MIN_MM, TC_TS_RETRY_RETRACT_MAX_MM);
     else if (!strcmp(base_param, "TC_TS_PARK_MM"))
-        g_tc_ts_park_mm = clamp_f(fv, 0.0f, 100.0f);
+        g_tc_ts_park_mm = clamp_f(fv, TC_TS_PARK_MIN_MM, TC_TS_PARK_MAX_MM);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "TC_CUT_MS"))
         g_tc_timeout_cut_ms = clamp_i(iv, 1000, 30000);
