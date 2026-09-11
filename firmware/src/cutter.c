@@ -176,6 +176,7 @@ void cutter_abort(void) {
         return;
     g_cut.failed = true;
     servo_set_us(PIN_SERVO, g_servo_block_us);
+    servo_idle(PIN_SERVO);
     if (g_cut.lane)
         motor_stop(&g_cut.lane->m);
     g_cut.state = CUT_IDLE;
@@ -187,6 +188,7 @@ static void cutter_fail(const char *reason) {
         return;
     g_cut.failed = true;
     servo_set_us(PIN_SERVO, g_servo_block_us);
+    servo_idle(PIN_SERVO);
     if (g_cut.lane)
         motor_stop(&g_cut.lane->m);
     g_cut.state = CUT_IDLE;
