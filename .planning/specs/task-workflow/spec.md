@@ -49,22 +49,25 @@ The repository SHALL keep `.agents/`, `.claude/`, `.gemini/` etc. OUT of the com
 
 ### Requirement: AI-Assisted Commit Attribution
 
-Commits MUST retain the Claude `Co-Authored-By` trailer. When code in a
-commit was generated or substantially assisted by another AI tool, the
-commit MUST additionally carry a `Generated-By: <tool> (<model>)` trailer
-— in addition to, not replacing, the Claude `Co-Authored-By` line. If
-multiple tools contributed, each MUST appear on its own `Generated-By:`
-line.
+Every AI-assisted commit MUST carry a `Generated-By: <tool> (<model>)`
+trailer per contributing tool. When Claude produced or substantially
+assisted the commit, its `Co-Authored-By` trailer MUST be retained as
+well; other tools add their `Generated-By:` line in addition to it, never
+in place of it. A commit made by a non-Claude tool alone carries only its
+own `Generated-By:` line (decision D12.2, 2026-09-11 — matches AGENTS.md
+"Preserve attribution").
 
 #### Scenario: Single non-Claude tool generated the code
 
 - **WHEN** an implementation commit's code was produced by another AI tool
-- **THEN** the commit message contains both the Claude `Co-Authored-By`
-  trailer and a `Generated-By: <tool> (<model>)` trailer
+  with no Claude involvement
+- **THEN** the commit message contains a `Generated-By: <tool> (<model>)`
+  trailer and no Claude `Co-Authored-By` is required
 
-#### Scenario: Multiple tools contributed
+#### Scenario: Claude-assisted commit finished by another tool
 
-- **WHEN** more than one AI tool contributed to a commit
+- **WHEN** Claude produced or substantially assisted the code and another
+  tool also contributed
 - **THEN** each tool has its own `Generated-By:` line and the Claude
   `Co-Authored-By` trailer is still present
 

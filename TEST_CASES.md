@@ -1182,6 +1182,70 @@ What to check:
 
 ---
 
+## Pending Phase 11–12 Rig Validation
+
+Software-verified (host sim / unit tests) on 2026-09-11; each needs one rig pass.
+Reflash first. If `SV:` was ever run after the Phase 6 build, flash still holds
+`tc_ts_park_mm=25`: run `SET:TC_TS_PARK_MM:0` then `SV:` (config default is now 0).
+
+### Watchdog crash blackbox (Phase 11)
+
+Status: `pending-rig`
+
+- Force a main-loop stall (e.g. hold the board in a long blocking debug path or
+  short the USB CDC with a 2 s busy command) so the 1 s watchdog fires.
+- Expect on reboot: `EV:SYSTEM:WATCHDOG_RESET` then `EV:CRASH:DETECTED:WATCHDOG`.
+- `python3 scripts/flare_cmd.py --crashlog` → `OK:CRASH:HDR:reason=WATCHDOG,...`,
+  32 chronological entries ending in `OK:CRASH:END`; last entries show the
+  pre-stall TC/sync state. `CAL:CRASHLOG_CLEAR` → next `--crashlog` = `OK:NO_CRASH`.
+- `--loop-stats` during a print: `MAX` < 10000 µs, `OVERRUNS` 0, no `WARN:LOOP_LAG`.
+
+### Toolchange park no longer faults sync (12-SPEC §1)
+
+Status: `pending-rig`
+
+- Type-D, `SET:TC_TS_PARK_MM:25` (temporarily), run `TC:` to a loaded lane.
+- Expect `EV:TC:TS_PARKED` (only if the TS edge completed the load) then
+  `EV:TC:DONE`; **no** `FAULT:MOVE_COMPRESSION`; sync engages on the next
+  extrusion (`SYNC:AUTO_START`, `ST:` shows sync ACTIVE, `BUF` tracks).
+- Repeat with `SET:TC_TS_PARK_MM:0` → no `TS_PARKED`, same clean `TC:DONE`.
+
+### Cutter abort returns blade to block (12-SPEC §2)
+
+Status: `pending-rig`
+
+- Start a cut (`CUT:` or a `TC:` with cutter enabled), send `STOP` while the
+  blade is between open and close.
+- Expect `EV:CUT:ERROR:ABORTED`, blade visibly travels to block and holds for
+  `SERVO_SETTLE` ms before going limp; `?:` shows cutter idle after settle.
+
+### Bare buffer lock is passive (12-SPEC §3)
+
+Status: `pending-rig`
+
+- `BL:T` (no args) → `EV:BL:LOCKED`. Retract 15 mm by hand/extruder.
+- Expect no `EV:BL:BREAK` / `EV:BL:FOLLOW`, MMU motor does not move; `BS`
+  releases (`BUF_STAB:DONE`).
+- `BL:T:20:300` → same retract now yields `BREAK` → `FOLLOW` → `FOLLOW_DONE`.
+
+### TMC heartbeat single fault, no storm (12-SPEC §5)
+
+Status: `pending-rig`
+
+- Idle board, sync OFF. Unplug lane 2 driver UART (or pull its 5 V).
+- Expect exactly one `EV:TMC:FAULT:2:COMM_FAIL` within ~2 s; `ST:` shows
+  `TMC:10`; no repeated FAULT lines over 30 s; Klipper pauses once.
+- Replug → `EV:TMC:RESTORED:2` within ~2 s, `TMC:11`.
+- With `BL:T` locked, unplug: no `TMC:FAULT` at all until `BS` (heartbeat is
+  locked out while sync owns the motor).
+
+### Open rig question: type-D half-travel prime cap (buffer-state-lock D2)
+
+`BL` primes with the full `BUF_MAX_TRAVEL_MM` cap on both sensor types; D2
+chose half travel for type-D so a missing switch surfaces as `PRIME_BOUND`
+instead of a hard-end hit. Decide on the rig whether type-D should return to
+the half cap.
+
 ## Record Keeping
 
 When a test fails, capture:

@@ -1,0 +1,4 @@
+- [ ] Design tag table (`{tag, ptr, size, kind, min, max}`) and replace `settings_load_tlv_tag()` switch + `settings_save()` emit list
+- [ ] Re-point `scripts/test_settings_parity.py` at the table (tag parity, defaults parity stay enforced)
+- [ ] Promote `cut_feed_timeout_ms`, `cut_settle_timeout_ms`: settings field, SET/GET, `--dump`, `config.ini.example`, MANUAL.md; bump `SETTINGS_VERSION` 65
+- [ ] `ninja -C build_local`, `validate_regression.py` green; HW: `SV:` / `LD:` round-trip on rig
