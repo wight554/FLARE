@@ -7,7 +7,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 ## Phases
 
 - [ ] **Phase 1: Hardware Validation & Audit Closeout** - Execute pending bench tests (`HW:`) for audit hardening, reliability fixes, flash wear visibility, and PSF runout escalation race
-- [ ] **Phase 2: Buffer Retract & Catch Hardening** - Implement 55-task Type-P buffer retract catch and settle hardening (`bl-retract-catch-hardening`)
+- [x] **Phase 2: Buffer Retract & Catch Hardening** - Implement 55-task Type-P buffer retract catch and settle hardening (`bl-retract-catch-hardening`)
 - [x] **Phase 3: Klipper Event-Driven Mirror & Slicer Purge** - Complete event-driven `flare_daemon` push and OrcaSlicer transition purge tuning
 - [x] **Phase 4: Host Sync Simulation Coverage** - Finalize `flare_sim` scenario derivation and regression coverage
 - [ ] **Phase 5: Automated Calibration & Live Tuning** - Deterministic sensor calibration routines and live serial tuning CLI
@@ -85,8 +85,8 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Hardware Validation & Audit Closeout | 0/1 | Not started | - |
-| 2. Buffer Retract & Catch Hardening | 0/1 | Not started | - |
+| 1. Hardware Validation & Audit Closeout | 0/1 | Awaiting physical rig session | - |
+| 2. Buffer Retract & Catch Hardening | 3/3 | Complete | 2026-09-11 |
 | 3. Klipper Event-Driven Mirror & Slicer Purge | 1/1 | Complete | 2026-09-11 |
 | 4. Host Sync Simulation Coverage | 1/1 | Complete | 2026-09-11 |
 | 5. Automated Calibration & Live Tuning | 0/1 | Not started | - |
