@@ -540,8 +540,12 @@ class MMUMock:
         gcmd.respond_info("FLARE: MMU unlock requested. No error-lock state active.")
 
     def cmd_MMU_PAUSE(self, gcmd):
-        """Pause the MMU. Stub: no-op."""
-        gcmd.respond_info("FLARE: MMU pause requested.")
+        """Pause the MMU. Dispatches STOP command to FLARE."""
+        try:
+            self.gcode.run_script_from_command('RUN_SHELL_COMMAND CMD=flare PARAMS="STOP"')
+        except Exception as e:
+            gcmd.respond_info(f"FLARE Warning: Failed to send STOP to board: {e}")
+        gcmd.respond_info("FLARE: MMU pause dispatched (STOP).")
 
     def cmd_MMU_RESET(self, gcmd):
         """Reset the MMU state. Stub: no-op."""
@@ -1172,6 +1176,12 @@ class MMUMock:
             urllib.request.urlopen(req, timeout=1.0)
         except Exception:
             pass  # daemon not running; silently ignore
+        try:
+            if hasattr(self, 'gcode'):
+                self.gcode.run_script_from_command(
+                    f'RUN_SHELL_COMMAND CMD=flare PARAMS="SET:BYPASS:{1 if active else 0}"')
+        except Exception:
+            pass
 
     def _update_phase(self, tc_state, action, now):
         tc_state = (tc_state or "UNKNOWN").strip().upper()
