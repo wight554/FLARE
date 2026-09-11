@@ -151,7 +151,8 @@ TC_IDLE
   → TC_SWAP             (set active_lane = target)
   → TC_LOAD_START       (clear toolhead state for new lane; check Y-splitter clear; start TASK_LOAD_FULL)
   → TC_LOAD_WAIT_OUT    (non-stopping checkpoint)
-  → TC_LOAD_WAIT_TH     (wait for TASK_LOAD_FULL loaded result; lane task is bounded by `LOAD_MAX`)
+  → TC_LOAD_WAIT_TH     (wait for TASK_LOAD_FULL loaded result; on missing TS, retries up to `TC_TS_RETRIES` via TC_LOAD_RETRY_RETRACT)
+  → TC_LOAD_PARK        (if TC_TS_PARK_MM > 0: advance into extruder drive gears, emit EV:TC:TS_PARKED)
   → TC_LOAD_DONE        → EV:TC:DONE:<lane>
 ```
 
@@ -159,7 +160,16 @@ TC_IDLE
 and servo phases use their own `CUT_FEED_MS` / `CUT_SETTLE_MS` guards; the
 outer `TC_CUT_MS` watchdog is extended automatically when the configured cutter
 feed distance, repeat count, and servo settle time require longer than the
-stored value.
+stored value. On cutter failure or abort, servo PWM is immediately de-energized
+(`servo_idle`) to protect the servo motor against stall burnout.
+
+### External Spool Bypass Mode
+
+When `SET:BYPASS:1` is active:
+- MMU lane motors are locked: all lane motion commands (`FL`, `LO`, `MV`, `TC`, `RL`, `UL`, `UM`) return `ER:BYPASS_ACTIVE`.
+- Sync controller is deactivated and buffer watchdogs are suppressed.
+- Pre-gate and gate sensors (`IN`/`OUT`) are masked from triggering auto-preload or runout RELOAD.
+- Toolhead sensor (`TS`) telemetry remains live, routing events directly to the host for manual feeding.
 
 ---
 

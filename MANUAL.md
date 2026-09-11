@@ -73,7 +73,7 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `MV:mm:F[:D][:I]`| Both | **Exact Move** — move `abs(mm)` at `F` mm/min. Direction from sign of `mm` or optional `D` (`F`/`R`/`B`, `+`/`-`). Optional `I` ignores buffer compression/tension guards for this finite move. Disables sync. |
 | `FD:` | Both  | **Continuous Feed** — runs forward until `ST:`. Returns `ER:BUSY:LANE` if toolchange/motion is active. |
 | `BS:` | Both  | **Buffer Stabilize** — cancels compatible buffer service/sync/simple lane motion, then runs buffer neutralization to bring a dual-endstop buffer back toward `NEUTRAL`. Hard activities (`TC`, cutter, manual unload) still return `ER:BUSY:BL`. |
-| `ST:` | Both  | **Stop** — aborts all motion and resets toolchange state. |
+| `ST:` / `STOP:` / `PA:` | Both  | **Stop** — aborts all motion, clears toolchange/sync/cutter activity, and enters safe hold state. |
 | `CU:` | Both  | **Cut** — performs the full cutter sequence (Open -> Feed -> Close -> Open -> Repeat -> Block) on the active lane. Requires both lanes idle and preloaded (`IN=1`, `OUT=0`); otherwise returns `ER:NOT_PRELOADED`. |
 | `CX:` | Both  | **Bare Cut** — performs the cutter sequence without filament movement (Open -> Close -> Open -> Repeat -> Block). |
 | `CP:us` | Both  | **Cutter Position** — moves the cutter servo to the specified pulse width (400-2700 us) and stays there. Useful for mechanical tuning. Returns `ER:BUSY:CUTTER` if not idle or in boot park. |
@@ -271,6 +271,10 @@ Pre-rename half-travel and size serial tokens are removed; use full-range
 | `CUT_FEED_MS` | `cut_feed_timeout_ms` | Safety timeout for the cutter motor feed phase. Runtime range: 1000-120000 ms. Raise when long `CUT_FEED` distances would exceed the default. | 30000 |
 | `CUT_SETTLE_MS` | `cut_settle_timeout_ms` | Safety timeout for cutter servo settle phases. Runtime range: 500-10000 ms. Must exceed `SERVO_SETTLE` for normal cutter phases to complete. | 3000 |
 | `TC_CUT_MS` | `tc_timeout_cut_ms` | Outer toolchange cut watchdog. Firmware treats this as a minimum and extends it to fit configured cutter feed/settle duration. | 5000 |
+| `TC_TS_RETRIES` | `tc_ts_retries` | Max retry attempts (retract and re-advance) when toolhead sensor (`TS`) is not reached during toolchange load. | 2 |
+| `TC_TS_RETRY_RETRACT_MM` | `tc_ts_retry_retract_mm` | Retract distance in mm before re-attempting load to toolhead sensor. | 50.0 |
+| `TC_TS_PARK_MM` | `tc_ts_park_mm` | Forward advance distance in mm after toolhead sensor triggers to seat into extruder drive gears. | 25.0 |
+| `BYPASS` | `bypass` | External spool bypass flag (`SET:BYPASS:1` / `SET:BYPASS:0`). Locks MMU steppers (`ER:BYPASS_ACTIVE`), disables sync, masks lane runout. | 0 |
 
 ### Runtime-only Controls
 | Parameter | Description |
@@ -305,6 +309,7 @@ These core fields are returned in the first part of the `?:` status response:
 | `RELOAD` | 0/1 | Reload mode enabled (`0` = disabled, `1` = enabled). |
 | `UC`  | 0/1  | Unload cut state (`0` = disabled, `1` = enabled). |
 | `BST` | 0/1  | Buffer sensor type (`0` = switch/type-D, `1` = analog/type-P). |
+| `BY`  | 0/1  | External spool bypass mode active (`0` = normal MMU, `1` = bypassed). |
 | `EST` | mm/min | Extruder estimated rate. |
 | `RE`  | mm   | Reserve error. |
 | `AV`  | mm/s | Buffer arm velocity. |

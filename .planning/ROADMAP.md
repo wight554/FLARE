@@ -79,7 +79,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   1. Toolchanges execute with servo/stepper cutter synchronization
   2. Standby spool pre-heats and loads seamlessly upon primary runout
   3. Filament bypass switch allows external spool feeding without MMU lock
-**Plans**: TBD
+**Plans**: 1 plan complete (06-01)
 
 ## Progress
 
@@ -90,4 +90,4 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 3. Klipper Event-Driven Mirror & Slicer Purge | 1/1 | Complete | 2026-09-11 |
 | 4. Host Sync Simulation Coverage | 1/1 | Complete | 2026-09-11 |
 | 5. Automated Calibration & Live Tuning | 1/1 | Complete | 2026-09-11 |
-| 6. Advanced Toolchange & RELOAD Automation | 0/1 | Not started | - |
+| 6. Advanced Toolchange & RELOAD Automation | 1/1 | Complete | 2026-09-11 |
