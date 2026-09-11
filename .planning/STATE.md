@@ -6,18 +6,20 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 5: Automated Calibration & Live Tuning
+**Current focus:** Phase 6: Advanced Toolchange & RELOAD Automation
 
 ## Current Position
 
-- **Phase**: 5 - Automated Calibration & Live Tuning (`.planning/phases/05-automated-calibration-live-tuning/`)
-- **Active Feature in Progress**: Phase 5 - Plan 05-01
-- **Status**: Complete (Plan 05-01 complete and validated)
-- **Progress**: [====================] 100% complete
+- **Phase**: 6 - Advanced Toolchange & RELOAD Automation (`.planning/phases/06-advanced-toolchange-reload/`)
+- **Active Feature in Progress**: Phase 6 - Alignment & Spec
+- **Status**: Spec finalized (`06-SPEC.md`), ready for Plan 06-01 drafting
+- **Progress**: [==------------------] 10% complete
 
 ## Accumulated Context
 
 ### Active Backlog Streams & Phases
+- `.planning/phases/06-advanced-toolchange-reload/`:
+  - `06-SPEC.md` (done): Cutter stall/watchdog interlocks, firmware bypass mode (`BYPASS=1`), Klipper pause escalation, and toolhead load retry/park contract.
 - `.planning/phases/05-automated-calibration-live-tuning/`:
   - `05-01-PLAN.md` (done): Sensor calibration wizard (`flare_calibrate.py`), live tuner PSF proportional gain adjustment, and trace analyzer step-rate vs displacement charting (`flare_analyze.py --chart`)
 - `.planning/phases/04-host-sync-sim-coverage/04-01-PLAN.md` (done): Multi-lane runout failover edge cases, Type-P PSF control law audit/tests, determinism & stress lag margin gates
