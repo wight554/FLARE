@@ -132,6 +132,30 @@ This loads filament, performs the tip forming shape, and unloads it for your phy
 
 ---
 
+## 🛡️ Step 5b: Guarded Retracts & Print-End Wrappers (Optional)
+
+When a slicer or external macro executes large extruder retracts at print-end or during custom tip forming, the extruder pushes filament backward into the Bowden tube without MMU assistance, which can compress the buffer against its mechanical endstop or cause buckling.
+
+Wrap foreign or custom print-end macros non-invasively using Klipper's `rename_existing`:
+
+```ini
+[gcode_macro END_PRINT]
+rename_existing: _BASE_END_PRINT
+gcode:
+    # Arm buffer lock (tension) and active rate-servo catch before extruder retract
+    _FLARE_RETRACT_GUARD_BEGIN LENGTH=15
+    _BASE_END_PRINT
+    # Release buffer lock (BS) and reconcile toolhead state
+    _FLARE_RETRACT_GUARD_END
+```
+
+- `_FLARE_RETRACT_GUARD_BEGIN` accepts optional `LENGTH=<mm>` and `TIMEOUT=<ms>`:
+  - If `LENGTH` is specified and exceeds `variable_buffer_max_travel` (default 25mm), FLARE emits a warning to the console while arming the active follow-on rate-servo catch to absorb the long retract.
+  - If `TIMEOUT` is specified, it overrides the default 30s watchdog for that operation.
+- `_FLARE_RETRACT_GUARD_END` runs `_FLARE_SYNC_TOOLHEAD`, releasing the buffer lock (`BS`) and pushing the physical sensor state back to FLARE.
+
+---
+
 ## 🎨 Step 6: Slicer-Driven Purge (Optional)
 
 By default each toolchange purges the static `_FLARE_VARS.variable_purge_len`. To
