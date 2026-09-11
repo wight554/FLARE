@@ -65,44 +65,22 @@ Add `cavemem` MCP to `~/.claude/settings.json` and `~/.gemini/settings.json`:
 
 - **No local config commits**: `.agent/`, `.agents/`, `.claude/`, `.codex/`, `.gemini/`, `.github/skills/`, `.github/prompts/`, and `skills-lock.json` must NOT be committed. Relies on global config above.
 - **Model Attribution**: Include `Generated-By: <Agent> (<Model>)` in commit messages.
-- **Workflow**: Follow `AGENTS.md` and `openspec/specs/task-workflow/spec.md`.
+- **Workflow**: Follow `AGENTS.md` and `.planning/ROADMAP.md`.
 
-## OpenSpec / OpsX Setup
+## Antigravity & GSD Setup
 
-Repo keeps only project OpenSpec data in `openspec/`. Tool-specific
-OpenSpec/OpsX skills and commands stay global so every project reuses workflow
-without committed local agent config.
+Project planning and tracking uses GSD (Get Shit Done) in `.planning/`.
+Global skills and MCP tools are managed via Antigravity (`~/.gemini/antigravity/` / `~/.gemini/extensions/`), while Claude Code maintains full compatibility through standard markdown in `.planning/`.
 
-Global OpenSpec skill locations on this machine:
+- **Project Vision & Scope**: `.planning/PROJECT.md`
+- **Requirements & Traceability**: `.planning/REQUIREMENTS.md`
+- **Execution Roadmap**: `.planning/ROADMAP.md`
+- **Live State & Session Tracking**: `.planning/STATE.md`
+- **Synthesized Specifications**: `.planning/intel/`
 
-| Tool | Global path |
-|---|---|
-| Codex | `~/.codex/skills/openspec-*` |
-| Claude | `~/.claude/skills/openspec-*`, `~/.claude/commands/opsx/*.md` |
-| Gemini | `~/.gemini/skills/openspec-*`, `~/.gemini/commands/opsx/*.toml` |
-| Generic agents | `~/.agents/skills/openspec-*`, `~/.agents/workflows/opsx-*.md` |
-| GitHub/Copilot | `~/.github/skills/openspec-*`, `~/.github/prompts/opsx-*.prompt.md` |
+### Claude Compatibility
 
-To initialize OpenSpec in a project, commit project spec dir only:
-
-```bash
-mkdir -p openspec
-cat > openspec/config.yaml <<'YAML'
-schema: spec-driven
-context: |
-  Tech stack: <project stack>
-  Domain: <project domain>
-  Conventions: <commit/test/doc rules>
-YAML
-```
-
-Do not copy `.claude/`, `.codex/`, `.gemini/`, `.agent/`, or `.github/skills`
-into project. If project needs custom OpenSpec behavior, encode it in
-`openspec/config.yaml` or committed specs, not tool-local skill folders.
-
-Durable behavioral contracts live in `openspec/specs/<area>/spec.md`.
-Substantial changes start in `openspec/changes/<change-id>/` with
-proposal/design/tasks, then fold durable outcomes back into `openspec/specs/`.
-Do not keep migrated historical phase/task archives in-tree; use git history.
+Claude Code uses `CLAUDE.md` to discover project conventions. Because GSD state is entirely markdown-based, Claude can plan and execute directly within `.planning/` without custom extensions.
 
 See `AGENTS.md` for firmware engineering mandates and full session start protocol.
+

@@ -3,18 +3,18 @@
 
 # FLARE — Agent Onboarding
 
-For AI agents (Claude, Gemini, Codex, Opus, Copilot, etc.). Read this first, then `openspec/README.md` and relevant `openspec/specs/` before touching anything. AI environment setup (skills, MCPs): [AI.md](./AI.md). Project uses OpenSpec for durable design tracking.
+For AI agents (Antigravity, Claude, Gemini, Codex, Opus, Copilot, etc.). Read this first, then `.planning/PROJECT.md` and `.planning/ROADMAP.md` before touching anything. AI environment setup (skills, MCPs): [AI.md](./AI.md). Project uses GSD (Get Shit Done) in `.planning/` for durable planning and milestone tracking.
 
 ## Session Start Protocol
 
 Before anything else:
-1. Use caveman-full chat style per `openspec/COMMS.md` (tool-agnostic; no Claude-only skill required).
+1. Use caveman-full chat style (terse, no filler, drop articles, fragments OK, technical terms exact).
 2. Use `cavemem` MCP (or similar persistent memory) for cross-session context.
-3. Post: **AGENTS.md ✓ | OpenSpec: [one-line active change/spec summary, or "no active change"]** — lets user verify context loaded.
+3. Post: **AGENTS.md ✓ | GSD: [current phase/task from .planning/STATE.md]** — lets user verify context loaded.
 
 ### AI Assistant Mode (Strict)
 
-Respond in caveman mode (full intensity): terse, no filler, drop articles, fragments OK, short synonyms, technical terms exact. Chat prose only — code, commit messages, PR descriptions stay normal; OpenSpec artifact files follow `openspec/COMPRESSION.md` tiers (`changes/**` full, `specs/**` light).
+Respond in caveman mode (full intensity): terse, no filler, drop articles, fragments OK, short synonyms, technical terms exact. Chat prose only — code, commit messages, PR descriptions stay normal; planning files follow `.planning/` conventions.
 
 Pattern:
 - **Wrong:** "This repository uses type-P analog sensors because it helps to measure proportional filament position instead of simple endpoints."
@@ -38,36 +38,29 @@ Two modes via `RELOAD_MODE`:
 
 ---
 
-## OpenSpec Workflow
+## GSD Workflow
 
-Durable design history + behavioral contracts live in `openspec/`. Context windows finite — research-then-code without writing down risks losing work mid-task. **Write first in OpenSpec artifacts.**
+Durable design history and roadmap live in `.planning/`. Context windows finite — research-then-code without writing down risks losing work mid-task. **Write first in GSD artifacts.**
 
-- Current durable behavior → `openspec/specs/`. Substantial active work → `openspec/changes/<change-id>/` (`proposal.md`, `design.md`, `tasks.md`) before implementation.
-- Author change-artifact prose fully compressed per `openspec/COMPRESSION.md`; keep `openspec/specs/**` readable (light compression only). Preserve RFC-2119 clauses and requirement/scenario structure exactly.
-- Historical phase/task prose not kept in-tree post-migration; use git history for archaeology. Do not recreate root `TASK.md`.
+- Durable project vision & active scope → `.planning/PROJECT.md`
+- Traceable requirements → `.planning/REQUIREMENTS.md`
+- Phased execution roadmap → `.planning/ROADMAP.md`
+- Session continuity & current focus → `.planning/STATE.md`
+- Synthesized specifications & constraints → `.planning/intel/`
 
-**Flow triage — direct vs OpenSpec.** Direct implementation only when ALL hold: no spec'd-behavior change (`grep -ril '<topic>' openspec/specs/` empty, or hits but behavior unchanged); no `settings_t`, protocol command, or runtime-tunable surface change; ≤2–3 files; single session; no hardware validation needed. Anything else → OpenSpec change. Unsure → OpenSpec: wrong-direct loses spec sync, wrong-OpenSpec loses only tokens.
+**Grilling & Alignment:**
+Before planning or executing non-trivial changes, use Mat Pocock-style interactive grilling (`/grill-me`, `gsd-discuss-phase`, `gsd-spec-phase`) to challenge assumptions, resolve edge cases, and align on contracts interactively before writing code.
 
 **Required before writing any code:**
-1. **Research** — use CodeGraph call-graph MCP tools (`codegraph_query`, `codegraph_callers`, `codegraph_impact`) to trace dependencies and find symbol definitions instead of broad file reads/greps. Substantial work: write findings into `design.md` (what read, what learned, constraints).
-2. **Plan** — draft implementation plan in the change/design note before opening editor. Per file to modify: path, exact change + why, risk/invariant to watch. If task changes durable behavior or workflow, create/update the OpenSpec artifact first.
-   ```
-   ### firmware/src/protocol.c + firmware/src/settings_store.c
-   - Add GET/SET plumbing for JOIN_RATE so reload approach speed is tunable
-   - Wire the runtime value through the persistence helpers in settings_store.c
-   - Risk: keep config.ini, MANUAL.md, and generated tune.h in sync
-   ```
-3. **Implement** — work file by file. After each durable unit: update task list/design note with steps, validation, commit SHA; commit + push immediately. For new features, note which flows could regress and how to validate.
+1. **Research** — use CodeGraph call-graph MCP tools (`codegraph_query`, `codegraph_callers`, `codegraph_impact`) to trace dependencies and find symbol definitions instead of broad file reads/greps.
+2. **Plan** — draft phase plan (`{phase}-{plan}-PLAN.md`) with observable success criteria before opening editor. Per file to modify: path, exact change + why, risk/invariant to watch.
+3. **Implement** — work file by file. After each durable unit: update task list, validate, commit SHA; commit + push immediately.
 4. **Never hold more than one file's worth of changes in memory** before committing.
-5. **Preserve `tasks.md` history** — never empty/truncate/delete the task list of an active change. Mark lines `[x]`, append dated validation notes. Must stay reconstructable at archive.
-
-**Read specs lazily — do NOT load whole specs.** Specs are large dense contracts; reading one in full burns context for one edit. Instead: read the spec's `## Purpose` + the `### Requirement:` headers as an index, then read only the specific requirement/scenario block you are touching (use offset/range reads). Pull more sections only when a task actually needs them.
+5. **Preserve task history** — track validation notes and keep milestone state reconstructable.
 
 **Grep recipes for `[lookup]` docs:**
 - Runtime parameter lookup: `grep -n '<PARAM>' MANUAL.md` — read matched rows only, never the whole file.
-- Prior-change context: grep `memories/repo/` first, then `grep -ril '<topic>' openspec/changes/archive/` — **never read archive change dirs wholesale**.
-
-**Spec reading map:** sync/calibration/tuner/analyzer work → start at `openspec/specs/sync-refactor/spec.md` (Purpose + headers), then the relevant phase spec (`calibration-workflow`, `bucket-locking`, `analyzer-rigor`, …). Workflow/task rules → `openspec/specs/task-workflow/spec.md`. Firmware architecture/gotchas → `openspec/specs/project-architecture/spec.md` + `CONTEXT.md`. Old rationale/prompts → git history.
+- Prior-change context: grep `memories/repo/` first, then `.planning/intel/` — **never read entire trees wholesale**.
 
 ## Memory
 
@@ -79,7 +72,7 @@ Observation file is written as part of each change's Readiness checklist, before
 
 ## Key Files
 
-Read modes: `[always]` = read every session (`AGENTS.md`, `openspec/COMMS.md` — nothing else). `[lookup]` = grep on demand, read matched sections only, **never wholesale** (several are 28–41 KB).
+Read modes: `[always]` = read every session (`AGENTS.md`, `.planning/PROJECT.md` — nothing else). `[lookup]` = grep on demand, read matched sections only, **never wholesale** (several are 28–41 KB).
 
 | File | Read | Contains |
 |------|------|----------|
@@ -112,7 +105,7 @@ Read modes: `[always]` = read every session (`AGENTS.md`, `openspec/COMMS.md` �
 | `STYLE.md` | [lookup] | Coding style, naming standards, formatting, linting guide |
 | `REVIEW.md` | [lookup] | Pre-commit staged-diff self-review checklist |
 | `memories/repo/` | [lookup] | Team memory: per-change observations (prior art — grep first) |
-| `openspec/specs/` | [lookup] | Current OpenSpec behavioral contracts |
+| `.planning/` | [lookup] | GSD planning context: `PROJECT.md`, `ROADMAP.md`, `REQUIREMENTS.md`, `STATE.md`, `intel/` |
 | `tests/host/` | [lookup] | Host-compiled sync simulation (`flare_sim`) — links real `sync*.c`/`motion.c`/`toolchange.c`/`cutter.c`/`settings_store.c` against fakes; sim screens deadlock/sign/timer defects, rig remains sole authority on tuning quality — a sim pass never satisfies an `HW:` task |
 
 ---
@@ -177,4 +170,4 @@ Generated-By: <Agent Name> (<Model>)
 
 ## Current Work
 
-No root `TASK.md`. Sources: `openspec/changes/` (active spec-driven work), `openspec/specs/` (durable contracts), git history (old ledgers, migrated phase prose). If no active change: run `git log --oneline -20`, read relevant specs, infer/ask the active task.
+Sources: `.planning/ROADMAP.md` (active milestone and phases), `.planning/STATE.md` (current focus and continuity), `.planning/intel/` (synthesized contracts), git history. If resuming work: check `.planning/STATE.md` to identify active phase.
