@@ -10,17 +10,20 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 ## Current Position
 
 - **Phase**: 1 - Hardware Validation & Audit Closeout (Pending bench testing on real rig)
-- **Active Feature in Progress**: Phase 2 - Buffer Retract & Catch Hardening (55 tasks in `.planning/backlog/bl-retract-catch-hardening/`)
-- **Status**: Ready for execution
+- **Active Feature in Progress**: Phase 2 - Buffer Retract & Catch Hardening (`.planning/phases/02-buffer-retract-catch-hardening/`)
+- **Status**: Ready for execution (3 decomposed plans ready)
 - **Progress**: [--------------------] 0% complete
 
 ## Accumulated Context
 
-### Active Backlog Streams
-- `.planning/backlog/bl-retract-catch-hardening/` (55 tasks, ready to implement)
-- `.planning/backlog/klipper-mirror-event-driven/` (12 pending tasks)
-- `.planning/backlog/klipper-slicer-purge-and-load-tuning/` (5 pending tasks)
-- `.planning/backlog/host-sync-sim/` (3 pending tasks)
+### Active Backlog Streams & Phases
+- `.planning/phases/02-buffer-retract-catch-hardening/`:
+  - `02-01-PLAN.md`: CLI event completion (`BL`/`BS`) & Klipper macro cleanup
+  - `02-02-PLAN.md`: Firmware fast prime & proportional rate servo catch
+  - `02-03-PLAN.md`: Retract guard macros & host sim / bench validation
+- `.planning/phases/03-klipper-event-mirror-and-slicer-purge/03-01-PLAN.md`
+- `.planning/phases/04-host-sync-sim-coverage/04-01-PLAN.md`
+- `.planning/phases/01-hardware-validation-and-audit-closeout/01-01-PLAN.md`
 
 ---
-*Last updated: 2026-09-11 after historical OpenSpec changes migration*
+*Last updated: 2026-09-11 after phase planning and de-bloating*
