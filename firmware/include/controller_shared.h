@@ -110,6 +110,8 @@ typedef enum {
     TC_LOAD_START,
     TC_LOAD_WAIT_OUT,
     TC_LOAD_WAIT_TH,
+    TC_LOAD_RETRY_RETRACT,
+    TC_LOAD_PARK,
     TC_LOAD_DONE,
     TC_RELOAD_WAIT_Y,
     TC_RELOAD_APPROACH,
@@ -129,6 +131,7 @@ typedef struct {
     uint32_t last_compression_ms;
     uint32_t wall_critical_since_ms;
     bool unload_cut_done;
+    int ts_retries;
 } tc_ctx_t;
 
 /// @brief Quantized buffer state.
@@ -240,6 +243,9 @@ extern int g_unload_tension_block_ms;
 extern uint32_t g_flash_erase_count;
 extern int g_tc_timeout_th_ms;
 extern int g_tc_timeout_y_ms;
+extern int g_tc_ts_retries;
+extern float g_tc_ts_retry_retract_mm;
+extern float g_tc_ts_park_mm;
 extern int g_sync_max_sps;
 extern int g_global_max_sps;
 extern int g_sync_min_sps;

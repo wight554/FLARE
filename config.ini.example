@@ -148,6 +148,9 @@ run_current:
 
 # ─── Safety / Limits ─────────────────────────────────────────────────────────
 # load_max_mm: 3000           # Max distance for toolhead load
+# tc_ts_retries: 2             # Retry count when TS not detected during load
+# tc_ts_retry_retract_mm: 50.0 # Retract distance before retrying load to TS
+# tc_ts_park_mm: 25.0          # Extra feed distance after TS trigger to engage extruder gears
 # autoload_retract_mm: 5      # Retract distance after LO: triggers OUT and after UL: clears OUT; 0 = stop immediately
 # unload_max_mm: 3000         # Max distance for unloads
 # unload_tension_block_ms: 5000   # Stop UL if buffer stays TENSION this long (printer blocking); 0 = disabled

@@ -741,6 +741,12 @@ static bool cmd_get_reload_cutter_params(const char *param, int idx, char *out, 
         snprintf(out, out_len, "CUT_LEN:%d", g_cut_length_mm);
     else if (!strcmp(param, "CUT_AMT"))
         snprintf(out, out_len, "CUT_AMT:%d", g_cut_amount);
+    else if (!strcmp(param, "TC_TS_RETRIES"))
+        snprintf(out, out_len, "TC_TS_RETRIES:%d", g_tc_ts_retries);
+    else if (!strcmp(param, "TC_TS_RETRY_RETRACT_MM"))
+        snprintf(out, out_len, "TC_TS_RETRY_RETRACT_MM:%.1f", (double)g_tc_ts_retry_retract_mm);
+    else if (!strcmp(param, "TC_TS_PARK_MM"))
+        snprintf(out, out_len, "TC_TS_PARK_MM:%.1f", (double)g_tc_ts_park_mm);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "TC_CUT_MS"))
         snprintf(out, out_len, "TC_CUT_MS:%d", g_tc_timeout_cut_ms);
@@ -1165,6 +1171,12 @@ static bool cmd_set_cutter_params(const char *base_param, int iv, float fv) {
         g_cut_length_mm = clamp_i(iv, 1, CUT_LENGTH_MAX_MM);
     else if (!strcmp(base_param, "CUT_AMT"))
         g_cut_amount = clamp_i(iv, 1, CUT_AMOUNT_MAX);
+    else if (!strcmp(base_param, "TC_TS_RETRIES"))
+        g_tc_ts_retries = clamp_i(iv, 0, 10);
+    else if (!strcmp(base_param, "TC_TS_RETRY_RETRACT_MM"))
+        g_tc_ts_retry_retract_mm = clamp_f(fv, 5.0f, 500.0f);
+    else if (!strcmp(base_param, "TC_TS_PARK_MM"))
+        g_tc_ts_park_mm = clamp_f(fv, 0.0f, 100.0f);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "TC_CUT_MS"))
         g_tc_timeout_cut_ms = clamp_i(iv, 1000, 30000);

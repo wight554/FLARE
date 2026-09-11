@@ -186,6 +186,10 @@ const char *tc_state_name(tc_state_t s) {
         return "LOAD_WAIT_OUT";
     case TC_LOAD_WAIT_TH:
         return "LOAD_WAIT_TH";
+    case TC_LOAD_RETRY_RETRACT:
+        return "LOAD_RETRY_RETRACT";
+    case TC_LOAD_PARK:
+        return "LOAD_PARK";
     case TC_LOAD_DONE:
         return "LOAD_DONE";
     case TC_RELOAD_WAIT_Y:
@@ -359,10 +363,40 @@ static void tc_tick_load_states(lane_t *lane, uint32_t now_ms, uint32_t age) {
     case TC_LOAD_WAIT_TH:
         if (lane->task == TASK_IDLE) {
             if (lane->load_completed) {
-                g_tc_ctx.state = TC_LOAD_DONE;
+                if (g_tc_ts_park_mm > 0.0f) {
+                    lane_start(lane, TASK_MOVE, g_feed_sps, true, now_ms, g_tc_ts_park_mm);
+                    g_tc_ctx.phase_start_ms = now_ms;
+                    g_tc_ctx.state = TC_LOAD_PARK;
+                } else {
+                    g_tc_ctx.state = TC_LOAD_DONE;
+                }
+            } else if (g_tc_ctx.ts_retries < g_tc_ts_retries) {
+                g_tc_ctx.ts_retries++;
+                float retract_mm = (g_tc_ts_retry_retract_mm > 0.0f) ? g_tc_ts_retry_retract_mm : 50.0f;
+                lane_start(lane, TASK_MOVE, g_rev_sps, false, now_ms, retract_mm);
+                g_tc_ctx.phase_start_ms = now_ms;
+                g_tc_ctx.state = TC_LOAD_RETRY_RETRACT;
             } else {
                 tc_enter_error("LOAD_TIMEOUT");
             }
+        }
+        break;
+
+    case TC_LOAD_RETRY_RETRACT:
+        if (lane->task == TASK_IDLE) {
+            set_toolhead_filament(false);
+            lane_start(lane, TASK_LOAD_FULL, g_feed_sps, true, now_ms, (float)g_load_max_mm);
+            g_tc_ctx.phase_start_ms = now_ms;
+            g_tc_ctx.state = TC_LOAD_WAIT_TH;
+        }
+        break;
+
+    case TC_LOAD_PARK:
+        if (lane->task == TASK_IDLE) {
+            char lane_s[2];
+            lane_id_str(lane_s, g_active_lane);
+            cmd_event("TC:TS_PARKED", lane_s);
+            g_tc_ctx.state = TC_LOAD_DONE;
         }
         break;
 
@@ -711,6 +745,8 @@ void tc_tick(uint32_t now_ms) {
     case TC_LOAD_START:
     case TC_LOAD_WAIT_OUT:
     case TC_LOAD_WAIT_TH:
+    case TC_LOAD_RETRY_RETRACT:
+    case TC_LOAD_PARK:
     case TC_LOAD_DONE:
         tc_tick_load_states(lane, now_ms, age);
         break;

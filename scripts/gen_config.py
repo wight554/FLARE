@@ -176,6 +176,9 @@ DEFAULTS = {
     "cut_amount": "1",
 
     # Toolchange / Safety
+    "tc_ts_retries": "2",
+    "tc_ts_retry_retract_mm": "50.0",
+    "tc_ts_park_mm": "25.0",
 
     # Safety / Swap
     "runout_cooldown_ms": "12000",
@@ -581,6 +584,9 @@ def main():
         "",
         "// --- Toolchange Timeouts ---",
         f"#define CONF_LOAD_MAX_MM            {get('load_max_mm')}",
+        f"#define CONF_TC_TS_RETRIES          {get('tc_ts_retries')}",
+        f"#define CONF_TC_TS_RETRY_RETRACT_MM {get_float('tc_ts_retry_retract_mm'):.1f}f",
+        f"#define CONF_TC_TS_PARK_MM          {get_float('tc_ts_park_mm'):.1f}f",
         f"#define CONF_UNLOAD_MAX_MM          {get('unload_max_mm')}",
         f"#define CONF_UNLOAD_TENSION_BLOCK_MS    {get('unload_tension_block_ms')}",
         f"#define CONF_AUTOLOAD_MAX_MM        {get('autoload_max_mm')}",

@@ -22,7 +22,7 @@
 
 #define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 61u
+#define SETTINGS_VERSION 62u
 
 // RP2040's onboard NOR flash is typically rated ~100k erase cycles per
 // sector. Visibility only (ARCHITECTURE_BRIEF.md "no wear leveling, no
@@ -63,6 +63,9 @@ typedef struct {
     int sync_max_sps, global_max_sps, sync_min_sps;
     int sync_auto_stop_ms;
     int load_max_mm;
+    int tc_ts_retries;
+    float tc_ts_retry_retract_mm;
+    float tc_ts_park_mm;
     int unload_max_mm;
     int unload_tension_block_ms;
     int reload_join_delay_ms;
@@ -232,6 +235,9 @@ static void settings_defaults_motion(void) {
     g_sync_auto_stop_ms = CONF_SYNC_AUTO_STOP_MS;
     g_autoload_max_mm = CONF_AUTOLOAD_MAX_MM;
     g_load_max_mm = CONF_LOAD_MAX_MM;
+    g_tc_ts_retries = CONF_TC_TS_RETRIES;
+    g_tc_ts_retry_retract_mm = CONF_TC_TS_RETRY_RETRACT_MM;
+    g_tc_ts_park_mm = CONF_TC_TS_PARK_MM;
     g_unload_max_mm = CONF_UNLOAD_MAX_MM;
     g_unload_tension_block_ms = CONF_UNLOAD_TENSION_BLOCK_MS;
     g_reload_join_delay_ms = CONF_RELOAD_JOIN_DELAY_MS;
@@ -295,6 +301,9 @@ void settings_save(void) {
     s.sync_auto_stop_ms = g_sync_auto_stop_ms;
     s.autoload_max_mm = g_autoload_max_mm;
     s.load_max_mm = g_load_max_mm;
+    s.tc_ts_retries = g_tc_ts_retries;
+    s.tc_ts_retry_retract_mm = g_tc_ts_retry_retract_mm;
+    s.tc_ts_park_mm = g_tc_ts_park_mm;
     s.unload_max_mm = g_unload_max_mm;
     s.unload_tension_block_ms = g_unload_tension_block_ms;
     s.reload_join_delay_ms = g_reload_join_delay_ms;
@@ -440,6 +449,9 @@ static void settings_load_motion(const settings_t *s) {
     g_sync_auto_stop_ms = s->sync_auto_stop_ms;
     g_autoload_max_mm = s->autoload_max_mm;
     g_load_max_mm = s->load_max_mm;
+    g_tc_ts_retries = clamp_i(s->tc_ts_retries, 0, 10);
+    g_tc_ts_retry_retract_mm = clamp_f(s->tc_ts_retry_retract_mm, 5.0f, 500.0f);
+    g_tc_ts_park_mm = clamp_f(s->tc_ts_park_mm, 0.0f, 100.0f);
     g_unload_max_mm = s->unload_max_mm;
     g_unload_tension_block_ms = s->unload_tension_block_ms;
     g_reload_join_delay_ms = s->reload_join_delay_ms;
