@@ -169,28 +169,28 @@ stored value.
 sequence that replaces the legacy blind `RA`-gated retract. The lifecycle has
 four sub-states inside `SYNC_RETRACT_ASSIST`:
 
-1. **PRIME** — the active-lane motor drives toward the requested extreme. Type-D
-   (switch) primes at `SYNC_MAX_SPS` — the switch click is bang-bang, so full
-   speed stops instantly at the extreme. Type-P (analog) primes at `BUF_STAB_SPS`:
-   the PSF reading is EMA-filtered and lags, so a full-speed prime would overshoot
-   `PSF_HOME_THRESHOLD_NORM` (0.90) and slam the `±1.0` rail before the motor reads
-   the threshold and stops. The prime is bounded to `BUF_MAX_TRAVEL_MM / 2` of
-   travel. When the target extreme is reached or the deadline elapses the state
-   advances to LOCKED and emits `EV:BL:PRIME_BOUND` on deadline or `EV:BL:LOCKED`
-   on success.
+1. **PRIME** — the active-lane motor drives toward the requested extreme at
+   `SYNC_MAX_SPS`. Type-D (switch) stops on the raw switch state. Type-P (analog)
+   uses predictive rail stopping (`g_buf_pos + BL_PRIME_PREDICT_LEAD_S * g_vel_norm_f`
+   crossing `PSF_HOME_THRESHOLD_NORM`) to stop without overshoot despite EMA filter
+   lag. The prime is capped at full `BUF_MAX_TRAVEL_MM` of travel. When the target
+   extreme is reached or the deadline elapses the state advances to LOCKED and emits
+   `EV:BL:PRIME_BOUND` on deadline or `EV:BL:LOCKED` on success.
 2. **LOCKED** — motor stays energized at zero feed, holding the buffer at the
    extreme. Any external force (printer-side retract) that breaks away from the
    target extreme (raw flip for type-D, `g_buf_pos` crossing `PSF_HOME_THRESHOLD_NORM`
-   for type-P) fires the follow-on if one was armed (`BL:<T|C>:<follow_mm>:<rate>`).
-3. **FOLLOW** — open-loop concurrent retract in the prime direction, feeding
-   `follow_mm` at `follow_rate` to mass-balance the extruder move, then returning
-   to LOCKED (`EV:BL:FOLLOW_DONE`). For type-P the open-loop feed is **position-gated**:
-   if `g_buf_pos` reaches `PSF_FOLLOW_RAIL_NORM` (0.95) the feed stops early and
-   drops back to LOCKED (`EV:BL:FOLLOW_GATED`) so it never slams the armed rail; if
-   backflow later pushes the buffer off the extreme the lock re-breaks and the
-   follow re-fires. Type-D has no analog position and relies on the elapsed-distance
-   budget alone. A watchdog caps total arm time (`BL_WATCHDOG_DEFAULT_MS`, default
-   30 s); timeout emits `EV:BL:TIMEOUT` and releases.
+   for type-P) immediately emits `EV:BL:BREAK` and engages the catch drive.
+3. **FOLLOW (Rate-Servo Catch)** — concurrent retract in the prime direction.
+   For type-P, commanded rate is an error-proportional servo seeded by `follow_rate`
+   (or `SYNC_MAX_SPS` default for bare `BL:T`/`BL:C`), escalating toward `GLOBAL_MAX_SPS`
+   as buffer displacement increases (`BL_CATCH_ERR_SPAN_NORM = 1.0f`), ramped via
+   `RAMP_STEP_SPS` for pull-in safety. For type-D, holds fixed seed rate.
+   Catch start emits `EV:BL:FOLLOW`. When travel budget completes, returns to LOCKED
+   (`EV:BL:FOLLOW_DONE`). For type-P the feed is **position-gated**: if `g_buf_pos`
+   reaches `PSF_FOLLOW_RAIL_NORM` (0.95), feed stops early and drops back to LOCKED
+   (`EV:BL:FOLLOW_GATED`) to prevent slamming the rail. A watchdog caps total arm time
+   (`BL_WATCHDOG_DEFAULT_MS`, default 30 s, or custom per-arm `timeout_ms`); timeout
+   emits `EV:BL:TIMEOUT` and releases.
 4. **Release / replacement** — `BS` sent by the host releases BL and starts a
    full buffer stabilize. A new `BL:T` / `BL:C` may also replace an active `BS`
    stabilize; the stabilize drive is stopped and the requested BL prime starts

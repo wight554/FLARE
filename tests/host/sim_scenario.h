@@ -112,6 +112,7 @@ typedef struct {
     int bl_arm_target;           // buf_state_t: BUF_TENSION(1) or BUF_COMPRESSION(2)
     float bl_arm_follow_mm;      // 0 = no follow-on (BL:T / BL:C); >half-travel arms follow-on
     float bl_arm_follow_rate_mmpm;
+    uint32_t bl_arm_timeout_ms;
     uint32_t bl_clear_at_ms;     // 0 = never; else call sync_retract_assist_set(false) (BS) at this tick
 
     // cutter-feed-timeout scenario support.

@@ -115,6 +115,8 @@ static uint32_t g_bl_last_tick_ms = 0;
 static int g_bl_follow_cur_sps = 0;           /* FOLLOW current ramped rate */
 static int g_bl_follow_target_sps = 0;        /* FOLLOW target rate (clamped) */
 static uint32_t g_bl_follow_ramp_tick_ms = 0; /* last FOLLOW ramp step */
+static uint32_t g_bl_arm_timeout_ms = 0;      /* configured watchdog window; 0 = default */
+static int g_bl_follow_seed_sps = 0;          /* FOLLOW seed rate (floor for rate servo) */
 
 bool g_bl_autostart_suppressed = false;
 bool g_sync_tension_transitioned = false;
@@ -722,7 +724,9 @@ void sync_retract_assist_set(bool enabled) {
             g_bl_follow_rate_mmpm = 0.0f;
             g_bl_follow_start_ms = 0;
             g_bl_follow_mm_per_s = 0.0f;
+            g_bl_follow_seed_sps = 0;
             g_bl_watchdog_ms = 0;
+            g_bl_arm_timeout_ms = 0;
             sync_set_state(SYNC_OFF);
             /* Suppress auto-start: buffer is at the BL extreme, not extruder-driven. */
             g_bl_autostart_suppressed = true;
@@ -758,7 +762,7 @@ bool sync_retract_assist_enabled(void) {
 // ============================================================================
 
 void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate_mmpm,
-                          uint32_t now_ms) {
+                          uint32_t now_ms, uint32_t timeout_ms) {
     lane_t *lane = lane_ptr(g_active_lane);
     if (!lane)
         return;
@@ -782,17 +786,15 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
     /* Park the buffer goal at the armed rail until BS/timeout clears it. */
     g_bl_goal_override = target;
 
-    /* Prime runs at SYNC_MAX_SPS. Overtravel is controlled by the two-phase
-     * gates:
-     *   phase 1 — search until switch fires (outer cap: BUF_MAX_TRAVEL_MM)
-     *   phase 2 — lock at switch click (no post-settle travel). */
+    g_bl_arm_timeout_ms = (timeout_ms > 0) ? timeout_ms : BL_WATCHDOG_DEFAULT_MS;
+
+    /* Prime runs at SYNC_MAX_SPS for both Type-D and Type-P. Type-P EMA filter
+     * lag is compensated predictively via BL_PRIME_PREDICT_LEAD_S. Overtravel
+     * is controlled by the two-phase gates:
+     *   phase 1 — search until switch/predictive threshold fires (outer cap: BUF_MAX_TRAVEL_MM)
+     *   phase 2 — lock at switch/predictive threshold (no post-settle travel). */
     int idx = lane->lane_id - 1;
-    /* Type-P (analog) primes gently at BUF_STAB_SPS: the PSF EMA filter lags,
-     * so a full-speed SYNC_MAX_SPS prime overshoots PSF_HOME_THRESHOLD_NORM and
-     * slams the rail before the motor reads the threshold and stops. Type-D
-     * (switch) is bang-bang — the click stops it instantly, so full speed is fine. */
-    int prime_sps = (g_buf_sensor_type == BUF_SENSOR_TYPE_P) ? sync_clamp_max_sps(g_buf_stab_sps)
-                                           : sync_clamp_max_sps(g_sync_max_sps);
+    int prime_sps = sync_clamp_max_sps(g_sync_max_sps);
     int start_sps = g_ramp_step_sps;
     if (start_sps > prime_sps)
         start_sps = prime_sps;
@@ -804,22 +806,30 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
     g_bl_prime_target_sps = prime_sps;
     g_bl_prime_ramp_tick_ms = now_ms;
     g_bl_prime_mm_per_s = (float)start_sps * g_mm_per_step[idx];
+    /* Bounded Prime Travel requirement: full travel cap */
     g_bl_prime_cap_mm =
         (g_buf_max_travel_mm > 0) ? (float)g_buf_max_travel_mm : BL_FALLBACK_TRAVEL_CAP_MM;
     g_bl_prime_traveled_mm = 0.0f;
-    /* Subtract BUF_MAX_TRAVEL_MM/2 so FOLLOW finishes near NEUTRAL rather
+    /* Subtract BUF_MAX_TRAVEL_MM/2 so explicit FOLLOW finishes near NEUTRAL rather
      * than at the switch click. After the extruder stops the MMU keeps
      * draining; parking at the switch click leaves one step before the
-     * mechanical hard end. If the adjusted distance is ≤ 0, the macro
-     * doesn't need a follow-on for such a short move — use passive lock. */
+     * mechanical hard end. If the adjusted distance is <= 0, the macro
+     * doesn't need a follow-on for such a short move — use passive lock.
+     * When host provides no follow parameters (bare BL:T / BL:C), default to
+     * BUF_MAX_TRAVEL_MM budget so lock retain catch authority against external force. */
     {
         float half_travel = (g_buf_max_travel_mm > 0) ? ((float)g_buf_max_travel_mm * HALF_F)
                                                     : BL_FALLBACK_HALF_TRAVEL_MM;
-        float effective_follow_mm =
-            (follow_mm > 0.0f && follow_rate_mmpm > 0.0f) ? (follow_mm - half_travel) : 0.0f;
-        g_bl_follow_mm = (effective_follow_mm > 0.0f) ? effective_follow_mm : 0.0f;
-        g_bl_follow_rate_mmpm = (g_bl_follow_mm > 0.0f) ? follow_rate_mmpm : 0.0f;
+        if (follow_mm > 0.0f && follow_rate_mmpm > 0.0f) {
+            float effective_follow_mm = follow_mm - half_travel;
+            g_bl_follow_mm = (effective_follow_mm > 0.0f) ? effective_follow_mm : 0.0f;
+            g_bl_follow_rate_mmpm = (g_bl_follow_mm > 0.0f) ? follow_rate_mmpm : 0.0f;
+        } else {
+            g_bl_follow_mm = (g_buf_max_travel_mm > 0) ? (float)g_buf_max_travel_mm : BL_FALLBACK_TRAVEL_CAP_MM;
+            g_bl_follow_rate_mmpm = 0.0f;
+        }
     }
+    g_bl_follow_seed_sps = 0;
     g_bl_follow_start_ms = 0;
     g_bl_follow_mm_per_s = 0.0f;
     g_bl_follow_traveled_mm = 0.0f;
@@ -852,10 +862,11 @@ bool sync_buffer_lock_motor_moving(void) {
 static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
     bool reached = false;
     if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
+        float predicted = g_buf_pos + BL_PRIME_PREDICT_LEAD_S * g_vel_norm_f;
         if (g_bl_target_state == BUF_TENSION)
-            reached = (g_buf_pos <= -PSF_HOME_THRESHOLD_NORM);
+            reached = (predicted <= -PSF_HOME_THRESHOLD_NORM);
         else if (g_bl_target_state == BUF_COMPRESSION)
-            reached = (g_buf_pos >= PSF_HOME_THRESHOLD_NORM);
+            reached = (predicted >= PSF_HOME_THRESHOLD_NORM);
     } else {
         buf_state_t raw = buf_state_raw();
         reached = (raw == g_bl_target_state);
@@ -895,7 +906,7 @@ static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
         }
 
         g_bl_sub_state = BL_LOCKED;
-        g_bl_watchdog_ms = now_ms + BL_WATCHDOG_DEFAULT_MS;
+        g_bl_watchdog_ms = now_ms + (g_bl_arm_timeout_ms ? g_bl_arm_timeout_ms : BL_WATCHDOG_DEFAULT_MS);
         cmd_event("BL", "LOCKED");
     }
 }
@@ -914,12 +925,33 @@ static void sync_buffer_lock_locked(lane_t *lane, uint32_t now_ms) {
         }
 
         if (lock_broken) {
+            cmd_event("BL", "BREAK");
+
             int idx = lane->lane_id - 1;
-            int follow_sps = (int)(g_bl_follow_rate_mmpm / SECONDS_PER_MINUTE_F / g_mm_per_step[idx] +
-                                   ROUND_TO_NEAREST_F);
-            if (follow_sps < 1)
-                follow_sps = 1;
-            follow_sps = sync_clamp_max_sps(follow_sps);
+            int seed_sps;
+            if (g_bl_follow_rate_mmpm > 0.0f) {
+                seed_sps = (int)(g_bl_follow_rate_mmpm / SECONDS_PER_MINUTE_F / g_mm_per_step[idx] +
+                                 ROUND_TO_NEAREST_F);
+            } else {
+                seed_sps = sync_clamp_max_sps(g_sync_max_sps);
+            }
+            if (seed_sps < 1)
+                seed_sps = 1;
+            seed_sps = sync_clamp_max_sps(seed_sps);
+            g_bl_follow_seed_sps = seed_sps;
+
+            int follow_sps = seed_sps;
+            if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
+                float armed_rail_norm = (g_bl_target_state == BUF_TENSION) ? -1.0f : 1.0f;
+                float err = fabsf(g_buf_pos - armed_rail_norm);
+                float err_ratio = clamp_f(err / BL_CATCH_ERR_SPAN_NORM, 0.0f, 1.0f);
+                int max_target = motion_clamp_rate_sps(g_global_max_sps);
+                if (max_target > seed_sps) {
+                    follow_sps = seed_sps +
+                        (int)((float)(max_target - seed_sps) * err_ratio + ROUND_TO_NEAREST_F);
+                }
+            }
+
             bool forward = (g_bl_target_state == BUF_COMPRESSION);
             motor_set_dir(&lane->m, forward);
             int start_sps = g_ramp_step_sps;
@@ -964,17 +996,37 @@ static void sync_buffer_lock_follow(lane_t *lane, uint32_t now_ms) {
             g_bl_last_tick_ms = now_ms;
             return;
         }
+
+        /* Type-P error-proportional rate escalation toward GLOBAL_MAX_SPS */
+        float armed_rail_norm = (g_bl_target_state == BUF_TENSION) ? -1.0f : 1.0f;
+        float err = fabsf(g_buf_pos - armed_rail_norm);
+        float err_ratio = clamp_f(err / BL_CATCH_ERR_SPAN_NORM, 0.0f, 1.0f);
+        int max_target = motion_clamp_rate_sps(g_global_max_sps);
+        if (max_target > g_bl_follow_seed_sps) {
+            g_bl_follow_target_sps = g_bl_follow_seed_sps +
+                (int)((float)(max_target - g_bl_follow_seed_sps) * err_ratio + ROUND_TO_NEAREST_F);
+        } else {
+            g_bl_follow_target_sps = g_bl_follow_seed_sps;
+        }
     }
 
-    /* Accelerate toward the target follow rate (pull-in-safe ramp). */
-    if (g_bl_follow_cur_sps < g_bl_follow_target_sps &&
-        (int32_t)(now_ms - g_bl_follow_ramp_tick_ms) >= g_ramp_tick_ms) {
-        g_bl_follow_ramp_tick_ms = now_ms;
-        g_bl_follow_cur_sps += g_ramp_step_sps;
-        if (g_bl_follow_cur_sps > g_bl_follow_target_sps)
-            g_bl_follow_cur_sps = g_bl_follow_target_sps;
-        motor_set_rate_sps(&lane->m, g_bl_follow_cur_sps);
-        g_bl_follow_mm_per_s = (float)g_bl_follow_cur_sps * g_mm_per_step[idx];
+    /* Accelerate or decelerate toward target follow rate (pull-in-safe ramp). */
+    if ((int32_t)(now_ms - g_bl_follow_ramp_tick_ms) >= g_ramp_tick_ms) {
+        if (g_bl_follow_cur_sps < g_bl_follow_target_sps) {
+            g_bl_follow_ramp_tick_ms = now_ms;
+            g_bl_follow_cur_sps += g_ramp_step_sps;
+            if (g_bl_follow_cur_sps > g_bl_follow_target_sps)
+                g_bl_follow_cur_sps = g_bl_follow_target_sps;
+            motor_set_rate_sps(&lane->m, g_bl_follow_cur_sps);
+            g_bl_follow_mm_per_s = (float)g_bl_follow_cur_sps * g_mm_per_step[idx];
+        } else if (g_bl_follow_cur_sps > g_bl_follow_target_sps) {
+            g_bl_follow_ramp_tick_ms = now_ms;
+            g_bl_follow_cur_sps -= g_ramp_step_sps;
+            if (g_bl_follow_cur_sps < g_bl_follow_target_sps)
+                g_bl_follow_cur_sps = g_bl_follow_target_sps;
+            motor_set_rate_sps(&lane->m, g_bl_follow_cur_sps);
+            g_bl_follow_mm_per_s = (float)g_bl_follow_cur_sps * g_mm_per_step[idx];
+        }
     }
 
     /* Integrate distance at the current (ramping) rate, not a fixed one. */
@@ -985,6 +1037,7 @@ static void sync_buffer_lock_follow(lane_t *lane, uint32_t now_ms) {
         motor_set_rate_sps(&lane->m, 0);
         g_bl_follow_mm = 0.0f;
         g_bl_follow_rate_mmpm = 0.0f;
+        g_bl_follow_seed_sps = 0;
         g_bl_follow_start_ms = 0;
         g_bl_follow_mm_per_s = 0.0f;
         g_bl_follow_traveled_mm = 0.0f;

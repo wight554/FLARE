@@ -55,6 +55,12 @@ class TestWireFormat(unittest.TestCase):
         self.assertEqual(m4.group(1), "BL")
         self.assertEqual(m4.group(2), "TIMEOUT")
 
+        # EV:BL:BREAK
+        m4b = EVENT_RE.match("EV:BL:BREAK")
+        self.assertIsNotNone(m4b)
+        self.assertEqual(m4b.group(1), "BL")
+        self.assertEqual(m4b.group(2), "BREAK")
+
         # EV:RELOAD:LOADED:1
         m5 = EVENT_RE.match("EV:RELOAD:LOADED:1")
         self.assertIsNotNone(m5)
@@ -86,6 +92,11 @@ class TestWireFormat(unittest.TestCase):
         # EV:BL:TIMEOUT
         t, d = daemon_split_logic("EV:BL:TIMEOUT")
         self.assertEqual(t, "BL:TIMEOUT")
+        self.assertEqual(d, "")
+
+        # EV:BL:BREAK
+        t, d = daemon_split_logic("EV:BL:BREAK")
+        self.assertEqual(t, "BL:BREAK")
         self.assertEqual(d, "")
 
         # EV:RELOAD:LOADED:1

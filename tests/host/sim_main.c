@@ -198,7 +198,8 @@ int main(int argc, char **argv) {
         }
         if (scn->bl_arm_at_ms != 0 && g_now_ms == scn->bl_arm_at_ms) {
             sync_buffer_lock_arm((buf_state_t)scn->bl_arm_target, scn->bl_arm_follow_mm,
-                                 scn->bl_arm_follow_rate_mmpm, g_now_ms);
+                                 scn->bl_arm_follow_rate_mmpm, g_now_ms,
+                                 scn->bl_arm_timeout_ms);
         }
         if (scn->bl_clear_at_ms != 0 && g_now_ms == scn->bl_clear_at_ms) {
             sync_retract_assist_set(false);

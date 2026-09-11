@@ -265,11 +265,8 @@ class BufferStateLockTests(unittest.TestCase):
     `ER:BUSY` rejection) is protocol.c-level and out of sim scope — these
     call `sync_buffer_lock_arm()`/`sync_retract_assist_set()` directly.
 
-    Spec/code mismatch found while building these (see
-    memories/repo/host-sync-sim.md): the spec's "Extruder retract breaks the
-    lock" scenario says `EV:BL:BREAK` is emitted; the real firmware emits
-    `EV:BL:FOLLOW` (sync.c has no BL:BREAK event anywhere) — asserted against
-    the real event name here, not the spec's stated one."""
+    Buffer-state-lock scenarios test prime, lock, break, and catch.
+    On lock-break, firmware emits EV:BL:BREAK then EV:BL:FOLLOW."""
 
     def test_prime_locks_at_switch_and_holds_against_spring(self):
         run = run_scenario("sem_bl_release_via_bs", sensor_type="d", ticks=250)
@@ -296,7 +293,9 @@ class BufferStateLockTests(unittest.TestCase):
         run = run_scenario("sem_bl_lock_catch", sensor_type="d", ticks=None)
         self.assertEqual(run.returncode, 0, run.stderr)
         events = run.events_text()
-        self.assertIn("BL,FOLLOW", events)  # the real event — see class docstring
+        self.assertIn("BL,BREAK", events)
+        self.assertIn("BL,FOLLOW", events)
+        self.assertLess(events.index("BL,BREAK"), events.index("BL,FOLLOW"))
 
     def test_watchdog_auto_releases_after_default_timeout(self):
         run = run_scenario("sem_bl_watchdog_timeout", sensor_type="d", ticks=None)

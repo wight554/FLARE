@@ -25,6 +25,10 @@
 
 /// @brief Prediction lead time for stabilize crossings.
 #define SYNC_STAB_PREDICT_LEAD_S 0.10f
+/// @brief Prediction lead time for Type-P buffer lock prime rail approach (compensates EMA filter lag).
+#define BL_PRIME_PREDICT_LEAD_S 0.10f
+/// @brief Buffer error in normalized units away from armed rail at which catch reaches GLOBAL_MAX_SPS.
+#define BL_CATCH_ERR_SPAN_NORM 1.0f
 /// @brief Type-D neutral compression taper fraction.
 #define SYNC_NEUTRAL_COMPRESSION_TAPER_FRAC 0.5f
 /// @brief Type-D neutral compression floor fraction.

@@ -1624,10 +1624,11 @@ static bool cmd_handle_motion(const char *cmd, const char *p, uint32_t now_ms) {
 
 static bool cmd_handle_bl_command(const char *p, uint32_t now_ms) {
     /* Buffer-lock arm command.
-     *   BL or BL:T → arm TENSION (no follow-on)
-     *   BL:C → arm COMPRESSION (no follow-on)
+     *   BL or BL:T → arm TENSION (default timeout)
+     *   BL:C → arm COMPRESSION (default timeout)
      *   BL:T:<follow_mm>:<follow_rate_mmpm> → arm TENSION + follow-on
      *   BL:C:<follow_mm>:<follow_rate_mmpm> → arm COMPRESSION + follow-on
+     *   BL:<state>:<follow_mm>:<follow_rate_mmpm>:<timeout_ms> → arm with custom watchdog
      * Follow-on fires concurrent MMU motion (prime direction) on the
      * first raw transition off the armed extreme — i.e. the moment
      * the extruder starts filling the buffer. Mass-balances long
@@ -1637,17 +1638,61 @@ static bool cmd_handle_bl_command(const char *p, uint32_t now_ms) {
     char dir_tok = 'T';
     float follow_mm = 0.0f;
     float follow_rate = 0.0f;
-    int n = sscanf(p, "%c:%f:%f", &dir_tok, &follow_mm, &follow_rate);
-    if (n < 1)
-        dir_tok = 'T';
-    if (dir_tok != 'T' && dir_tok != 'C') {
+    uint32_t timeout_ms = 0;
+
+    int colons = 0;
+    for (const char *c = p; *c; c++) {
+        if (*c == ':')
+            colons++;
+    }
+
+    if (colons == 0) {
+        if (p[0] == '\0') {
+            dir_tok = 'T';
+        } else if (p[1] == '\0') {
+            dir_tok = p[0];
+        } else {
+            cmd_reply("ER", "ARG");
+            return true;
+        }
+        if (dir_tok != 'T' && dir_tok != 'C') {
+            cmd_reply("ER", "ARG");
+            return true;
+        }
+    } else if (colons == 2) {
+        char extra = 0;
+        int n = sscanf(p, "%c:%f:%f%c", &dir_tok, &follow_mm, &follow_rate, &extra);
+        if (n != 3 || (dir_tok != 'T' && dir_tok != 'C') || follow_mm <= 0.0f ||
+            follow_rate <= 0.0f) {
+            cmd_reply("ER", "ARG");
+            return true;
+        }
+    } else if (colons == 3) {
+        const char *last_colon = strrchr(p, ':');
+        if (last_colon && last_colon[1] == '-') {
+            cmd_reply("ER", "ARG");
+            return true;
+        }
+        char extra = 0;
+        unsigned long timeout_val = 0;
+        int n = sscanf(p, "%c:%f:%f:%lu%c", &dir_tok, &follow_mm, &follow_rate, &timeout_val,
+                       &extra);
+        if (n != 4 || (dir_tok != 'T' && dir_tok != 'C') || timeout_val == 0) {
+            cmd_reply("ER", "ARG");
+            return true;
+        }
+        if (follow_mm < 0.0f || follow_rate < 0.0f ||
+            (follow_mm == 0.0f && follow_rate != 0.0f) ||
+            (follow_mm != 0.0f && follow_rate == 0.0f)) {
+            cmd_reply("ER", "ARG");
+            return true;
+        }
+        timeout_ms = (uint32_t)timeout_val;
+    } else {
         cmd_reply("ER", "ARG");
         return true;
     }
-    if (n == 2 || (n == 3 && (follow_mm <= 0.0f || follow_rate <= 0.0f))) {
-        cmd_reply("ER", "ARG");
-        return true;
-    }
+
     if (controller_hard_activity_in_progress()) {
         cmd_reply("ER", "BUSY:BL");
         return true;
@@ -1665,7 +1710,7 @@ static bool cmd_handle_bl_command(const char *p, uint32_t now_ms) {
         cmd_reply("ER", "BUSY:BL");
     } else {
         buf_state_t target = (dir_tok == 'C') ? BUF_COMPRESSION : BUF_TENSION;
-        sync_buffer_lock_arm(target, follow_mm, follow_rate, now_ms);
+        sync_buffer_lock_arm(target, follow_mm, follow_rate, now_ms, timeout_ms);
         cmd_reply("OK", NULL);
     }
     return true;
