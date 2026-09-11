@@ -304,6 +304,42 @@ class BufferStateLockTests(unittest.TestCase):
         self.assertIn("!BL,TIMEOUT", events)  # cmd_event_critical -> "!" prefix in the trace
         self.assertEqual(run.rows[-1]["sync_state"], "OFF")
 
+    def test_type_p_fast_prime_prediction(self):
+        run = run_scenario("sem_bl_release_via_bs", sensor_type="p", ticks=250)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertIn("BL,PRIME", events)
+        self.assertIn("BL,LOCKED", events)
+        locked_rows = [r for r in run.rows if r["sync_state"] == "RETRACT_ASSIST"
+                       and 1400 <= int(r["ts_ms"]) < 4000]
+        self.assertTrue(locked_rows)
+        positions = [float(r["bp_mm"]) for r in locked_rows]
+        self.assertTrue(all(-12.5 < p < -10.0 for p in positions),
+                        f"expected locked position near rail without slamming: {positions[:3]}")
+        self.assertEqual(len(set(r["bp_mm"] for r in locked_rows)), 1)
+        self.assertEqual(run.rows[-1]["sync_state"], "OFF")
+
+    def test_type_p_catch_escalation(self):
+        run = run_scenario("sem_bl_lock_catch", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertIn("BL,PRIME", events)
+        self.assertIn("BL,LOCKED", events)
+        self.assertIn("BL,BREAK", events)
+        self.assertIn("BL,FOLLOW", events)
+        self.assertIn("BL,FOLLOW_DONE", events)
+        self.assertLess(events.index("BL,PRIME"), events.index("BL,LOCKED"))
+        self.assertLess(events.index("BL,LOCKED"), events.index("BL,BREAK"))
+        self.assertLess(events.index("BL,BREAK"), events.index("BL,FOLLOW"))
+        self.assertLess(events.index("BL,FOLLOW"), events.index("BL,FOLLOW_DONE"))
+        pre_demand_locked = [r for r in run.rows if 1400 <= int(r["ts_ms"]) < 6000]
+        self.assertTrue(pre_demand_locked)
+        self.assertEqual(len(set(r["bp_mm"] for r in pre_demand_locked)), 1)
+        catch_start_pos = float([r["bp_mm"] for r in run.rows if int(r["ts_ms"]) == 6220][0])
+        catch_end_pos = float([r["bp_mm"] for r in run.rows if int(r["ts_ms"]) == 6540][0])
+        self.assertLess(catch_end_pos, catch_start_pos,
+                        f"expected catch to pull toward tension: {catch_start_pos} -> {catch_end_pos}")
+
 
 @unittest.skipIf(_skip_reason(), _skip_reason())
 class CutterFeedTimeoutTests(unittest.TestCase):
