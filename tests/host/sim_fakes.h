@@ -24,3 +24,9 @@ extern uint8_t g_sim_flash[];
 // sim_fakes.c. Needed for BL prime/lock/catch, which drives motor_set_rate_sps()
 // directly and never touches lane_t.current_sps.
 float sim_motor_rate_sps(unsigned int slice);
+
+void sim_tmc_inject_brownout(int lane);
+void sim_tmc_set_comm_fail(int lane, bool fail);
+int sim_tmc_get_read_count(int lane);
+int sim_tmc_get_write_count(int lane);
+void sim_tmc_reset_counts(void);

@@ -201,7 +201,7 @@ static float buf_switch_span_half_from_full(float span_mm, int max_travel_mm) {
     return clamp_f(span_mm, BUF_SWITCH_SPAN_MIN_MM, max_span_mm) * HALF_F;
 }
 
-static bool controller_activity_in_progress(void) {
+bool controller_activity_in_progress(void) {
     if (manual_unload_active())
         return true;
     /* TC_ERROR means the TC concluded (failed) — not running. Treat as idle

@@ -257,7 +257,7 @@ def get_auth_token(cli_token=None):
     token_path = os.path.expanduser("~/.flare/auth.token")
     if os.path.exists(token_path):
         try:
-            with open(token_path, "r", encoding="utf-8") as f:
+            with open(token_path, encoding="utf-8") as f:
                 return f.read().strip()
         except Exception:
             pass

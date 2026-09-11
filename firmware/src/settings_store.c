@@ -503,6 +503,7 @@ void sync_tmc_settings(int lane) {
         g_tmc_rotation_distance[idx] /
         ((float)g_tmc_full_steps[idx] * g_tmc_gear_ratio[idx] * (float)g_tmc_microsteps[idx]);
 
+    tmc_set_pwmconf(tmc);
     tmc_setup_chopconf(tmc, g_tmc_microsteps[idx], g_tmc_toff[idx], g_tmc_tbl[idx], g_tmc_hstrt[idx],
                        g_tmc_hend[idx], g_tmc_interpolate[idx]);
     tmc_set_stealthchop_sps(tmc, g_tmc_stealthchop_sps[idx], g_tmc_microsteps[idx]);

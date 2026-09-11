@@ -41,6 +41,8 @@
 #include "pico/flash.h"
 #include "pico/stdlib.h"
 #include "tmc2209.h"
+#include "toolchange.h"
+#include "cutter.h"
 
 #include "sim_fakes.h"
 
@@ -218,10 +220,11 @@ int flash_safe_execute(flash_safe_execute_func func, void *param, uint32_t timeo
 }
 
 // ===================== TMC2209 =====================
-// tmc2209.c is out of scope (needs generated PIO headers, see proposal.md
-// Scope). Only the four entry points settings_store.c/motion.c actually call
-// are faked; nothing dereferences the tmc_t pointer, so a NULL lane->tmc
-// (lane_setup() is never called — main.c owns it) is safe.
+static uint32_t s_mock_chopconf[NUM_LANES] = {0, 0};
+static bool s_mock_comm_fail[NUM_LANES] = {false, false};
+static int s_mock_read_count[NUM_LANES] = {0, 0};
+static int s_mock_write_count[NUM_LANES] = {0, 0};
+
 bool tmc_set_run_current_ma(tmc_t *tmc, int run_ma, int hold_ma) {
     (void)tmc;
     (void)run_ma;
@@ -231,14 +234,33 @@ bool tmc_set_run_current_ma(tmc_t *tmc, int run_ma, int hold_ma) {
 
 bool tmc_setup_chopconf(tmc_t *tmc, int microsteps, int toff, int tbl, int hstrt, int hend,
                         bool intpol) {
-    (void)tmc;
-    (void)microsteps;
-    (void)toff;
+    (void)intpol;
     (void)tbl;
     (void)hstrt;
     (void)hend;
-    (void)intpol;
+    int idx = (tmc == &g_tmc_l2) ? 1 : 0;
+    s_mock_write_count[idx]++;
+    uint32_t chop = 0x15000000u | ((uint32_t)(microsteps & 0xFF) << 16) | (uint32_t)(toff & 0xF);
+    if (tmc) {
+        tmc->chopconf = chop;
+    }
+    s_mock_chopconf[idx] = chop;
     return true;
+}
+
+bool tmc_read(tmc_t *tmc, uint8_t reg, uint32_t *out_value) {
+    int idx = (tmc == &g_tmc_l2) ? 1 : 0;
+    s_mock_read_count[idx]++;
+    if (s_mock_comm_fail[idx]) {
+        return false;
+    }
+    if (reg == TMC_REG_CHOPCONF) {
+        if (out_value) {
+            *out_value = s_mock_chopconf[idx];
+        }
+        return true;
+    }
+    return false;
 }
 
 bool tmc_set_stealthchop_sps(tmc_t *tmc, int sps, int microsteps) {
@@ -251,6 +273,44 @@ bool tmc_set_stealthchop_sps(tmc_t *tmc, int sps, int microsteps) {
 bool tmc_set_pwmconf(tmc_t *tmc) {
     (void)tmc;
     return true;
+}
+
+void sim_tmc_inject_brownout(int lane) {
+    int idx = lane_to_idx(lane);
+    s_mock_chopconf[idx] = 0x10000053u; // Silicon reset default
+}
+
+void sim_tmc_set_comm_fail(int lane, bool fail) {
+    int idx = lane_to_idx(lane);
+    s_mock_comm_fail[idx] = fail;
+}
+
+int sim_tmc_get_read_count(int lane) {
+    int idx = lane_to_idx(lane);
+    return s_mock_read_count[idx];
+}
+
+int sim_tmc_get_write_count(int lane) {
+    int idx = lane_to_idx(lane);
+    return s_mock_write_count[idx];
+}
+
+void sim_tmc_reset_counts(void) {
+    s_mock_read_count[0] = s_mock_read_count[1] = 0;
+    s_mock_write_count[0] = s_mock_write_count[1] = 0;
+}
+
+bool controller_activity_in_progress(void) {
+    if (manual_unload_active())
+        return true;
+    if ((g_tc_ctx.state != TC_IDLE && g_tc_ctx.state != TC_ERROR) || cutter_busy() ||
+        g_boot_stabilizing)
+        return true;
+    if (g_lane_l1.task != TASK_IDLE || g_lane_l2.task != TASK_IDLE)
+        return true;
+    if (sync_buffer_lock_motor_moving())
+        return true;
+    return false;
 }
 
 // ===================== main.c pure helpers =====================

@@ -358,5 +358,8 @@ uint32_t build_ihold_irun_reg(int run_ma, int hold_ma, bool vsense);
 void sync_currents_from_ihold_irun(int ln, uint32_t reg);
 void set_toolhead_filament(bool present);
 void set_active_lane(int lane);
+extern int g_tmc_health[NUM_LANES];
+bool controller_activity_in_progress(void);
+void tmc_heartbeat_tick(uint32_t now_ms);
 lane_t *lane_ptr(int lane);
 int other_lane(int lane);

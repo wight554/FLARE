@@ -15,6 +15,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 - [x] **Phase 7: Flash Ping-Pong Atomic Persistence** - Dual A/B ping-pong sectors with sequence arbitration and brownout recovery
 - [x] **Phase 8: Settings TLV / Delta Schema Migration** - Non-destructive schema evolution via packed Tag-Length-Value encoding with v63 lazy migration
 - [x] **Phase 9: Daemon Security & Remote Command Hardening** - Bearer token authentication, loopback exemption, per-client token-bucket rate limiting on serial commands, and WebUI/CLI token integration
+- [x] **Phase 10: TMC2209 Register Heartbeat & Auto-Recovery** - Idle-loop CHOPCONF sentinel verification, 1000ms alternating cadence, strict motion lockout, brownout auto-recovery, and host event escalation
 
 ## Phase Details
 
@@ -117,7 +118,19 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   3. Remote telemetry reads (`GET /status`, `GET /telemetry`, static UI) remain open and unauthenticated for dashboards
   4. Per-client token-bucket rate limiter throttles remote `POST /cmd` bursts to prevent USB serial ringbuffer starvation, returning HTTP 429
   5. WebUI and `flare_cmd.py` integrate seamlessly with Bearer token authentication and auto-discovery
-**Plans**: 1 plan in progress (09-01)
+**Plans**: 1 plan complete (09-01)
+
+### Phase 10: TMC2209 Register Heartbeat & Auto-Recovery
+**Goal**: Idle-loop TMC2209 register verification, brownout recovery, zero motion-jitter guarantee, and host event escalation
+**Depends on**: Nothing
+**Requirements**: REQ-tmc-heartbeat, REQ-tmc-motion-lockout, REQ-tmc-recovery-escalation, REQ-tmc-telemetry, REQ-tmc-host-sim
+**Success Criteria** (what must be TRUE):
+  1. CHOPCONF sentinel polled at 1000ms cadence alternating lanes during idle
+  2. Zero UART reads during active motion, sync, cutting, or boot stabilization (strict idle lockout)
+  3. Brownout recovers via 3-retry re-apply policy and emits `EV:TMC:RESTORED:<lane>`
+  4. Persistent comm failure halts motion via `stop_all()` and emits `EV:TMC:FAULT:<lane>:COMM_FAIL`
+  5. ST: status line includes `TMC:<l1_health><l2_health>` and host daemon mirrors telemetry
+**Plans**: 1 plan complete (10-01)
 
 ## Progress
 
@@ -132,3 +145,4 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 7. Flash Ping-Pong Atomic Persistence | 1/1 | Complete | 2026-09-11 |
 | 8. Settings TLV / Delta Schema Migration | 1/1 | Complete | 2026-09-11 |
 | 9. Daemon Security & Remote Command Hardening | 1/1 | Complete | 2026-09-11 |
+| 10. TMC2209 Register Heartbeat & Auto-Recovery | 1/1 | Complete | 2026-09-11 |

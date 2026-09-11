@@ -116,6 +116,7 @@ int g_tmc_toff[NUM_LANES] = {CONF_L1_TOFF, CONF_L2_TOFF};
 int g_tmc_hstrt[NUM_LANES] = {CONF_L1_HSTRT, CONF_L2_HSTRT};
 int g_tmc_hend[NUM_LANES] = {CONF_L1_HEND, CONF_L2_HEND};
 bool g_tmc_interpolate[NUM_LANES] = {CONF_L1_INTPOL, CONF_L2_INTPOL};
+int g_tmc_health[NUM_LANES] = {1, 1};
 
 int g_buf_sensor_type = CONF_BUF_SENSOR_TYPE;
 
@@ -614,6 +615,7 @@ int main(void) {
         lane_tick(&g_lane_l2, g_now_ms);
         buf_sensor_tick(g_now_ms);
         sync_tick(g_now_ms);
+        tmc_heartbeat_tick(g_now_ms);
 
         // Local indicator
         neopixel_tick(g_now_ms);

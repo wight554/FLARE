@@ -310,6 +310,7 @@ These core fields are returned in the first part of the `?:` status response:
 | `UC`  | 0/1  | Unload cut state (`0` = disabled, `1` = enabled). |
 | `BST` | 0/1  | Buffer sensor type (`0` = switch/type-D, `1` = analog/type-P). |
 | `BY`  | 0/1  | External spool bypass mode active (`0` = normal MMU, `1` = bypassed). |
+| `TMC` | string | TMC2209 driver health flags for Lane 1 and Lane 2 (`11` = both healthy, `01` = L1 fault, `10` = L2 fault). |
 | `EST` | mm/min | Extruder estimated rate. |
 | `RE`  | mm   | Reserve error. |
 | `AV`  | mm/s | Buffer arm velocity. |
@@ -370,6 +371,8 @@ Not returned in `?:` (read via `GET:FLASH_ERASE_COUNT`, not persisted like the t
 | `RELOAD:*` | Phase-specific | RELOAD progress and fault events such as `RELOAD:SWITCHING`, `RELOAD:JOINING`, `RELOAD:LOADED`, `RELOAD:FAULT`. |
 | `CUT` | `FEEDING\|DONE\|ERROR` | Cutter execution events. `FEEDING` on feed start; `DONE` on successful cut; `ERROR` on cutter failure. |
 | `FLASH` | `WEAR_WARNING` | Fires once, on the settings save where `FLASH_ERASE_COUNT` first crosses `FLASH_WEAR_WARN_THRESHOLD`. |
+| `TMC:RESTORED` | `lane` | TMC2209 register brownout detected and configuration restored/verified. |
+| `TMC:FAULT` | `lane:COMM_FAIL` | Persistent TMC2209 communication failure; all motion halted. |
 
 ### Fault Recovery
 Most faults (`TIMEOUT`, sensor-related faults) are transient and reset on the next command.

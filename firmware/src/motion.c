@@ -15,6 +15,8 @@
 #include "hardware/pwm.h"
 
 #include "protocol.h"
+#include "settings_store.h"
+#include <stdio.h>
 
 #define TAIL_TRANSIT_MARGIN_FRAC 1.2f
 #define DEBOUNCE_STABLE_US 10000
@@ -640,4 +642,68 @@ void lane_fault(lane_t *lane, fault_t f) {
     lane->current_sps = 0;
     lane->target_sps = 0;
     lane->fault = f;
+}
+
+enum {
+    TMC_HEARTBEAT_PERIOD_MS = 1000,
+    TMC_RECOVERY_RETRIES = 3,
+    TMC_RECOVERY_BACKOFF_MS = 50,
+};
+
+static uint32_t s_tmc_heartbeat_last_ms = 0;
+static int s_tmc_heartbeat_lane = 1;
+
+void tmc_heartbeat_tick(uint32_t now_ms) {
+    if (controller_activity_in_progress()) {
+        return;
+    }
+    if (s_tmc_heartbeat_last_ms == 0) {
+        s_tmc_heartbeat_last_ms = now_ms;
+        return;
+    }
+    if ((int32_t)(now_ms - s_tmc_heartbeat_last_ms) < TMC_HEARTBEAT_PERIOD_MS) {
+        return;
+    }
+    s_tmc_heartbeat_last_ms = now_ms;
+
+    int lane_num = s_tmc_heartbeat_lane;
+    s_tmc_heartbeat_lane = (s_tmc_heartbeat_lane == 1) ? 2 : 1;
+
+    int idx = lane_to_idx(lane_num);
+    tmc_t *tmc = (lane_num == 1) ? &g_tmc_l1 : &g_tmc_l2;
+
+    uint32_t chop = 0;
+    bool ok = tmc_read(tmc, TMC_REG_CHOPCONF, &chop);
+    if (ok && chop == tmc->chopconf) {
+        g_tmc_health[idx] = 1;
+        return;
+    }
+
+    // Register mismatch or UART read failure: attempt recovery up to 3 times with 50ms backoff
+    bool recovered = false;
+    for (int attempt = 0; attempt < TMC_RECOVERY_RETRIES; attempt++) {
+        if (attempt > 0) {
+            sleep_ms(TMC_RECOVERY_BACKOFF_MS);
+        }
+        sync_tmc_settings(lane_num);
+        uint32_t verify = 0;
+        if (tmc_read(tmc, TMC_REG_CHOPCONF, &verify) && verify == tmc->chopconf) {
+            recovered = true;
+            break;
+        }
+    }
+
+    char lane_s[2];
+    lane_id_str(lane_s, lane_num);
+
+    if (recovered) {
+        g_tmc_health[idx] = 1;
+        cmd_event("TMC:RESTORED", lane_s);
+    } else {
+        g_tmc_health[idx] = 0;
+        stop_all();
+        char fault_msg[32];
+        snprintf(fault_msg, sizeof(fault_msg), "%s:COMM_FAIL", lane_s);
+        cmd_event_critical("TMC:FAULT", fault_msg);
+    }
 }

@@ -776,3 +776,23 @@ While in `FAULT_DRY_SPIN`, automatic background tasks are blocked:
 **Clearing the Fault:**
 - **Manual Override**: Any manual motion command (`LO:`, `FL:`, `FD:`, etc.) automatically clears the fault and starts the requested task.
 - **Auto-Reset**: Inserting new filament (`IN` sensor trigger) clears the fault, allowing `AUTO_PRELOAD` or `AUTO_LOAD` to proceed.
+
+---
+
+## TMC2209 Register Heartbeat & Auto-Recovery
+
+TMC2209 driver registers are volatile. Supply voltage brownouts (e.g. 24V supply transients) reset the drivers to silicon defaults (microstep loss, spreadcycle fallback, default chopper timing). To ensure persistent driver integrity without introducing step jitter:
+
+**Sentinel Register Selection:**
+- Firmware polls `CHOPCONF` (`0x6C`) and compares the readback value directly against cached `tmc->chopconf` stored in firmware memory.
+- Silicon reset default (`0x10000053`) diverges reliably from configured microsteps/chopper timings, avoiding false positives from volatile counters (`IFCNT`) or status flags.
+
+**Motion Lockout & Cadence:**
+- Polling runs at a **1000ms cadence**, alternating between Lane 1 and Lane 2.
+- **Strict Idle Lockout**: Polling executes ONLY when `controller_activity_in_progress()` returns `false`. Zero UART traffic occurs during lane movement, toolchange sequences, sync buffer control, or cutter cycles.
+
+**Recovery Escalation:**
+- If readback mismatches or UART communication times out, firmware initiates up to 3 re-configuration attempts (`sync_tmc_settings()`) with a 50ms backoff.
+- **On Recovery**: If verification succeeds, firmware sets `g_tmc_health = 1` and emits `EV:TMC:RESTORED:<lane>`.
+- **On Persistent Failure**: If all 3 attempts fail, firmware halts all motion immediately (`stop_all()`), sets `g_tmc_health = 0`, and emits `EV:TMC:FAULT:<lane>:COMM_FAIL` to trigger a Klipper print pause.
+- Health flags are visible in the `ST:` telemetry line via `TMC:<l1><l2>` (e.g. `TMC:11`).

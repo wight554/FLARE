@@ -103,3 +103,25 @@ target_include_directories(test_persistence PRIVATE
 )
 
 target_link_libraries(test_persistence PRIVATE m)
+
+add_executable(test_tmc_recovery
+  ${FIRMWARE_SRC}/sync.c
+  ${FIRMWARE_SRC}/sync_buf.c
+  ${FIRMWARE_SRC}/sync_relay.c
+  ${FIRMWARE_SRC}/sync_analog.c
+  ${FIRMWARE_SRC}/motion.c
+  ${FIRMWARE_SRC}/toolchange.c
+  ${FIRMWARE_SRC}/cutter.c
+  ${FIRMWARE_SRC}/settings_store.c
+  ${SIM_GLOBALS_C}
+  sim_fakes.c
+  test_tmc_recovery.c
+)
+
+target_include_directories(test_tmc_recovery PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/shims
+  ${FIRMWARE_INCLUDE}
+  ${CMAKE_CURRENT_LIST_DIR}
+)
+
+target_link_libraries(test_tmc_recovery PRIVATE m)

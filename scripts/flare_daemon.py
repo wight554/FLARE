@@ -82,6 +82,7 @@ status_cache = {
     "sync_enabled": 0,
     "reload_mode": 0,
     "buf_sensor_type": 0,
+    "tmc_health": "11",
     "timestamp": 0.0
 }
 
@@ -547,6 +548,8 @@ def parse_status_line(line):
             elif key == "BST":
                 val_int = int(val)
                 new_data["buf_sensor_type"] = val_int
+            elif key == "TMC":
+                new_data["tmc_health"] = val
             elif key == "BUF":
                 new_data["buf_state"] = val
                 new_data["sync_feedback_state"] = val.lower()
@@ -871,7 +874,7 @@ def init_auth_token(host: str, cli_token: str = None) -> str:
     token_path = get_default_token_path()
     if not token and os.path.exists(token_path):
         try:
-            with open(token_path, "r", encoding="utf-8") as f:
+            with open(token_path, encoding="utf-8") as f:
                 token = f.read().strip()
         except Exception as e:
             print(f"flare_daemon warning: failed reading {token_path}: {e}", file=sys.stderr)

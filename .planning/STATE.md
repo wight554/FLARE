@@ -6,18 +6,21 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 9: Daemon Security & Remote Command Hardening
+**Current focus:** Phase 10: TMC2209 Register Heartbeat & Auto-Recovery
 
 ## Current Position
 
-- **Phase**: 9 - Daemon Security & Remote Command Hardening (`.planning/phases/09-daemon-security/`)
-- **Active Feature in Progress**: Phase 9 - Plan 09-01
-- **Status**: Complete (Plan 09-01 complete and validated)
+- **Phase**: 10 - TMC2209 Register Heartbeat & Auto-Recovery (`.planning/phases/10-tmc-heartbeat-recovery/`)
+- **Active Feature in Progress**: Phase 10 - Plan 10-01
+- **Status**: Complete (Plan 10-01 complete and validated)
 - **Progress**: [====================] 100% complete
 
 ## Accumulated Context
 
 ### Active Backlog Streams & Phases
+- `.planning/phases/10-tmc-heartbeat-recovery/`:
+  - `10-SPEC.md` (done): CHOPCONF sentinel verification, 1000ms alternating cadence, strict idle motion lockout, 3x re-apply recovery escalation, ST: TMC telemetry, and host simulation tests.
+  - `10-01-PLAN.md` (done): Firmware heartbeat tick, ST: telemetry, daemon status mirroring, and host unit tests.
 - `.planning/phases/09-daemon-security/`:
   - `09-SPEC.md` (done): Bearer token authentication, loopback exemption, anti-spoofing peer resolution, token-bucket serial rate limiter, WebUI modal and CLI auto-discovery.
   - `09-01-PLAN.md` (done): Daemon security enforcement, CLI remote integration, WebUI localStorage token handling, 13 security unit tests.
