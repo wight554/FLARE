@@ -57,8 +57,11 @@ uint32_t to_ms_since_boot(absolute_time_t t) {
     return (uint32_t)(t / 1000u);
 }
 
+// Counts blocking sleeps so tests can assert a main-loop path never stalls.
+uint32_t g_sim_sleep_ms_total = 0;
+
 void sleep_ms(uint32_t ms) {
-    (void)ms; // never called by the linked sources; present for header completeness
+    g_sim_sleep_ms_total += ms;
 }
 
 unsigned int clock_get_hz(clock_index_t clk) {

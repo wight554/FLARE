@@ -6,9 +6,7 @@
 ///          "Unload commands", "Motor acceleration ramp", "Dry Spin Protection".
 
 #include "motion.h"
-
-#include "sync.h"
-#include "toolchange.h"
+#include <stdio.h>
 
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
@@ -16,7 +14,8 @@
 
 #include "protocol.h"
 #include "settings_store.h"
-#include <stdio.h>
+#include "sync.h"
+#include "toolchange.h"
 
 #define TAIL_TRANSIT_MARGIN_FRAC 1.2f
 #define DEBOUNCE_STABLE_US 10000
@@ -284,8 +283,8 @@ void lane_start(lane_t *lane, task_t t, int sps, bool forward, uint32_t now_ms, 
 static void lane_tick_autoload(lane_t *lane, uint32_t now_ms, const char *lane_s) {
     if (lane_out_present(lane)) {
         if (g_autoload_retract_mm > 0) {
-            float secs =
-                (float)g_autoload_retract_mm / ((float)g_rev_sps * g_mm_per_step[lane->lane_id - 1]);
+            float secs = (float)g_autoload_retract_mm /
+                         ((float)g_rev_sps * g_mm_per_step[lane->lane_id - 1]);
             if (secs < AUTOLOAD_MIN_RETRACT_S)
                 secs = AUTOLOAD_MIN_RETRACT_S;
             lane->dist_at_out_mm = lane->task_dist_mm;
@@ -316,7 +315,8 @@ static void lane_tick_unload(lane_t *lane, uint32_t now_ms, const char *lane_s) 
            position alone — so type-P uses no position-based relief/block and
            relies on the UNLOAD_MAX distance limit (UNLOAD_TIMEOUT) below for
            the stuck case. */
-        bool buf_recover_due = (g_buf_sensor_type == BUF_SENSOR_TYPE_D && g_buf.state == BUF_TENSION);
+        bool buf_recover_due =
+            (g_buf_sensor_type == BUF_SENSOR_TYPE_D && g_buf.state == BUF_TENSION);
 
         if (lane->unload_sensor_latch && !lane->unload_to_in) {
             float moved_mm = lane->task_dist_mm - lane->dist_at_out_mm;
@@ -376,7 +376,8 @@ static void lane_tick_unload(lane_t *lane, uint32_t now_ms, const char *lane_s) 
            Exception: when BOTH OUT sensors are active (double-load recovery)
            the buffer tension is caused by the OTHER lane being printed, not
            by the printer blocking THIS lane.  Skip the check in that case. */
-        if (g_buf_sensor_type == BUF_SENSOR_TYPE_D && g_unload_tension_block_ms > 0 && !lane->unload_to_in &&
+        if (g_buf_sensor_type == BUF_SENSOR_TYPE_D && g_unload_tension_block_ms > 0 &&
+            !lane->unload_to_in &&
             !(lane_out_present(&g_lane_l1) && lane_out_present(&g_lane_l2))) {
             if (g_buf.state == BUF_TENSION) {
                 if (lane->buf_tension_since_ms == 0)
@@ -648,62 +649,107 @@ enum {
     TMC_HEARTBEAT_PERIOD_MS = 1000,
     TMC_RECOVERY_RETRIES = 3,
     TMC_RECOVERY_BACKOFF_MS = 50,
+    TMC_FAULT_MSG_MAX = 32,
 };
 
-static uint32_t s_tmc_heartbeat_last_ms = 0;
-static int s_tmc_heartbeat_lane = 1;
+static uint32_t g_tmc_heartbeat_last_ms = 0;
+static int g_tmc_heartbeat_lane = 1;
 
-void tmc_heartbeat_tick(uint32_t now_ms) {
-    if (controller_activity_in_progress()) {
-        return;
-    }
-    if (s_tmc_heartbeat_last_ms == 0) {
-        s_tmc_heartbeat_last_ms = now_ms;
-        return;
-    }
-    if ((int32_t)(now_ms - s_tmc_heartbeat_last_ms) < TMC_HEARTBEAT_PERIOD_MS) {
-        return;
-    }
-    s_tmc_heartbeat_last_ms = now_ms;
+/* Recovery is a small state machine ticked from the main loop (12-SPEC §5): a
+   blocking sleep_ms() backoff stalled every other module for >=100 ms. */
+static int g_tmc_recover_lane = 0; /* 0 = no recovery in flight */
+static int g_tmc_recover_attempts = 0;
+static uint32_t g_tmc_recover_next_ms = 0;
+/* Latched after TMC_RECOVERY_RETRIES failures: the lane is re-probed once per
+   heartbeat slot but stop_all()/TMC:FAULT fire only on the healthy->faulted
+   edge, so an unplugged driver cannot storm the host with pauses. */
+static bool g_tmc_fault_latched[NUM_LANES] = {false, false};
 
-    int lane_num = s_tmc_heartbeat_lane;
-    s_tmc_heartbeat_lane = (s_tmc_heartbeat_lane == 1) ? 2 : 1;
-
-    int idx = lane_to_idx(lane_num);
+static bool tmc_heartbeat_verify(int lane_num) {
     tmc_t *tmc = (lane_num == 1) ? &g_tmc_l1 : &g_tmc_l2;
-
     uint32_t chop = 0;
-    bool ok = tmc_read(tmc, TMC_REG_CHOPCONF, &chop);
-    if (ok && chop == tmc->chopconf) {
-        g_tmc_health[idx] = 1;
+    return tmc_read(tmc, TMC_REG_CHOPCONF, &chop) && chop == tmc->chopconf;
+}
+
+static bool tmc_heartbeat_idle(void) {
+    /* Strict idle lockout (10-SPEC §2.1): no lane task, no TC/cutter/stabilize,
+       and no sync-owned motor authority — SYNC_ACTIVE at zero rate, a held
+       buffer lock (SYNC_RETRACT_ASSIST), RELIEF_PAUSE and FAULT_HOLD all keep
+       the lane's motor under sync control even though lane->task is IDLE. */
+    return !controller_activity_in_progress() && g_sync_state == SYNC_OFF;
+}
+
+static void tmc_heartbeat_recover_tick(uint32_t now_ms) {
+    if ((int32_t)(now_ms - g_tmc_recover_next_ms) < 0)
         return;
-    }
-
-    // Register mismatch or UART read failure: attempt recovery up to 3 times with 50ms backoff
-    bool recovered = false;
-    for (int attempt = 0; attempt < TMC_RECOVERY_RETRIES; attempt++) {
-        if (attempt > 0) {
-            sleep_ms(TMC_RECOVERY_BACKOFF_MS);
-        }
-        sync_tmc_settings(lane_num);
-        uint32_t verify = 0;
-        if (tmc_read(tmc, TMC_REG_CHOPCONF, &verify) && verify == tmc->chopconf) {
-            recovered = true;
-            break;
-        }
-    }
-
+    int lane_num = g_tmc_recover_lane;
+    int idx = lane_to_idx(lane_num);
     char lane_s[2];
     lane_id_str(lane_s, lane_num);
 
-    if (recovered) {
+    g_tmc_recover_attempts++;
+    sync_tmc_settings(lane_num);
+    if (tmc_heartbeat_verify(lane_num)) {
+        g_tmc_recover_lane = 0;
         g_tmc_health[idx] = 1;
+        g_tmc_fault_latched[idx] = false;
         cmd_event("TMC:RESTORED", lane_s);
-    } else {
-        g_tmc_health[idx] = 0;
+        return;
+    }
+    if (g_tmc_recover_attempts < TMC_RECOVERY_RETRIES) {
+        g_tmc_recover_next_ms = now_ms + TMC_RECOVERY_BACKOFF_MS;
+        return;
+    }
+    g_tmc_recover_lane = 0;
+    g_tmc_health[idx] = 0;
+    if (!g_tmc_fault_latched[idx]) {
+        g_tmc_fault_latched[idx] = true;
         stop_all();
-        char fault_msg[32];
+        char fault_msg[TMC_FAULT_MSG_MAX];
         snprintf(fault_msg, sizeof(fault_msg), "%s:COMM_FAIL", lane_s);
         cmd_event_critical("TMC:FAULT", fault_msg);
     }
+}
+
+void tmc_heartbeat_tick(uint32_t now_ms) {
+    if (!tmc_heartbeat_idle()) {
+        /* Motion started mid-recovery: drop the attempt, the lane re-applies
+           its registers on lane_start() anyway; re-probe on the next slot. */
+        g_tmc_recover_lane = 0;
+        return;
+    }
+    if (g_tmc_recover_lane != 0) {
+        tmc_heartbeat_recover_tick(now_ms);
+        return;
+    }
+    if (g_tmc_heartbeat_last_ms == 0) {
+        g_tmc_heartbeat_last_ms = now_ms;
+        return;
+    }
+    if ((int32_t)(now_ms - g_tmc_heartbeat_last_ms) < TMC_HEARTBEAT_PERIOD_MS) {
+        return;
+    }
+    g_tmc_heartbeat_last_ms = now_ms;
+
+    int lane_num = g_tmc_heartbeat_lane;
+    g_tmc_heartbeat_lane = (g_tmc_heartbeat_lane == 1) ? 2 : 1;
+    int idx = lane_to_idx(lane_num);
+
+    if (tmc_heartbeat_verify(lane_num)) {
+        if (g_tmc_fault_latched[idx]) {
+            char lane_s[2];
+            lane_id_str(lane_s, lane_num);
+            g_tmc_fault_latched[idx] = false;
+            cmd_event("TMC:RESTORED", lane_s);
+        }
+        g_tmc_health[idx] = 1;
+        return;
+    }
+
+    /* Mismatch or read failure: first re-apply now, further attempts on the
+       50 ms backoff cadence from the main loop. */
+    g_tmc_recover_lane = lane_num;
+    g_tmc_recover_attempts = 0;
+    g_tmc_recover_next_ms = now_ms;
+    tmc_heartbeat_recover_tick(now_ms);
 }

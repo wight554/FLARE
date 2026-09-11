@@ -138,21 +138,90 @@ static void test_persistent_comm_fault_escalation(void) {
 
     // Inject complete communication failure on Lane 2
     sim_tmc_set_comm_fail(2, true);
+    g_sim_sleep_ms_total = 0;
 
-    // Run ticks until Lane 2 is inspected
+    // Run ticks until Lane 2 is inspected; the first re-apply happens on the
+    // probe tick, the remaining TMC_RECOVERY_RETRIES-1 on a 50 ms cadence.
     t += 1000;
     tmc_heartbeat_tick(t);
     t += 1000;
     tmc_heartbeat_tick(t);
+    assert(g_tmc_health[1] == 1); // not yet escalated: backoff is non-blocking
+    for (int i = 0; i < 4; i++) {
+        t += 50;
+        tmc_heartbeat_tick(t);
+    }
 
-    // Health flag drops to 0 (fault)
+    // Health flag drops to 0 (fault), without a single blocking sleep
+    assert(g_tmc_health[1] == 0);
+    assert(g_sim_sleep_ms_total == 0);
+
+    // Fault event EV:TMC:FAULT:2:COMM_FAIL was emitted exactly once
+    assert(event_logged("TMC:FAULT,2:COMM_FAIL"));
+    int fault_events = 0;
+    for (int i = 0; i < g_sim_event_count; i++)
+        if (strstr(g_sim_events[i].text, "TMC:FAULT") != NULL)
+            fault_events++;
+    assert(fault_events == 1);
+
+    // Still unreachable: the lane is re-probed each slot but the fault is
+    // latched — no second TMC:FAULT (no stop_all storm) for 10 s.
+    for (int i = 0; i < 10; i++) {
+        t += 1000;
+        tmc_heartbeat_tick(t);
+        for (int j = 0; j < 4; j++) {
+            t += 50;
+            tmc_heartbeat_tick(t);
+        }
+    }
+    fault_events = 0;
+    for (int i = 0; i < g_sim_event_count; i++)
+        if (strstr(g_sim_events[i].text, "TMC:FAULT") != NULL)
+            fault_events++;
+    assert(fault_events == 1);
     assert(g_tmc_health[1] == 0);
 
-    // Fault event EV:TMC:FAULT:2:COMM_FAIL was emitted
-    assert(event_logged("TMC:FAULT,2:COMM_FAIL") || event_logged("COMM_FAIL"));
-
-    // Reset comm fail
+    // Driver comes back: next probe restores health and emits TMC:RESTORED
     sim_tmc_set_comm_fail(2, false);
+    g_sim_event_count = 0;
+    for (int i = 0; i < 2; i++) {
+        t += 1000;
+        tmc_heartbeat_tick(t);
+    }
+    assert(g_tmc_health[1] == 1);
+    assert(event_logged("TMC:RESTORED,2"));
+    printf("OK\n");
+}
+
+/* 12-SPEC §5.1: sync-owned motor authority (held buffer lock, SYNC_ACTIVE at
+   zero rate, relief pause, fault hold) locks the heartbeat out even though
+   lane->task is IDLE — a 100 ms UART stall there would miss a lock-break. */
+static void test_sync_state_lockout(void) {
+    printf("test_sync_state_lockout... ");
+    g_sim_event_count = 0;
+    g_lane_l1.task = TASK_IDLE;
+    g_lane_l2.task = TASK_IDLE;
+    g_tc_ctx.state = TC_IDLE;
+    g_boot_stabilizing = false;
+    sync_state_t states[] = {SYNC_ACTIVE, SYNC_RETRACT_ASSIST, SYNC_RELIEF_PAUSE, SYNC_FAULT_HOLD};
+    uint32_t t = 50000;
+    for (size_t k = 0; k < sizeof(states) / sizeof(states[0]); k++) {
+        g_sync_state = states[k];
+        assert(controller_activity_in_progress() == false);
+        sim_tmc_reset_counts();
+        for (int i = 0; i < 5; i++) {
+            t += 1000;
+            tmc_heartbeat_tick(t);
+        }
+        assert(sim_tmc_get_read_count(1) == 0);
+        assert(sim_tmc_get_read_count(2) == 0);
+    }
+    g_sync_state = SYNC_OFF;
+    t += 1000;
+    tmc_heartbeat_tick(t);
+    t += 1000;
+    tmc_heartbeat_tick(t);
+    assert(sim_tmc_get_read_count(1) + sim_tmc_get_read_count(2) >= 1);
     printf("OK\n");
 }
 
@@ -162,6 +231,7 @@ int main(void) {
     test_motion_lockout();
     test_brownout_auto_recovery();
     test_persistent_comm_fault_escalation();
+    test_sync_state_lockout();
     printf("=== All TMC Recovery tests passed ===\n");
     return 0;
 }

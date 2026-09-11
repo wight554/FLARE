@@ -18,6 +18,7 @@ extern sim_event_t g_sim_events[SIM_EVENT_MAX];
 extern int g_sim_event_count;
 
 extern uint16_t g_sim_adc_counts;
+extern uint32_t g_sim_sleep_ms_total; // accumulated blocking sleep_ms() from linked sources
 extern uint8_t g_sim_flash[];
 
 // Motor-level commanded rate, decoded from the PWM fake's clkdiv/wrap — see

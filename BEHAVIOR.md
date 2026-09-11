@@ -796,12 +796,12 @@ TMC2209 driver registers are volatile. Supply voltage brownouts (e.g. 24V supply
 
 **Motion Lockout & Cadence:**
 - Polling runs at a **1000ms cadence**, alternating between Lane 1 and Lane 2.
-- **Strict Idle Lockout**: Polling executes ONLY when `controller_activity_in_progress()` returns `false`. Zero UART traffic occurs during lane movement, toolchange sequences, sync buffer control, or cutter cycles.
+- **Strict Idle Lockout**: Polling executes ONLY when `controller_activity_in_progress()` returns `false` **and** `g_sync_state == SYNC_OFF`. A held buffer lock (`SYNC_RETRACT_ASSIST`), `SYNC_ACTIVE` at zero rate, `RELIEF_PAUSE` and `FAULT_HOLD` keep the motor under sync authority with `lane->task` idle, so they lock the heartbeat out too. Zero UART traffic occurs during lane movement, toolchange sequences, sync buffer control, buffer lock, or cutter cycles.
 
 **Recovery Escalation:**
-- If readback mismatches or UART communication times out, firmware initiates up to 3 re-configuration attempts (`sync_tmc_settings()`) with a 50ms backoff.
+- If readback mismatches or UART communication times out, firmware initiates up to 3 re-configuration attempts (`sync_tmc_settings()`) with a 50ms backoff. The backoff is a state machine ticked from the main loop (`tmc_heartbeat_recover_tick`), never a blocking `sleep_ms` — the loop keeps servicing sensors and commands between attempts. Motion starting mid-recovery abandons the attempt (`lane_start()` re-applies registers anyway).
 - **On Recovery**: If verification succeeds, firmware sets `g_tmc_health = 1` and emits `EV:TMC:RESTORED:<lane>`.
-- **On Persistent Failure**: If all 3 attempts fail, firmware halts all motion immediately (`stop_all()`), sets `g_tmc_health = 0`, and emits `EV:TMC:FAULT:<lane>:COMM_FAIL` to trigger a Klipper print pause.
+- **On Persistent Failure**: If all 3 attempts fail, firmware halts all motion immediately (`stop_all()`), sets `g_tmc_health = 0`, and emits `EV:TMC:FAULT:<lane>:COMM_FAIL` to trigger a Klipper print pause. The fault is **latched**: the lane keeps being probed once per heartbeat slot, but `stop_all()`/`TMC:FAULT` fire only on the healthy→faulted edge (no 1 Hz pause storm from an unplugged driver); the first successful readback clears the latch and emits `EV:TMC:RESTORED:<lane>`.
 - Health flags are visible in the `ST:` telemetry line via `TMC:<l1><l2>` (e.g. `TMC:11`).
 
 ## Firmware Forensics (Blackbox) & Main-Loop Jitter
