@@ -150,7 +150,7 @@ gcode:
 ```
 
 - `_FLARE_RETRACT_GUARD_BEGIN` accepts optional `LENGTH=<mm>` and `TIMEOUT=<ms>`:
-  - If `LENGTH` is specified and exceeds `variable_buffer_max_travel` (default 25mm), FLARE emits a warning to the console while arming the active follow-on rate-servo catch to absorb the long retract.
+  - Without `LENGTH` the lock is passive (holds until `_FLARE_RETRACT_GUARD_END`/watchdog, no catch). Pass `LENGTH` whenever the retract should be followed: it arms the rate-servo catch, and if it exceeds `variable_buffer_max_travel` (default 25mm) FLARE emits a console warning while arming.
   - If `TIMEOUT` is specified, it overrides the default 30s watchdog for that operation.
 - `_FLARE_RETRACT_GUARD_END` runs `_FLARE_SYNC_TOOLHEAD`, releasing the buffer lock (`BS`) and pushing the physical sensor state back to FLARE.
 

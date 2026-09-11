@@ -340,6 +340,25 @@ class BufferStateLockTests(unittest.TestCase):
         self.assertIn("BL,FOLLOW", events)
         self.assertLess(events.index("BL,BREAK"), events.index("BL,FOLLOW"))
 
+    def test_bare_bl_is_passive_under_retract(self):
+        # buffer-state-lock D5 / 12-SPEC §3: without follow args the lock never
+        # arms the catch. A 15 mm/s external retract at 6-9 s must not produce
+        # BREAK/FOLLOW nor any commanded motor rate; BS at 10 s releases.
+        for sensor_type in ("d", "p"):
+            with self.subTest(sensor_type=sensor_type):
+                run = run_scenario("sem_bl_bare_passive", sensor_type=sensor_type, ticks=None)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                events = run.events_text()
+                self.assertIn("BL,LOCKED", events)
+                self.assertNotIn("BL,BREAK", events)
+                self.assertNotIn("BL,FOLLOW", events)
+                locked_rows = [r for r in run.rows if r["sync_state"] == "RETRACT_ASSIST"
+                               and 2000 < int(r["ts_ms"]) < 10000]
+                self.assertTrue(locked_rows)
+                self.assertTrue(all(float(r["motor_sps"]) == 0.0 for r in locked_rows),
+                                "bare BL commanded motor motion while locked")
+                self.assertEqual(run.rows[-1]["sync_state"], "OFF")
+
     def test_watchdog_auto_releases_after_default_timeout(self):
         run = run_scenario("sem_bl_watchdog_timeout", sensor_type="d", ticks=None)
         self.assertEqual(run.returncode, 0, run.stderr)

@@ -190,12 +190,16 @@ four sub-states inside `SYNC_RETRACT_ASSIST`:
    extreme is reached or the deadline elapses the state advances to LOCKED and emits
    `EV:BL:PRIME_BOUND` on deadline or `EV:BL:LOCKED` on success.
 2. **LOCKED** — motor stays energized at zero feed, holding the buffer at the
-   extreme. Any external force (printer-side retract) that breaks away from the
-   target extreme (raw flip for type-D, `g_buf_pos` crossing `PSF_BREAK_THRESHOLD_NORM`
-   for type-P) immediately emits `EV:BL:BREAK` and engages the catch drive.
-3. **FOLLOW (Rate-Servo Catch)** — concurrent retract in the prime direction.
-   For type-P, commanded rate is an error-proportional servo seeded by `follow_rate`
-   (or `SYNC_MAX_SPS` default for bare `BL:T`/`BL:C`), escalating toward `GLOBAL_MAX_SPS`
+   extreme. Bare `BL:T`/`BL:C` (no follow args) is a **passive** lock: it holds
+   until `BS` or the watchdog and never breaks or catches (buffer-state-lock D5 —
+   commanding the motor against still-taut filament is a stall risk). When the
+   host supplied `follow_mm`/`follow_rate`, any external force (printer-side
+   retract) that breaks away from the target extreme (raw flip for type-D,
+   `g_buf_pos` crossing `PSF_BREAK_THRESHOLD_NORM` for type-P) immediately emits
+   `EV:BL:BREAK` and engages the catch drive.
+3. **FOLLOW (Rate-Servo Catch)** — concurrent retract in the prime direction,
+   only reachable from an explicit-follow arm. For type-P, commanded rate is an
+   error-proportional servo seeded by `follow_rate`, escalating toward `GLOBAL_MAX_SPS`
    as buffer displacement increases (`BL_CATCH_ERR_SPAN_NORM = 1.0f`), ramped via
    `RAMP_STEP_SPS` for pull-in safety. For type-D, holds fixed seed rate.
    Catch start emits `EV:BL:FOLLOW`. When travel budget completes, returns to LOCKED

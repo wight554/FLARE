@@ -98,17 +98,17 @@ typedef enum {
 static bl_sub_state_t g_bl_sub_state = BL_IDLE;
 static buf_state_t g_bl_target_state = BUF_TENSION;
 buf_state_t g_bl_goal_override = BUF_NEUTRAL;
-static uint32_t g_bl_prime_start_ms = 0;      /* when prime search began */
-static float g_bl_prime_mm_per_s = 0.0f;      /* speed in mm/s */
-static float g_bl_prime_cap_mm = 0.0f;        /* outer safety cap = BUF_MAX_TRAVEL_MM */
-static int g_bl_prime_cur_sps = 0;            /* PRIME current ramped rate */
-static int g_bl_prime_target_sps = 0;         /* PRIME target rate (clamped) */
-static uint32_t g_bl_prime_ramp_tick_ms = 0;  /* last PRIME ramp step */
-static float g_bl_prime_traveled_mm = 0.0f;   /* tracked travel distance in mm */
-static float g_bl_follow_mm = 0.0f;           /* armed follow-on distance; 0 = disabled */
-static float g_bl_follow_rate_mmpm = 0.0f;    /* armed follow-on rate (mm/min) */
-static uint32_t g_bl_follow_start_ms = 0;     /* when FOLLOW motion began */
-static float g_bl_follow_mm_per_s = 0.0f;     /* FOLLOW commanded speed in mm/s */
+static uint32_t g_bl_prime_start_ms = 0;     /* when prime search began */
+static float g_bl_prime_mm_per_s = 0.0f;     /* speed in mm/s */
+static float g_bl_prime_cap_mm = 0.0f;       /* outer safety cap = BUF_MAX_TRAVEL_MM */
+static int g_bl_prime_cur_sps = 0;           /* PRIME current ramped rate */
+static int g_bl_prime_target_sps = 0;        /* PRIME target rate (clamped) */
+static uint32_t g_bl_prime_ramp_tick_ms = 0; /* last PRIME ramp step */
+static float g_bl_prime_traveled_mm = 0.0f;  /* tracked travel distance in mm */
+static float g_bl_follow_mm = 0.0f;          /* armed follow-on distance; 0 = disabled */
+static float g_bl_follow_rate_mmpm = 0.0f;   /* armed follow-on rate (mm/min) */
+static uint32_t g_bl_follow_start_ms = 0;    /* when FOLLOW motion began */
+static float g_bl_follow_mm_per_s = 0.0f;    /* FOLLOW commanded speed in mm/s */
 static uint32_t g_bl_watchdog_ms = 0;
 static float g_bl_follow_traveled_mm = 0.0f;
 static uint32_t g_bl_last_tick_ms = 0;
@@ -817,18 +817,19 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
      * draining; parking at the switch click leaves one step before the
      * mechanical hard end. If the adjusted distance is <= 0, the macro
      * doesn't need a follow-on for such a short move — use passive lock.
-     * When host provides no follow parameters (bare BL:T / BL:C), default to
-     * BUF_MAX_TRAVEL_MM budget so lock retain catch authority against external force. */
+     * Bare BL:T / BL:C (no follow parameters) is a passive lock: no break
+     * detection, no catch. buffer-state-lock D5 removed the reactive catch
+     * (motor commanded against still-taut filament = stall risk); the catch
+     * arms only when the host states how far and how fast to follow. */
     {
         float half_travel = (g_buf_max_travel_mm > 0) ? ((float)g_buf_max_travel_mm * HALF_F)
-                                                    : BL_FALLBACK_HALF_TRAVEL_MM;
+                                                      : BL_FALLBACK_HALF_TRAVEL_MM;
+        g_bl_follow_mm = 0.0f;
+        g_bl_follow_rate_mmpm = 0.0f;
         if (follow_mm > 0.0f && follow_rate_mmpm > 0.0f) {
             float effective_follow_mm = follow_mm - half_travel;
             g_bl_follow_mm = (effective_follow_mm > 0.0f) ? effective_follow_mm : 0.0f;
             g_bl_follow_rate_mmpm = (g_bl_follow_mm > 0.0f) ? follow_rate_mmpm : 0.0f;
-        } else {
-            g_bl_follow_mm = (g_buf_max_travel_mm > 0) ? (float)g_buf_max_travel_mm : BL_FALLBACK_TRAVEL_CAP_MM;
-            g_bl_follow_rate_mmpm = 0.0f;
         }
     }
     g_bl_follow_seed_sps = 0;
@@ -919,7 +920,8 @@ static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
         }
 
         g_bl_sub_state = BL_LOCKED;
-        g_bl_watchdog_ms = now_ms + (g_bl_arm_timeout_ms ? g_bl_arm_timeout_ms : BL_WATCHDOG_DEFAULT_MS);
+        g_bl_watchdog_ms =
+            now_ms + (g_bl_arm_timeout_ms ? g_bl_arm_timeout_ms : BL_WATCHDOG_DEFAULT_MS);
         cmd_event("BL", "LOCKED");
     }
 }
@@ -968,8 +970,8 @@ static void sync_buffer_lock_locked(lane_t *lane, uint32_t now_ms) {
                 float err_ratio = clamp_f(err / BL_CATCH_ERR_SPAN_NORM, 0.0f, 1.0f);
                 int max_target = motion_clamp_rate_sps(g_global_max_sps);
                 if (max_target > seed_sps) {
-                    follow_sps = seed_sps +
-                        (int)((float)(max_target - seed_sps) * err_ratio + ROUND_TO_NEAREST_F);
+                    follow_sps = seed_sps + (int)((float)(max_target - seed_sps) * err_ratio +
+                                                  ROUND_TO_NEAREST_F);
                 }
             }
 
@@ -1024,7 +1026,8 @@ static void sync_buffer_lock_follow(lane_t *lane, uint32_t now_ms) {
         float err_ratio = clamp_f(err / BL_CATCH_ERR_SPAN_NORM, 0.0f, 1.0f);
         int max_target = motion_clamp_rate_sps(g_global_max_sps);
         if (max_target > g_bl_follow_seed_sps) {
-            g_bl_follow_target_sps = g_bl_follow_seed_sps +
+            g_bl_follow_target_sps =
+                g_bl_follow_seed_sps +
                 (int)((float)(max_target - g_bl_follow_seed_sps) * err_ratio + ROUND_TO_NEAREST_F);
         } else {
             g_bl_follow_target_sps = g_bl_follow_seed_sps;
@@ -1350,7 +1353,8 @@ static bool sync_tick_type_p_rail_guard(lane_t *lane, uint32_t now_ms) {
                toward tension): clear brake, resume PD */
             g_sync_fast_brake_until_ms = 0;
         }
-    } else if (g_sync_fast_brake_until_ms != 0 && (int32_t)(now_ms - g_sync_fast_brake_until_ms) >= 0) {
+    } else if (g_sync_fast_brake_until_ms != 0 &&
+               (int32_t)(now_ms - g_sync_fast_brake_until_ms) >= 0) {
         g_sync_fast_brake_until_ms = 0;
         if (g_buf_pos >= TYPE_P_RAIL_NORM) {
             sync_relief_pause();
@@ -1518,7 +1522,8 @@ static bool sync_tick_auto_start_stop(lane_t *lane, uint32_t now_ms, buf_state_t
     return false;
 }
 
-static float sync_apply_drift_correction(float bp_in, buf_state_t s, float thr, float reserve_deadband_mm) {
+static float sync_apply_drift_correction(float bp_in, buf_state_t s, float thr,
+                                         float reserve_deadband_mm) {
     float bp_eff = bp_in;
     float drift_correction_mm = 0.0f;
     int drift_min_samples = g_buf_drift_min_samples;
@@ -1604,7 +1609,7 @@ static int sync_apply_type_d_probe_floor(buf_state_t s, int target_sps) {
 }
 
 static int sync_check_tension_dwell_and_ramp(lane_t *lane, buf_state_t s, int target_sps,
-                                              uint32_t now_ms) {
+                                             uint32_t now_ms) {
     if (s == BUF_TENSION && g_sync_tension_pin_since_ms != 0) {
         uint32_t tension_dwell_ms = now_ms - g_sync_tension_pin_since_ms;
         /* RELAY: TENSION switch contact is the normal "buffer empty, refill"
@@ -1649,8 +1654,9 @@ static int sync_apply_compression_recovery_cap(buf_state_t s, int target_sps, ui
             uint32_t collapse_ms = compression_recovery_ms - SYNC_COMPRESSION_COLLAPSE_DELAY_MS;
             if (collapse_ms > SYNC_COMPRESSION_COLLAPSE_CAP_MS)
                 collapse_ms = SYNC_COMPRESSION_COLLAPSE_CAP_MS;
-            int extra_trim = (int)(((uint64_t)collapse_ms * (uint64_t)(kp_window + g_pre_ramp_sps)) /
-                                   (uint64_t)SYNC_COMPRESSION_COLLAPSE_CAP_MS);
+            int extra_trim =
+                (int)(((uint64_t)collapse_ms * (uint64_t)(kp_window + g_pre_ramp_sps)) /
+                      (uint64_t)SYNC_COMPRESSION_COLLAPSE_CAP_MS);
             recovery_cap -= extra_trim;
         }
         if (recovery_cap < compression_floor_sps)
@@ -1695,7 +1701,8 @@ static float sync_effective_reserve_target(buf_state_t s, float bp_eff, float ra
     }
     /* TENSION_DWELL_WARN: integral saturated toward tension side — rate-limited 10 s */
     if (sync_enabled && g_sync_reserve_integral_gain > 0.0f &&
-        g_sync_reserve_integral_mm < -(g_sync_reserve_integral_clamp_mm * RESERVE_INTEGRAL_WARN_FRAC)) {
+        g_sync_reserve_integral_mm <
+            -(g_sync_reserve_integral_clamp_mm * RESERVE_INTEGRAL_WARN_FRAC)) {
         if (g_buf_tension_dwell_warn_emit_ms == 0 ||
             (now_ms - g_buf_tension_dwell_warn_emit_ms) >= SYNC_TENSION_DWELL_WARN_INTERVAL_MS) {
             g_buf_tension_dwell_warn_emit_ms = now_ms;
@@ -1749,10 +1756,11 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
     float effective_target = sync_effective_reserve_target(s, bp_eff, raw_target, now_ms);
 
     float pos_norm = (g_buf_sensor_type == BUF_SENSOR_TYPE_P) ? g_buf_pos : (bp_eff / thr);
-    float target_norm = (g_buf_sensor_type == BUF_SENSOR_TYPE_P) ? psf_goal_norm() : (effective_target / thr);
+    float target_norm =
+        (g_buf_sensor_type == BUF_SENSOR_TYPE_P) ? psf_goal_norm() : (effective_target / thr);
     float error_norm = pos_norm - target_norm;
-    float deadband_norm =
-        (g_buf_sensor_type == BUF_SENSOR_TYPE_P) ? TYPE_D_DEADBAND_NORM : (reserve_deadband_mm / thr);
+    float deadband_norm = (g_buf_sensor_type == BUF_SENSOR_TYPE_P) ? TYPE_D_DEADBAND_NORM
+                                                                   : (reserve_deadband_mm / thr);
 
     if (g_buf_sensor_type == BUF_SENSOR_TYPE_D) {
         type_d_neutral_feed_sample(s, pos_norm, target_norm, deadband_norm);
@@ -1766,7 +1774,9 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
         target_sps = psf_control_law(error_norm);
     }
     int type_d_neutral_relay_floor_sps =
-        (g_buf_sensor_type == BUF_SENSOR_TYPE_D && s == BUF_NEUTRAL && error_norm < -deadband_norm) ? target_sps : 0;
+        (g_buf_sensor_type == BUF_SENSOR_TYPE_D && s == BUF_NEUTRAL && error_norm < -deadband_norm)
+            ? target_sps
+            : 0;
 
     /* RAMPING BIAS: If we don't know where we are, raise speed a little bit
      * until we touch compression. This probe speed (up to ~150mm/min) ensures
@@ -1961,8 +1971,8 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
         target_sps = clamp_i(target_sps, g_sync_min_sps, max_sps);
 
     int ramp_dn_sps = g_sync_ramp_dn_sps;
-    if (g_buf_sensor_type == BUF_SENSOR_TYPE_D && !fast_brake_active && g_sync_compression_recovery_active &&
-        s == BUF_COMPRESSION) {
+    if (g_buf_sensor_type == BUF_SENSOR_TYPE_D && !fast_brake_active &&
+        g_sync_compression_recovery_active && s == BUF_COMPRESSION) {
         uint32_t compression_recovery_ms = now_ms - g_buf.entered_ms;
         if (compression_recovery_ms > SYNC_COMPRESSION_COLLAPSE_DELAY_MS) {
             ramp_dn_sps *= SYNC_COMPRESSION_COLLAPSE_RAMP_MULT;
@@ -1972,8 +1982,8 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
     if (fast_brake_active) {
         g_sync_current_sps = 0;
         g_psf_target_filt = 0.0f;
-    } else if (g_buf_sensor_type == BUF_SENSOR_TYPE_P && buf_pos_norm() < -CONF_PSF_SOFT_WALL_START &&
-               target_sps > g_sync_current_sps) {
+    } else if (g_buf_sensor_type == BUF_SENSOR_TYPE_P &&
+               buf_pos_norm() < -CONF_PSF_SOFT_WALL_START && target_sps > g_sync_current_sps) {
         /* Urgent refill: the buffer is starved into the TENSION soft-wall zone and
            the distance-EMA below is far too slow to ramp feed before it slams the
            rail (cannot_refill). Feed-up into tension is the safe+urgent direction

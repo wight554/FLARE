@@ -316,6 +316,19 @@ const sim_scenario_t g_sim_scenarios[] = {
                                "kept short so a stuck lock fails fast",
     },
     {
+        // buffer-state-lock D5 / 12-SPEC §3: bare BL:T (no follow_mm/rate) is a
+        // passive lock. An external retract while locked must not trigger
+        // BL:BREAK/BL:FOLLOW or any motor motion — the lock just holds and the
+        // watchdog/BS release it. Same demand as sem_bl_lock_catch, no follow.
+        .name = "sem_bl_bare_passive",
+        .demand = {.kind = DEMAND_RETRACT, .level_mm_s = 15.0f, .t1_ms = 6000, .t2_ms = 9000},
+        .active_lane = 1, .start_sync_active = false,
+        .bl_arm_at_ms = 1000, .bl_arm_target = 1 /* BUF_TENSION */,
+        .bl_clear_at_ms = 10000,
+        .tick_ceiling = 1100,
+        .tick_ceiling_reason = "lock by ~1.5s, retract 6-9s, BS at 10s",
+    },
+    {
         // Spec scenario "Operator aborts lock": BS releases the lock/catch
         // and returns to SYNC_OFF.
         .name = "sem_bl_release_via_bs",
