@@ -108,9 +108,9 @@ int main(int argc, char **argv) {
         // its magic/version never match SETTINGS_MAGIC/SETTINGS_VERSION —
         // settings_load() must take the same fallback path as a genuinely
         // erased board would.
-        uint32_t settings_offset = PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE;
+        uint32_t settings_offset = PICO_FLASH_SIZE_BYTES - (2 * FLASH_SECTOR_SIZE);
         bool flash_was_pristine = true;
-        for (size_t i = 0; i < FLASH_SECTOR_SIZE; i++) {
+        for (size_t i = 0; i < 2 * FLASH_SECTOR_SIZE; i++) {
             if (g_sim_flash[settings_offset + i] != 0) {
                 flash_was_pristine = false;
                 break;
@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
         }
         settings_load();
         bool flash_still_pristine = true;
-        for (size_t i = 0; i < FLASH_SECTOR_SIZE; i++) {
+        for (size_t i = 0; i < 2 * FLASH_SECTOR_SIZE; i++) {
             if (g_sim_flash[settings_offset + i] != 0) {
                 flash_still_pristine = false;
                 break;

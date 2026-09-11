@@ -12,6 +12,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 - [x] **Phase 4: Host Sync Simulation Coverage** - Finalize `flare_sim` scenario derivation and regression coverage
 - [x] **Phase 5: Automated Calibration & Live Tuning** - Deterministic sensor calibration routines and live serial tuning CLI
 - [x] **Phase 6: Advanced Toolchange & RELOAD Automation** - Mechanical cutter sequencing, spool failover, and filament bypass mode
+- [x] **Phase 7: Flash Ping-Pong Atomic Persistence** - Dual A/B ping-pong sectors with sequence arbitration and brownout recovery
 
 ## Phase Details
 
@@ -81,6 +82,17 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   3. Filament bypass switch allows external spool feeding without MMU lock
 **Plans**: 1 plan complete (06-01)
 
+### Phase 7: Flash Ping-Pong Atomic Persistence
+**Goal**: Power-loss resilient atomic settings persistence for RP2040 NOR flash using dual ping-pong sectors (A/B)
+**Depends on**: Phase 1
+**Requirements**: REQ-persistence-contract
+**Success Criteria** (what must be TRUE):
+  1. Dual 4 KB sectors (0x1FE000 and 0x1FF000) alternate saves atomically
+  2. Monotonic sequence counter with signed difference arbitrates newest valid sector on boot
+  3. CRC32 verification detects corrupted or truncated writes and recovers prior valid sector cleanly
+  4. Write readback verification prevents active sector pointer flip on flash programming failure
+**Plans**: 1 plan complete (07-01)
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -91,3 +103,4 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 4. Host Sync Simulation Coverage | 1/1 | Complete | 2026-09-11 |
 | 5. Automated Calibration & Live Tuning | 1/1 | Complete | 2026-09-11 |
 | 6. Advanced Toolchange & RELOAD Automation | 1/1 | Complete | 2026-09-11 |
+| 7. Flash Ping-Pong Atomic Persistence | 1/1 | Complete | 2026-09-11 |

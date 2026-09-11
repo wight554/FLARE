@@ -81,3 +81,25 @@ set(SIM_OWN_SOURCES
   ${SIM_GLOBALS_C}
 )
 set_source_files_properties(${SIM_OWN_SOURCES} PROPERTIES COMPILE_OPTIONS "-Wall;-Wextra")
+
+add_executable(test_persistence
+  ${FIRMWARE_SRC}/sync.c
+  ${FIRMWARE_SRC}/sync_buf.c
+  ${FIRMWARE_SRC}/sync_relay.c
+  ${FIRMWARE_SRC}/sync_analog.c
+  ${FIRMWARE_SRC}/motion.c
+  ${FIRMWARE_SRC}/toolchange.c
+  ${FIRMWARE_SRC}/cutter.c
+  ${FIRMWARE_SRC}/settings_store.c
+  ${SIM_GLOBALS_C}
+  sim_fakes.c
+  test_persistence.c
+)
+
+target_include_directories(test_persistence PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/shims
+  ${FIRMWARE_INCLUDE}
+  ${CMAKE_CURRENT_LIST_DIR}
+)
+
+target_link_libraries(test_persistence PRIVATE m)

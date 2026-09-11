@@ -109,24 +109,21 @@ There is no database in the conventional sense. Two persistence stores:
 
 **A. Firmware settings — flash-backed struct.** `firmware/src/settings_store.c`.
 
-- Layout: one `settings_t` struct, ~45 scalar fields, written to the **last flash sector**
-  (`SETTINGS_FLASH_OFFSET = PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE`,
-  `settings_store.c:22`).
+- Layout: one `settings_t` struct, ~46 scalar fields, ping-ponged between two flash sectors:
+  Sector A (`SETTINGS_FLASH_OFFSET_A = PICO_FLASH_SIZE_BYTES - (2 * FLASH_SECTOR_SIZE)`) and
+  Sector B (`SETTINGS_FLASH_OFFSET_B = PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE`).
 - Buffer is fixed 512 bytes, enforced by `_Static_assert(sizeof(settings_t) <= 512)`
-  (`settings_store.c:109`).
-- Integrity: `magic` + `version` + trailing `crc32` over all preceding bytes
-  (`settings_store.c:353`, validated at `:535-544`).
-- Write path: `flash_range_erase(sector)` then `flash_range_program`
-  (`settings_store.c:367`). **Erase-then-write, single copy, no A/B slot, no journal.**
-  Power loss mid-write loses settings; the CRC detects it and the loader falls back to
-  defaults — data loss is detected, not prevented.
-- Row count analogue: 1 record. Always.
+  (`settings_store.c`).
+- Integrity & Ordering: `magic` + `version` + `seq` counter + trailing `crc32` over all preceding bytes.
+- Write path: targets inactive sector (`1 - g_active_sector`), increments monotonic `g_seq++`,
+  erases, programs, and verifies readback CRC before flipping active sector pointer.
+  **Dual ping-pong A/B slot:** power loss mid-write leaves the prior valid sector intact,
+  guaranteeing zero calibration loss during brownout.
+- Row count analogue: 1 record active (ping-pong across 2 sectors).
 
-**Migration approach:** there is none. `SETTINGS_VERSION` is currently `60`
-(`settings_store.c:24`). Any `settings_t` field add/remove requires a manual version bump
-(`AGENTS.md:150`), and a version mismatch causes the loader to **discard the stored blob
-and reset to defaults** (`settings_store.c:537`). Sixty schema revisions have each wiped
-operator tuning. No field-preserving upgrade path is implemented.
+**Migration approach:** `SETTINGS_VERSION` is `63` (`settings_store.c`).
+A version mismatch causes the loader to discard the stored blob and reset to defaults.
+Dual ping-pong sectors ensure write-interruption safety across unexpected reboots.
 
 **B. Daemon SQLite.** `scripts/flare_daemon.py:121-166`. File at `<data dir>/flare.db`.
 

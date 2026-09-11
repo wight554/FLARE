@@ -15,7 +15,7 @@ import unittest
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                    "..", "firmware", "src", "settings_store.c")
 
-SKIP_FIELDS = {"magic", "version", "crc32"}
+SKIP_FIELDS = {"magic", "version", "crc32", "seq"}
 
 # Assignment LHS: bare identifier (optional [..] subscript) followed by a single
 # '=' (not '==' / '!=' / '<=' / '>='). Rejects if/for/while and comparisons.

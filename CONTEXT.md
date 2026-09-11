@@ -115,7 +115,7 @@ Persistent tunables follow this path:
 9. Update relevant docs (`MANUAL.md`, `BEHAVIOR.md`, `README.md`, etc.).
 10. Bump `SETTINGS_VERSION` in `firmware/src/settings_store.c` when `settings_t` layout changes.
 
-Current `SETTINGS_VERSION`: `60` in `firmware/src/settings_store.c`.
+Current `SETTINGS_VERSION`: `63` in `firmware/src/settings_store.c`.
 
 ---
 
@@ -137,9 +137,10 @@ Current `SETTINGS_VERSION`: `60` in `firmware/src/settings_store.c`.
 - Toolchange phases like `TC_LOAD_WAIT_TH` or `TC_UNLOAD_WAIT_OUT` observe underlying lane task, react when it stops.
 - Old names `TC_LOAD_MS` / `TC_UNLOAD_MS` = legacy protocol aliases, not real time-based limits.
 
-### 4. Persistence is activity-gated
+### 4. Persistence is activity-gated & dual ping-pong
 
-`SV:`, `LD:`, `RS:` rejected with `ER:PERSIST_BUSY` while motion, toolchange, cutter activity, or boot stabilization active.
+- `SV:`, `LD:`, `RS:` rejected with `ER:PERSIST_BUSY` while motion, toolchange, cutter activity, or boot stabilization active.
+- Dual 4 KB sectors (Sector A at `0x1FE000`, Sector B at `0x1FF000`) alternate saves atomically. Monotonic sequence counter and CRC32 verification guarantee zero calibration loss during unexpected power loss/brownout.
 
 ### 5. Speed conversion helpers are shared
 

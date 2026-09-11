@@ -6,18 +6,21 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 6: Advanced Toolchange & RELOAD Automation
+**Current focus:** Phase 7: Flash Ping-Pong Atomic Persistence
 
 ## Current Position
 
-- **Phase**: 6 - Advanced Toolchange & RELOAD Automation (`.planning/phases/06-advanced-toolchange-reload/`)
-- **Active Feature in Progress**: Phase 6 - Plan 06-01
-- **Status**: Complete (Plan 06-01 complete and validated)
+- **Phase**: 7 - Flash Ping-Pong Atomic Persistence (`.planning/phases/07-flash-pingpong-atomic-persistence/`)
+- **Active Feature in Progress**: Phase 7 - Plan 07-01
+- **Status**: Complete (Plan 07-01 complete and validated)
 - **Progress**: [====================] 100% complete
 
 ## Accumulated Context
 
 ### Active Backlog Streams & Phases
+- `.planning/phases/07-flash-pingpong-atomic-persistence/`:
+  - `07-SPEC.md` (done): Dual 4 KB ping-pong sectors (0x1FE000 and 0x1FF000), monotonic sequence number `seq`, SETTINGS_VERSION 63, signed sequence arbitration, and CRC32 verification.
+  - `07-01-PLAN.md` (done): Firmware save/load implementation, readback CRC verification, host unit test suite (`test_persistence.c`), and parity/regression integration.
 - `.planning/phases/06-advanced-toolchange-reload/`:
   - `06-SPEC.md` (done): Cutter stall/watchdog interlocks, firmware bypass mode (`BYPASS=1`), Klipper pause escalation, and toolhead load retry/park contract.
   - `06-01-PLAN.md` (done): Cutter PWM de-energize on abort/fail, toolhead load retries (`tc_ts_retries`) and parking (`tc_ts_park_mm`), firmware bypass interlocks, and Klipper pause actuation.

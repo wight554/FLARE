@@ -20,9 +20,13 @@
 #include "settings_store.h"
 #include "sync.h"
 
-#define SETTINGS_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
+#define SETTINGS_FLASH_OFFSET_A (PICO_FLASH_SIZE_BYTES - (2 * FLASH_SECTOR_SIZE))
+#define SETTINGS_FLASH_OFFSET_B (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define SETTINGS_MAGIC 0x4e4f5346u
-#define SETTINGS_VERSION 62u
+#define SETTINGS_VERSION 63u
+
+int g_active_sector = 1;
+uint32_t g_seq = 0;
 
 // RP2040's onboard NOR flash is typically rated ~100k erase cycles per
 // sector. Visibility only (ARCHITECTURE_BRIEF.md "no wear leveling, no
@@ -58,6 +62,7 @@ static const float COMPRESSION_BIAS_MAX_FRAC = 0.7f;
 typedef struct {
     uint32_t magic;
     uint32_t version;
+    uint32_t seq;
 
     int feed_sps, rev_sps, auto_sps;
     int sync_max_sps, global_max_sps, sync_min_sps;
@@ -262,6 +267,7 @@ static void settings_defaults_motion(void) {
     g_unload_cut = CONF_UNLOAD_CUT;
     g_ramp_step_sps = CONF_RAMP_STEP_SPS;
     g_flash_erase_count = 0;
+    g_seq = 0;
 }
 
 static void settings_defaults_servo_cutter(void) {
@@ -286,10 +292,24 @@ void settings_defaults(void) {
     motion_limit_runtime_rates(false);
 }
 
+static bool settings_validate(const settings_t *s) {
+    if (s->magic != SETTINGS_MAGIC || s->version != SETTINGS_VERSION) {
+        return false;
+    }
+    uint32_t crc = crc32_buf((const uint8_t *)s, offsetof(settings_t, crc32));
+    return (crc == s->crc32);
+}
+
 void settings_save(void) {
+    int target = 1 - g_active_sector;
+    uint32_t target_offset = (target == 0) ? SETTINGS_FLASH_OFFSET_A : SETTINGS_FLASH_OFFSET_B;
+
     settings_t s = {0};
     s.magic = SETTINGS_MAGIC;
     s.version = SETTINGS_VERSION;
+
+    g_seq++;
+    s.seq = g_seq;
 
     s.feed_sps = g_feed_sps;
     s.rev_sps = g_rev_sps;
@@ -390,9 +410,15 @@ void settings_save(void) {
     stop_all();
 
     uint32_t ints = save_and_disable_interrupts();
-    flash_range_erase(SETTINGS_FLASH_OFFSET, FLASH_SECTOR_SIZE);
-    flash_range_program(SETTINGS_FLASH_OFFSET, buffer, SETTINGS_FLASH_BUFFER_BYTES);
+    flash_range_erase(target_offset, FLASH_SECTOR_SIZE);
+    flash_range_program(target_offset, buffer, SETTINGS_FLASH_BUFFER_BYTES);
     restore_interrupts(ints);
+
+    // Verify readback before flipping active sector pointer
+    const settings_t *target_s = (const settings_t *)(XIP_BASE + target_offset);
+    if (settings_validate(target_s) && target_s->seq == s.seq) {
+        g_active_sector = target;
+    }
 }
 
 void sync_tmc_settings(int lane) {
@@ -558,29 +584,51 @@ static void settings_load_sync_reload(const settings_t *s) {
 }
 
 void settings_load(void) {
-    // Read settings straight from memory-mapped flash (XIP). Three guards must all
-    // pass or we fall back to compiled defaults: magic (is this our sector at all),
-    // version (a firmware change that altered settings_t invalidates old layout -
-    // bump SETTINGS_VERSION to force this path), and CRC (intact, fully-written).
-    const settings_t *s = (const settings_t *)(XIP_BASE + SETTINGS_FLASH_OFFSET);
+    // Read settings straight from memory-mapped flash (XIP). Dual ping-pong
+    // sectors (A and B) provide atomic persistence resilient against power
+    // loss mid-erase or mid-program. Three guards must pass per sector: magic,
+    // version, and CRC. If both valid, select newer sequence; if one valid,
+    // select valid; if neither valid, fall back to compiled defaults.
+    const settings_t *sa = (const settings_t *)(XIP_BASE + SETTINGS_FLASH_OFFSET_A);
+    const settings_t *sb = (const settings_t *)(XIP_BASE + SETTINGS_FLASH_OFFSET_B);
 
-    if (s->magic != SETTINGS_MAGIC || s->version != SETTINGS_VERSION) {
+    bool valid_a = settings_validate(sa);
+    bool valid_b = settings_validate(sb);
+
+    const settings_t *chosen = NULL;
+    int chosen_sector = -1;
+
+    if (valid_a && valid_b) {
+        if ((int32_t)(sa->seq - sb->seq) > 0) {
+            chosen = sa;
+            chosen_sector = 0;
+        } else {
+            chosen = sb;
+            chosen_sector = 1;
+        }
+    } else if (valid_a) {
+        chosen = sa;
+        chosen_sector = 0;
+    } else if (valid_b) {
+        chosen = sb;
+        chosen_sector = 1;
+    }
+
+    if (!chosen) {
+        g_active_sector = 1;
+        g_seq = 0;
         settings_defaults();
         tmc_apply_all();
         return;
     }
 
-    uint32_t crc = crc32_buf((const uint8_t *)s, offsetof(settings_t, crc32));
-    if (crc != s->crc32) {
-        settings_defaults();
-        tmc_apply_all();
-        return;
-    }
+    g_active_sector = chosen_sector;
+    g_seq = chosen->seq;
 
-    settings_load_motion(s);
-    settings_load_tmc(s);
-    settings_load_servo_cutter(s);
-    settings_load_sync_reload(s);
+    settings_load_motion(chosen);
+    settings_load_tmc(chosen);
+    settings_load_servo_cutter(chosen);
+    settings_load_sync_reload(chosen);
 
     motion_limit_runtime_rates(false);
 
