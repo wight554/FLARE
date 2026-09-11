@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-SPEC_GLOB = "openspec/specs/**/spec.md"
+SPEC_GLOB = ".planning/specs/**/spec.md"
 MAX_FILLER_DENSITY_PCT = 6.0
 PURPOSE_HEADING = "## Purpose"
 WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]*")

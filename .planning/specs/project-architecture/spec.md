@@ -1,0 +1,167 @@
+# Project Architecture Specification
+
+## Purpose
+
+Captures durable firmware architecture and workflow contracts for contributors.
+Read this before changing firmware structure, runtime parameters, protocol
+behavior, or persistence; use `CONTEXT.md` as the navigation guide.
+## Requirements
+### Requirement: Firmware shall remain cooperative and non-blocking
+
+FLARE firmware SHALL run as cooperative RP2040 firmware without an RTOS, with the
+main loop calling non-blocking module ticks.
+
+#### Scenario: A module adds runtime work
+
+- **WHEN** firmware adds new behavior in `main.c`, `motion.c`, `sync.c`,
+  `toolchange.c`, `protocol.c`, or settings code
+- **THEN** the behavior is implemented as bounded cooperative work
+- **AND** it does not introduce blocking loops that prevent other module ticks
+  from running
+
+### Requirement: Module ownership shall stay explicit
+
+Each firmware module SHALL keep ownership aligned with the documented
+architecture boundaries. A module MAY be split into multiple cohesive translation
+units provided each unit keeps a single domain owner and the file map stays
+documented.
+
+#### Scenario: A change affects toolchange behavior
+
+- **WHEN** a change modifies cutter, toolchange, or RELOAD state transitions
+- **THEN** primary logic belongs in `firmware/src/toolchange.c`
+- **AND** shared declarations belong in module headers or
+  `firmware/include/controller_shared.h`
+- **AND** unrelated modules are touched only for required integration points
+
+#### Scenario: A module is split for readability
+
+- **WHEN** an oversized translation unit is split into cohesive units
+- **THEN** each new unit keeps one domain owner aligned with its module boundary
+- **AND** the documented file map (`AGENTS.md` Key Files, `project-architecture`)
+  is updated to list the new units
+- **AND** the split changes no behavior
+
+#### Scenario: Sync and protocol are split units
+
+- **WHEN** contributors need sync or protocol ownership context
+- **THEN** `firmware/src/sync.c` owns sync orchestration, buffer lock, and boot
+  stabilization
+- **AND** `firmware/src/sync_buf.c` owns buffer sensing, virtual position, signal
+  publishing, and estimator updates
+- **AND** `firmware/src/sync_relay.c` owns Type-D relay control and neutral feed
+  sampling
+- **AND** `firmware/src/sync_analog.c` owns Type-P analog helper/control metrics
+- **AND** `firmware/src/protocol.c` owns command parsing, motion/system commands,
+  and SET/GET dispatch
+- **AND** `firmware/src/protocol_status.c` owns status dump formatting
+- **AND** `firmware/src/protocol_tmc.c` owns advanced TMC serial commands
+
+### Requirement: Runtime tunables shall follow the full parameter path
+
+Persistent runtime tunables SHALL be represented consistently across config
+files, generated firmware headers, runtime storage, serial protocol, and docs.
+
+#### Scenario: A new persistent tunable is added
+
+- **WHEN** a new persistent runtime parameter is introduced
+- **THEN** `config.ini.example` and `config.ini` include the key
+- **AND** `scripts/gen_config.py` emits the generated default/macro
+- **AND** owning runtime variables and settings persistence are wired
+- **AND** matching `SET:` and `GET:` protocol handlers exist
+- **AND** operator documentation is updated
+- **AND** `SETTINGS_VERSION` is bumped when `settings_t` layout changes
+
+### Requirement: Serial protocol changes shall preserve reply semantics
+
+USB serial commands SHALL continue using `CMD:params\n` input and `OK:` / `ER:`
+reply semantics, with best-effort `EV:` events where applicable.
+
+#### Scenario: A new serial command is added
+
+- **WHEN** `firmware/src/protocol.c` handles a new command
+- **THEN** successful outcomes reply with `OK`
+- **AND** failures reply with `ER`
+- **AND** command behavior is documented in `MANUAL.md`
+
+### Requirement: Persistence shall remain activity-gated
+
+Flash persistence commands SHALL be rejected while motion, toolchange, cutter
+activity, or boot stabilization could make persistence unsafe.
+
+#### Scenario: Operator sends `SV:` while motion is active
+
+- **WHEN** persistence is requested during an unsafe activity window
+- **THEN** firmware rejects the request with the busy persistence error
+- **AND** settings flash is not modified
+
+### Requirement: Sync shall not run during toolchange or RELOAD
+
+Normal sync control SHALL remain guarded so it runs only when the toolchange
+context is idle.
+
+#### Scenario: Firmware enters RELOAD follow
+
+- **WHEN** the toolchange context is not idle
+- **THEN** normal sync tick behavior does not attempt to rescue or override the
+  RELOAD/toolchange state machine
+- **AND** RELOAD-specific buffer-driven logic owns that behavior
+
+### Requirement: Load and unload safety shall remain distance-based
+
+Load, unload, autoload, and related lane tasks SHALL use distance limits and
+sensor state rather than legacy names that imply time-only limits.
+
+#### Scenario: A load task reaches its travel limit
+
+- **WHEN** the configured distance limit is reached before the expected sensor
+  transition
+- **THEN** the lane task stops and reports the appropriate fault/phase outcome
+- **AND** toolchange phases react to the lane task result
+
+### Requirement: Shared speed conversion helpers shall remain consistent
+
+Speed conversion SHALL use shared helper functions rather than duplicate
+conversions between slicer units, firmware steps-per-second, and protocol
+values.
+
+#### Scenario: Protocol reports or accepts a speed value
+
+- **WHEN** a command converts between mm/min and steps-per-second
+- **THEN** it uses the shared conversion helpers declared in
+  `controller_shared.h`
+- **AND** protocol and settings code agree on the conversion
+
+### Requirement: Board pin assumptions shall live in config headers
+
+Board-level pin assignments and hardware constants SHALL remain centralized in
+`firmware/include/config.h` and generated tune headers where applicable.
+
+#### Scenario: Hardware pin mapping changes
+
+- **WHEN** a board pin assignment changes
+- **THEN** the source of truth is updated in `config.h`
+- **AND** `HARDWARE.md` is updated to match
+
+### Requirement: Buffer service commands preempt compatible buffer activity
+
+`BS` SHALL cancel active sync, buffer lock, an existing buffer-stabilize drive,
+and standalone lane commands before starting a fresh buffer stabilize, while
+hard activities (`TC`, cutter, manual unload) SHALL still reject with `ER:BUSY`.
+`BL:T` and `BL:C` SHALL cancel an active buffer-stabilize drive before arming
+buffer lock so tip-form macros can transition from neutralization to lock without
+a racy delay.
+
+#### Scenario: Buffer lock follows buffer stabilize
+
+- **WHEN** `BS` has started buffer stabilization
+- **AND** the host sends `BL:T`
+- **THEN** the firmware cancels the stabilize drive
+- **AND** arms the TENSION buffer lock with `OK`
+
+#### Scenario: Hard activity remains busy
+
+- **WHEN** toolchange, cutter, or manual unload is active
+- **AND** the host sends `BS` or `BL:T`
+- **THEN** the firmware returns `ER:BUSY`
+
