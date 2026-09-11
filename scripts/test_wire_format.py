@@ -7,8 +7,8 @@ import unittest
 # Ensure scripts path is in import path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from flare_live_tuner import EVENT_RE
 from flare_cmd import COMPLETION_EVENTS
+from flare_live_tuner import EVENT_RE
 
 
 def daemon_split_logic(line):
