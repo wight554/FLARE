@@ -1,0 +1,16 @@
+{
+  "source_path": "openspec/specs/persistence-contract/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Persistence Contract Specification",
+  "summary": "Durable contract for FLARE flash-backed runtime parameters and config generation, extracted from `firmware/src/settings_store.c` and `AGENTS.md`.",
+  "scope": [
+    "persistence",
+    "contract"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

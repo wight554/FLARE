@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/buffer-state-lock/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "buffer-state-lock Specification",
+  "summary": "Describes host-controlled buffer lock behavior used to drive type-D buffers to tension or compression for setup, service, and testing.",
+  "scope": [
+    "buffer",
+    "state",
+    "lock"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

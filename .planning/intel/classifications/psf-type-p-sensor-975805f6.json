@@ -1,0 +1,18 @@
+{
+  "source_path": "openspec/specs/psf-type-p-sensor/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "psf-type-p-sensor Specification",
+  "summary": "Captures behavior for the proportional Sync-Feedback Sensor path, including recovery, refill, and soft-wall control decisions.",
+  "scope": [
+    "psf",
+    "type",
+    "p",
+    "sensor"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

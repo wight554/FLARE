@@ -1,0 +1,16 @@
+{
+  "source_path": "openspec/specs/spec-readability/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "spec-readability Specification",
+  "summary": "Human-oriented navigation of the agent-facing specs \u2014 a per-spec uncompressed `",
+  "scope": [
+    "spec",
+    "readability"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

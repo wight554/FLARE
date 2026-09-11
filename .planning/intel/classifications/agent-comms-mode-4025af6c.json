@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/agent-comms-mode/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "agent-comms-mode Specification",
+  "summary": "Tool-agnostic caveman-full chat-response default for agents, sourced from `openspec/COMMS.md`, with explicit human-readable exclusions (commits/PRs, code, user docs, security/irreversible prose).",
+  "scope": [
+    "agent",
+    "comms",
+    "mode"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

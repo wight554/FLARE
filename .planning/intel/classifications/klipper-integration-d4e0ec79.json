@@ -1,0 +1,16 @@
+{
+  "source_path": "openspec/specs/klipper-integration/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Klipper Integration Specification",
+  "summary": "Durable contract for FLARE Klipper integration (`flare_cmd.py`), extracted from `KLIPPER.md` and script sources.",
+  "scope": [
+    "klipper",
+    "integration"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

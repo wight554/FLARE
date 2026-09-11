@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/buffer-geometry-vocabulary/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "buffer-geometry-vocabulary Specification",
+  "summary": "Defines shared buffer geometry terms so firmware, docs, and tuning guides use the same distance and switch-span vocabulary.",
+  "scope": [
+    "buffer",
+    "geometry",
+    "vocabulary"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

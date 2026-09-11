@@ -1,0 +1,18 @@
+{
+  "source_path": "openspec/specs/cross-platform-script-tooling/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "cross-platform-script-tooling Specification",
+  "summary": "Cross-platform Python host script contract \u2014 all operational scripts in `scripts/` SHALL be Python, working on Linux (Raspberry Pi, Debian/Ubuntu) and macOS without modification.",
+  "scope": [
+    "cross",
+    "platform",
+    "script",
+    "tooling"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

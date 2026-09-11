@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/agent-context-compression/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "agent-context-compression Specification",
+  "summary": "Reviewed bulk-compression workflow for AI-facing context files and existing OpenSpec spec bodies, preserving normative clauses/structure and excluding operator/user documentation.",
+  "scope": [
+    "agent",
+    "context",
+    "compression"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

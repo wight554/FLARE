@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/code-style-standard/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "code-style-standard Specification",
+  "summary": "Enforced C style + lint contract for FLARE firmware so a human maintainer can read and",
+  "scope": [
+    "code",
+    "style",
+    "standard"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

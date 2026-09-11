@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/relay-fallback-only/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "relay-fallback-only Specification",
+  "summary": "Keeps type-D relay control on the simple fallback law after the confidence estimator path was removed.",
+  "scope": [
+    "relay",
+    "fallback",
+    "only"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

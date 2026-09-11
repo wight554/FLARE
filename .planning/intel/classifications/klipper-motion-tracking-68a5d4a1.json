@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/klipper-motion-tracking/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Klipper Motion Tracking Specification",
+  "summary": "Klipper sidecar and UDS motion tracking behavioral contracts and requirements.",
+  "scope": [
+    "klipper",
+    "motion",
+    "tracking"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

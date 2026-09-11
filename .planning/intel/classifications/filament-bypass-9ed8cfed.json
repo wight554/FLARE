@@ -1,0 +1,16 @@
+{
+  "source_path": "openspec/specs/filament-bypass/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "filament-bypass Specification",
+  "summary": "Defines the host and UI behavior for selecting filament bypass instead of a numbered MMU lane.",
+  "scope": [
+    "filament",
+    "bypass"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

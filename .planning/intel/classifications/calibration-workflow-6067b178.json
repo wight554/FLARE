@@ -1,0 +1,16 @@
+{
+  "source_path": "openspec/specs/calibration-workflow/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Calibration Workflow Specification",
+  "summary": "Capture the OpenSpec-native contract for observe-only calibration.",
+  "scope": [
+    "calibration",
+    "workflow"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

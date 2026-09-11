@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/flow-keyed-schedule/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Flow-Keyed Schedule",
+  "summary": "Defines how live estimated flow maps to sync baseline and compression bias.",
+  "scope": [
+    "flow",
+    "keyed",
+    "schedule"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

@@ -1,0 +1,16 @@
+{
+  "source_path": "openspec/specs/task-workflow/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Task Workflow Specification",
+  "summary": "Workflow contract (supersedes AGENTS.md and former TASK.md) behavioral requirements.",
+  "scope": [
+    "task",
+    "workflow"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

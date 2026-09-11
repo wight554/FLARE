@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/team-memory-store/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "team-memory-store Specification",
+  "summary": "Define the git-tracked team memory store at `memories/repo/`: a tool-agnostic prior-art layer of curated per-change observations (decisions, gotchas, deviations) that agents read before proposing changes and write before archiving, complementing...",
+  "scope": [
+    "team",
+    "memory",
+    "store"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

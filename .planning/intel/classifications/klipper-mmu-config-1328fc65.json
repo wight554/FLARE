@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/klipper-mmu-config/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "klipper-mmu-config Specification",
+  "summary": "Specifies the bundled Klipper MMU config surface that lets users include one file for FLARE macros and UI state.",
+  "scope": [
+    "klipper",
+    "mmu",
+    "config"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

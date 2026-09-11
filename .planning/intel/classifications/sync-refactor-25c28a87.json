@@ -1,0 +1,16 @@
+{
+  "source_path": "openspec/specs/sync-refactor/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Sync Refactor Specification",
+  "summary": "Durable contract for FLARE sync, tuning, tracking, and analyzer behavioral requirements and historical rationale.",
+  "scope": [
+    "sync",
+    "refactor"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/config-surface-tiers/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "config-surface-tiers Specification",
+  "summary": "Classifies configuration knobs by audience and storage surface so operator tunables, developer constants, and board constants stay separated.",
+  "scope": [
+    "config",
+    "surface",
+    "tiers"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

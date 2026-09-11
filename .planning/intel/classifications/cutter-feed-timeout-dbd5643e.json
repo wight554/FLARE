@@ -1,0 +1,17 @@
+{
+  "source_path": "openspec/specs/cutter-feed-timeout/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "cutter-feed-timeout Specification",
+  "summary": "Documents the cutter feed timeout tunable and its serial/config exposure for safe long cutter-feed moves.",
+  "scope": [
+    "cutter",
+    "feed",
+    "timeout"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

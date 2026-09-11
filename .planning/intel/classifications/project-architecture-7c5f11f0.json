@@ -1,0 +1,16 @@
+{
+  "source_path": "openspec/specs/project-architecture/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "Project Architecture Specification",
+  "summary": "Captures durable firmware architecture and workflow contracts for contributors.",
+  "scope": [
+    "project",
+    "architecture"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}

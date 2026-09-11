@@ -1,0 +1,18 @@
+{
+  "source_path": "openspec/specs/type-d-dynamic-flow/spec.md",
+  "type": "SPEC",
+  "confidence": "high",
+  "manifest_override": false,
+  "title": "type-d-dynamic-flow Specification",
+  "summary": "Captures dynamic type-D relay feed behavior that helps the two-switch buffer recover demand without a mid-band position signal.",
+  "scope": [
+    "type",
+    "d",
+    "dynamic",
+    "flow"
+  ],
+  "cross_refs": [],
+  "locked": false,
+  "precedence": null,
+  "notes": ""
+}
