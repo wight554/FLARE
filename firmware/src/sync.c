@@ -117,6 +117,7 @@ static int g_bl_follow_target_sps = 0;        /* FOLLOW target rate (clamped) */
 static uint32_t g_bl_follow_ramp_tick_ms = 0; /* last FOLLOW ramp step */
 static uint32_t g_bl_arm_timeout_ms = 0;      /* configured watchdog window; 0 = default */
 static int g_bl_follow_seed_sps = 0;          /* FOLLOW seed rate (floor for rate servo) */
+static bool g_bl_lock_engaged = false;        /* lock confirmed in target rail zone */
 
 bool g_bl_autostart_suppressed = false;
 bool g_sync_tension_transitioned = false;
@@ -727,6 +728,7 @@ void sync_retract_assist_set(bool enabled) {
             g_bl_follow_seed_sps = 0;
             g_bl_watchdog_ms = 0;
             g_bl_arm_timeout_ms = 0;
+            g_bl_lock_engaged = false;
             sync_set_state(SYNC_OFF);
             /* Suppress auto-start: buffer is at the BL extreme, not extruder-driven. */
             g_bl_autostart_suppressed = true;
@@ -836,6 +838,7 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
     g_bl_last_tick_ms = now_ms;
 
     g_bl_watchdog_ms = 0;
+    g_bl_lock_engaged = false;
     g_bl_sub_state = BL_PRIME;
 
     /* BL:T → retract (forward=false) to pull buffer toward tension extreme.
@@ -905,6 +908,16 @@ static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
             cmd_event("BL", "PRIME_BOUND");
         }
 
+        if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
+            if (g_bl_target_state == BUF_TENSION)
+                g_bl_lock_engaged = (g_buf_pos <= -PSF_BREAK_THRESHOLD_NORM);
+            else if (g_bl_target_state == BUF_COMPRESSION)
+                g_bl_lock_engaged = (g_buf_pos >= PSF_BREAK_THRESHOLD_NORM);
+        } else {
+            buf_state_t raw = buf_state_raw();
+            g_bl_lock_engaged = (raw == g_bl_target_state);
+        }
+
         g_bl_sub_state = BL_LOCKED;
         g_bl_watchdog_ms = now_ms + (g_bl_arm_timeout_ms ? g_bl_arm_timeout_ms : BL_WATCHDOG_DEFAULT_MS);
         cmd_event("BL", "LOCKED");
@@ -915,10 +928,18 @@ static void sync_buffer_lock_locked(lane_t *lane, uint32_t now_ms) {
     if (g_bl_follow_mm > 0.0f) {
         bool lock_broken = false;
         if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
-            if (g_bl_target_state == BUF_TENSION)
-                lock_broken = (g_buf_pos > -PSF_BREAK_THRESHOLD_NORM);
-            else if (g_bl_target_state == BUF_COMPRESSION)
-                lock_broken = (g_buf_pos < PSF_BREAK_THRESHOLD_NORM);
+            if (!g_bl_lock_engaged) {
+                if (g_bl_target_state == BUF_TENSION)
+                    g_bl_lock_engaged = (g_buf_pos <= -PSF_BREAK_THRESHOLD_NORM);
+                else if (g_bl_target_state == BUF_COMPRESSION)
+                    g_bl_lock_engaged = (g_buf_pos >= PSF_BREAK_THRESHOLD_NORM);
+            }
+            if (g_bl_lock_engaged) {
+                if (g_bl_target_state == BUF_TENSION)
+                    lock_broken = (g_buf_pos > -PSF_BREAK_THRESHOLD_NORM);
+                else if (g_bl_target_state == BUF_COMPRESSION)
+                    lock_broken = (g_buf_pos < PSF_BREAK_THRESHOLD_NORM);
+            }
         } else {
             buf_state_t raw = buf_state_raw();
             lock_broken = (raw != g_bl_target_state);

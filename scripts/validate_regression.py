@@ -137,7 +137,12 @@ def main() -> None:
     _header("Mock MMU Status Self-Test")
     _run("python3", "scripts/test_flare_mmu_status.py")
 
-    # 9 — Diff hygiene
+    # 9 — Analyzer and Live Tuner self-tests
+    _header("Analyzer & Live Tuner Self-Tests")
+    _run("python3", "scripts/test_flare_analyze.py")
+    _run("python3", "scripts/test_flare_live_tuner.py")
+
+    # 10 — Diff hygiene
     _header("Diff Hygiene")
     _run("git", "diff", "--check")
 
