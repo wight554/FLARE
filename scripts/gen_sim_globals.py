@@ -18,7 +18,7 @@ import re
 import sys
 
 DEF_START = re.compile(
-    r"^(?:volatile\s+)?[A-Za-z_][A-Za-z0-9_]*\s*\*?\s+g_[A-Za-z0-9_]*\s*(?:\[[^\]]*\])?\s*[=;]"
+    r"^(?:(?:volatile|const)\s+)?[A-Za-z_][A-Za-z0-9_]*\s*\*?\s*g_[A-Za-z0-9_]*\s*(?:\[[^\]]*\])?\s*[=;]"
 )
 
 HEADER = """\

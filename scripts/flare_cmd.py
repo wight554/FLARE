@@ -532,6 +532,7 @@ def run_send(args):
     for raw_cmd in args.cmd:
         verb = raw_cmd.split(':', 1)[0].upper()
         events = COMPLETION_EVENTS.get(verb)
+        is_crashlog = (raw_cmd.strip().upper() == 'GET:CRASHLOG')
 
         ser.write(f"{raw_cmd}\n".encode())
         deadline = time.time() + args.timeout
@@ -559,6 +560,11 @@ def run_send(args):
                         break
 
             if not got_ok and (line == 'OK' or line.startswith('OK:')):
+                if is_crashlog:
+                    if line == 'OK:CRASH:END' or line == 'OK:NO_CRASH':
+                        got_ok = True
+                        break
+                    continue
                 got_ok = True
                 if events is None or got_completion:
                     break          # simple command done, or completion event already received
@@ -688,6 +694,10 @@ def main():
                         help='With --dump: print terse key: value lines without comments')
     parser.add_argument('--poll',    type=int, metavar='MS',
                         help='Repeatedly poll status (?:) at specified interval in ms')
+    parser.add_argument('--crashlog', action='store_true',
+                        help='Retrieve post-mortem crashlog (GET:CRASHLOG)')
+    parser.add_argument('--loop-stats', action='store_true',
+                        help='Retrieve main loop jitter benchmarks (GET:LOOP_STATS)')
     parser.add_argument('--api-host', default=os.environ.get('FLARE_API_HOST', '127.0.0.1'),
                         help='Daemon HTTP API host (default: 127.0.0.1 or FLARE_API_HOST)')
     parser.add_argument('--api-port', type=int, default=8088,
@@ -713,6 +723,18 @@ def main():
             run_poll_daemon(args)
         else:
             run_poll(args)
+    elif args.crashlog:
+        args.cmd = ['GET:CRASHLOG']
+        if daemon_online:
+            run_send_daemon(args)
+        else:
+            run_send(args)
+    elif args.loop_stats:
+        args.cmd = ['GET:LOOP_STATS']
+        if daemon_online:
+            run_send_daemon(args)
+        else:
+            run_send(args)
     elif args.cmd:
         if daemon_online:
             run_send_daemon(args)

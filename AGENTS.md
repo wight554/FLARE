@@ -72,6 +72,7 @@ Read modes: `[always]` = read every session (`AGENTS.md`, `.planning/PROJECT.md`
 | `firmware/src/protocol.c` | [lookup] | USB serial command parsing, motion/system commands, SET/GET |
 | `firmware/src/protocol_status.c` | [lookup] | `ST:` status dump formatting |
 | `firmware/src/protocol_tmc.c` | [lookup] | Advanced TMC serial commands (`CA:`, `TW:`, `TR:`, `RR:`) |
+| `firmware/src/forensics.c` | [lookup] | Retention-RAM blackbox ring (transitions + breadcrumbs), CRC/magic validation, `GET:CRASHLOG` backing |
 | `firmware/src/settings_store.c` | [lookup] | Flash-backed settings defaults/save/load, TMC apply helpers |
 | `firmware/include/controller_shared.h` | [lookup] | Shared runtime types, globals, conversion helpers |
 | `firmware/include/protocol_internal.h` | [lookup] | Shared protocol split-unit declarations |

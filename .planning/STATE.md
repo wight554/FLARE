@@ -6,18 +6,25 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 10: TMC2209 Register Heartbeat & Auto-Recovery
+**Current focus:** Phase 12: Post-Phase 2–10 Regression Fixes
 
 ## Current Position
 
-- **Phase**: 10 - TMC2209 Register Heartbeat & Auto-Recovery (`.planning/phases/10-tmc-heartbeat-recovery/`)
-- **Active Feature in Progress**: Phase 10 - Plan 10-01
-- **Status**: Complete (Plan 10-01 complete and validated)
-- **Progress**: [====================] 100% complete
+- **Phase**: 12 - Post-Phase 2–10 Regression Fixes (`.planning/phases/12-post-phase-2-10-regression-fixes/`)
+- **Active Feature in Progress**: Phase 12 - planning
+- **Status**: Spec done; plan pending
+- **Progress**: [                    ] 0% complete
 
 ## Accumulated Context
 
 ### Active Backlog Streams & Phases
+- `.planning/phases/12-post-phase-2-10-regression-fixes/`:
+  - `12-SPEC.md` (done): 12 requirement groups from the 2026-09-11 review — 3 HIGH firmware (load park FAULT_BUF, cutter abort limp, bare-BL catch creep), 1 HIGH host (--dump rebuild), heartbeat lockout, STOP latch, daemon host decision.
+  - `12-REVIEW.md` (done): severity-ranked findings, clean-spec list, eb0a942 migration audit.
+  - Next: `gsd-plan-phase 12`.
+- `.planning/phases/11-firmware-forensics-jitter/`:
+  - `11-SPEC.md` (done): Retention RAM crash logging, GET:CRASHLOG, CAL:CRASHLOG_CLEAR, and loop jitter/headroom instrumentation.
+  - `11-01-PLAN.md` (done 2026-09-11): forensics ring + edge-detected transitions, `GET:CRASHLOG`/`CAL:CRASHLOG_CLEAR`/`GET:LOOP_STATS`, loop timing helpers, `test_forensics` 9/9, docs. HW watchdog check pending.
 - `.planning/phases/10-tmc-heartbeat-recovery/`:
   - `10-SPEC.md` (done): CHOPCONF sentinel verification, 1000ms alternating cadence, strict idle motion lockout, 3x re-apply recovery escalation, ST: TMC telemetry, and host simulation tests.
   - `10-01-PLAN.md` (done): Firmware heartbeat tick, ST: telemetry, daemon status mirroring, and host unit tests.
@@ -44,4 +51,4 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 - `.planning/phases/01-hardware-validation-and-audit-closeout/01-01-PLAN.md`
 
 ---
-*Last updated: 2026-09-11 after Phase 5 Plan 05-01 completion*
+*Last updated: 2026-09-11 after Phase 11 Plan 11-01 completion*

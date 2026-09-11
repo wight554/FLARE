@@ -698,6 +698,15 @@ def serial_reader(port_name, baud):
                         if current_executing_command and not current_executing_command.startswith("?"):
                             continue
 
+                    if current_executing_command and current_executing_command.strip().upper() == "GET:CRASHLOG":
+                        if command_reply is None:
+                            command_reply = line
+                        else:
+                            command_reply += "\n" + line
+                        if line == "OK:CRASH:END" or line == "OK:NO_CRASH" or line.startswith("ER:"):
+                            command_event.set()
+                        continue
+
                     command_reply = line
                     command_event.set()
 

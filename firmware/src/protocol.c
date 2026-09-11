@@ -17,6 +17,7 @@
 
 #include "controller_shared.h"
 #include "cutter.h"
+#include "forensics.h"
 #include "motion.h"
 #include "protocol.h"
 #include "protocol_internal.h"
@@ -654,7 +655,8 @@ static bool cmd_get_sync_relay_probe_params(const char *param, int idx, char *ou
         snprintf(out, out_len, "ZONE_BIAS_RAMP:%.1f",
                  (double)sps_to_mm_per_min(g_zone_bias_ramp_sps_s));
     else if (!strcmp(param, "ZONE_BIAS_MAX"))
-        snprintf(out, out_len, "ZONE_BIAS_MAX:%.1f", (double)sps_to_mm_per_min(g_zone_bias_max_sps));
+        snprintf(out, out_len, "ZONE_BIAS_MAX:%.1f",
+                 (double)sps_to_mm_per_min(g_zone_bias_max_sps));
 #endif
     else
         return false;
@@ -764,7 +766,45 @@ static bool cmd_get_reload_cutter_params(const char *param, int idx, char *out, 
     return true;
 }
 
+static void cmd_handle_get_crashlog(void) {
+    uint32_t count = forensics_entry_count();
+    if (!forensics_has_crash() && count == 0) {
+        cmd_reply("OK", "NO_CRASH");
+        return;
+    }
+    char line[CMD_LINE_MAX];
+    snprintf(line, sizeof(line), "CRASH:HDR:reason=%s,time=%u,entries=%u",
+             forensics_crash_reason_str(forensics_crash_reason()), (unsigned)forensics_crash_time(),
+             (unsigned)count);
+    cmd_reply("OK", line);
+
+    for (uint32_t i = 0; i < count; i++) {
+        forensics_entry_t e;
+        if (forensics_get_entry(i, &e)) {
+            snprintf(line, sizeof(line),
+                     "CRASH:%02u:t=%u,type=%u,ln=%u,tc=%u,st=%u,sw=0x%02x,bp=%d,sps=%d,p=%u",
+                     (unsigned)i, (unsigned)e.timestamp_ms, (unsigned)e.type, (unsigned)e.lane,
+                     (unsigned)e.tc_state, (unsigned)e.sync_state, (unsigned)e.sensors,
+                     (int)e.buf_pos_raw, (int)e.step_rate_sps, (unsigned)e.payload);
+            cmd_reply("OK", line);
+        }
+    }
+    cmd_reply("OK", "CRASH:END");
+}
+
 static void cmd_handle_get(const char *p, uint32_t now_ms) {
+    if (!strcmp(p, "CRASHLOG")) {
+        cmd_handle_get_crashlog();
+        return;
+    }
+    if (!strcmp(p, "LOOP_STATS")) {
+        char buf[CMD_PARAM_MAX];
+        snprintf(buf, sizeof(buf), "CUR:%u,MAX:%u,AVG:%u,OVERRUNS:%u,TOP:%s",
+                 (unsigned)g_loop_cur_us, (unsigned)g_loop_max_us, (unsigned)g_loop_avg_us,
+                 (unsigned)g_loop_overruns, g_loop_top_module ? g_loop_top_module : "NONE");
+        cmd_reply("OK", buf);
+        return;
+    }
     char out[CMD_PARAM_MAX];
     char param[CMD_PARAM_MAX];
     int lane_mask = 1;
@@ -812,7 +852,7 @@ static bool cmd_set_motion_params(const char *base_param, int iv, float fv) {
             sync_clamp_max_sps(clamp_i(mm_per_min_to_sps(fv), MIN_RUN_RATE_SPS, MAX_RUN_RATE_SPS));
     else if (!strcmp(base_param, "GLOBAL_MAX_RATE")) {
         g_global_max_sps = clamp_i(mm_per_min_to_sps(fv), mm_per_min_to_sps(GLOBAL_MAX_MIN_MM_MIN),
-                                 mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
+                                   mm_per_min_to_sps(GLOBAL_MAX_MAX_MM_MIN));
     } else if (!strcmp(base_param, "SYNC_MIN_RATE"))
         g_sync_min_sps = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv), 0, MAX_RUN_RATE_SPS));
 #ifdef FLARE_DEV_TUNING
@@ -1165,8 +1205,8 @@ static bool cmd_set_cutter_params(const char *base_param, int iv, float fv) {
         g_unload_cut = (iv == 1);
     else if (!strcmp(base_param, "CUT_FEED_RATE"))
         g_cut_feed_sps = motion_clamp_rate_sps(clamp_i(mm_per_min_to_sps(fv),
-                                                     mm_per_min_to_sps(CUT_FEED_MIN_MM_MIN),
-                                                     mm_per_min_to_sps(CUT_FEED_MAX_MM_MIN)));
+                                                       mm_per_min_to_sps(CUT_FEED_MIN_MM_MIN),
+                                                       mm_per_min_to_sps(CUT_FEED_MAX_MM_MIN)));
     else if (!strcmp(base_param, "CUT_FEED"))
         g_cut_feed_mm = clamp_i(iv, 1, CUT_FEED_MAX_MM);
 #ifdef FLARE_DEV_TUNING
@@ -1699,14 +1739,13 @@ static bool cmd_handle_bl_command(const char *p, uint32_t now_ms) {
         }
         char extra = 0;
         unsigned long timeout_val = 0;
-        int n = sscanf(p, "%c:%f:%f:%lu%c", &dir_tok, &follow_mm, &follow_rate, &timeout_val,
-                       &extra);
+        int n =
+            sscanf(p, "%c:%f:%f:%lu%c", &dir_tok, &follow_mm, &follow_rate, &timeout_val, &extra);
         if (n != 4 || (dir_tok != 'T' && dir_tok != 'C') || timeout_val == 0) {
             cmd_reply("ER", "ARG");
             return true;
         }
-        if (follow_mm < 0.0f || follow_rate < 0.0f ||
-            (follow_mm == 0.0f && follow_rate != 0.0f) ||
+        if (follow_mm < 0.0f || follow_rate < 0.0f || (follow_mm == 0.0f && follow_rate != 0.0f) ||
             (follow_mm != 0.0f && follow_rate == 0.0f)) {
             cmd_reply("ER", "ARG");
             return true;
@@ -1863,6 +1902,9 @@ static bool cmd_handle_system(const char *cmd, const char *p, uint32_t now_ms) {
             g_buf_psf_neutral = clamp_f(g_buf_pos_raw_status, 0.0f, 1.0f);
             settings_save();
             cmd_reply("OK", NULL);
+        } else if (!strcmp(p, "CRASHLOG_CLEAR")) {
+            forensics_clear();
+            cmd_reply("OK", NULL);
         } else {
             cmd_reply("ER", "ARG");
         }
@@ -1917,14 +1959,14 @@ static bool cmd_handle_system(const char *cmd, const char *p, uint32_t now_ms) {
 }
 
 static bool is_motion_cmd(const char *cmd) {
-    return !strcmp(cmd, "FL") || !strcmp(cmd, "LO") || !strcmp(cmd, "MV") ||
-           !strcmp(cmd, "TC") || !strcmp(cmd, "RL") || !strcmp(cmd, "UL") ||
-           !strcmp(cmd, "UM") || !strcmp(cmd, "FD") || !strcmp(cmd, "RV") ||
-           !strcmp(cmd, "BL") || !strcmp(cmd, "BS") || !strcmp(cmd, "CU") ||
+    return !strcmp(cmd, "FL") || !strcmp(cmd, "LO") || !strcmp(cmd, "MV") || !strcmp(cmd, "TC") ||
+           !strcmp(cmd, "RL") || !strcmp(cmd, "UL") || !strcmp(cmd, "UM") || !strcmp(cmd, "FD") ||
+           !strcmp(cmd, "RV") || !strcmp(cmd, "BL") || !strcmp(cmd, "BS") || !strcmp(cmd, "CU") ||
            !strcmp(cmd, "CX");
 }
 
 static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
+    forensics_log_entry(FORENSICS_ENTRY_CMD_RECV, (uint8_t)g_active_lane, forensics_hash_str(cmd));
     if (g_bypass && is_motion_cmd(cmd)) {
         cmd_reply("ER", "BYPASS_ACTIVE");
         return;

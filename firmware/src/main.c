@@ -28,6 +28,7 @@
 #include "hardware/watchdog.h"
 
 #include "cutter.h"
+#include "forensics.h"
 #include "motion.h"
 #include "neopixel.h"
 #include "protocol.h"
@@ -107,7 +108,8 @@ int g_ramp_tick_ms = CONF_RAMP_TICK_MS;
 int g_tmc_run_current_ma[NUM_LANES] = {CONF_L1_RUN_CURRENT_MA, CONF_L2_RUN_CURRENT_MA};
 int g_tmc_hold_current_ma[NUM_LANES] = {CONF_L1_HOLD_CURRENT_MA, CONF_L2_HOLD_CURRENT_MA};
 int g_tmc_microsteps[NUM_LANES] = {CONF_L1_MICROSTEPS, CONF_L2_MICROSTEPS};
-int g_tmc_stealthchop_sps[NUM_LANES] = {CONF_L1_STEALTHCHOP_THRESHOLD, CONF_L2_STEALTHCHOP_THRESHOLD};
+int g_tmc_stealthchop_sps[NUM_LANES] = {CONF_L1_STEALTHCHOP_THRESHOLD,
+                                        CONF_L2_STEALTHCHOP_THRESHOLD};
 float g_tmc_rotation_distance[NUM_LANES] = {CONF_L1_ROTATION_DISTANCE, CONF_L2_ROTATION_DISTANCE};
 float g_tmc_gear_ratio[NUM_LANES] = {CONF_L1_GEAR_RATIO, CONF_L2_GEAR_RATIO};
 int g_tmc_full_steps[NUM_LANES] = {CONF_L1_FULL_STEPS, CONF_L2_FULL_STEPS};
@@ -117,6 +119,11 @@ int g_tmc_hstrt[NUM_LANES] = {CONF_L1_HSTRT, CONF_L2_HSTRT};
 int g_tmc_hend[NUM_LANES] = {CONF_L1_HEND, CONF_L2_HEND};
 bool g_tmc_interpolate[NUM_LANES] = {CONF_L1_INTPOL, CONF_L2_INTPOL};
 int g_tmc_health[NUM_LANES] = {1, 1};
+uint32_t g_loop_cur_us = 0;
+uint32_t g_loop_max_us = 0;
+uint32_t g_loop_avg_us = 0;
+uint32_t g_loop_overruns = 0;
+const char *g_loop_top_module = "NONE";
 
 int g_buf_sensor_type = CONF_BUF_SENSOR_TYPE;
 
@@ -355,11 +362,13 @@ static int detect_active_lane_from_out(void) {
 }
 
 void set_active_lane(int lane) {
-    if (g_active_lane != lane && (g_active_lane == 1 || g_active_lane == 2) && (lane == 1 || lane == 2)) {
+    if (g_active_lane != lane && (g_active_lane == 1 || g_active_lane == 2) &&
+        (lane == 1 || lane == 2)) {
         int old_idx = g_active_lane - 1;
         int new_idx = lane - 1;
         if (g_mm_per_step[new_idx] > MIN_MM_PER_STEP_F) {
-            g_extruder_est_sps = g_extruder_est_sps * (g_mm_per_step[old_idx] / g_mm_per_step[new_idx]);
+            g_extruder_est_sps =
+                g_extruder_est_sps * (g_mm_per_step[old_idx] / g_mm_per_step[new_idx]);
         }
     }
     g_active_lane = lane;
@@ -419,7 +428,8 @@ static void autopreload_tick(uint32_t now_ms) {
             !lane_out_present(&g_lane_l1)) {
             if (g_auto_mode && mmu_empty) {
                 // Completely empty MMU: auto-load all the way to toolhead.
-                lane_start(&g_lane_l1, TASK_LOAD_FULL, g_feed_sps, true, now_ms, (float)g_load_max_mm);
+                lane_start(&g_lane_l1, TASK_LOAD_FULL, g_feed_sps, true, now_ms,
+                           (float)g_load_max_mm);
                 cmd_event("AUTO_LOAD", "1");
             } else if (g_auto_preload) {
                 // Other lane loaded (or AUTO_MODE off): just preload to Y-splitter.
@@ -441,7 +451,8 @@ static void autopreload_tick(uint32_t now_ms) {
             (tc_state() == TC_IDLE || tc_state() == TC_RELOAD_FOLLOW) && !cutter_busy() &&
             !lane_out_present(&g_lane_l2)) {
             if (g_auto_mode && mmu_empty) {
-                lane_start(&g_lane_l2, TASK_LOAD_FULL, g_feed_sps, true, now_ms, (float)g_load_max_mm);
+                lane_start(&g_lane_l2, TASK_LOAD_FULL, g_feed_sps, true, now_ms,
+                           (float)g_load_max_mm);
                 cmd_event("AUTO_LOAD", "2");
             } else if (g_auto_preload) {
                 lane_start(&g_lane_l2, TASK_AUTOLOAD, g_auto_sps, true, now_ms,
@@ -527,6 +538,58 @@ static void settle_boot_sensors(void) {
 }
 
 // ===================== Main =====================
+/* Main-loop jitter instrumentation (Phase 11). */
+#define LOOP_OVERRUN_US 10000u
+#define LOOP_LAG_WARN_US 15000u
+#define LOOP_AVG_EMA_NUM 15u
+#define LOOP_AVG_EMA_DEN 16u
+#define LOOP_LAG_MSG_MAX 32
+
+typedef struct {
+    uint32_t loop_start_us;
+    uint32_t slice_start_us;
+    uint32_t worst_dt_us;
+    const char *worst_mod;
+} loop_timing_t;
+
+static void loop_timing_begin(loop_timing_t *t) {
+    t->loop_start_us = time_us_32();
+    t->slice_start_us = t->loop_start_us;
+    t->worst_dt_us = 0;
+    t->worst_mod = "NONE";
+}
+
+/* Close the slice that started at slice_start_us, attribute it to `mod`, open the next. */
+static void loop_timing_slice(loop_timing_t *t, const char *mod) {
+    uint32_t now = time_us_32();
+    uint32_t dt = now - t->slice_start_us;
+    if (dt > t->worst_dt_us) {
+        t->worst_dt_us = dt;
+        t->worst_mod = mod;
+    }
+    t->slice_start_us = now;
+}
+
+static void loop_timing_end(const loop_timing_t *t) {
+    uint32_t loop_dt = time_us_32() - t->loop_start_us;
+    g_loop_cur_us = loop_dt;
+    if (loop_dt > g_loop_max_us) {
+        g_loop_max_us = loop_dt;
+        g_loop_top_module = t->worst_mod;
+    }
+    g_loop_avg_us = (g_loop_avg_us == 0)
+                        ? loop_dt
+                        : (g_loop_avg_us * LOOP_AVG_EMA_NUM + loop_dt) / LOOP_AVG_EMA_DEN;
+    if (loop_dt >= LOOP_OVERRUN_US) {
+        g_loop_overruns++;
+    }
+    if (loop_dt >= LOOP_LAG_WARN_US && !g_boot_stabilizing) {
+        char lag_msg[LOOP_LAG_MSG_MAX];
+        snprintf(lag_msg, sizeof(lag_msg), "%u:%s", (unsigned)loop_dt, t->worst_mod);
+        cmd_event("WARN:LOOP_LAG", lag_msg);
+    }
+}
+
 int main(void) {
     bool watchdog_reboot_detected = watchdog_caused_reboot();
     bool watchdog_reboot_reported = false;
@@ -578,6 +641,7 @@ int main(void) {
     // DONEs cleanly.
     bool boot_stab_armed = false;
     watchdog_enable(1000, true);
+    forensics_init(watchdog_reboot_detected);
     while (true) {
         g_now_ms = to_ms_since_boot(get_absolute_time());
         watchdog_update();
@@ -585,6 +649,9 @@ int main(void) {
         if (watchdog_reboot_detected && !watchdog_reboot_reported && g_now_ms >= 2000) {
             watchdog_reboot_reported = true;
             cmd_event("SYSTEM", "WATCHDOG_RESET");
+            if (forensics_has_crash()) {
+                cmd_event("CRASH:DETECTED", forensics_crash_reason_str(forensics_crash_reason()));
+            }
         }
 
         if (!boot_stab_armed && g_active_lane != 0 && g_now_ms >= BOOT_STAB_FIRST_MS) {
@@ -592,6 +659,8 @@ int main(void) {
             boot_stabilize_start(g_now_ms);
         }
 
+        loop_timing_t lt;
+        loop_timing_begin(&lt);
         // Inputs
         debounced_input_update(&g_lane_l1.in_sw);
         debounced_input_update(&g_lane_l1.out_sw);
@@ -600,25 +669,40 @@ int main(void) {
         debounced_input_update(&g_y_split);
         debounced_input_update(&g_buf_tension_din);
         debounced_input_update(&g_buf_compression_din);
+        loop_timing_slice(&lt, "INPUTS");
 
         // USB commands
         cmd_poll(g_now_ms);
+        loop_timing_slice(&lt, "CMD_POLL");
 
         // Background buffer neutralization: boot startup and optional post-print cleanup.
         buffer_stabilize_tick(g_now_ms);
+        loop_timing_slice(&lt, "BUF_STAB");
 
         // State machines (order matters)
         cutter_tick(g_now_ms);
+        loop_timing_slice(&lt, "CUTTER");
         tc_tick(g_now_ms);
+        loop_timing_slice(&lt, "TC");
         autopreload_tick(g_now_ms);
+        loop_timing_slice(&lt, "AUTOPRELOAD");
         lane_tick(&g_lane_l1, g_now_ms);
+        loop_timing_slice(&lt, "LANE1");
         lane_tick(&g_lane_l2, g_now_ms);
+        loop_timing_slice(&lt, "LANE2");
         buf_sensor_tick(g_now_ms);
+        loop_timing_slice(&lt, "BUF_SENSOR");
         sync_tick(g_now_ms);
+        loop_timing_slice(&lt, "SYNC");
         tmc_heartbeat_tick(g_now_ms);
+        loop_timing_slice(&lt, "TMC");
+        forensics_tick(g_now_ms);
+        loop_timing_slice(&lt, "FORENSICS");
 
         // Local indicator
         neopixel_tick(g_now_ms);
+        loop_timing_slice(&lt, "NEOPIXEL");
+        loop_timing_end(&lt);
 
         sleep_us(MAIN_LOOP_SLEEP_US);
     }

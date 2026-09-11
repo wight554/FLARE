@@ -89,6 +89,9 @@ Controls whether the MMU automatically swaps lanes on filament runout.
 | `CAL:PSF_COMP` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_COMP`. Rejected with `ER:PERSIST_BUSY` if controller activity (including buffer-lock motor motion) is in progress. |
 | `CAL:PSF_TENS` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_MAX_TENS`. Rejected with `ER:PERSIST_BUSY` if controller activity (including buffer-lock motor motion) is in progress. |
 | `CAL:PSF_NEUT` | OK | **PSF Calibration** — sample current ADC fraction and store it as `BUF_PSF_NEUTRAL`. Rejected with `ER:PERSIST_BUSY` if controller activity (including buffer-lock motor motion) is in progress. |
+| `GET:CRASHLOG` | Multi-line | **Crash Log** — streams the retention-RAM blackbox: `OK:CRASH:HDR:reason=<R>,time=<ms>,entries=<N>`, then one `OK:CRASH:<idx>:t=<ms>,type=<t>,ln=<lane>,tc=<tc>,st=<sync>,sw=0x<mask>,bp=<pos*100>,sps=<rate>,p=<payload>` line per entry (oldest first), terminated by `OK:CRASH:END`. `OK:NO_CRASH` when the buffer is empty and no crash is recorded. `flare_cmd.py --crashlog` collects the full reply. |
+| `CAL:CRASHLOG_CLEAR` | OK | **Clear Crash Log** — invalidates the blackbox signature and resets the ring. |
+| `GET:LOOP_STATS` | `OK:CUR:<us>,MAX:<us>,AVG:<us>,OVERRUNS:<n>,TOP:<module>` | **Main-Loop Jitter** — last / peak / EMA loop duration in µs, number of passes ≥ 10 ms, and the module slice that dominated the peak pass (`INPUTS`, `CMD_POLL`, `BUF_STAB`, `CUTTER`, `TC`, `AUTOPRELOAD`, `LANE1`, `LANE2`, `BUF_SENSOR`, `SYNC`, `TMC`, `FORENSICS`, `NEOPIXEL`). `flare_cmd.py --loop-stats`. |
 | `MARK:<tag>` | `OK:MARK` | **Telemetry Marker** — stores a short host marker in firmware. Subsequent status replies expose it as `MK:<seq>:<tag>`. |
 | `SV:` | OK | **Save Settings** — persist current runtime parameters to flash. Rejected with `ER:PERSIST_BUSY` while motion (including buffer-lock motor motion), toolchange, cutter activity, or buffer stabilization is active. |
 | `LD:` | OK | **Load Settings** — reload persisted settings from flash. Rejected with `ER:PERSIST_BUSY` while motion (including buffer-lock motor motion), toolchange, cutter activity, or buffer stabilization is active. |
@@ -373,6 +376,8 @@ Not returned in `?:` (read via `GET:FLASH_ERASE_COUNT`, not persisted like the t
 | `FLASH` | `WEAR_WARNING` | Fires once, on the settings save where `FLASH_ERASE_COUNT` first crosses `FLASH_WEAR_WARN_THRESHOLD`. |
 | `TMC:RESTORED` | `lane` | TMC2209 register brownout detected and configuration restored/verified. |
 | `TMC:FAULT` | `lane:COMM_FAIL` | Persistent TMC2209 communication failure; all motion halted. |
+| `CRASH:DETECTED` | `WATCHDOG` | Emitted ~2 s after boot (with `SYSTEM:WATCHDOG_RESET`) when the previous run ended in a watchdog reset and the retention-RAM blackbox is intact. Read it with `GET:CRASHLOG`. |
+| `WARN:LOOP_LAG` | `<us>:<module>` | A main-loop pass exceeded 15 ms; `<module>` is the slice that dominated it. Suppressed during boot stabilization. |
 
 ### Fault Recovery
 Most faults (`TIMEOUT`, sensor-related faults) are transient and reset on the next command.

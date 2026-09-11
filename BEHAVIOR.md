@@ -796,3 +796,39 @@ TMC2209 driver registers are volatile. Supply voltage brownouts (e.g. 24V supply
 - **On Recovery**: If verification succeeds, firmware sets `g_tmc_health = 1` and emits `EV:TMC:RESTORED:<lane>`.
 - **On Persistent Failure**: If all 3 attempts fail, firmware halts all motion immediately (`stop_all()`), sets `g_tmc_health = 0`, and emits `EV:TMC:FAULT:<lane>:COMM_FAIL` to trigger a Klipper print pause.
 - Health flags are visible in the `ST:` telemetry line via `TMC:<l1><l2>` (e.g. `TMC:11`).
+
+## Firmware Forensics (Blackbox) & Main-Loop Jitter
+
+**Blackbox (`forensics.c`):** a 32-entry ring in RP2040 uninitialized SRAM
+(`__uninitialized_ram`, `.uninitialized_data`) — never written to flash, survives
+watchdog and software resets. Header carries magic `0x43525348` ("CRSH"), version,
+crash reason, and a CRC32 over everything before the trailer; any mismatch on boot
+re-initializes the ring as clean.
+
+**What is recorded (each entry: `t`, type, lane, TC state, sync state, 8-bit sensor
+mask `IN1 OUT1 IN2 OUT2 Y TH TENS COMP`, `g_buf_pos*100`, active step rate, payload):**
+- `TASK_CHANGE` — a lane's task changed (payload = new task enum).
+- `TC_CHANGE` / `SYNC_CHANGE` — toolchange / sync state machine transition (payload = new state).
+- `SENSOR_EDGE` — a debounced sensor level changed (payload = changed-bit mask).
+- `CMD_RECV` — a serial command was dispatched (payload = FNV-1a hash of the verb).
+- `BREADCRUMB` — periodic snapshot when 100 ms pass with none of the above.
+
+Transitions are detected by `forensics_tick()` once per main-loop pass (edge
+detector against the previous pass), so they land within one loop period of the
+change without instrumenting every state assignment. The first tick after boot
+only establishes the baseline.
+
+**Boot:** `forensics_init(watchdog_caused_reboot())` runs before the loop. If the
+ring is valid and the reset was a watchdog reset, the reason is stamped
+`WATCHDOG` and `EV:CRASH:DETECTED:WATCHDOG` follows `EV:SYSTEM:WATCHDOG_RESET`.
+A clean boot with no recorded reason wipes the ring. `GET:CRASHLOG` streams the
+entries oldest-first; `CAL:CRASHLOG_CLEAR` wipes them (see MANUAL.md).
+
+**Loop jitter (`main.c`):** every pass is bracketed with `time_us_32()`; each
+module slice (`INPUTS`, `CMD_POLL`, `BUF_STAB`, `CUTTER`, `TC`, `AUTOPRELOAD`,
+`LANE1`, `LANE2`, `BUF_SENSOR`, `SYNC`, `TMC`, `FORENSICS`, `NEOPIXEL`) is timed
+and the longest slice of the pass is remembered. `GET:LOOP_STATS` reports the
+last / max / EMA(15/16) pass time, the count of passes ≥ 10 ms, and the slice that
+dominated the max pass. A pass ≥ 15 ms emits `EV:WARN:LOOP_LAG:<us>:<module>`
+(suppressed while boot stabilization runs). Use it to attribute lag such as the
+TMC heartbeat's UART round-trips or a long `settings_save()`.

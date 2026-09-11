@@ -16,6 +16,8 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 - [x] **Phase 8: Settings TLV / Delta Schema Migration** - Non-destructive schema evolution via packed Tag-Length-Value encoding with v63 lazy migration
 - [x] **Phase 9: Daemon Security & Remote Command Hardening** - Bearer token authentication, loopback exemption, per-client token-bucket rate limiting on serial commands, and WebUI/CLI token integration
 - [x] **Phase 10: TMC2209 Register Heartbeat & Auto-Recovery** - Idle-loop CHOPCONF sentinel verification, 1000ms alternating cadence, strict motion lockout, brownout auto-recovery, and host event escalation
+- [x] **Phase 11: Firmware Forensics & Main Loop Jitter Instrumentation** - Retention RAM blackbox crash logging across watchdog resets, GET:CRASHLOG retrieval, and high-resolution loop jitter benchmarking
+- [ ] **Phase 12: Post-Phase 2–10 Regression Fixes** - Close spec/decision-note regressions from the 2026-09-11 review of `79f7a95..2a24a33` (load park FAULT_BUF, cutter abort limp servo, bare-BL catch creep, heartbeat lockout, --dump rebuild)
 
 ## Phase Details
 
@@ -132,6 +134,37 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   5. ST: status line includes `TMC:<l1_health><l2_health>` and host daemon mirrors telemetry
 **Plans**: 1 plan complete (10-01)
 
+### Phase 11: Firmware Forensics & Main Loop Jitter Instrumentation
+**Goal**: Uninitialized RAM blackbox crash logging across watchdog resets, GET:CRASHLOG retrieval, and high-resolution loop jitter benchmarking
+**Depends on**: Nothing
+**Requirements**: REQ-forensics-retention-ram, REQ-forensics-event-sampling, REQ-forensics-watchdog-signal, REQ-forensics-protocol, REQ-loop-jitter-telemetry, REQ-forensics-host-sim
+**Success Criteria** (what must be TRUE):
+  1. Circular 32-entry blackbox in uninitialized RAM survives watchdog reboots without writing to flash
+  2. Boot after watchdog reset emits `EV:CRASH:DETECTED:WATCHDOG` when signature valid
+  3. `GET:CRASHLOG` streams chronological event history terminated with `OK:CRASH:END`
+  4. `CAL:CRASHLOG_CLEAR` resets retention buffer
+  5. `GET:LOOP_STATS` reports loop period, peaks, overruns, and top culprit module
+  6. Loop iteration exceeding 15ms emits `EV:WARN:LOOP_LAG:<us>:<module>`
+**Plans**: 1 plan complete (11-01)
+
+### Phase 12: Post-Phase 2–10 Regression Fixes
+**Goal**: Close every regression and decision-note conflict from the 2026-09-11 two-axis review (`12-REVIEW.md`) so Phases 2–10 code honours `.planning/specs` and `.planning/decisions/archive`
+**Depends on**: Phase 11 (touches `main.c`/`protocol.c` concurrently — land after 11-01 commits)
+**Requirements**: REQ-tc-park-no-fault, REQ-cutter-abort-settle, REQ-bl-bare-passive, REQ-bufposraw-readonly, REQ-tmc-lockout-strict, REQ-stop-keeps-th-latch, REQ-dump-rebuilds, REQ-daemon-host-decision, REQ-mirror-retry, REQ-test-collection, REQ-docs-style-parity
+**Success Criteria** (what must be TRUE):
+  1. Type-D toolchange with default `TC_TS_PARK_MM` completes without `FAULT:MOVE_COMPRESSION`; sync applies after `TC:DONE`
+  2. `cutter_abort()` holds `SERVO_BLOCK_US` for `servo_settle_ms` before PWM off
+  3. Bare `BL:T`/`BL:C` is passive on both sensor types; sim asserts no follow seed
+  4. `GET:BUF_POS_RAW` is read-only and `ER:` on type-D
+  5. Heartbeat never polls in `BL_LOCKED`/`SYNC_ACTIVE`/`RELIEF_PAUSE`/`FAULT_HOLD`; no blocking `sleep_ms`; fault latches after 3 failures
+  6. `STOP`/`PA` preserve the `TH:1` latch
+  7. `flare_cmd.py --dump` output rebuilds via `gen_config.py`; parity test enforces it
+  8. Daemon bind-host decision recorded, `--trust-proxy` always requires auth, service template consistent
+  9. Skipped Klipper push retries ≤500 ms; `lane*_task` triggers sync
+  10. All `scripts/test_*.py` collected by `unittest discover`; no hard-coded runners in `validate_regression.py`
+  11. MANUAL.md lists `BL:BREAK`, `TC:TS_PARKED`/`LOAD_RETRY_RETRACT`/`LOAD_PARK`; STYLE §2/§3/§4 violations from `12-REVIEW.md` resolved
+**Plans**: 0 plans (spec written, awaiting plan-phase)
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -146,3 +179,4 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 8. Settings TLV / Delta Schema Migration | 1/1 | Complete | 2026-09-11 |
 | 9. Daemon Security & Remote Command Hardening | 1/1 | Complete | 2026-09-11 |
 | 10. TMC2209 Register Heartbeat & Auto-Recovery | 1/1 | Complete | 2026-09-11 |
+| 11. Firmware Forensics & Main Loop Jitter | 1/1 | Complete | 2026-09-11 |

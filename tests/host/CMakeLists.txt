@@ -52,6 +52,7 @@ add_executable(flare_sim
   ${FIRMWARE_SRC}/toolchange.c
   ${FIRMWARE_SRC}/cutter.c
   ${FIRMWARE_SRC}/settings_store.c
+  ${FIRMWARE_SRC}/forensics.c
   ${SIM_GLOBALS_C}
   sim_fakes.c
   sim_plant.c
@@ -91,6 +92,7 @@ add_executable(test_persistence
   ${FIRMWARE_SRC}/toolchange.c
   ${FIRMWARE_SRC}/cutter.c
   ${FIRMWARE_SRC}/settings_store.c
+  ${FIRMWARE_SRC}/forensics.c
   ${SIM_GLOBALS_C}
   sim_fakes.c
   test_persistence.c
@@ -113,6 +115,7 @@ add_executable(test_tmc_recovery
   ${FIRMWARE_SRC}/toolchange.c
   ${FIRMWARE_SRC}/cutter.c
   ${FIRMWARE_SRC}/settings_store.c
+  ${FIRMWARE_SRC}/forensics.c
   ${SIM_GLOBALS_C}
   sim_fakes.c
   test_tmc_recovery.c
@@ -125,3 +128,26 @@ target_include_directories(test_tmc_recovery PRIVATE
 )
 
 target_link_libraries(test_tmc_recovery PRIVATE m)
+
+add_executable(test_forensics
+  ${FIRMWARE_SRC}/sync.c
+  ${FIRMWARE_SRC}/sync_buf.c
+  ${FIRMWARE_SRC}/sync_relay.c
+  ${FIRMWARE_SRC}/sync_analog.c
+  ${FIRMWARE_SRC}/motion.c
+  ${FIRMWARE_SRC}/toolchange.c
+  ${FIRMWARE_SRC}/cutter.c
+  ${FIRMWARE_SRC}/settings_store.c
+  ${FIRMWARE_SRC}/forensics.c
+  ${SIM_GLOBALS_C}
+  sim_fakes.c
+  test_forensics.c
+)
+
+target_include_directories(test_forensics PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/shims
+  ${FIRMWARE_INCLUDE}
+  ${CMAKE_CURRENT_LIST_DIR}
+)
+
+target_link_libraries(test_forensics PRIVATE m)
