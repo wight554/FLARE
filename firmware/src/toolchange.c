@@ -365,21 +365,32 @@ static void tc_tick_load_states(lane_t *lane, uint32_t now_ms, uint32_t age) {
     case TC_LOAD_WAIT_TH:
         if (lane->task == TASK_IDLE) {
             if (lane->load_completed) {
-                if (g_tc_ts_park_mm > 0.0f) {
+                /* Park only on a real toolhead-sensor completion (06-SPEC §4.2) and only
+                   on type-D, where lane_tick_move's COMPRESSION guard bounds the push. A
+                   buffer-inferred completion means the tip is already in the gears and
+                   the buffer is at COMPRESSION: a guarded forward move would fault
+                   immediately, and on type-P it would slam the analog rail. */
+                bool park = g_tc_ts_park_mm > 0.0f && g_toolhead_has_filament &&
+                            g_buf_sensor_type == BUF_SENSOR_TYPE_D;
+                if (park) {
                     lane_start(lane, TASK_MOVE, g_feed_sps, true, now_ms, g_tc_ts_park_mm);
                     g_tc_ctx.phase_start_ms = now_ms;
                     g_tc_ctx.state = TC_LOAD_PARK;
                 } else {
                     g_tc_ctx.state = TC_LOAD_DONE;
                 }
+            } else if (!lane_in_present(lane)) {
+                /* Lane ran out mid-load: re-advancing an empty lane cannot reach TS. */
+                tc_enter_error("RUNOUT");
             } else if (g_tc_ctx.ts_retries < g_tc_ts_retries) {
                 g_tc_ctx.ts_retries++;
-                float retract_mm = (g_tc_ts_retry_retract_mm > 0.0f) ? g_tc_ts_retry_retract_mm : 50.0f;
+                float retract_mm =
+                    (g_tc_ts_retry_retract_mm > 0.0f) ? g_tc_ts_retry_retract_mm : 50.0f;
                 lane_start(lane, TASK_MOVE, g_rev_sps, false, now_ms, retract_mm);
                 g_tc_ctx.phase_start_ms = now_ms;
                 g_tc_ctx.state = TC_LOAD_RETRY_RETRACT;
             } else {
-                tc_enter_error("LOAD_TIMEOUT");
+                tc_enter_error("TS_NOT_HIT");
             }
         }
         break;
@@ -395,6 +406,12 @@ static void tc_tick_load_states(lane_t *lane, uint32_t now_ms, uint32_t age) {
 
     case TC_LOAD_PARK:
         if (lane->task == TASK_IDLE) {
+            /* The buffer reaching COMPRESSION during the park means the gears have
+               the filament — that is the park's goal, not a fault. Clear the latch
+               so sync_apply() (which refuses on lane->fault) can run after TC:DONE. */
+            if (lane->fault == FAULT_BUF) {
+                lane->fault = FAULT_NONE;
+            }
             char lane_s[2];
             lane_id_str(lane_s, g_active_lane);
             cmd_event("TC:TS_PARKED", lane_s);
@@ -460,7 +477,8 @@ static void tc_tick_reload_wait_y(lane_t *lane, uint32_t now_ms, uint32_t age) {
         g_tc_ctx.last_compression_ms = 0;
         g_tc_ctx.phase_start_ms = now_ms;
         g_tc_ctx.state = TC_RELOAD_APPROACH;
-    } else if (g_reload_y_timeout_ms > 0 && (!tail_cleared || !y_cleared) && age > (uint32_t)g_reload_y_timeout_ms) {
+    } else if (g_reload_y_timeout_ms > 0 && (!tail_cleared || !y_cleared) &&
+               age > (uint32_t)g_reload_y_timeout_ms) {
         tc_enter_error("RELOAD_Y_TIMEOUT");
     }
 }
@@ -723,7 +741,8 @@ static void tc_tick_reload_follow(lane_t *lane, uint32_t now_ms, uint32_t age) {
 //   -- reload branch (auto runout: hot-join new lane behind the old tail) --
 //   RELOAD_WAIT_Y    tail+Y clear & join delay elapsed     -> RELOAD_APPROACH (timeout -> ERROR)
 //   RELOAD_APPROACH  buffer contact (COMPRESSION / PSF)    -> RELOAD_FOLLOW   (limit -> ERROR)
-//   RELOAD_FOLLOW    TENSION | toolhead | LOAD_MAX -> IDLE (RELOAD:LOADED); jam/abs-timeout -> ERROR
+//   RELOAD_FOLLOW    TENSION | toolhead | LOAD_MAX -> IDLE (RELOAD:LOADED); jam/abs-timeout ->
+//   ERROR
 void tc_tick(uint32_t now_ms) {
     uint32_t age = now_ms - g_tc_ctx.phase_start_ms;
     lane_t *lane = lane_ptr(g_active_lane);

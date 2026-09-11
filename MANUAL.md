@@ -276,7 +276,7 @@ Pre-rename half-travel and size serial tokens are removed; use full-range
 | `TC_CUT_MS` | `tc_timeout_cut_ms` | Outer toolchange cut watchdog. Firmware treats this as a minimum and extends it to fit configured cutter feed/settle duration. | 5000 |
 | `TC_TS_RETRIES` | `tc_ts_retries` | Max retry attempts (retract and re-advance) when toolhead sensor (`TS`) is not reached during toolchange load. | 2 |
 | `TC_TS_RETRY_RETRACT_MM` | `tc_ts_retry_retract_mm` | Retract distance in mm before re-attempting load to toolhead sensor. | 50.0 |
-| `TC_TS_PARK_MM` | `tc_ts_park_mm` | Forward advance distance in mm after toolhead sensor triggers to seat into extruder drive gears. | 25.0 |
+| `TC_TS_PARK_MM` | `tc_ts_park_mm` | Firmware-side park: forward advance in mm after the toolhead sensor triggers, type-D only, bounded by the buffer COMPRESSION guard (a compression stop counts as parked). Skipped when the load completed from buffer inference or on type-P. Default 0 because `_FLARE_CHANGE_LANE` already does `G1 E{load_park_dist}` with the extruder. | 0.0 |
 | `BYPASS` | `bypass` | External spool bypass flag (`SET:BYPASS:1` / `SET:BYPASS:0`). Locks MMU steppers (`ER:BYPASS_ACTIVE`), disables sync, masks lane runout. | 0 |
 
 ### Runtime-only Controls
@@ -370,7 +370,7 @@ Not returned in `?:` (read via `GET:FLASH_ERASE_COUNT`, not persisted like the t
 | `BUF_STAB` | `START\|DONE\|TIMEOUT\|STAGNANT_TIMEOUT\|REVERSE` | Buffer neutralization started, reached `NEUTRAL`, hit its safety timeout, stopped because the buffer did not track the stabilize move, or reversed direction to clear static friction. |
 | `BL` | `PRIME\|LOCKED\|FOLLOW\|FOLLOW_DONE\|FOLLOW_GATED\|PRIME_BOUND\|TIMEOUT` | Buffer-lock sequence events. `PRIME` on prime start; `LOCKED` on successful lock; `FOLLOW` on following extruder; `FOLLOW_DONE` on follow finish; `FOLLOW_GATED` on early position gate; `PRIME_BOUND` on travel boundary; `TIMEOUT` on watchdog timeout. |
 | `BS` | Mode-specific snapshot | Periodic buffer/sync status event used during sync and RELOAD follow. |
-| `TC:*` | Phase-specific | Toolchange progress events such as `TC:UNLOADING`, `TC:SWAPPING`, `TC:LOADING`, `TC:DONE`, `TC:ERROR`. |
+| `TC:*` | Phase-specific | Toolchange progress events: `TC:UNLOADING`, `TC:CUTTING`, `TC:SWAPPING`, `TC:LOADING`, `TC:LOAD_RETRY_RETRACT`, `TC:TS_PARKED`, `TC:DONE`, `TC:ERROR:<reason>` (`TS_NOT_HIT` after `TC_TS_RETRIES` exhausted, `RUNOUT` lane emptied mid-load, `CUT_FAILED`, `CUT_TIMEOUT`, `UNLOAD_TIMEOUT`, `Y_TIMEOUT`, …). |
 | `RELOAD:*` | Phase-specific | RELOAD progress and fault events such as `RELOAD:SWITCHING`, `RELOAD:JOINING`, `RELOAD:LOADED`, `RELOAD:FAULT`. |
 | `CUT` | `FEEDING\|DONE\|ERROR` | Cutter execution events. `FEEDING` on feed start; `DONE` on successful cut; `ERROR` on cutter failure. |
 | `FLASH` | `WEAR_WARNING` | Fires once, on the settings save where `FLASH_ERASE_COUNT` first crosses `FLASH_WEAR_WARN_THRESHOLD`. |

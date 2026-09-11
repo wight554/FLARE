@@ -151,8 +151,8 @@ TC_IDLE
   → TC_SWAP             (set active_lane = target)
   → TC_LOAD_START       (clear toolhead state for new lane; check Y-splitter clear; start TASK_LOAD_FULL)
   → TC_LOAD_WAIT_OUT    (non-stopping checkpoint)
-  → TC_LOAD_WAIT_TH     (wait for TASK_LOAD_FULL loaded result; on missing TS, retries up to `TC_TS_RETRIES` via TC_LOAD_RETRY_RETRACT)
-  → TC_LOAD_PARK        (if TC_TS_PARK_MM > 0: advance into extruder drive gears, emit EV:TC:TS_PARKED)
+  → TC_LOAD_WAIT_TH     (wait for TASK_LOAD_FULL loaded result; on missing TS, retries up to `TC_TS_RETRIES` via TC_LOAD_RETRY_RETRACT, then EV:TC:ERROR:TS_NOT_HIT; lane empty → EV:TC:ERROR:RUNOUT)
+  → TC_LOAD_PARK        (only if TC_TS_PARK_MM > 0, TS-edge completion, type-D: guarded advance into extruder gears; COMPRESSION stop = parked, FAULT_BUF cleared; emit EV:TC:TS_PARKED)
   → TC_LOAD_DONE        → EV:TC:DONE:<lane>
 ```
 

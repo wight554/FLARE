@@ -178,7 +178,7 @@ DEFAULTS = {
     # Toolchange / Safety
     "tc_ts_retries": "2",
     "tc_ts_retry_retract_mm": "50.0",
-    "tc_ts_park_mm": "25.0",
+    "tc_ts_park_mm": "0.0",
 
     # Safety / Swap
     "runout_cooldown_ms": "12000",
