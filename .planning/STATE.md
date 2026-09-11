@@ -11,9 +11,9 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 ## Current Position
 
 - **Phase**: 12 - Post-Phase 2–10 Regression Fixes (`.planning/phases/12-post-phase-2-10-regression-fixes/`)
-- **Active Feature in Progress**: Phase 12 - planning
-- **Status**: Spec done; plan pending
-- **Progress**: [                    ] 0% complete
+- **Active Feature in Progress**: none — Phase 12 Plan 12-01 complete; HW validation pending
+- **Status**: Complete (software); `HW:` items in 12-SPEC.md unchecked
+- **Progress**: [====================] 100% complete
 
 ## Accumulated Context
 
@@ -21,7 +21,8 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 - `.planning/phases/12-post-phase-2-10-regression-fixes/`:
   - `12-SPEC.md` (done): 12 requirement groups from the 2026-09-11 review — 3 HIGH firmware (load park FAULT_BUF, cutter abort limp, bare-BL catch creep), 1 HIGH host (--dump rebuild), heartbeat lockout, STOP latch, daemon host decision.
   - `12-REVIEW.md` (done): severity-ranked findings, clean-spec list, eb0a942 migration audit.
-  - Next: `gsd-plan-phase 12`.
+  - `12-01-PLAN.md` (done 2026-09-11): 9 fix commits 842dbb0..8aaba7e, gate green, 261 py tests, decision D12.1 (daemon bind 0.0.0.0 + auth).
+  - Next: rig-validate the four HW items in 12-01-PLAN.md, then `gsd-next`.
 - `.planning/phases/11-firmware-forensics-jitter/`:
   - `11-SPEC.md` (done): Retention RAM crash logging, GET:CRASHLOG, CAL:CRASHLOG_CLEAR, and loop jitter/headroom instrumentation.
   - `11-01-PLAN.md` (done 2026-09-11): forensics ring + edge-detected transitions, `GET:CRASHLOG`/`CAL:CRASHLOG_CLEAR`/`GET:LOOP_STATS`, loop timing helpers, `test_forensics` 9/9, docs. HW watchdog check pending.
@@ -51,4 +52,4 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 - `.planning/phases/01-hardware-validation-and-audit-closeout/01-01-PLAN.md`
 
 ---
-*Last updated: 2026-09-11 after Phase 11 Plan 11-01 completion*
+*Last updated: 2026-09-11 after Phase 12 Plan 12-01 completion*

@@ -17,7 +17,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 - [x] **Phase 9: Daemon Security & Remote Command Hardening** - Bearer token authentication, loopback exemption, per-client token-bucket rate limiting on serial commands, and WebUI/CLI token integration
 - [x] **Phase 10: TMC2209 Register Heartbeat & Auto-Recovery** - Idle-loop CHOPCONF sentinel verification, 1000ms alternating cadence, strict motion lockout, brownout auto-recovery, and host event escalation
 - [x] **Phase 11: Firmware Forensics & Main Loop Jitter Instrumentation** - Retention RAM blackbox crash logging across watchdog resets, GET:CRASHLOG retrieval, and high-resolution loop jitter benchmarking
-- [ ] **Phase 12: Post-Phase 2–10 Regression Fixes** - Close spec/decision-note regressions from the 2026-09-11 review of `79f7a95..2a24a33` (load park FAULT_BUF, cutter abort limp servo, bare-BL catch creep, heartbeat lockout, --dump rebuild)
+- [x] **Phase 12: Post-Phase 2–10 Regression Fixes** - Close spec/decision-note regressions from the 2026-09-11 review of `79f7a95..2a24a33` (load park FAULT_BUF, cutter abort limp servo, bare-BL catch creep, heartbeat lockout, --dump rebuild)
 
 ## Phase Details
 
@@ -163,7 +163,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   9. Skipped Klipper push retries ≤500 ms; `lane*_task` triggers sync
   10. All `scripts/test_*.py` collected by `unittest discover`; no hard-coded runners in `validate_regression.py`
   11. MANUAL.md lists `BL:BREAK`, `TC:TS_PARKED`/`LOAD_RETRY_RETRACT`/`LOAD_PARK`; STYLE §2/§3/§4 violations from `12-REVIEW.md` resolved
-**Plans**: 0 plans (spec written, awaiting plan-phase)
+**Plans**: 1 plan complete (12-01)
 
 ## Progress
 
@@ -180,3 +180,4 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 9. Daemon Security & Remote Command Hardening | 1/1 | Complete | 2026-09-11 |
 | 10. TMC2209 Register Heartbeat & Auto-Recovery | 1/1 | Complete | 2026-09-11 |
 | 11. Firmware Forensics & Main Loop Jitter | 1/1 | Complete | 2026-09-11 |
+| 12. Post-Phase 2–10 Regression Fixes | 1/1 | Complete (HW pending) | 2026-09-11 |
