@@ -11,6 +11,8 @@
 
 /// @brief Type-P analog physical extreme boundary used for homing/locking.
 #define PSF_HOME_THRESHOLD_NORM 0.90f /* reached/locked extreme boundary */
+/// @brief Type-P analog break boundary with hysteresis against the locked extreme.
+#define PSF_BREAK_THRESHOLD_NORM 0.75f /* break boundary: detect retract pulling toward neutral */
 /// @brief Type-P BL_FOLLOW open-loop safety gate before the armed rail.
 #define PSF_FOLLOW_RAIL_NORM                                                                       \
     0.95f /* BL_FOLLOW open-loop safety gate: stop feed before slamming the armed rail */

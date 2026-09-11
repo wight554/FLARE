@@ -864,9 +864,9 @@ static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
     if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
         float predicted = g_buf_pos + BL_PRIME_PREDICT_LEAD_S * g_vel_norm_f;
         if (g_bl_target_state == BUF_TENSION)
-            reached = (predicted <= -PSF_HOME_THRESHOLD_NORM);
+            reached = (predicted <= -PSF_FOLLOW_RAIL_NORM);
         else if (g_bl_target_state == BUF_COMPRESSION)
-            reached = (predicted >= PSF_HOME_THRESHOLD_NORM);
+            reached = (predicted >= PSF_FOLLOW_RAIL_NORM);
     } else {
         buf_state_t raw = buf_state_raw();
         reached = (raw == g_bl_target_state);
@@ -916,9 +916,9 @@ static void sync_buffer_lock_locked(lane_t *lane, uint32_t now_ms) {
         bool lock_broken = false;
         if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
             if (g_bl_target_state == BUF_TENSION)
-                lock_broken = (g_buf_pos > -PSF_HOME_THRESHOLD_NORM);
+                lock_broken = (g_buf_pos > -PSF_BREAK_THRESHOLD_NORM);
             else if (g_bl_target_state == BUF_COMPRESSION)
-                lock_broken = (g_buf_pos < PSF_HOME_THRESHOLD_NORM);
+                lock_broken = (g_buf_pos < PSF_BREAK_THRESHOLD_NORM);
         } else {
             buf_state_t raw = buf_state_raw();
             lock_broken = (raw != g_bl_target_state);

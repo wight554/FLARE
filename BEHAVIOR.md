@@ -172,13 +172,13 @@ four sub-states inside `SYNC_RETRACT_ASSIST`:
 1. **PRIME** — the active-lane motor drives toward the requested extreme at
    `SYNC_MAX_SPS`. Type-D (switch) stops on the raw switch state. Type-P (analog)
    uses predictive rail stopping (`g_buf_pos + BL_PRIME_PREDICT_LEAD_S * g_vel_norm_f`
-   crossing `PSF_HOME_THRESHOLD_NORM`) to stop without overshoot despite EMA filter
+   crossing `PSF_FOLLOW_RAIL_NORM`) to stop without overshoot despite EMA filter
    lag. The prime is capped at full `BUF_MAX_TRAVEL_MM` of travel. When the target
    extreme is reached or the deadline elapses the state advances to LOCKED and emits
    `EV:BL:PRIME_BOUND` on deadline or `EV:BL:LOCKED` on success.
 2. **LOCKED** — motor stays energized at zero feed, holding the buffer at the
    extreme. Any external force (printer-side retract) that breaks away from the
-   target extreme (raw flip for type-D, `g_buf_pos` crossing `PSF_HOME_THRESHOLD_NORM`
+   target extreme (raw flip for type-D, `g_buf_pos` crossing `PSF_BREAK_THRESHOLD_NORM`
    for type-P) immediately emits `EV:BL:BREAK` and engages the catch drive.
 3. **FOLLOW (Rate-Servo Catch)** — concurrent retract in the prime direction.
    For type-P, commanded rate is an error-proportional servo seeded by `follow_rate`
