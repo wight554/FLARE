@@ -36,21 +36,35 @@ Type-D buffers use simple limit switches to trigger feeding. They do not require
 
 ### 🔵 Path B: Tuning Type-P (Hall-effect Proportional Buffer)
 
-Type-P buffers read the exact position of the trolley and adjust the motor speed continuously. You can tune this dynamically using the live tuner helper.
+Type-P buffers read the exact position of the trolley and adjust the motor speed continuously using the PSF control law.
 
-1. **Run a test print with the live tuner**:
-   Start a normal print, then run the tuner script to observe the buffer in real-time:
+1. **Calibrate Sensor Limits (Automatic Wizard)**:
+   Before printing, measure and calibrate ADC thresholds across Neutral, Compression, and Tension stops:
    ```bash
-   python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --observe-daemon
+   python3 scripts/flare_calibrate.py --interactive --port /dev/ttyACM0 --write-firmware --write-config
    ```
-2. **Collect logs**:
-   Let the print run for a few minutes while the script collects buffer deflection data at various extrusion speeds.
-3. **Generate a flow schedule**:
-   The tuner script will output recommended tuning values. Look for:
-   - Recommended `baseline_rate`
-   - Recommended `sync_compression_bias_frac`
-4. **Apply and flash**:
-   Copy the recommended parameters into the `[sync]` section of your `config.ini` file, regenerate the config, and flash.
+   *The wizard averages multiple ADC samples, verifies noise stability and sensor directionality, updates `config.ini`, and persists values directly to RP2040 flash.*
+
+2. **Adjust PSF Proportional Gain Live**:
+   Tweak proportional tracking rate or damping over USB CDC on the fly:
+   ```bash
+   python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --set-kp 1200
+   python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --dump-psf
+   ```
+
+3. **Run a test print with the live tuner**:
+   Start a normal print, then observe the buffer in real-time:
+   ```bash
+   python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --observe-daemon --csv-out run_data.csv
+   ```
+
+4. **Analyze and Chart**:
+   Generate the recommended flow schedule and inspect the step-rate vs buffer displacement chart:
+   ```bash
+   python3 scripts/flare_analyze.py --in run_data.csv --chart displacement_chart.svg --out flow_patch.ini
+   ```
+   Open `displacement_chart.svg` in any browser to inspect the trolley deflection curves across zones.
+   Copy the recommended parameters into your `config.ini` file, regenerate config, and flash.
 
 ---
 

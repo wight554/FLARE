@@ -1273,8 +1273,40 @@ def test_chatter_repro():
     return _run_chatter_repro()
 
 
+def test_psf_live_options():
+    writes = []
+
+    class MockSer:
+        def __init__(self):
+            self.lines = [b"OK\n", b"OK:SYNC_KP_RATE:1200.0\n"]
+
+        def write(self, data):
+            writes.append(data.decode("utf-8").strip())
+
+        def reset_input_buffer(self):
+            pass
+
+        def readline(self):
+            if self.lines:
+                return self.lines.pop(0)
+            return b"OK\n"
+
+        def close(self):
+            pass
+
+    mock_ser = MockSer()
+    res = tuner_mod.send_serial_cmd(mock_ser, "SET:SYNC_KP_RATE:1200.0")
+    assert res == "OK", f"expected OK, got {res}"
+    assert "SET:SYNC_KP_RATE:1200.0" in writes
+
+    res_get = tuner_mod.send_serial_cmd(mock_ser, "GET:SYNC_KP_RATE")
+    assert res_get == "OK:SYNC_KP_RATE:1200.0", f"expected OK:SYNC_KP_RATE:1200.0, got {res_get}"
+    return "psf options verified"
+
+
 def main():
     tests = [
+        ("psf-live-cmd", test_psf_live_options),
         ("warm-up", test_cold_start_no_set),
         ("locked", test_locked_warm_start_zero_sets),
         ("tension-risk", test_tension_risk_freeze_and_rollback),

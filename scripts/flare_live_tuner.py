@@ -46,6 +46,7 @@ from dataclasses import dataclass
 from typing import Dict, Optional
 
 from path_utils import PathError, normalize_output, resolve_input
+from serial_utils import find_port
 
 try:
     import serial
@@ -1230,6 +1231,18 @@ def open_serial(port: str, baud: int):
         sys.exit(1)
 
 
+def send_serial_cmd(ser, cmd: str, timeout: float = 2.0) -> Optional[str]:
+    """Send command to serial device, return first OK:/ER: reply line."""
+    ser.reset_input_buffer()
+    ser.write(f"{cmd}\n".encode())
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        line = ser.readline().decode("utf-8", errors="ignore").strip()
+        if line.startswith("OK:") or line.startswith("ER:") or line == "OK":
+            return line
+    return None
+
+
 def setup_klipper_motion(args):
     if not getattr(args, "klipper_uds", None):
         if getattr(args, "klipper_mode", "auto") == "on":
@@ -1547,6 +1560,11 @@ def main() -> None:
         action="store_true",
         help="Experimental: allow live SET:BASELINE_SPS writes from learned buckets",
     )
+    ap.add_argument("--set-kp", type=float, metavar="RATE", help="Set SYNC_KP_RATE (in mm/min) over serial/USB CDC")
+    ap.add_argument("--set-kd", type=float, metavar="GAIN", help="Set KD_PSF (proportional velocity damping) over serial/USB CDC")
+    ap.add_argument("--set-psf-slew", type=float, metavar="RATE", help="Set SYNC_PSF_SLEW_PER_MM over serial/USB CDC")
+    ap.add_argument("--set-psf-filter", type=float, metavar="MM", help="Set SYNC_PSF_FILTER_MM over serial/USB CDC")
+    ap.add_argument("--dump-psf", action="store_true", help="Dump current PSF gains and ADC status over serial/USB CDC and exit")
     ap.add_argument("--debug", action="store_true", help="Print marker and commit diagnostics to stderr")
     args = ap.parse_args()
 
@@ -1588,12 +1606,66 @@ def main() -> None:
         return
     if args.reset_runtime:
         if not args.port:
-            print("flare_live_tuner: --port is required for --reset-runtime", file=sys.stderr)
-            sys.exit(1)
+            args.port = find_port()
+            if not args.port:
+                print("flare_live_tuner: --port is required for --reset-runtime", file=sys.stderr)
+                sys.exit(1)
         ser = open_serial(args.port, args.baud)
         ser.write(b"SET:LIVE_TUNE_LOCK:0\n")
         time.sleep(0.1)
         ser.write(b"LD:\n")
+        ser.close()
+        return
+
+    psf_commands = []
+    if args.set_kp is not None:
+        psf_commands.append(f"SET:SYNC_KP_RATE:{args.set_kp:.1f}")
+    if args.set_kd is not None:
+        psf_commands.append(f"SET:KD_PSF:{args.set_kd:.3f}")
+    if args.set_psf_slew is not None:
+        psf_commands.append(f"SET:SYNC_PSF_SLEW_PER_MM:{args.set_psf_slew:.1f}")
+    if args.set_psf_filter is not None:
+        psf_commands.append(f"SET:SYNC_PSF_FILTER_MM:{args.set_psf_filter:.2f}")
+
+    if psf_commands:
+        if not args.port:
+            args.port = find_port()
+            if not args.port:
+                print("flare_live_tuner: --port is required for setting PSF parameters", file=sys.stderr)
+                sys.exit(1)
+        ser = open_serial(args.port, args.baud)
+        for cmd in psf_commands:
+            res = send_serial_cmd(ser, cmd)
+            print(f"[tuner] {cmd} -> {res}")
+        ser.close()
+        return
+
+    if args.dump_psf:
+        if not args.port:
+            args.port = find_port()
+            if not args.port:
+                print("flare_live_tuner: --port is required for --dump-psf", file=sys.stderr)
+                sys.exit(1)
+        ser = open_serial(args.port, args.baud)
+        query_params = [
+            "SYNC_KP_RATE",
+            "KD_PSF",
+            "SYNC_PSF_SLEW_PER_MM",
+            "SYNC_PSF_FILTER_MM",
+            "BUF_PSF_NEUTRAL",
+            "BUF_PSF_MAX_COMP",
+            "BUF_PSF_MAX_TENS",
+            "BUF_POS_RAW",
+            "SYNC_REFILL_MM",
+            "SYNC_RELIEVE_MM",
+        ]
+        print("\n=== FLARE PSF Live Diagnostics ===")
+        for param in query_params:
+            res = send_serial_cmd(ser, f"GET:{param}")
+            if res and res.startswith("OK:"):
+                print(f"  {res[3:]}")
+            else:
+                print(f"  {param}: <unavailable>")
         ser.close()
         return
     if not args.port:

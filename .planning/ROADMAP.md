@@ -10,7 +10,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 - [x] **Phase 2: Buffer Retract & Catch Hardening** - Implement 55-task Type-P buffer retract catch and settle hardening (`bl-retract-catch-hardening`)
 - [x] **Phase 3: Klipper Event-Driven Mirror & Slicer Purge** - Complete event-driven `flare_daemon` push and OrcaSlicer transition purge tuning
 - [x] **Phase 4: Host Sync Simulation Coverage** - Finalize `flare_sim` scenario derivation and regression coverage
-- [ ] **Phase 5: Automated Calibration & Live Tuning** - Deterministic sensor calibration routines and live serial tuning CLI
+- [x] **Phase 5: Automated Calibration & Live Tuning** - Deterministic sensor calibration routines and live serial tuning CLI
 - [ ] **Phase 6: Advanced Toolchange & RELOAD Automation** - Mechanical cutter sequencing, spool failover, and filament bypass mode
 
 ## Phase Details
@@ -69,7 +69,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   1. Calibration wizard measures and sets Type-P ADC thresholds automatically
   2. Live tuner CLI allows adjusting PSF proportional gains over USB CDC
   3. Trace analyzer converts raw logs into step-rate vs buffer displacement charts
-**Plans**: TBD
+**Plans**: 1 plan complete (05-01)
 
 ### Phase 6: Advanced Toolchange & RELOAD Automation
 **Goal**: Production-grade MMU multi-colour printing and spool runout reliability
@@ -89,5 +89,5 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 2. Buffer Retract & Catch Hardening | 3/3 | Complete | 2026-09-11 |
 | 3. Klipper Event-Driven Mirror & Slicer Purge | 1/1 | Complete | 2026-09-11 |
 | 4. Host Sync Simulation Coverage | 1/1 | Complete | 2026-09-11 |
-| 5. Automated Calibration & Live Tuning | 0/1 | Not started | - |
+| 5. Automated Calibration & Live Tuning | 1/1 | Complete | 2026-09-11 |
 | 6. Advanced Toolchange & RELOAD Automation | 0/1 | Not started | - |

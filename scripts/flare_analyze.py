@@ -449,6 +449,166 @@ def write_flow_schedule(path, cap, points):
             fh.write(f"point{idx}: {flow_sps}, {baseline_sps}, {bias_milli / 1000.0:.3f}\n")
 
 
+def extract_chart_points(rows):
+    """Extract (displacement_mm, step_rate_mmpm, zone) tuples from telemetry rows."""
+    points = []
+    for r in rows:
+        raw_bp = r.get("bp_mm") or r.get("BP")
+        if raw_bp is None or raw_bp == "":
+            continue
+        try:
+            bp = float(raw_bp)
+        except (ValueError, TypeError):
+            continue
+
+        raw_rate = r.get("est_mm_min") or r.get("EST") or r.get("mm_rate") or r.get("MM")
+        if raw_rate is None or raw_rate == "":
+            continue
+        try:
+            rate = float(raw_rate)
+        except (ValueError, TypeError):
+            continue
+
+        zone = r.get("zone") or r.get("BUF") or "NEUTRAL"
+        if zone == "MID":
+            zone = "NEUTRAL"
+        points.append((bp, rate, zone))
+    return points
+
+
+def render_displacement_svg(points, baseline=None, title="FLARE Step-Rate vs Buffer Displacement"):
+    """Generate standalone SVG markup plotting step-rate vs buffer displacement."""
+    width = 800
+    height = 500
+    margin = {"top": 60, "right": 50, "bottom": 60, "left": 80}
+    plot_w = width - margin["left"] - margin["right"]
+    plot_h = height - margin["top"] - margin["bottom"]
+
+    if not points:
+        return (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+            f'viewBox="0 0 {width} {height}" style="background:#18181b;font-family:sans-serif;">\n'
+            f'<text x="{width / 2}" y="{height / 2}" fill="#a1a1aa" text-anchor="middle" font-size="16">'
+            'No valid displacement or step-rate data found</text>\n</svg>'
+        )
+
+    all_bp = [p[0] for p in points]
+    all_rates = [p[1] for p in points]
+
+    min_bp, max_bp = min(all_bp), max(all_bp)
+    if min_bp == max_bp:
+        min_bp -= 1.0
+        max_bp += 1.0
+    bp_pad = (max_bp - min_bp) * 0.08
+    min_bp -= bp_pad
+    max_bp += bp_pad
+
+    min_rate, max_rate = max(0.0, min(all_rates)), max(all_rates)
+    if baseline is not None:
+        min_rate = min(min_rate, baseline)
+        max_rate = max(max_rate, baseline)
+    if min_rate == max_rate:
+        max_rate += 100.0
+    rate_pad = (max_rate - min_rate) * 0.08
+    min_rate = max(0.0, min_rate - rate_pad)
+    max_rate += rate_pad
+
+    def to_x(val):
+        return margin["left"] + (val - min_bp) / (max_bp - min_bp) * plot_w
+
+    def to_y(val):
+        return margin["top"] + plot_h - (val - min_rate) / (max_rate - min_rate) * plot_h
+
+    num_ticks = 5
+    x_ticks = [min_bp + i * (max_bp - min_bp) / num_ticks for i in range(num_ticks + 1)]
+    y_ticks = [min_rate + i * (max_rate - min_rate) / num_ticks for i in range(num_ticks + 1)]
+
+    elements = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" style="background:#18181b;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">',
+        f'<rect x="{margin["left"]}" y="{margin["top"]}" width="{plot_w}" height="{plot_h}" fill="#09090b" rx="4"/>',
+    ]
+
+    for xt in x_ticks:
+        xp = to_x(xt)
+        elements.append(f'<line x1="{xp:.1f}" y1="{margin["top"]}" x2="{xp:.1f}" y2="{margin["top"] + plot_h}" stroke="#27272a" stroke-width="1"/>')
+        elements.append(f'<text x="{xp:.1f}" y="{margin["top"] + plot_h + 20}" fill="#71717a" text-anchor="middle" font-size="11">{xt:.1f}</text>')
+
+    for yt in y_ticks:
+        yp = to_y(yt)
+        elements.append(f'<line x1="{margin["left"]}" y1="{yp:.1f}" x2="{margin["left"] + plot_w}" y2="{yp:.1f}" stroke="#27272a" stroke-width="1"/>')
+        elements.append(f'<text x="{margin["left"] - 12}" y="{yp + 4:.1f}" fill="#71717a" text-anchor="end" font-size="11">{int(round(yt))}</text>')
+
+    if baseline is not None:
+        y_base = to_y(baseline)
+        if margin["top"] <= y_base <= margin["top"] + plot_h:
+            elements.append(f'<line x1="{margin["left"]}" y1="{y_base:.1f}" x2="{margin["left"] + plot_w}" y2="{y_base:.1f}" stroke="#f59e0b" stroke-width="2" stroke-dasharray="6,4"/>')
+            elements.append(f'<text x="{margin["left"] + plot_w - 8}" y="{y_base - 6:.1f}" fill="#f59e0b" text-anchor="end" font-size="11" font-weight="bold">Baseline: {int(round(baseline))} mm/min</text>')
+
+    max_pts = 3000
+    stride = max(1, len(points) // max_pts)
+    sampled_points = points[::stride]
+
+    color_map = {
+        "TENSION": "#ef4444",
+        "NEUTRAL": "#10b981",
+        "COMPRESSION": "#3b82f6",
+    }
+
+    for bp, rate, zone in sampled_points:
+        cx = to_x(bp)
+        cy = to_y(rate)
+        color = color_map.get(zone.upper(), "#9ca3af")
+        elements.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="2.5" fill="{color}" fill-opacity="0.6"/>')
+
+    elements.append(f'<rect x="{margin["left"]}" y="{margin["top"]}" width="{plot_w}" height="{plot_h}" fill="none" stroke="#3f3f46" stroke-width="1"/>')
+    elements.append(f'<text x="{width / 2}" y="30" fill="#f4f4f5" text-anchor="middle" font-size="16" font-weight="bold">{title}</text>')
+    elements.append(f'<text x="{width / 2}" y="{height - 15}" fill="#a1a1aa" text-anchor="middle" font-size="12">Buffer Displacement (mm)</text>')
+    elements.append(f'<text x="24" y="{height / 2}" fill="#a1a1aa" text-anchor="middle" font-size="12" transform="rotate(-90 24,{height / 2})">Step Rate (mm/min)</text>')
+
+    leg_x = margin["left"] + 15
+    leg_y = margin["top"] + 20
+    legends = [
+        ("Tension", "#ef4444"),
+        ("Neutral", "#10b981"),
+        ("Compression", "#3b82f6"),
+    ]
+    if baseline is not None:
+        legends.append(("Baseline", "#f59e0b"))
+
+    for name, col in legends:
+        if name == "Baseline":
+            elements.append(f'<line x1="{leg_x}" y1="{leg_y - 3}" x2="{leg_x + 14}" y2="{leg_y - 3}" stroke="{col}" stroke-width="2" stroke-dasharray="3,2"/>')
+            elements.append(f'<text x="{leg_x + 20}" y="{leg_y}" fill="#d4d4d8" font-size="11">{name}</text>')
+        else:
+            elements.append(f'<circle cx="{leg_x + 6}" cy="{leg_y - 3}" r="4" fill="{col}"/>')
+            elements.append(f'<text x="{leg_x + 16}" y="{leg_y}" fill="#d4d4d8" font-size="11">{name}</text>')
+        leg_x += 105
+
+    elements.append("</svg>")
+    return "\n".join(elements)
+
+
+def write_displacement_chart(chart_path, points, baseline=None, title=None):
+    """Write displacement chart SVG or HTML to chart_path."""
+    chart_title = title or "FLARE Step-Rate vs Buffer Displacement"
+    svg_content = render_displacement_svg(points, baseline=baseline, title=chart_title)
+    if chart_path.endswith(".html"):
+        html_content = (
+            "<!DOCTYPE html>\n<html>\n<head>\n"
+            '<meta charset="utf-8"/>\n'
+            f"<title>{chart_title}</title>\n"
+            "<style>body { margin: 0; background: #09090b; display: flex; align-items: center; justify-content: center; min-height: 100vh; }</style>\n"
+            "</head>\n<body>\n"
+            f"{svg_content}\n"
+            "</body>\n</html>\n"
+        )
+        with open(chart_path, "w", encoding="utf-8") as fh:
+            fh.write(html_content)
+    else:
+        with open(chart_path, "w", encoding="utf-8") as fh:
+            fh.write(svg_content)
+
+
 def contributor_entries(state_buckets, force=False, include_stale=False):
     locked = locked_bucket_labels(state_buckets)
     labels = locked if locked else (force_qualifying_labels(state_buckets, include_stale=include_stale) if force else set())
@@ -990,6 +1150,7 @@ def write_patch(path, runs, rows, state_buckets, current, recommendations, gate,
 def run(args):
     # Normalize outputs
     args.out = normalize_output(getattr(args, "out", None))
+    args.chart = normalize_output(getattr(args, "chart", None))
     args.state = normalize_output(getattr(args, "state", None))
     args.config = normalize_output(getattr(args, "config", None))
 
@@ -1015,6 +1176,11 @@ def run(args):
             print("Error: no NEUTRAL rows found in profiles", file=sys.stderr)
             return 1
         baseline, bias = scalar
+
+        if getattr(args, "chart", None):
+            pts = extract_chart_points(all_rows)
+            write_displacement_chart(args.chart, pts, baseline=baseline)
+            print(f"[*] Wrote displacement chart to {args.chart}")
 
         if getattr(args, "emit_flow_schedule", False):
             raw_cap = getattr(args, "flow_schedule_cap", None)
@@ -1046,8 +1212,8 @@ def run(args):
     if not getattr(args, "inputs", None):
         print("Error: --in required unless using --emit-baseline or --emit-flow-schedule", file=sys.stderr)
         return 1
-    if not getattr(args, "out", None):
-        print("Error: --out required unless using --emit-baseline or --emit-flow-schedule", file=sys.stderr)
+    if not getattr(args, "out", None) and not getattr(args, "chart", None):
+        print("Error: --out or --chart required unless using --emit-baseline or --emit-flow-schedule", file=sys.stderr)
         return 1
 
     runs, rows = read_csv_runs(args.inputs)
@@ -1090,13 +1256,22 @@ def run(args):
         mode=args.mode,
         force=force,
         include_stale=getattr(args, "include_stale", False),
-    ) if args.acceptance_gate else None
+    ) if getattr(args, "acceptance_gate", False) else None
     entries = contributor_entries(state_buckets, force=force, include_stale=getattr(args, "include_stale", False))
     contributors = {
         key: entries
         for key, (_value, conf, _detail) in recommendations.items()
         if key in DEFAULTS and conf != "DEFAULT" and entries
     }
+    if getattr(args, "chart", None):
+        pts = extract_chart_points(rows)
+        rec_base = recommendations.get("baseline_rate", (None,))[0]
+        write_displacement_chart(args.chart, pts, baseline=rec_base)
+        print(f"[*] Wrote displacement chart to {args.chart}")
+
+    if not getattr(args, "out", None):
+        return 0
+
     write_patch(args.out, runs, rows, state_buckets, current, recommendations, gate, banner=banner, contributors=contributors)
     if zero_locked_state and args.mode == "safe" and not force:
         print("refused: no LOCKED buckets in state file", file=sys.stderr)
@@ -1111,7 +1286,7 @@ def run(args):
         return 1
     print(f"[*] Wrote review patch to {args.out}")
 
-    if args.commit_watermark:
+    if getattr(args, "commit_watermark", False):
         if not args.state:
             print("Error: --commit-watermark requires --state", file=sys.stderr)
             return 1
@@ -1147,6 +1322,7 @@ def main():
     ap = argparse.ArgumentParser(description="Analyze FLARE calibration CSVs")
     ap.add_argument("--in", dest="inputs", nargs="+")
     ap.add_argument("--out")
+    ap.add_argument("--chart", help="Emit step-rate vs buffer displacement chart (SVG or HTML)")
     ap.add_argument("--mode", choices=["safe", "aggressive"], default="safe")
     ap.add_argument("--state", help="Optional flare_live_tuner.py bucket state JSON")
     ap.add_argument("--machine-id", default="default", help="Machine ID for state file (default: default)")

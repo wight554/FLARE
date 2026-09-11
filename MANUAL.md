@@ -151,6 +151,7 @@ These commands are intended for low-level diagnostics and board bring-up. Prefer
 | `BUF_PSF_MAX_TENS` | `buf_psf_max_tens` | Raw ADC fraction at tension extreme | 1.0 |
 | `BUF_PSF_NEUTRAL` | `buf_psf_neutral` | Raw ADC fraction at neutral calibration point | 0.5 |
 | `BUF_GOAL` | `buf_psf_goal` | Raw ADC goal bias used by type-P zone control | 0.3 |
+| `BUF_POS_RAW` | _(read-only)_ | Live ADC fraction reading (0.0000 - 1.0000) for calibration and diagnostics | - |
 | `KD_PSF` | _(runtime only)_ | Type-P derivative gain: velocity damping applied to sync output (units: sps per normalised vel). Not persisted; resets to `0.0` on boot. | 0.0 |
 | `SYNC_PSF_SLEW_PER_MM` | _(runtime only)_ | Type-P feed slew limit: max sps change per mm of filament moved. Lower = gentler feed accel. Not persisted. | 1500 |
 | `SYNC_PSF_FILTER_MM` | _(runtime only)_ | Type-P feed target EMA length in mm (distance-based smoothing). Bigger = smoother. Not persisted. | 25.0 |
@@ -518,3 +519,49 @@ actually occurs. With `--csv --verbose`, the same data is appended as
 If a serial write fails in an explicit live-write mode, the tuner waits 1 s and
 attempts to reopen the same port up to five times. If reconnect fails, it exits
 non-zero and leaves the state file unchanged.
+
+### Live PSF Proportional Gain & Control Adjustments
+`scripts/flare_live_tuner.py` allows direct real-time adjustment of PSF parameters over USB CDC without recompiling firmware or manual header edits:
+
+- `--set-kp RATE`: Set `SYNC_KP_RATE` (proportional gain in mm/min) immediately over serial.
+- `--set-kd GAIN`: Set `KD_PSF` (proportional velocity damping) immediately over serial.
+- `--set-psf-slew RATE`: Set `SYNC_PSF_SLEW_PER_MM` (feed slew rate limit in sps/mm).
+- `--set-psf-filter MM`: Set `SYNC_PSF_FILTER_MM` (feed EMA distance filter in mm).
+- `--dump-psf`: Read and display live diagnostics for all PSF parameters, gains, ADC values, and relief effort counters over serial.
+
+Example:
+```bash
+python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --set-kp 1200
+python3 scripts/flare_live_tuner.py --port /dev/ttyACM0 --dump-psf
+```
+
+---
+
+## Sensor Calibration Wizard (`flare_calibrate.py`)
+
+For Type-P proportional Hall/analog sensors (`buf_sensor_type = 1`), `scripts/flare_calibrate.py` provides an automated wizard to measure, validate, and set ADC thresholds:
+
+- Measures ADC fractions at **NEUTRAL**, **COMPRESSION**, and **TENSION** positions.
+- Multi-sample averaging (default 20 samples per position) with a standard-deviation noise rejection gate (`--max-stddev 0.025`).
+- Verifies monotonicity (neutral must be between limits) and minimum span (`--min-span 0.05`).
+- **Non-mutating by default**: runs in observe/dry-run mode unless explicit commit flags are passed:
+  - `--write-firmware`: updates `BUF_PSF_*` in RAM and saves to flash (`SV:`).
+  - `--write-config [PATH]`: updates `config.ini` in place.
+- Supports interactive prompts (`--interactive`), automated hardware capture, or explicit evaluation (`--neutral`, `--compression`, `--tension`, `--json`).
+
+Interactive Wizard:
+```bash
+python3 scripts/flare_calibrate.py --interactive --port /dev/ttyACM0 --write-firmware --write-config
+```
+
+---
+
+## Trace Charting (`flare_analyze.py --chart`)
+
+`scripts/flare_analyze.py` can render step-rate vs buffer displacement vector charts directly from telemetry logs:
+
+```bash
+python3 scripts/flare_analyze.py --in run_data.csv --chart displacement_chart.svg
+```
+
+Generates standalone SVG (or responsive HTML if `.html` extension used) mapping buffer displacement (mm) on X vs step-rate (mm/min) on Y, color-coded by zone (Tension, Neutral, Compression) with baseline rate overlay. No third-party graphing dependencies required.

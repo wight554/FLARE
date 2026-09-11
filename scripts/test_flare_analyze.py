@@ -611,7 +611,7 @@ def consistency_three_comparable_runs():
 def test_immature_run_skipped_with_reason():
     state = analyze.load_state(CONSISTENCY_STATE_FIXTURE)
     runs, _rows = analyze.read_csv_runs(CONSISTENCY_RUN_FIXTURES)
-    info = analyze.classify_run(runs[0], state, analyze.DEFAULTS.copy(), "safe", False, False)
+    info = analyze.classify_run(runs[0], state, analyze.DEFAULTS.copy(), "safe", False, True)
     assert not info["comparable"], info
     assert "rows per contributing bucket" in info["reason"], info
     return "immature run is skipped with row-count reason"
@@ -786,7 +786,7 @@ def test_high_sigma_repro():
     runs, rows = analyze.read_csv_runs([HIGH_SIGMA_A, HIGH_SIGMA_B, CONSISTENCY_RUN_FIXTURES[2]])
     current = analyze.DEFAULTS.copy()
     current["buf_variance_blend_ref_mm"] = 1.0
-    gate = analyze.acceptance_gate(rows, runs, state, current)
+    gate = analyze.acceptance_gate(rows, runs, state, current, include_stale=True)
     # After implementation, sigma > current_ref but < 5.0 is a WARN, not a FAIL.
     assert gate["pass"], f"Expected high sigma to PASS with warning; reasons: {gate['reasons']}"
     assert gate["sigma_p95"] > 1.0, gate["sigma_p95"]
@@ -934,8 +934,65 @@ def test_sparse_flow_schedule_falls_back_to_one_point():
     return "sparse schedule emission falls back to scalar-equivalent point"
 
 
+def test_displacement_chart_generation():
+    with tempfile.TemporaryDirectory() as td:
+        csv_file = os.path.join(td, "test_data.csv")
+        chart_svg = os.path.join(td, "chart.svg")
+        chart_html = os.path.join(td, "chart.html")
+        rows = [
+            {"ts_ms": "100", "zone": "TENSION", "bp_mm": "-5.5", "est_mm_min": "1800"},
+            {"ts_ms": "200", "zone": "NEUTRAL", "bp_mm": "-1.2", "est_mm_min": "1500"},
+            {"ts_ms": "300", "zone": "COMPRESSION", "bp_mm": "4.8", "est_mm_min": "1200"},
+        ]
+        write_csv(csv_file, rows)
+
+        # Test direct SVG render
+        pts = analyze.extract_chart_points(rows)
+        assert len(pts) == 3
+        svg = analyze.render_displacement_svg(pts, baseline=1500.0)
+        assert "<svg" in svg
+        assert "Baseline: 1500 mm/min" in svg
+        assert "Buffer Displacement (mm)" in svg
+        assert "Step Rate (mm/min)" in svg
+
+        # Test CLI run emitting SVG chart
+        args_svg = SimpleNamespace(
+            inputs=[csv_file],
+            out=None,
+            chart=chart_svg,
+            state=None,
+            config=None,
+            mode="safe",
+        )
+        rc = analyze.run(args_svg)
+        assert rc == 0
+        assert os.path.exists(chart_svg)
+        with open(chart_svg, encoding="utf-8") as fh:
+            svg_file_content = fh.read()
+        assert "<svg" in svg_file_content
+
+        # Test CLI run emitting HTML chart
+        args_html = SimpleNamespace(
+            inputs=[csv_file],
+            out=None,
+            chart=chart_html,
+            state=None,
+            config=None,
+            mode="safe",
+        )
+        rc_html = analyze.run(args_html)
+        assert rc_html == 0
+        assert os.path.exists(chart_html)
+        with open(chart_html, encoding="utf-8") as fh:
+            html_file_content = fh.read()
+        assert "<!DOCTYPE html>" in html_file_content
+        assert "<svg" in html_file_content
+    return "displacement chart SVG and HTML generation verified"
+
+
 def main():
     tests = [
+        ("chart-gen", test_displacement_chart_generation),
         ("baseline", test_baseline_from_dominant_cluster),
         ("bias-clamp", test_bias_clamped_to_safe_range),
         ("gate-raw-warn", test_acceptance_gate_warns_low_raw_coverage),

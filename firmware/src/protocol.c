@@ -506,6 +506,10 @@ static bool cmd_get_buffer_geometry_params(const char *param, int idx, char *out
         snprintf(out, out_len, "BUF_PSF_NEUTRAL:%.3f", (double)g_buf_psf_neutral);
     else if (!strcmp(param, "BUF_GOAL"))
         snprintf(out, out_len, "BUF_GOAL:%.3f", (double)g_buf_goal);
+    else if (!strcmp(param, "BUF_POS_RAW")) {
+        buf_analog_update((uint32_t)g_sync_tick_ms);
+        snprintf(out, out_len, "BUF_POS_RAW:%.4f", (double)g_buf_pos_raw_status);
+    }
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(param, "BUF_ALPHA"))
         snprintf(out, out_len, "BUF_ALPHA:%.3f", (double)g_buf_analog_alpha);
