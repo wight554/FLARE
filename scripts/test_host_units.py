@@ -11,7 +11,7 @@ import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BUILD_SIM = os.path.join(REPO_ROOT, "build_sim")
-EXPECTED = {"test_toolchange", "test_forensics", "test_tmc_recovery", "test_persistence"}
+EXPECTED = {"test_cutter", "test_toolchange", "test_forensics", "test_tmc_recovery", "test_persistence"}
 
 
 def _binaries():

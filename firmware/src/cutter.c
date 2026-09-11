@@ -28,7 +28,8 @@ typedef enum {
     CUT_REOPENING,
     CUT_REOPEN_WAIT,
     CUT_REPEAT_CHECK,
-    CUT_DONE
+    CUT_DONE,
+    CUT_ABORT_SETTLE
 } cutter_state_t;
 
 typedef struct {
@@ -171,28 +172,23 @@ void cutter_start(lane_t *lane, bool enable_feed, uint32_t now_ms) {
     }
 }
 
-void cutter_abort(void) {
-    if (g_cut.state == CUT_IDLE)
+/* Command the blade back to block and keep PWM energized for servo_settle_ms
+   (CUT_ABORT_SETTLE) before idling: de-energizing on the same tick leaves the
+   blade limp mid-stroke (12-SPEC §2, cutter-feed-timeout). */
+static void cutter_fail(const char *reason) {
+    if (g_cut.state == CUT_IDLE || g_cut.state == CUT_ABORT_SETTLE)
         return;
     g_cut.failed = true;
     servo_set_us(PIN_SERVO, g_servo_block_us);
-    servo_idle(PIN_SERVO);
     if (g_cut.lane)
         motor_stop(&g_cut.lane->m);
-    g_cut.state = CUT_IDLE;
-    cmd_event_critical("CUT:ERROR", "ABORTED");
+    g_cut.phase_start_ms = g_now_ms;
+    g_cut.state = CUT_ABORT_SETTLE;
+    cmd_event_critical("CUT:ERROR", reason);
 }
 
-static void cutter_fail(const char *reason) {
-    if (g_cut.state == CUT_IDLE)
-        return;
-    g_cut.failed = true;
-    servo_set_us(PIN_SERVO, g_servo_block_us);
-    servo_idle(PIN_SERVO);
-    if (g_cut.lane)
-        motor_stop(&g_cut.lane->m);
-    g_cut.state = CUT_IDLE;
-    cmd_event_critical("CUT:ERROR", reason);
+void cutter_abort(void) {
+    cutter_fail("ABORTED");
 }
 
 bool cutter_test_us(uint32_t us) {
@@ -231,7 +227,8 @@ static void cutter_tick_feed_wait(uint32_t now_ms, uint32_t age) {
 // through, close (the cut), reopen, and repeat CUT_AMOUNT times. Every servo move
 // is a "do it" state that arms the servo, followed by a "_WAIT" state that holds
 // until SERVO_SETTLE_MS (failing on a settle/feed timeout). Any timeout calls
-// cutter_fail() -> sets `failed`, parks the blade, returns to CUT_IDLE.
+// cutter_fail() -> sets `failed`, drives the blade to block, settles (CUT_ABORT_SETTLE), then
+// CUT_IDLE.
 //
 //   BOOT_PARK/TEST  settle elapsed                 -> IDLE (one-shot servo park)
 //   OPENING         arm open                       -> OPEN_WAIT
@@ -330,6 +327,13 @@ void cutter_tick(uint32_t now_ms) {
             servo_idle(PIN_SERVO);
             g_cut.state = CUT_IDLE;
             cmd_event("CUT:DONE", NULL);
+        }
+        break;
+
+    case CUT_ABORT_SETTLE:
+        if (age >= (uint32_t)g_servo_settle_ms) {
+            servo_idle(PIN_SERVO);
+            g_cut.state = CUT_IDLE;
         }
         break;
     }

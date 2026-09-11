@@ -24,6 +24,9 @@ extern uint8_t g_sim_flash[];
 // sim_fakes.c. Needed for BL prime/lock/catch, which drives motor_set_rate_sps()
 // directly and never touches lane_t.current_sps.
 float sim_motor_rate_sps(unsigned int slice);
+// Raw PWM slice state (servo tests): enabled flag and last channel level.
+bool sim_pwm_enabled(unsigned int slice);
+uint16_t sim_pwm_level(unsigned int slice);
 
 void sim_tmc_inject_brownout(int lane);
 void sim_tmc_set_comm_fail(int lane, bool fail);

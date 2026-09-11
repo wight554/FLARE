@@ -160,8 +160,11 @@ TC_IDLE
 and servo phases use their own `CUT_FEED_MS` / `CUT_SETTLE_MS` guards; the
 outer `TC_CUT_MS` watchdog is extended automatically when the configured cutter
 feed distance, repeat count, and servo settle time require longer than the
-stored value. On cutter failure or abort, servo PWM is immediately de-energized
-(`servo_idle`) to protect the servo motor against stall burnout.
+stored value. On cutter failure or abort the blade is commanded to
+`SERVO_BLOCK_US` and the servo stays energized for `CUT_SETTLE_MS`
+(`CUT_ABORT_SETTLE`, `cutter_busy()` true) so it actually reaches block, then
+PWM is de-energized (`servo_idle`) to protect the servo against stall burnout.
+De-energizing on the same tick left the blade limp mid-stroke.
 
 ### External Spool Bypass Mode
 

@@ -174,3 +174,26 @@ target_include_directories(test_toolchange PRIVATE
 )
 
 target_link_libraries(test_toolchange PRIVATE m)
+
+add_executable(test_cutter
+  ${FIRMWARE_SRC}/sync.c
+  ${FIRMWARE_SRC}/sync_buf.c
+  ${FIRMWARE_SRC}/sync_relay.c
+  ${FIRMWARE_SRC}/sync_analog.c
+  ${FIRMWARE_SRC}/motion.c
+  ${FIRMWARE_SRC}/toolchange.c
+  ${FIRMWARE_SRC}/cutter.c
+  ${FIRMWARE_SRC}/settings_store.c
+  ${FIRMWARE_SRC}/forensics.c
+  ${SIM_GLOBALS_C}
+  sim_fakes.c
+  test_cutter.c
+)
+
+target_include_directories(test_cutter PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/shims
+  ${FIRMWARE_INCLUDE}
+  ${CMAKE_CURRENT_LIST_DIR}
+)
+
+target_link_libraries(test_cutter PRIVATE m)

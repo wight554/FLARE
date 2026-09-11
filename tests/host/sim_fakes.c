@@ -33,16 +33,16 @@
 #include "protocol.h"
 #include "sync.h"
 
+#include "cutter.h"
 #include "hardware/adc.h"
+#include "hardware/clocks.h"
 #include "hardware/flash.h"
 #include "hardware/gpio.h"
 #include "hardware/pwm.h"
-#include "hardware/clocks.h"
 #include "pico/flash.h"
 #include "pico/stdlib.h"
 #include "tmc2209.h"
 #include "toolchange.h"
-#include "cutter.h"
 
 #include "sim_fakes.h"
 
@@ -64,7 +64,7 @@ void sleep_ms(uint32_t ms) {
 unsigned int clock_get_hz(clock_index_t clk) {
     (void)clk;
     return 125000000u; // RP2040 default sys clock; only affects motion.c's internal
-                        // PWM wrap/clkdiv math, which the sim never reads back
+                       // PWM wrap/clkdiv math, which the sim never reads back
 }
 
 // ===================== GPIO / PWM =====================
@@ -172,6 +172,14 @@ float sim_motor_rate_sps(uint slice) {
         return 0.0f;
     float wrap_plus_one = (float)s_pwm_wrap[slice] + 1.0f;
     return 125000000.0f / (clkdiv * wrap_plus_one); // clock_get_hz(clk_sys)'s fixed value
+}
+
+bool sim_pwm_enabled(uint slice) {
+    return slice < SIM_NUM_PWM_SLICES && s_pwm_enabled[slice];
+}
+
+uint16_t sim_pwm_level(uint slice) {
+    return slice < SIM_NUM_PWM_SLICES ? s_pwm_level[slice] : 0;
 }
 
 void pwm_set_chan_level(uint slice, uint chan, uint16_t level) {
@@ -375,7 +383,8 @@ void set_active_lane(int lane) {
         int old_idx = g_active_lane - 1;
         int new_idx = lane - 1;
         if (g_mm_per_step[new_idx] > 1e-6f) {
-            g_extruder_est_sps = g_extruder_est_sps * (g_mm_per_step[old_idx] / g_mm_per_step[new_idx]);
+            g_extruder_est_sps =
+                g_extruder_est_sps * (g_mm_per_step[old_idx] / g_mm_per_step[new_idx]);
         }
     }
     g_active_lane = lane;
