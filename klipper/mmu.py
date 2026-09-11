@@ -169,6 +169,8 @@ class MMUMock:
                                     desc="No-op: slicer compatibility stub")
         self.gcode.register_command('MMU_ENDLESS_SPOOL', self.cmd_MMU_NOOP,
                                     desc="No-op: slicer compatibility stub")
+        self.gcode.register_command('MMU_SET_PURGE', self.cmd_MMU_SET_PURGE,
+                                    desc="Set dynamic purge length for the next toolchange")
 
     def cmd_SET_MMU(self, gcmd):
         """Update MMU state parameters dynamically."""
@@ -558,6 +560,11 @@ class MMUMock:
     def cmd_MMU_NOOP(self, gcmd):
         """No-op: slicer compatibility stub, command accepted and ignored."""
         pass
+
+    def cmd_MMU_SET_PURGE(self, gcmd):
+        """Set dynamic purge length for the next toolchange."""
+        purge = gcmd.get_float('PURGE', 0.0)
+        self.gcode.run_script_from_command(f"_FLARE_SET_PURGE PURGE={purge}")
 
     def cmd_MMU_CHECK_GATE(self, gcmd):
         """Acknowledge MMU gate check command and report status."""

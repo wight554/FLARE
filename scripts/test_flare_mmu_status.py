@@ -38,8 +38,13 @@ class FakeMacro:
 
 
 class FakeGcode:
-    """Permissive stub: every method (respond_info, register_command,
-    run_script_from_command, ...) is a silent no-op."""
+    """Permissive stub with command call recording."""
+    def __init__(self):
+        self.commands = []
+
+    def run_script_from_command(self, cmd):
+        self.commands.append(cmd)
+
     def __getattr__(self, _name):
         return lambda *a, **k: None
 
@@ -280,6 +285,13 @@ def run_tests():
     check("reconcile accepts bypass gate/tool sentinels",
           flare_daemon._mmu_status_matches_fields(status, bypass_fields),
           (status["active_gate"], status["gate"], status["tool"]))
+
+    print("slicer purge hook — MMU_SET_PURGE delegates to _FLARE_SET_PURGE")
+    m, p = new_mock()
+    m.cmd_MMU_SET_PURGE(FakeGcmd({"PURGE": 42.5}))
+    check("MMU_SET_PURGE invokes _FLARE_SET_PURGE",
+          p._gcode.commands == ["_FLARE_SET_PURGE PURGE=42.5"],
+          p._gcode.commands)
 
     print(f"\n{_PASS} passed, {_FAIL} failed")
     sys.exit(1 if _FAIL else 0)

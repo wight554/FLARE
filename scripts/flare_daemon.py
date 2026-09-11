@@ -53,6 +53,11 @@ serial_lock = threading.Lock()
 command_event = threading.Event()
 command_reply = None
 current_executing_command = None
+klipper_sync_event = threading.Event()
+
+def trigger_klipper_sync():
+    """Signal klipper_syncer that a firmware event or relevant state change occurred."""
+    klipper_sync_event.set()
 
 # Thread-safe status cache
 status_lock = threading.Lock()
@@ -592,7 +597,19 @@ def parse_status_line(line):
         with stats_lock:
             new_data["mmu_stats"] = dict(mmu_stats)
         with status_lock:
+            keys_to_check = (
+                "active_lane", "tc_state", "lane1_task", "lane2_task",
+                "buf_sensor_type", "buf_state", "in1", "out1", "in2", "out2",
+                "toolhead", "y_split", "reload_mode", "enable_cutter", "unload_cut"
+            )
+            field_changed = any(
+                k in new_data and new_data[k] != status_cache.get(k)
+                for k in keys_to_check
+            ) or (not status_cache.get("board_online"))
             status_cache.update(new_data)
+
+        if field_changed:
+            trigger_klipper_sync()
 
         # Broadcast to all active SSE queues
         broadcast_telemetry(new_data)
@@ -619,6 +636,7 @@ def serial_reader(port_name, baud):
             print(f"flare_daemon: connected to {port_name} successfully")
             with status_lock:
                 status_cache["board_online"] = True
+            trigger_klipper_sync()
 
             # Query BUF_MAX_TRAVEL immediately on connection
             try:
@@ -654,6 +672,7 @@ def serial_reader(port_name, baud):
                     add_event_to_history(evt_type, evt_data)
                     record_event_stats(evt_type, evt_data)
                     broadcast_telemetry({"event_type": evt_type, "event_data": evt_data})
+                    trigger_klipper_sync()
 
                 # Check for command reply
                 elif line.startswith("OK:") or line.startswith("ER:") or line == "OK":
@@ -686,6 +705,7 @@ def serial_reader(port_name, baud):
             with status_lock:
                 status_cache["board_online"] = False
             broadcast_telemetry({"board_online": False})
+            trigger_klipper_sync()
 
             with serial_lock:
                 if serial_port:
@@ -932,6 +952,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                 with status_lock:
                     status_cache["bypass"] = bypass_val
                 broadcast_telemetry({"type": "bypass_update", "bypass": bypass_val})
+            trigger_klipper_sync()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_cors_headers()
@@ -1166,7 +1187,7 @@ def _derive_action(tc_state, active_lane, lane1_task, lane2_task):
     return "Idle"
 
 def klipper_syncer(moonraker_url):
-    """Background thread to push status updates to Moonraker at 4Hz."""
+    """Background thread to push status updates to Moonraker event-driven."""
     global _g_host_busy
     last_sync = {}
     backoff = 0.0
@@ -1181,11 +1202,24 @@ def klipper_syncer(moonraker_url):
     next_idle_probe = 0.0  # throttle: earliest time to probe idle_timeout again
 
     while True:
-        time.sleep(0.25)
+        # Event-driven wait: wake on firmware event, state change, or periodic reconcile (10s)
+        now = time.time()
+        if host_busy:
+            wait_time = max(0.1, next_idle_probe - now)
+        elif backoff > now:
+            wait_time = max(0.1, backoff - now)
+        else:
+            wait_time = max(0.1, (last_force_sync + 10.0) - now)
+
+        klipper_sync_event.wait(timeout=wait_time)
+        klipper_sync_event.clear()
 
         # Check backoff timer
         if backoff > time.time():
             continue
+
+        # Short debounce dwell (50ms) to coalesce rapid event bursts into a single delta push
+        time.sleep(0.05)
 
         # Busy mode: gcode lock held — suppress all gcode/script emitters and
         # throttle-poll idle_timeout until lock is free before resuming.
@@ -1207,7 +1241,7 @@ def klipper_syncer(moonraker_url):
         keys = [
             "board_online", "active_lane", "tc_state",
             "buf_state", "in1", "out1", "in2", "out2",
-            "toolhead", "y_split", "reload_mode"
+            "toolhead", "y_split", "reload_mode", "enable_cutter", "unload_cut"
         ]
 
         changed = False
@@ -1219,18 +1253,6 @@ def klipper_syncer(moonraker_url):
         for k in ("lane1_task", "lane2_task"):
             if state.get(k) != last_sync.get(k):
                 changed = True
-
-        # Check if sync_feedback changed significantly to update Mainsail/Fluidd piston
-        stype = state.get("buf_sensor_type", 0)
-        g_buf_pos = state.get("g_buf_pos", 0.0)
-        sync_feedback = max(-1.0, min(1.0, g_buf_pos)) if stype == 1 else max(-1.0, min(1.0, g_buf_pos / _get_piston_scale()))
-
-        last_stype = last_sync.get("buf_sensor_type", 0)
-        last_g_buf_pos = last_sync.get("g_buf_pos", 0.0)
-        last_sync_feedback = max(-1.0, min(1.0, last_g_buf_pos)) if last_stype == 1 else max(-1.0, min(1.0, last_g_buf_pos / _get_piston_scale()))
-
-        if abs(sync_feedback - last_sync_feedback) > 0.05:
-            changed = True
 
         reconcile_due = time.time() - last_force_sync > 10.0
 
@@ -1260,20 +1282,18 @@ def klipper_syncer(moonraker_url):
         in1 = state.get("in1", 0)
         in2 = state.get("in2", 0)
         toolhead = state.get("toolhead", 0)
-        g_buf_pos = state.get("g_buf_pos", 0.0)
         stype = state.get("buf_sensor_type", 0)
-        if stype == 1:
-            sync_feedback = max(-1.0, min(1.0, g_buf_pos))
-        else:
-            sync_feedback = max(-1.0, min(1.0, g_buf_pos / _get_piston_scale()))
         sync_feedback_enabled = 1
         buf_state = state.get("buf_state", "NEUTRAL").lower()
         if buf_state in ["+", "tension"]:
             buf_state = "tension"
+            cosmetic_piston = 1.0
         elif buf_state in ["-", "compression", "compressed"]:
             buf_state = "compressed"
+            cosmetic_piston = -1.0
         else:
             buf_state = "neutral"
+            cosmetic_piston = 0.0
         tc_state = state.get("tc_state", "UNKNOWN")
         board_online = 1 if state.get("board_online", False) else 0
         reload_mode = state.get("reload_mode", 0)
@@ -1347,11 +1367,11 @@ def klipper_syncer(moonraker_url):
             "GATE_STATUS": f"'{gate_status_1},{gate_status_2}'",
             "GATE_SENSOR": f"'{in1},{in2}'",
             "TOOLHEAD_SENSOR": str(toolhead),
-            # Continuous analog fields (SYNC_FEEDBACK buffer-offset / piston, SPS,
-            # FEED_RATE, REV_RATE) are intentionally NOT mirrored: they change
-            # every tick and would make the delta non-empty on nearly every push,
-            # spamming the Klipper gcode queue. Only the discrete buffer STATE is
-            # mirrored.
+            # Latched/dampened cosmetic buffer piston position (-1.0 to 1.0):
+            # Monotonically reflects discrete buffer state (neutral: 0.0, tension: 1.0,
+            # compression: -1.0) to prevent Fluidd/Mainsail animation thrash while still
+            # driving the UI piston graphic.
+            "SYNC_FEEDBACK": f"{cosmetic_piston:.3f}",
             "SYNC_FEEDBACK_ENABLED": str(sync_feedback_enabled),
             "SYNC_FEEDBACK_STATE": f"'{buf_state}'",
             "PRINT_JOB_STATE": f"'{print_job_state}'",

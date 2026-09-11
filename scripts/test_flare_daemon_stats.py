@@ -68,6 +68,22 @@ class StatsCounterTests(unittest.TestCase):
         self.assertEqual(fd.mmu_stats["loads_success"], 0)
         self.assertEqual(fd.mmu_stats["unloads_success"], 0)
 
+    def test_sync_event_triggers_on_discrete_change_not_analog_drift(self):
+        fd.klipper_sync_event.clear()
+        # Discrete change: active_lane and tc_state
+        fd.parse_status_line("OK:LN:2,TC:IDLE,BUF:NEUTRAL")
+        self.assertTrue(fd.klipper_sync_event.is_set())
+
+        # Clear and feed identical discrete fields with only analog BP drift
+        fd.klipper_sync_event.clear()
+        fd.parse_status_line("OK:LN:2,TC:IDLE,BUF:NEUTRAL,BP:0.15")
+        self.assertFalse(fd.klipper_sync_event.is_set())
+
+        # Discrete change: buffer state changes to tension
+        fd.klipper_sync_event.clear()
+        fd.parse_status_line("OK:LN:2,TC:IDLE,BUF:TENSION,BP:0.85")
+        self.assertTrue(fd.klipper_sync_event.is_set())
+
 
 if __name__ == "__main__":
     unittest.main()
