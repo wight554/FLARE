@@ -38,6 +38,7 @@ Durable design history and roadmap live in `.planning/`. Context windows finite 
 - Phased execution roadmap → `.planning/ROADMAP.md`
 - Session continuity & current focus → `.planning/STATE.md`
 - Synthesized specifications & constraints → `.planning/intel/`
+- Archived decision notes (OpenSpec design/proposal history) → `.planning/decisions/` [lookup]
 
 **Grilling & Alignment:**
 Before planning or executing non-trivial changes, use Mat Pocock-style interactive grilling (`/grill-me`, `gsd-discuss-phase`, `gsd-spec-phase`) to challenge assumptions, resolve edge cases, and align on contracts interactively before writing code.

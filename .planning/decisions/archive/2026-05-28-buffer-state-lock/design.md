@@ -1,0 +1,502 @@
+## Context
+
+The current tip-forming and unload-toolhead sequence relies on a single blind
+MMU retract issued from Klipper:
+
+```gcode
+RUN_SHELL_COMMAND CMD=flare PARAMS="MV:-{mmu_tip_retract}:{park_speed*60*0.2}:I"
+```
+
+Sized to ~117mm (`dist_sensor_to_extruder + dist_extruder_to_meltzone +
+dist_meltzone_to_nozzle_tip`), this asynchronously spans two extruder retracts
+that straddle an `M400`:
+
+1. `_FLARE_TIP_FORMING` final park: `G0 E-{park_distance}` ≈ 30mm at
+   `park_speed` = **140mm/s**.
+2. `_FLARE_UNLOAD_TOOLHEAD` gear clear: `G1 E-{gear_retract}` ≈ 43mm at
+   `speed_hub_to_extruder` = **50mm/s**.
+
+It works because `:I` lets the buffer swing fully COMPRESSION↔TENSION without
+faulting. It is closed-loop nowhere, hard-codes distances/feedrates in the
+macro, and is the last hand-tuned magic number in tip handling.
+
+A prior reactive replacement (`f19f41a sync: add retract assist mode`) was
+gutted (now a no-op shell at `firmware/src/sync.c:1283`) because it triggered
+at the **compression switch** — by then the buffer was already at the failure
+edge, and the soft sync ramp (`SYNC_RAMP_UP_SPS` = 273 sps/tick ≈ 33mm/s²)
+could not catch a 140mm/s extruder.
+
+Buffer geometry (from `tune.h`/`config.ini`):
+
+| | mm |
+|---|---|
+| `BUF_MAX_TRAVEL_MM` | 25 |
+| `BUF_SWITCH_SPAN_MM` (switch-to-switch, deadband edges) | 10 |
+| half-travel (neutral → one hard end) | 12.5 |
+| usable runway (deep tension hard end → deep compression hard end) | ≈ 20 |
+| `BUF_HYST_MS` (sensor settling) | 30 |
+| `SYNC_TICK_MS` | 20 |
+
+Detection latency from deep tension departure to MMU drive start is therefore
+≈ `BUF_HYST_MS + SYNC_TICK_MS` = ~50ms.
+
+## Goals / Non-Goals
+
+**Goals:**
+- Replace the blind, hard-coded Klipper retract with a closed-loop firmware
+  primitive that pre-charges the full buffer runway and rides the printer-side
+  retract without faulting.
+- Make the macro-side surface a simple arm/release call — no magic distances
+  or feedrates leaking into Klipper.
+- Cover **both** retracts (`_FLARE_TIP_FORMING` park, `_FLARE_UNLOAD_TOOLHEAD`
+  gear clear) with **two separate** prime → lock → catch cycles — each gets
+  a freshly emptied buffer rather than relying on one async cover.
+- Restore the gutted reactive infrastructure (instant slam SPS drive, no soft
+  PD ramp) as the catch engine, but trigger it from the *armed* edge (tension
+  switch departure) rather than the *failed* edge (compression switch reached).
+- Document the HW survival envelope so the catch is provably correct against
+  the configured `global_max_rate`, or known to require a slower park.
+
+**Non-Goals:**
+- Type-P analog buffer support. This change is type-D only. (Type-P sees
+  continuous position and dispenses with the runway/slam pattern entirely;
+  see the `psf-analog-rig` change.)
+- General closed-loop feed-forward of arbitrary extruder moves. `BL` is
+  scoped to scripted printer-side retract events the macro can pre-announce.
+- Estimator/drift/sigma rework. Lock and catch SHALL preserve those exactly
+  as `SYNC_RELIEF_PAUSE` does today.
+- Bumping `global_max_rate` itself. This change documents the envelope; the
+  actual ceiling change (if needed) is a tuning decision per HW.
+
+## Decisions
+
+### D1 — Command surface: `BL` (Buffer Lock)
+
+`BL:<state>` arms the active lane to drive the buffer to a specific extreme
+and hold there. `<state>` ∈ {`T` (tension), `C` (compression)}. Default is
+`T` if omitted, since the only current use case is "pre-empty before an
+extruder retract." Status reports include `BL:T`, `BL:C`, or `BL:0` for the
+disarmed state.
+
+`BS` (buffer stabilize, existing) remains the manual unlock/release. No new
+unlock command — keep the surface small.
+
+**Alternatives considered:** extending `MV` with a "drive-to-state-and-hold"
+mode (rejected: `MV` is a distance/feedrate primitive, semantics differ);
+keeping `RA:1` as the host surface (rejected: `RA` is the gutted "quiet
+gate" name and the new behavior must drive the motor — the slot is reused,
+but the host-facing command is renamed to `BL` and the `RA` token is
+removed outright since no caller uses it).
+
+### D2 — Half-max-travel bounded prime
+
+The prime move is **bounded to `BUF_MAX_TRAVEL_MM / 2`** (12.5mm) regardless
+of starting position. If the buffer crosses the target raw switch
+(`BUF_TENSION` / `BUF_COMPRESSION`) before reaching the bound, the lane stops
+immediately. If the bound is hit first, the lane stops anyway and emits a
+soft warning — likely the buffer is already pinned in the opposite direction
+or the sensor is wrong.
+
+**Why half-travel:** from any starting position the buffer is at most
+half-travel from either extreme; capping the prime move at half-travel
+guarantees it terminates either by hitting the target switch or by the
+bound, never by an infinite drive into a stuck mechanism.
+
+**Alternatives considered:** drive until switch with no distance cap
+(rejected: a stuck switch becomes an unbounded retract / grind); full
+max-travel cap (rejected: looser than necessary, easier to mask a real
+fault).
+
+### D3 — Lock = stepper holding torque, zero net feed
+
+The "lock" state energizes the MMU motor at the prime endpoint with zero
+commanded velocity. This holds the filament against buffer-spring force.
+Locked state is monitored on the buffer state machine: any departure from
+the target `BUF_*` raw state while locked is treated as a non-MMU external
+force = lock-break.
+
+**Alternatives considered:** active feedback to maintain the endstop
+(rejected: introduces a control loop and risk of oscillation against the
+spring, and we *want* the buffer to leave on external force — that's the
+follow-on trigger).
+
+### D4 — FOLLOW trigger = raw buffer departure from target
+
+The FOLLOW arm edge is the raw buffer state leaving the target side, not a
+debounced edge. The follow-on must start promptly so MMU motion begins
+concurrent with the extruder retract rather than lagging it.
+
+**Alternatives considered:** wait full `BUF_HYST_MS` (rejected: delays FOLLOW
+start by ~30ms, increasing the no-follow fill interval and tip ooze risk);
+host-driven trigger (rejected: round-trip latency worse than sensor).
+
+### D5 — Passive lock + follow-on concurrent retract (catch removed)
+
+**Catch was removed** after bench testing (tasks §10). The reactive catch
+solved a non-problem: long park unloads always drive the buffer to the
+COMPRESSION endstop regardless — that is accepted, not a failure, because
+the MMU is idle at that point and the buffer absorbs the extruder retract
+mechanically.
+
+The reactive catch added stall risk (motor commanded to retract against
+still-taut filament at lock-break, MMU idle) without preventing any real
+failure mode.
+
+**Current design — passive lock + optional follow-on:**
+
+- `BL_LOCKED`: motor energized at zero rate (holding torque). Buffer free to
+  migrate via external force (extruder retract). Only the watchdog releases
+  the lock from firmware; `BS` releases it from the host.
+- `BL_FOLLOW` (optional, armed via `BL:T:<mm>:<rate>`): on the first raw
+  departure from the armed extreme, the MMU runs concurrently in the prime
+  direction at `follow_rate_mmpm` (clamped to `sync_clamp_max_sps` loaded
+  ceiling). Mass-balance: buffer fill = (extruder_rate − mmu_rate) × T.
+  FOLLOW distance is auto-shortened by `BUF_MAX_TRAVEL_MM/2` so the FOLLOW
+  move parks near NEUTRAL rather than at the switch click.
+- Buffer hitting the COMPRESSION endstop during a long park retract is
+  **accepted** when BL:T follow-on is running; the follow-on drains enough
+  to prevent extruder TMC skip and tip ooze without reactive catching.
+
+**Asymmetric safety note (still applies):** armed at TENSION, FOLLOW drives
+toward COMPRESSION — the opposite extreme. Over-follow is mechanically
+bounded by the COMPRESSION hard-end stop and is recoverable. Under-follow
+(buffer doesn't drain enough) causes a tip bulge but no crash. No
+combination drives the motor against a taut filament at the lock-break
+instant, because BL_LOCKED holds zero motor rate until the first raw
+departure triggers FOLLOW.
+
+### D6 — Survival envelope (HW limitations)
+
+For arm-to-deep-tension with runway `R = 20mm` (deep tension hard end to
+deep compression hard end), constant extruder retract velocity `V_e`, move
+distance `D`, instant MMU slam to `V_m`, and detection latency `t_lat`:
+
+```
+excursion = V_e · t_lat + max(0, (V_e − V_m)) · (D / V_e − t_lat)
+required: excursion ≤ R
+ideal (t_lat → 0):  V_m ≥ V_e · (1 − R / D)
+realistic (t_lat = 50ms):  V_m ≥ (V_e · D − R · V_e + V_e² · t_lat) / (D − V_e · t_lat)
+```
+
+Applied to the two scripted retracts at `V_e` = 150mm/s, `R` = 20mm:
+
+| move | D | V_e | min V_m ideal | min V_m @ 50ms latency |
+|---|---|---|---|---|
+| park retract (30mm @ 150) | 30 | 150 | 50 mm/s (3000 mm/min) | 67 mm/s (4000 mm/min) |
+| gear retract (50mm @ 150) | 50 | 150 | 90 mm/s (5400 mm/min) | 106 mm/s (6360 mm/min) |
+
+At the current configured ceiling `global_max_rate = 4000 mm/min` (66 mm/s)
+the 30mm/150mm/s move is right at the margin and the 50mm/150mm/s move
+fails by a wide gap. **The 50mm gear retract at 150mm/s is the binding
+case.** The actual gear move runs at `speed_hub_to_extruder = 50mm/s` (well
+under ceiling), so today's geometry is comfortable; but the proposal's
+envelope must be sized against the *worst case* the macro might emit.
+
+**Tuning levers** (any one resolves the worst case):
+
+1. Bump `global_max_rate` to ≥ 6500 mm/min (≈110 mm/s) — covers both moves
+   at 150mm/s extruder. Requires hardware that can sustain it. Note the
+   runtime setter `SS:GLOBAL_MAX_RATE` is itself hard-clamped to
+   1000..5000 mm/min in `protocol.c:801`; lifting the catch ceiling above
+   83.3 mm/s requires raising that outer constant and reflashing.
+2. Bound the extruder-side retract feedrate to ≤ ~50 mm/s for the moves
+   guarded by `BL:T`. No HW change; macro responsibility.
+3. Cut `BUF_HYST_MS` for the locked-state edge specifically (D4) —
+   reclaims up to 4–5mm of runway at 140mm/s.
+
+**⚠️ Catch removed (§10):** The excursion budget analysis above applied to
+the reactive catch design. With catch removed, long retracts DO drive the
+buffer to the COMPRESSION endstop — this is accepted. The BL:T follow-on
+concurrent retract (§11) mass-balances the buffer fill so the extruder TMC
+does not skip and the tip does not ooze. Buffer endstop contact is mechanically
+benign (spring-loaded arm); the constraint is no extruder skip / tip bulge,
+not no endstop contact.
+
+**Follow-on ceiling source.** FOLLOW rate is parsed from `follow_rate_mmpm`
+and clamped via `sync_clamp_max_sps` (loaded ceiling = `SYNC_MAX_SPS`), the
+same ceiling used by PRIME. This is tighter than `motion_clamp_rate_sps`
+(global ceiling) because loaded FOLLOW stalls well below the free-motion top.
+Operators do not need to hand-tune `mmu_follow_rate` below the loaded ceiling;
+the clamp enforces the safe bound automatically.
+
+**Bench-validated operator envelope (rig data, NEMA17 + 50:17 gear).**
+
+Rig motor configuration the envelope was measured on:
+
+| motor param | rig value | gen_config default | notes |
+|---|---|---|---|
+| `microsteps` | 16 | 16 | unchanged |
+| `rotation_distance` | 22.6789511 | 23.0 | rig-calibrated |
+| `run_current` | **1.2 A** | 0.8 A | already at this motor's safe ceiling — no further bump |
+
+Performance envelope at that motor config:
+
+| param | bench-validated value |
+|---|---|
+| MMU practical top speed (no stall/beep) | **100 mm/s (6000 mm/min)** |
+| Stall onset (beep) | ~117 mm/s (~7000 mm/min) |
+| Effective lane accel (raw-slam capable) | **~3500 mm/s²** (= `ramp_step_rate` 1000 mm/min) |
+| Buffer runway (deep tension → deep compression) | 20 mm |
+| Lock-break detection latency (raw edge, no hyst) | ~20 ms (1 sync tick) |
+
+The motor beeps/stalls above ~7000 mm/min and the stall threshold drops
+when lane accel is pushed above ~3500 mm/s² (jerk increases the
+torque-vs-speed pressure). The operator's chosen sane limit is therefore
+**6000 mm/min / 3500 mm/s²** with one-tick headroom below stall.
+Current is already at the motor's safe ceiling — the "raise run current"
+lever from earlier tuning guidance is exhausted on this rig. Further
+headroom would require lower microsteps for the catch only, or chopper
+tuning, or different motor hardware.
+
+**Worst-case retract envelope: 40 mm at 150 mm/s.** Operator-declared
+upper bound for any extruder retract guarded by `BL:T`. With the bench
+envelope above and the design's required raw-edge lock-break (D4) plus
+instant slam (D5):
+
+```
+move time             = 40 / 150            = 0.267 s
+MMU accel-to-100      = 100 / 3500          = 0.029 s
+accel-gap distance    = V_e·t − 0.5·V_m·t   = 4.29 − 1.43 = 2.86 mm
+
+latency_fill (20 ms)  = 150 · 0.020         =  3.00 mm
+steady_fill           = (150 − 100) · (0.267 − 0.029 − 0.020)
+                      = 50 · 0.218          = 10.90 mm
+
+peak excursion        = 2.86 + 3.00 + 10.90 = 16.76 mm
+                                              vs 20 mm runway → 3.2 mm margin
+```
+
+Result: **fits with ~3 mm margin** at the raw-edge / instant-slam design.
+The same case at 50 ms latency (i.e. if hyst was waited on) collapses
+the margin to ~0.2 mm — the D4 raw edge is load-bearing, not stylistic.
+
+### D6a — Sync-flow impact of raising sync ramp accel (coefficient form)
+
+The `sync_ramp_accel` knob (rename of legacy `sync_ramp_up_rate`, see D9
+below) controls the closed-loop sync controller's velocity slew per tick.
+Adjacent sync-flow elements scale with the slew, with different physical
+relationships. Define the **bandwidth coefficient** `k` as the ratio
+between the active sync slew and the historic baseline at which sync
+gains were last tuned:
+
+```
+k = sync_ramp_accel_active / sync_ramp_accel_baseline
+    (baseline = ~33 mm/s², the legacy SYNC_RAMP_UP_SPS = 273 sps/tick)
+```
+
+So at the new 150 mm/s² default, `k ≈ 4.5`. Each adjacent knob's
+sensitivity scales by a different function of `k`:
+
+| sync element | scales with | suggested tune target | rationale |
+|---|---|---|---|
+| **PD loop kp** (`SYNC_KP_SPS`) | `k¹` (linear) | `sync_kp_rate × (1/k)` | Loop bandwidth = kp × slew. To keep effective bandwidth constant when slew rises by k, cut kp by k. Same damping margin against the buffer-spring resonance. |
+| **Reserve integral** (`SYNC_RESERVE_INTEGRAL_GAIN`) | `k⁰` (independent) | unchanged | Integral acts on accumulated steady-state error in seconds; faster slew leaves less error to integrate. Off by default; no first-order coupling to slew. |
+| **Zone bias** (`ZONE_BIAS_BASE/RAMP/MAX_SPS`) | `k^0.5` (sublinear) | `zone_bias_max × (1/√k)` | Bias accumulates over zone-dwell time. Faster sync drains the zone faster → less dwell → bias contributes less to settle. Square-root because dwell time only halves when slew quadruples (the target overshoot itself is much smaller). |
+| **Compression collapse mult** (`SYNC_COMPRESSION_COLLAPSE_RAMP_MULT`) | `k⁰` (preserved) | unchanged | Multiplier of `ramp_dn`; when base ramp_dn scales with `sync_ramp_decel`, the absolute collapse slew rises by `k`, but the *multiplier* shape is preserved. |
+| **Drift observer EWMA** (`buf_drift_*`) | event-based | unchanged (self-adapts) | Operates on per-transition residuals with a long EWMA tau (60s); slew changes shift transition timing, residuals re-converge. |
+| **`neutral_creep`** (cap fraction of est_sps) | `k⁰` (independent) | unchanged | Cap is a fraction of extruder rate, not of slew. |
+| **Timer logic** (fault_hold, tension_dwell, fast_brake) | `k⁰` (independent) | unchanged | All wall-clock based. |
+| **Estimator alpha / confidence** | `k⁰` (independent) | unchanged | Per-tick math; slew is downstream of the estimator. |
+
+**The kp scaling is the only first-order risk.** Everything else is
+either independent or scales sublinearly. The proposed rule of thumb:
+
+```
+sync_kp_rate_new = sync_kp_rate_old / k         (primary, mandatory)
+zone_bias_max_new = zone_bias_max_old / √k       (secondary, optional)
+```
+
+For the default raise (k = 4.5): `sync_kp_rate` should drop from the
+historic 900 mm/min to ~200 mm/min if loop ringing appears; `zone_bias`
+re-tune optional. Both stay as separate knobs — the firmware does not
+auto-scale on slew change because operators may have already re-tuned.
+
+**Bench acceptance for the raise:**
+1. Run a long sync soak (typical print, mixed flow). Watch for buffer
+   ringing around `BUF_NEUTRAL` (oscillation between SWITCH ON/OFF more
+   than once per second indicates instability).
+2. If oscillating: apply `sync_kp_rate ← sync_kp_rate / k` and re-run.
+3. If quiet but laggy (buffer drifts during accel transients): bump
+   `sync_ramp_accel` further (k increases), re-apply the kp scaling.
+4. Default 150 mm/s² ships as a balanced midpoint; bench-tune per rig.
+
+### D6b — Operator guardrails
+
+**Operator guardrails** that fall out of this envelope:
+- `BL`-guarded extruder retract MUST NOT exceed **150 mm/s**.
+- `BL`-guarded extruder retract distance MUST be **≥ ~30 mm** at full
+  speed; shorter moves enter the triangular-ramp regime where the MMU
+  never reaches `V_m` and the worked formula above does not apply
+  directly.
+- `ramp_step_rate` SHOULD be tuned per-rig but MUST allow the
+  motor to reach 100 mm/s without stalling. The default ships at
+  `1500` (~5000 mm/s²) for headroom on more capable motors; rigs that
+  stall at this default should drop to `1000` (~3500 mm/s²), the
+  rig-bench validated value.
+
+### D7 — State home: `SYNC_BUFFER_LOCK` (rename `SYNC_RETRACT_ASSIST`)
+
+The existing `SYNC_RETRACT_ASSIST` enum slot is the right home — it already
+exists in the lifecycle, has `RA` host-command wiring, and is currently a
+no-op shell. We rename it to `SYNC_BUFFER_LOCK` (or keep the symbol and
+redefine semantics; final naming TBD in implementation). The four phases
+(prime, locked, catch, settle) are internal sub-states of the lock state,
+not separate top-level lifecycle states — they share the gate's
+"learning paused, estimator preserved" contract.
+
+**Alternatives considered:** add `SYNC_BUFFER_LOCK` as a 6th lifecycle state
+(rejected: the existing slot is already this gate, just gutted; adding a
+new one duplicates protocol/status surface).
+
+### D8 — Klipper macro changes
+
+`_FLARE_TIP_FORMING` and `_FLARE_UNLOAD_TOOLHEAD` change as follows:
+
+- Remove `mmu_tip_retract` variable and the `RUN_SHELL_COMMAND CMD=flare
+  PARAMS="MV:-{mmu_tip_retract}:{park_speed*60*0.2}:I"` line.
+- At the very start of `_FLARE_TIP_FORMING`, before any extruder activity
+  (i.e. before the first `G0 E{pause_push_dist}`), emit a `BS` + `G4 P1000`
+  preamble. This stabilizes the buffer to a known good state and gives the
+  controller a clean baseline before the tip-forming sequence kicks off —
+  the lock primitive assumes a sane starting point, and a print that
+  finished mid-COMPRESSION is not one.
+- Before each gated extruder retract, emit `RUN_SHELL_COMMAND CMD=flare
+  PARAMS="BL:T"` immediately followed by a fixed settle pause `G4 P1000`
+  (~1 second). The pause ensures the half-travel prime has driven the
+  buffer to deep tension and the lock has energized before the printer
+  retract begins — without it, a fast `G0`/`G1` can fire during the prime
+  and the runway is not actually pre-charged.
+- The composite sequence is:
+  ```gcode
+  ; _FLARE_TIP_FORMING (replaces the blind MV:...:I)
+  RUN_SHELL_COMMAND CMD=flare PARAMS="BS"
+  G4 P1000
+  ; ... existing tip-forming push/cooldown/dip moves ...
+  RUN_SHELL_COMMAND CMD=flare PARAMS="BL:T"
+  G4 P1000
+  G0 E-{park_distance-dist_to_meltzone_now} F{park_speed*60}
+
+  ; _FLARE_UNLOAD_TOOLHEAD (around the existing gear clear)
+  RUN_SHELL_COMMAND CMD=flare PARAMS="BL:T"
+  G4 P1000
+  G1 E-{gear_retract} F{v.speed_hub_to_extruder*60}
+  ```
+- After each retract completes (`M400` for ordering), emit
+  `RUN_SHELL_COMMAND CMD=flare PARAMS="BS"` to release the lock cleanly,
+  or rely on lock-break auto-release once buffer settles (final TBD, see
+  Open Questions).
+
+The 1-second pause is a safe upper bound: the prime is capped at
+`BUF_MAX_TRAVEL_MM / 2` = 12.5mm at `BUF_STAB_SPS` ≈ 4092 sps ≈ 10mm/s,
+so the prime completes in ≤ ~1.25s in the worst case but usually
+much faster (buffer is rarely a full half-travel away from `BUF_TENSION`).
+If bench data shows the prime consistently completes faster, the pause
+can be tightened later; the value lives in the macro, not firmware.
+
+The macro retains no distance/feedrate constants for the MMU side.
+
+### D9 — Accel-unit rename: `global_max_accel` + `sync_ramp_accel/decel`
+
+Two named knobs in **mm/s²** replace the legacy mm/min ramp keys. The
+project is in active development; no aliasing is provided — the old
+keys are dropped outright:
+
+| concept | new name (mm/s²) | drives | default | replaces (removed) |
+|---|---|---|---|---|
+| Raw lane motion ceiling | `global_max_accel` | `RAMP_STEP_SPS` (lane ramp + cold-start velocity) | 3500 | `ramp_step_rate` (mm/min) |
+| Sync loop UP slew | `sync_ramp_accel` | `SYNC_RAMP_UP_SPS` (closed-loop bandwidth) | 150 | `sync_ramp_up_rate` (mm/min) |
+| Sync loop DN slew | `sync_ramp_decel` | `SYNC_RAMP_DN_SPS` (typically 2× accel for safety) | 300 | `sync_ramp_dn_rate` (mm/min) |
+
+Conversion at config-time:
+
+```
+step_sps_per_tick = accel_mm_s2 · tick_s / mm_per_step (lane-1 baseline)
+```
+
+Runtime `SS` setters (`GLOBAL_MAX_ACCEL`, `SYNC_RAMP_ACCEL`,
+`SYNC_RAMP_DECEL`) accept mm/s² input and apply the same conversion
+using `MM_PER_STEP[0]` plus the appropriate tick (`RAMP_TICK_MS` for
+lane, `SYNC_TICK_MS` for sync). Internal SPS-per-tick variables
+(`RAMP_STEP_SPS`, `SYNC_RAMP_UP_SPS`, `SYNC_RAMP_DN_SPS`) are unchanged;
+only the input surface and units are renamed.
+
+**Why mm/s² and not mm/min:** mm/s² is the universal acceleration unit
+used by Klipper (`max_accel`, `max_extrude_only_accel`), every
+non-Klipper firmware, and every physics formula in this document.
+mm/min for a slew-rate-per-tick was a unit collision with velocity rates
+and produced unintuitive numbers (273 sps/tick = "40 mm/min" but
+actually behaves as 33 mm/s²). Naming the knob in mm/s² lets operators
+reason about it the same way they reason about Klipper accel.
+
+**Why no alias:** the project is pre-release and host integrations
+(Klipper macros, scripts) are owned in-tree. Carrying mm/min aliases
+multiplies the surface area for no real backward-compat win.
+
+## Risks / Trade-offs
+
+- **HW envelope mismatch** → If the hardware cannot deliver the min `V_m`
+  in D6 for the worst declared extruder retract, the catch fails (compression
+  slam = grind). **Mitigation:** validate ceiling on rig before enabling
+  `BL` in the macro path; keep blind `MV:...:I` as a fallback macro branch
+  guarded by a flag for the first release.
+
+- **Motor stall on instant slam** → Bypassing `SYNC_RAMP_UP_SPS` means the
+  effective accel is motor-limited; TMC may lose steps if asked to jump
+  from 0 to >X sps too fast. **Mitigation:** characterize the motor's
+  practical accel ceiling on the rig; if needed, replace the
+  unconditional slam with a "stepped slam" (e.g., one-tick ramp at a much
+  larger step than `SYNC_RAMP_UP_SPS`).
+
+- **Prime move pushes filament backward through hub geometry** → The 12.5mm
+  half-travel cap could drag filament past hub/Y-split features. **Mitigation:**
+  the prime is a retract that the existing `MV` retract path already supports;
+  cap is conservative; emit a warning if the cap is hit (suggests sensor or
+  mechanical fault).
+
+- **Lock held indefinitely if extruder never moves** → A misordered macro could
+  arm and never trigger lock-break or `BS`. **Mitigation:** add a watchdog
+  timeout in the locked state (configurable, default 30s) that auto-releases
+  and emits `EV:BL:TIMEOUT`; do not silently fail.
+
+- **Interaction with `MV` fault guards** → The catch is, mechanically, an
+  MMU retract while the buffer transits through TENSION. The existing
+  `motion.c:436` guard `MMU-retract + TENSION = FAULT:MOVE_TENSION` would
+  fire. **Mitigation:** the catch runs as a sync-owned drive, not a `TASK_MOVE`,
+  and is exempt from the `MV` task's `move_ignore_buffer` flag check by
+  virtue of running on a different task path; the spec delta on `motion-safety`
+  must state this explicitly.
+
+- **Concurrent `BL` and active sync** → If `SYNC_ACTIVE` is running when `BL:T`
+  arrives, draining to tension during a print is dangerous. **Mitigation:**
+  `BL` is only accepted when sync is OFF or in the gate state; otherwise
+  reply `ER:BUSY`. Matches existing `BS` semantics.
+
+## Migration / Rollout Plan
+
+1. Land `BL` command + lifecycle + slam catch + spec deltas as one firmware
+   change. Keep the macro on the blind `MV:...:I` path.
+2. Add a Klipper-side feature flag (`variable_use_buffer_lock: 0` default).
+   Operators flip to `1` on benched HW only.
+3. Bench: measure MMU sustained top speed and instant-slam accel headroom.
+4. If HW clears D6 envelope, flip the macro to `BL`-based path; remove blind
+   `MV:...:I` and `mmu_tip_retract` once a release window confirms no
+   regressions.
+5. Archive the change.
+
+## Open Questions
+
+1. **Release semantics on extruder move completion.** Two options: (a)
+   explicit `BS` from the macro after `M400`; (b) firmware auto-detects
+   move end (e.g., buffer state stable for N ticks after catch) and releases
+   itself. (a) is more deterministic; (b) is more "natural" (matches the
+   proposal's framing). Pick during implementation.
+2. **Whether to allow `BL:C`** (compression-side arm). No current macro
+   uses it, but it's symmetric and may help future forward-extrusion catches.
+   Default: implement the protocol but only wire `BL:T` from Klipper for
+   now.
+3. **Locked-state watchdog timeout value.** 30s is a guess; size against
+   the longest realistic delay between `BL` and the gated extruder move.
+4. ~~Whether to keep the `RA` protocol symbol.~~ **Resolved:** removed.
+   `RA:1` / `RA:0` and the `RA` status field are deleted; `RA` was unused
+   by Klipper and any external host, so no alias is needed. The new
+   surface is `BL` only.

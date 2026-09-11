@@ -1,0 +1,30 @@
+## 1. Safe Defaults
+
+- [x] 1.1 Update `config.ini`, `config.ini.example`, and `scripts/gen_config.py` so fresh builds default to the hardware-tested safe sync envelope.
+  - 2026-05-18: Updated tracked defaults in `config.ini.example` and `scripts/gen_config.py`; updated ignored local `config.ini` for build/flash sanity.
+- [x] 1.2 Regenerate `firmware/include/tune.h` from `config.ini`.
+  - 2026-05-18: Ran `python3 scripts/gen_config.py`; generated ignored local `firmware/include/tune.h` with `SYNC_MAX_RATE=2200`, `SYNC_DN_RATE=80`, `SYNC_OVERSHOOT_PCT=150`, `SYNC_ADV_RAMP_MS=0`, `SYNC_OVERSHOOT_MID_EXT=1`.
+- [x] 1.3 Update `MANUAL.md` and `BEHAVIOR.md` default descriptions for the changed sync tunables.
+  - 2026-05-18: Documented the safe defaults and clarified that the advance estimator-bypass ramp is now disabled by default.
+
+## 2. MID Reserve Control
+
+- [x] 2.1 Add a MID-only stale-estimator anti-advance floor in `firmware/src/sync.c` after normal reserve target calculation and scaling.
+  - 2026-05-18: Added `sync_mid_anti_advance_floor_sps()` after target calculation/scaling. The floor is based on the learned baseline floor rather than the potentially collapsed estimator.
+- [x] 2.2 Gate the assist so it only applies in `SYNC_ACTIVE` / `BUF_MID` while the active lane is feeding without fault.
+  - 2026-05-18: Gated by sync state, buffer state, active lane feed task, lane fault state, reserve side, estimator staleness/confidence, and estimator-vs-floor check.
+- [x] 2.3 Confirm `BUF_TRAILING` keeps existing braking, collapse ramp, fast brake, and fault-hold behavior.
+  - 2026-05-18: The anti-advance floor returns 0 unless `s == BUF_MID`, and the existing trailing recovery, trailing wall critical, fast-brake, clamp, and trailing-floor branches remain unchanged.
+
+## 3. Validation
+
+- [x] 3.1 Run `python3 -m py_compile scripts/*.py`.
+  - 2026-05-18: Passed.
+  - 2026-05-18: Passed after MID anti-advance floor change.
+- [x] 3.2 Run `cmake --build build_local`.
+  - 2026-05-18: Passed.
+  - 2026-05-18: Passed after MID anti-advance floor change.
+- [x] 3.3 Run `openspec validate stabilize-sync-mid-reserve-control --strict`.
+  - 2026-05-18: Passed.
+  - 2026-05-18: Passed after MID anti-advance floor change.
+- [x] 3.4 SUPERSEDED by `relay-buffer-control-2switch` (relay wholesale-overrides this MID-reserve path in `BUF_SENSOR_TYPE==0`, so this hw verification is unreachable in relay mode). Analog re-verification reconciled by `audit-sync-polarity` (now archived).
