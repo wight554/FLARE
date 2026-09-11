@@ -8,9 +8,8 @@ Runs the full pre-commit validation sequence:
   4. host sync simulation    (build flare_sim, run the scenario suite)
   5. py_compile all scripts
   6. ruff lint
-  7. unittest discover
-  8. mock MMU status self-test
-  9. git diff --check
+  7. unittest discover       (every scripts/test_*.py, incl. functest_adapter-wrapped runners)
+  8. git diff --check
 """
 
 from __future__ import annotations
@@ -133,16 +132,9 @@ def main() -> None:
     _header("Python Unit Test Suite")
     _run("python3", "-m", "unittest", "discover", "-s", "scripts", "-p", "test_*.py")
 
-    # 8 — Mock MMU status self-test
-    _header("Mock MMU Status Self-Test")
-    _run("python3", "scripts/test_flare_mmu_status.py")
-
-    # 9 — Analyzer and Live Tuner self-tests
-    _header("Analyzer & Live Tuner Self-Tests")
-    _run("python3", "scripts/test_flare_analyze.py")
-    _run("python3", "scripts/test_flare_live_tuner.py")
-
-    # 10 — Diff hygiene
+    # 8 — Diff hygiene (the mock-MMU, analyzer and live-tuner suites are
+    # unittest-discoverable via functest_adapter and ran in step 7; no
+    # hard-coded per-script invocations — docs-test-overhaul D1)
     _header("Diff Hygiene")
     _run("git", "diff", "--check")
 

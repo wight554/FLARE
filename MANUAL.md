@@ -578,4 +578,4 @@ python3 scripts/flare_calibrate.py --interactive --port /dev/ttyACM0 --write-fir
 python3 scripts/flare_analyze.py --in run_data.csv --chart displacement_chart.svg
 ```
 
-Generates standalone SVG (or responsive HTML if `.html` extension used) mapping buffer displacement (mm) on X vs step-rate (mm/min) on Y, color-coded by zone (Tension, Neutral, Compression) with baseline rate overlay. No third-party graphing dependencies required.
+Generates standalone SVG (or responsive HTML if `.html` extension used) mapping buffer displacement (mm) on X vs step-rate (mm/min) on Y, color-coded by zone (Tension, Neutral, Compression) with baseline rate overlay. No third-party graphing dependencies required. Safe-mode rules still apply: with `--state` and zero LOCKED buckets the chart is drawn without the (pre-lock) baseline and the run exits 2, same as a refused `--out`.

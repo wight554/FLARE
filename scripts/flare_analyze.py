@@ -1265,9 +1265,16 @@ def run(args):
     }
     if getattr(args, "chart", None):
         pts = extract_chart_points(rows)
-        rec_base = recommendations.get("baseline_rate", (None,))[0]
+        # analyzer-rigor: safe mode with zero LOCKED buckets must refuse — the
+        # baseline is a pre-lock estimate, so the chart draws it only when
+        # emission would also be allowed.
+        chart_refused = zero_locked_state and args.mode == "safe" and not force
+        rec_base = None if chart_refused else recommendations.get("baseline_rate", (None,))[0]
         write_displacement_chart(args.chart, pts, baseline=rec_base)
         print(f"[*] Wrote displacement chart to {args.chart}")
+        if chart_refused and not getattr(args, "out", None):
+            print("refused: no LOCKED buckets in state file (chart drawn without baseline)", file=sys.stderr)
+            return 2
 
     if not getattr(args, "out", None):
         return 0

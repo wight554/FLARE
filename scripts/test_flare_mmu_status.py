@@ -22,6 +22,7 @@ import mmu  # noqa: E402
 sys.modules.setdefault("serial", types.SimpleNamespace())  # flare_daemon import guard
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import flare_daemon  # noqa: E402
+import functest_adapter  # noqa: E402
 
 
 class FakeReactor:
@@ -295,6 +296,9 @@ def run_tests():
 
     print(f"\n{_PASS} passed, {_FAIL} failed")
     sys.exit(1 if _FAIL else 0)
+
+RunnerTests = functest_adapter.testcase_from_callable(run_tests)  # unittest discover entry
+
 
 if __name__ == "__main__":
     run_tests()

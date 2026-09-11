@@ -12,8 +12,8 @@ from io import StringIO
 from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(__file__))
-
 import flare_live_tuner as tuner_mod
+import functest_adapter  # noqa: E402
 import gcode_marker
 
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
@@ -1373,6 +1373,9 @@ def main():
             return 1
         print(f"{name:<14} PASS {detail}")
     return 0
+
+
+FunctionTests = functest_adapter.testcase_from_module(globals())  # unittest discover entry
 
 
 if __name__ == "__main__":

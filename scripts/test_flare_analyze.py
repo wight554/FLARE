@@ -11,8 +11,8 @@ from io import StringIO
 from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(__file__))
-
 import flare_analyze as analyze
+import functest_adapter  # noqa: E402
 
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
 FIELD_CSV_FIXTURE = os.path.join(REPO_ROOT, "tests", "fixtures", "scatter_field_csv.csv")
@@ -235,6 +235,21 @@ def test_refuses_emit_when_zero_locked_in_safe_mode():
             text = fh.read()
         assert text.startswith("# REFUSED: no LOCKED buckets"), text
         assert "baseline_rate" in text and "1600 -> 1600" in text, text
+        assert "refused: no LOCKED buckets" in err.getvalue(), err.getvalue()
+        # analyzer-rigor: --chart without --out must not sidestep the refusal
+        chart = os.path.join(td, "chart.svg")
+        args_chart = SimpleNamespace(
+            inputs=[csv_path], out=None, chart=chart, mode="safe", state=state, config=config,
+            acceptance_gate=False, commit_watermark=False, keys=None, machine_id="test",
+            include_stale=False, force=False,
+        )
+        err = StringIO()
+        with redirect_stderr(err):
+            rc = analyze.run(args_chart)
+        assert rc == 2, rc
+        assert os.path.exists(chart)
+        with open(chart, encoding="utf-8") as fh:
+            assert "Baseline:" not in fh.read()
         assert "refused: no LOCKED buckets" in err.getvalue(), err.getvalue()
         return "safe mode refuses zero-LOCKED state and writes current-value patch"
 
@@ -1044,6 +1059,9 @@ def main():
             return 1
         print(f"{name:<12} PASS {detail}")
     return 0
+
+
+FunctionTests = functest_adapter.testcase_from_module(globals())  # unittest discover entry
 
 
 if __name__ == "__main__":

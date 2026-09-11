@@ -9,7 +9,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(__file__))
-
+import functest_adapter  # noqa: E402
 import gcode_marker
 
 REPO_ROOT = os.path.dirname(os.path.dirname(__file__))
@@ -187,6 +187,9 @@ def main():
             return 1
         print(f"{name:<14} PASS {detail}")
     return 0
+
+
+FunctionTests = functest_adapter.testcase_from_module(globals())  # unittest discover entry
 
 
 if __name__ == "__main__":

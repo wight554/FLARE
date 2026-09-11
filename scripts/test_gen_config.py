@@ -7,6 +7,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import functest_adapter  # noqa: E402
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GEN = os.path.join(REPO, "scripts", "gen_config.py")
 
@@ -135,6 +138,9 @@ def main():
     test_invalid_microsteps_exits_1()
     test_invalid_rotation_distance_exits_1()
     print("gen_config schedule tests PASS")
+
+
+FunctionTests = functest_adapter.testcase_from_module(globals())  # unittest discover entry
 
 
 if __name__ == "__main__":

@@ -3,6 +3,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import functest_adapter  # noqa: E402
+
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def test_replay_determinism():
@@ -33,6 +36,9 @@ OK: LN:0,BUF:NEUTRAL,EST:1550.0,BP:-4.0,RT:-3.0
     assert "Suggested baseline_sps: 1600" in out1
     assert "Suggested sync_compression_bias_frac: 0.400" in out1
     print("test_replay_determinism PASS")
+
+FunctionTests = functest_adapter.testcase_from_module(globals())  # unittest discover entry
+
 
 if __name__ == "__main__":
     test_replay_determinism()
