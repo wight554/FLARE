@@ -6,18 +6,21 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 8: Settings TLV / Delta Schema Migration
+**Current focus:** Phase 9: Daemon Security & Remote Command Hardening
 
 ## Current Position
 
-- **Phase**: 8 - Settings TLV / Delta Schema Migration (`.planning/phases/08-settings-tlv-migration/`)
-- **Active Feature in Progress**: Phase 8 - Plan 08-01
-- **Status**: Complete (Plan 08-01 complete and validated)
+- **Phase**: 9 - Daemon Security & Remote Command Hardening (`.planning/phases/09-daemon-security/`)
+- **Active Feature in Progress**: Phase 9 - Plan 09-01
+- **Status**: Complete (Plan 09-01 complete and validated)
 - **Progress**: [====================] 100% complete
 
 ## Accumulated Context
 
 ### Active Backlog Streams & Phases
+- `.planning/phases/09-daemon-security/`:
+  - `09-SPEC.md` (done): Bearer token authentication, loopback exemption, anti-spoofing peer resolution, token-bucket serial rate limiter, WebUI modal and CLI auto-discovery.
+  - `09-01-PLAN.md` (done): Daemon security enforcement, CLI remote integration, WebUI localStorage token handling, 13 security unit tests.
 - `.planning/phases/08-settings-tlv-migration/`:
   - `08-SPEC.md` (done): Packed Tag-Length-Value (TLV) flash encoding, 1024B buffer, v63 lazy migration, unknown tag pruning, bounds safety.
   - `08-01-PLAN.md` (done): Schema definitions, TLV serializer/deserializer, v63 fallback, parity test updates, host simulation tests.

@@ -207,18 +207,23 @@ echo; it does not change daemon behavior or MMU dashboard updates.
 
 The FLARE daemon runs an HTTP & SSE server on port `8088`. By default, it binds to loopback (`127.0.0.1`) with origin-restricted CORS headers for security.
 
-- **Loopback Default (`127.0.0.1`):** Restricts the API (including `/cmd`) to local processes on the host.
-- **LAN Access (`--host 0.0.0.0`):** To access the dashboard from other devices on your local network (e.g. tablet, phone, or remote PC), run the daemon with `--host 0.0.0.0` (or add `--host 0.0.0.0` to `ExecStart` in `flare_daemon.service`). Note that running on `0.0.0.0` exposes the unauthenticated `/cmd` endpoint to your local network.
+- **Loopback Default (`127.0.0.1`):** Restricts the API to local processes on the host. Loopback callers are fully exempt from authentication and rate limits with zero configuration overhead.
+- **LAN Access (`--host 0.0.0.0`):** To access the dashboard from other devices on your local network (e.g. tablet, phone, or remote PC), run the daemon with `--host 0.0.0.0` (or add `--host 0.0.0.0` to `ExecStart` in `flare_daemon.service`).
+  - **Authentication:** Remote mutating endpoints (`POST /cmd`, `POST /config`, `POST /gatemap`) require `Authorization: Bearer <token>`. When bound to non-loopback, a secure token is auto-generated into `~/.flare/auth.token` (mode `0600`) on startup if not already configured via `--auth-token` or the `FLARE_AUTH_TOKEN` environment variable.
+  - **Public Telemetry:** Remote read-only endpoints (`GET /status`, `GET /telemetry`, `GET /config`, `GET /gatemap`, and static UI assets) remain unauthenticated for seamless dashboard widgets.
+  - **Rate Limiting:** Remote `POST /cmd` requests are rate-limited via a per-client token bucket (10 req/s, burst 20). Requests exceeding capacity return HTTP 429 Too Many Requests to prevent serial ringbuffer starvation. Loopback callers are exempt.
+  - **Reverse Proxies:** Direct peer IP is evaluated by default. Pass `--trust-proxy` if `flare_daemon` is deployed behind a trusted local reverse proxy (Nginx / Moonraker) that manages `X-Forwarded-For`.
 - **CORS Policy:** By default, cross-origin requests are restricted to loopback and same-host origins. To allow external web interfaces (e.g. custom dashboards hosted on a separate machine or port), pass `--cors-origins <origin1,origin2>` or `--cors-origins "*"` to allow all.
+- **Remote CLI Execution:** `scripts/flare_cmd.py` supports `--api-host <HOST>` and `--auth-token <TOKEN>`. It automatically discovers `~/.flare/auth.token` if targeting a remote host without an explicit token argument.
 
 ### Endpoints:
-- `GET /` or `GET /index.html` - Returns the interactive HTML dashboard/status visualizer.
-- `GET /status` - Returns a JSON object with the current controller state.
-- `GET /telemetry` - Server-Sent Events (SSE) stream of real-time event logs.
-- `GET /config` - Returns JSON configuration.
-- `GET /gatemap` - Returns JSON representation of the gate mapping.
-- `POST /gatemap` - Update gate configuration details.
-- `POST /cmd` - Accepts a JSON payload containing a serial command to execute directly on the controller, e.g. `{"cmd": "LO:1"}`.
+- `GET /` or `GET /index.html` - Returns the interactive HTML dashboard/status visualizer (public).
+- `GET /status` - Returns a JSON object with the current controller state (public).
+- `GET /telemetry` - Server-Sent Events (SSE) stream of real-time event logs (public).
+- `GET /config` - Returns JSON configuration (public).
+- `GET /gatemap` - Returns JSON representation of the gate mapping (public).
+- `POST /gatemap` - Update gate configuration details (requires Bearer token if remote).
+- `POST /cmd` - Accepts a JSON payload containing a serial command to execute directly on the controller, e.g. `{"cmd": "LO:1"}` (requires Bearer token if remote; rate-limited).
 
 ---
 

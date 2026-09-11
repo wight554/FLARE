@@ -27,6 +27,7 @@ Exit codes: 0 = success, 1 = error or timeout.
 import argparse
 import glob
 import json
+import os
 import queue
 import sys
 import threading
@@ -244,10 +245,31 @@ def format_dump_value(key, value):
 # Daemon Proxy Integration
 # ---------------------------------------------------------------------------
 DAEMON_URL = "http://127.0.0.1:8088"
+DAEMON_AUTH_TOKEN = None
+
+
+def get_auth_token(cli_token=None):
+    if cli_token:
+        return cli_token
+    env_token = os.environ.get("FLARE_AUTH_TOKEN")
+    if env_token:
+        return env_token
+    token_path = os.path.expanduser("~/.flare/auth.token")
+    if os.path.exists(token_path):
+        try:
+            with open(token_path, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except Exception:
+            pass
+    return None
+
 
 def get_daemon_status():
     try:
-        req = urllib.request.Request(f"{DAEMON_URL}/status")
+        headers = {}
+        if DAEMON_AUTH_TOKEN:
+            headers["Authorization"] = f"Bearer {DAEMON_AUTH_TOKEN}"
+        req = urllib.request.Request(f"{DAEMON_URL}/status", headers=headers)
         with urllib.request.urlopen(req, timeout=0.1) as response:
             if response.status == 200:
                 return json.loads(response.read().decode('utf-8'))
@@ -255,26 +277,38 @@ def get_daemon_status():
         pass
     return None
 
+
 def send_daemon_cmd(cmd_str, timeout=10.0):
     try:
         data = json.dumps({"cmd": cmd_str}).encode('utf-8')
+        headers = {"Content-Type": "application/json"}
+        if DAEMON_AUTH_TOKEN:
+            headers["Authorization"] = f"Bearer {DAEMON_AUTH_TOKEN}"
         req = urllib.request.Request(
             f"{DAEMON_URL}/cmd",
             data=data,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=timeout + 2.0) as response:
             if response.status == 200:
                 res = json.loads(response.read().decode('utf-8'))
                 return res.get("response")
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            print("flare_cmd error: 401 Unauthorized from daemon (pass --auth-token or configure ~/.flare/auth.token)", file=sys.stderr)
+        elif e.code == 429:
+            print("flare_cmd error: 429 Too Many Requests (daemon rate limit exceeded)", file=sys.stderr)
     except Exception:
         pass
     return None
 
 def sse_listener_thread(event_q, stop_event):
     try:
-        req = urllib.request.Request(f"{DAEMON_URL}/telemetry")
+        headers = {}
+        if DAEMON_AUTH_TOKEN:
+            headers["Authorization"] = f"Bearer {DAEMON_AUTH_TOKEN}"
+        req = urllib.request.Request(f"{DAEMON_URL}/telemetry", headers=headers)
         with urllib.request.urlopen(req, timeout=5.0) as response:
             while not stop_event.is_set():
                 line = response.readline()
@@ -654,13 +688,18 @@ def main():
                         help='With --dump: print terse key: value lines without comments')
     parser.add_argument('--poll',    type=int, metavar='MS',
                         help='Repeatedly poll status (?:) at specified interval in ms')
+    parser.add_argument('--api-host', default=os.environ.get('FLARE_API_HOST', '127.0.0.1'),
+                        help='Daemon HTTP API host (default: 127.0.0.1 or FLARE_API_HOST)')
     parser.add_argument('--api-port', type=int, default=8088,
                         help='Daemon HTTP API port (default: 8088)')
+    parser.add_argument('--auth-token',
+                        help='Daemon HTTP API Bearer authentication token')
     parser.add_argument('cmd', nargs='*', help='FLARE command(s) to send')
     args = parser.parse_args()
 
-    global DAEMON_URL
-    DAEMON_URL = f"http://127.0.0.1:{args.api_port}"
+    global DAEMON_URL, DAEMON_AUTH_TOKEN
+    DAEMON_AUTH_TOKEN = get_auth_token(args.auth_token)
+    DAEMON_URL = f"http://{args.api_host}:{args.api_port}"
 
     daemon_online = (args.port is None) and (get_daemon_status() is not None)
 

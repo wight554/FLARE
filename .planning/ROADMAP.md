@@ -14,6 +14,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 - [x] **Phase 6: Advanced Toolchange & RELOAD Automation** - Mechanical cutter sequencing, spool failover, and filament bypass mode
 - [x] **Phase 7: Flash Ping-Pong Atomic Persistence** - Dual A/B ping-pong sectors with sequence arbitration and brownout recovery
 - [x] **Phase 8: Settings TLV / Delta Schema Migration** - Non-destructive schema evolution via packed Tag-Length-Value encoding with v63 lazy migration
+- [x] **Phase 9: Daemon Security & Remote Command Hardening** - Bearer token authentication, loopback exemption, per-client token-bucket rate limiting on serial commands, and WebUI/CLI token integration
 
 ## Phase Details
 
@@ -106,6 +107,18 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   5. Parity tests enforce full enum tag coverage across defaults, load, and save
 **Plans**: 1 plan complete (08-01)
 
+### Phase 9: Daemon Security & Remote Command Hardening
+**Goal**: Secure remote daemon interfaces against unauthenticated actuation and serial buffer flooding without breaking local Klipper shell helpers or web dashboards
+**Depends on**: Nothing (Host tooling)
+**Requirements**: REQ-daemon-security
+**Success Criteria** (what must be TRUE):
+  1. Loopback callers (127.0.0.1/::1) execute all endpoints and commands unauthenticated with zero friction
+  2. Remote callers require `Authorization: Bearer <token>` for mutating POST endpoints (`/cmd`, `/config`, `/gatemap`), returning 401 when missing/invalid
+  3. Remote telemetry reads (`GET /status`, `GET /telemetry`, static UI) remain open and unauthenticated for dashboards
+  4. Per-client token-bucket rate limiter throttles remote `POST /cmd` bursts to prevent USB serial ringbuffer starvation, returning HTTP 429
+  5. WebUI and `flare_cmd.py` integrate seamlessly with Bearer token authentication and auto-discovery
+**Plans**: 1 plan in progress (09-01)
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -118,3 +131,4 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 6. Advanced Toolchange & RELOAD Automation | 1/1 | Complete | 2026-09-11 |
 | 7. Flash Ping-Pong Atomic Persistence | 1/1 | Complete | 2026-09-11 |
 | 8. Settings TLV / Delta Schema Migration | 1/1 | Complete | 2026-09-11 |
+| 9. Daemon Security & Remote Command Hardening | 1/1 | Complete | 2026-09-11 |

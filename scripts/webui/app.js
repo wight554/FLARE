@@ -330,10 +330,22 @@ function saveSpoolEdit(i) {
     if (spoolRaw !== '') body.spool_id = parseInt(spoolRaw, 10);
     fetch('/gatemap', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body),
     })
-        .then((r) => (r.ok ? r.json() : null))
+        .then(async (r) => {
+            if (r.status === 401) {
+                const token = promptForApiToken('Authentication required to save gate configuration.');
+                if (token) {
+                    return fetch('/gatemap', {
+                        method: 'POST',
+                        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+                        body: JSON.stringify(body),
+                    }).then(res => (res.ok ? res.json() : null));
+                }
+            }
+            return r.ok ? r.json() : null;
+        })
         .then((d) => { if (d && d.gates) { gateMap = d; renderSpoolCards(); } })
         .catch(() => closeSpoolEdit(i));
 }
@@ -458,32 +470,81 @@ function moveFilament(dir) {
     sendCustomCommand(`MV:${mm}:${feedMmMin}`);
 }
 
+// Authentication Token Helpers
+function getStoredApiToken() {
+    return localStorage.getItem('flare_api_token') || '';
+}
+
+function setStoredApiToken(token) {
+    if (token && token.trim()) {
+        localStorage.setItem('flare_api_token', token.trim());
+    } else {
+        localStorage.removeItem('flare_api_token');
+    }
+}
+
+function getAuthHeaders(headers = {}) {
+    const token = getStoredApiToken();
+    const h = Object.assign({}, headers);
+    if (token) {
+        h['Authorization'] = `Bearer ${token}`;
+    }
+    return h;
+}
+
+function promptForApiToken(reason) {
+    const existing = getStoredApiToken();
+    const msg = reason ? `${reason}\nEnter FLARE Daemon API Bearer Token:` : 'Enter FLARE Daemon API Bearer Token:';
+    const input = prompt(msg, existing);
+    if (input !== null) {
+        setStoredApiToken(input);
+        return input.trim();
+    }
+    return null;
+}
+
 // REST Command execution helper
 function sendCustomCommand(cmdString) {
     const feedback = document.getElementById('cmd-feedback');
     feedback.className = 'cmd-feedback';
     feedback.textContent = `Executing: ${cmdString}...`;
-    
+
     fetch('/cmd', {
         method: 'POST',
-        headers: {
+        headers: getAuthHeaders({
             'Content-Type': 'application/json',
-        },
+        }),
         body: JSON.stringify({ cmd: cmdString }),
     })
-    .then(response => {
+    .then(async response => {
+        if (response.status === 401) {
+            const token = promptForApiToken('Authentication required for remote command execution.');
+            if (token) {
+                return fetch('/cmd', {
+                    method: 'POST',
+                    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({ cmd: cmdString }),
+                }).then(r => {
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    return r.json();
+                });
+            }
+            throw new Error('HTTP 401 Unauthorized');
+        } else if (response.status === 429) {
+            throw new Error('HTTP 429 Rate limit exceeded - wait before sending commands');
+        }
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
         return response.json();
     })
     .then(data => {
-        if (data.response) {
+        if (data && data.response) {
             const isError = data.response.startsWith('ER:');
             feedback.className = `cmd-feedback ${isError ? 'error' : 'success'}`;
             feedback.textContent = data.response;
             addLogEntry('Command', `${cmdString} → ${data.response}`, isError ? 'event' : 'info');
-        } else if (data.error) {
+        } else if (data && data.error) {
             feedback.className = 'cmd-feedback error';
             feedback.textContent = `Error: ${data.error}`;
         }

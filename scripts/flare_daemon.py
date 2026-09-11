@@ -12,10 +12,12 @@ Exposes:
 
 import argparse
 import glob
+import hmac
 import json
 import math
 import os
 import queue
+import secrets
 import sqlite3
 import sys
 import threading
@@ -776,6 +778,140 @@ def is_cors_origin_allowed(origin: str, request_host: str = None) -> bool:
     return False
 
 
+# ---------------------------------------------------------------------------
+# Remote Authentication & Rate Limiting
+# ---------------------------------------------------------------------------
+AUTH_TOKEN = None
+AUTH_REQUIRED = False
+TRUST_PROXY = False
+
+RATE_LIMIT_BUCKETS = {}
+RATE_LIMIT_LOCK = threading.Lock()
+RATE_LIMIT_BURST = 20.0
+RATE_LIMIT_RATE = 10.0  # requests per second replenishment
+
+
+class TokenBucket:
+    """Thread-safe per-client token bucket rate limiter."""
+
+    def __init__(self, rate: float = 10.0, capacity: float = 20.0):
+        self.rate = float(rate)
+        self.capacity = float(capacity)
+        self.tokens = float(capacity)
+        self.last_update = time.monotonic()
+        self.lock = threading.Lock()
+
+    def consume(self, cost: float = 1.0) -> bool:
+        with self.lock:
+            now = time.monotonic()
+            elapsed = max(0.0, now - self.last_update)
+            self.last_update = now
+            self.tokens = min(self.capacity, self.tokens + elapsed * self.rate)
+            if self.tokens >= cost:
+                self.tokens -= cost
+                return True
+            return False
+
+
+def is_loopback(ip: str) -> bool:
+    """Check if an IP string corresponds to loopback (127.0.0.1, ::1, localhost)."""
+    if not ip:
+        return False
+    ip_clean = ip.strip().lower()
+    if ip_clean in ("127.0.0.1", "::1", "localhost", "::ffff:127.0.0.1"):
+        return True
+    if ip_clean.startswith("127."):
+        return True
+    return False
+
+
+def get_client_ip(handler: BaseHTTPRequestHandler) -> str:
+    """Resolve client IP, honoring X-Forwarded-For only when TRUST_PROXY is enabled."""
+    if TRUST_PROXY:
+        forwarded = handler.headers.get("X-Forwarded-For")
+        if forwarded:
+            parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+            if parts:
+                return parts[0]
+    if handler.client_address and len(handler.client_address) > 0:
+        return str(handler.client_address[0])
+    return "127.0.0.1"
+
+
+def check_rate_limit(ip: str) -> bool:
+    """Check rate limit for client IP. Returns True if permitted, False if throttled."""
+    if is_loopback(ip):
+        return True
+    now = time.monotonic()
+    with RATE_LIMIT_LOCK:
+        if len(RATE_LIMIT_BUCKETS) > 500:
+            stale = [k for k, b in RATE_LIMIT_BUCKETS.items() if (now - b.last_update) > 120.0]
+            for k in stale:
+                del RATE_LIMIT_BUCKETS[k]
+        bucket = RATE_LIMIT_BUCKETS.get(ip)
+        if bucket is None:
+            bucket = TokenBucket(rate=RATE_LIMIT_RATE, capacity=RATE_LIMIT_BURST)
+            RATE_LIMIT_BUCKETS[ip] = bucket
+        return bucket.consume()
+
+
+def get_default_token_path() -> str:
+    return os.path.expanduser("~/.flare/auth.token")
+
+
+def init_auth_token(host: str, cli_token: str = None) -> str:
+    """
+    Initialize auth token based on CLI argument, environment, or ~/.flare/auth.token.
+    If bound to non-loopback and no token configured, auto-generates 32-char hex token.
+    """
+    global AUTH_TOKEN, AUTH_REQUIRED
+    is_local_only = is_loopback(host)
+
+    token = cli_token or os.environ.get("FLARE_AUTH_TOKEN")
+    token_path = get_default_token_path()
+    if not token and os.path.exists(token_path):
+        try:
+            with open(token_path, "r", encoding="utf-8") as f:
+                token = f.read().strip()
+        except Exception as e:
+            print(f"flare_daemon warning: failed reading {token_path}: {e}", file=sys.stderr)
+
+    if not is_local_only:
+        AUTH_REQUIRED = True
+        if not token:
+            token = secrets.token_hex(16)
+            try:
+                os.makedirs(os.path.dirname(token_path), mode=0o700, exist_ok=True)
+                fd = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                with open(fd, "w", encoding="utf-8") as f:
+                    f.write(token + "\n")
+                print(f"flare_daemon: auto-generated remote auth token in {token_path}")
+            except Exception as e:
+                print(f"flare_daemon warning: failed saving auth token to {token_path}: {e}", file=sys.stderr)
+    else:
+        AUTH_REQUIRED = False
+
+    AUTH_TOKEN = token
+    return AUTH_TOKEN
+
+
+def is_request_authenticated(handler: BaseHTTPRequestHandler) -> bool:
+    """Check whether caller is permitted to mutate state."""
+    client_ip = get_client_ip(handler)
+    if is_loopback(client_ip):
+        return True
+    if not AUTH_REQUIRED:
+        return True
+    if not AUTH_TOKEN:
+        return False
+
+    auth_hdr = handler.headers.get("Authorization", "")
+    if auth_hdr.startswith("Bearer "):
+        bearer_token = auth_hdr[7:].strip()
+        return hmac.compare_digest(bearer_token, AUTH_TOKEN)
+    return False
+
+
 class FlareHTTPHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # Suppress spammy log dumps for telemetry requests
@@ -886,9 +1022,31 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             self.send_error(403, "CORS origin forbidden")
             return
 
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+        except (ValueError, TypeError):
+            content_length = 0
+        post_data = self.rfile.read(content_length) if content_length > 0 else b""
+
+        client_ip = get_client_ip(self)
+        if not is_request_authenticated(self):
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("WWW-Authenticate", 'Bearer realm="FLARE Daemon"')
+            self.send_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "unauthorized", "message": "Valid Bearer token required for remote mutations"}).encode("utf-8"))
+            return
+
         if self.path == "/cmd":
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
+            if not check_rate_limit(client_ip):
+                self.send_response(429)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Retry-After", "1")
+                self.send_cors_headers()
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": "rate_limit_exceeded", "message": "Command rate limit exceeded"}).encode("utf-8"))
+                return
 
             try:
                 body = json.loads(post_data.decode("utf-8"))
@@ -918,8 +1076,6 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"response": response}).encode("utf-8"))
 
         elif self.path == "/gatemap":
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
             try:
                 body = json.loads(post_data.decode("utf-8"))
                 gate = int(body.get("gate"))
@@ -937,8 +1093,6 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(resp).encode("utf-8"))
 
         elif self.path == "/config":
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
             try:
                 body = json.loads(post_data.decode("utf-8"))
             except Exception:
@@ -971,7 +1125,7 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_cors_headers()
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
 
     def serve_static_file(self, filename, content_type):
@@ -1517,15 +1671,24 @@ def main():
     parser.add_argument("--no-klipper", action="store_true", help="Bypass Moonraker/Klipper telemetry synchronization")
     parser.add_argument("--moonraker-url", default="http://localhost:7125", help="Moonraker base URL (default: http://localhost:7125)")
     parser.add_argument("--spoolman-url", default="http://localhost:7912", help="Spoolman base URL for direct API fallback (default: http://localhost:7912)")
+    parser.add_argument("--auth-token", help="Bearer authentication token for remote mutating endpoints (auto-generated if omitted on non-loopback)")
+    parser.add_argument("--trust-proxy", action="store_true", help="Trust X-Forwarded-For header when behind reverse proxy (default: evaluate direct peer IP only)")
     args = parser.parse_args()
 
-    global MOONRAKER_URL, SPOOLMAN_URL, CORS_ALLOW_ALL, ALLOWED_CORS_ORIGINS
+    global MOONRAKER_URL, SPOOLMAN_URL, CORS_ALLOW_ALL, ALLOWED_CORS_ORIGINS, TRUST_PROXY
     MOONRAKER_URL = args.moonraker_url
     SPOOLMAN_URL = args.spoolman_url
+    TRUST_PROXY = args.trust_proxy
     if args.cors_origins == "*":
         CORS_ALLOW_ALL = True
     elif args.cors_origins:
         ALLOWED_CORS_ORIGINS = {o.strip().lower() for o in args.cors_origins.split(",") if o.strip()}
+
+    init_auth_token(args.host, args.auth_token)
+    if AUTH_REQUIRED and AUTH_TOKEN:
+        print("flare_daemon: remote access authentication enabled (Bearer token enforced for /cmd, /config, /gatemap)")
+    elif not AUTH_REQUIRED:
+        print("flare_daemon: loopback-only mode; authentication enforcement disabled")
 
     # 1. Resolve preferred serial port candidate
     port_name = serial_utils.find_port(args.port)
@@ -1558,8 +1721,8 @@ def main():
         syncer_t.start()
 
     # 4. Start HTTP & SSE proxy web server
-    if args.host not in ("127.0.0.1", "localhost") and not args.host.startswith("127."):
-        print("NOTE: HTTP server bound to a non-loopback interface - API (incl. /cmd) is reachable from the LAN, unauthenticated. Pass --host 127.0.0.1 to restrict to loopback.", file=sys.stderr)
+    if not is_loopback(args.host) and not AUTH_TOKEN:
+        print("WARNING: HTTP server bound to non-loopback without active auth token!", file=sys.stderr)
     try:
         server = ThreadedHTTPServer((args.host, args.api_port), FlareHTTPHandler)
         print(f"flare_daemon: HTTP and SSE server running on http://{args.host}:{args.api_port}")
