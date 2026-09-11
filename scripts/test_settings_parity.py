@@ -1,29 +1,30 @@
 #!/usr/bin/env python3
-"""Persistence round-trip parity guard for firmware/src/settings_store.c.
+"""Persistence round-trip parity guard for firmware/src/settings_store.c and settings_store.h.
 
-Enforces the persistence-contract invariant: a settings_t field written by
-settings_save() must be read back by settings_load(), and every global loaded
-from flash must also be seeded by settings_defaults(). Catches "write-only"
-fields (saved, never loaded — e.g. the BUF_VARIANCE_BLEND_* bug) and
-"loaded-never-defaulted" globals, without needing a field->global name map:
-it compares the assignment LHS globals of load() against defaults() directly.
+Enforces persistence invariants:
+1. TLV Tag Parity: Every enum tag in settings_tag_t must be serialized in settings_save()
+   and deserialized in settings_load_tlv_tag().
+2. Default Initialization Parity: Every persistent global loaded from flash must be
+   seeded in settings_defaults().
+3. Legacy v63 Parity: Every frozen field in settings_t_v63 must be read in settings_load_v63().
 """
 import os
 import re
 import unittest
 
-SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                   "..", "firmware", "src", "settings_store.c")
+ROOT = os.path.dirname(os.path.abspath(__file__))
+HDR = os.path.join(ROOT, "..", "firmware", "include", "settings_store.h")
+SRC = os.path.join(ROOT, "..", "firmware", "src", "settings_store.c")
 
-SKIP_FIELDS = {"magic", "version", "crc32", "seq"}
-
-# Assignment LHS: bare identifier (optional [..] subscript) followed by a single
-# '=' (not '==' / '!=' / '<=' / '>='). Rejects if/for/while and comparisons.
-ASSIGN = re.compile(r"\s*([A-Za-z_]\w*)\s*(?:\[[^\]]*\])?\s*=(?!=)")
+SKIP_FIELDS_V63 = {"magic", "version", "crc32", "seq"}
+SKIP_GLOBALS = {"g_active_sector", "g_seq"}
 
 
 def func_body(text, name):
     m = re.search(r"\bvoid\s+" + name + r"\s*\([^)]*\)\s*\{", text)
+    if not m:
+        # Also match static functions with non-void return types
+        m = re.search(r"\b" + name + r"\s*\([^)]*\)\s*\{", text)
     if not m:
         raise ValueError(f"parity: cannot locate {name}()")
     i, depth = m.end(), 1
@@ -33,77 +34,92 @@ def func_body(text, name):
     return text[m.end():i - 1]
 
 
-def struct_fields(text):
-    m = re.search(r"typedef struct \{(.*?)\}\s*settings_t;", text, re.S)
+def enum_tags(text):
+    m = re.search(r"typedef enum \{(.*?)\}\s*settings_tag_t;", text, re.S)
     if not m:
-        raise ValueError("parity: cannot locate settings_t")
+        raise ValueError("parity: cannot locate settings_tag_t")
+    tags = re.findall(r"\b(TAG_[A-Z0-9_]+)\b", m.group(1))
+    return set(tags)
+
+
+def struct_fields_v63(text):
+    m = re.search(r"typedef struct \{(.*?)\}\s*settings_t_v63;", text, re.S)
+    if not m:
+        raise ValueError("parity: cannot locate settings_t_v63")
     fields = []
     for line in m.group(1).splitlines():
         line = line.split("//")[0].strip()
         if not line.endswith(";"):
             continue
-        parts = line[:-1].split(None, 1)        # [type, "a, b[N], *c"]
+        parts = line[:-1].split(None, 1)
         if len(parts) < 2:
             continue
         for nm in parts[1].split(","):
             nm = nm.strip().lstrip("*").split("[")[0].strip()
-            if re.fullmatch(r"[a-z_]\w*", nm) and nm not in SKIP_FIELDS:
+            if re.fullmatch(r"[a-z_]\w*", nm) and nm not in SKIP_FIELDS_V63:
                 fields.append(nm)
     return set(fields)
 
 
-def assigned_globals(body, require_sref=False):
-    out = set()
-    for line in body.splitlines():
-        code = line.split("//")[0]
-        if require_sref and "s->" not in code:
-            continue
-        m = ASSIGN.match(code)
-        if m:
-            out.add(m.group(1))
-    return out
-
-
 def strip_comments(text):
-    # Remove single-line comments
     text = re.sub(r"//.*", "", text)
-    # Remove multi-line comments
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
     return text
 
 
+def extract_globals(body):
+    assigned = set(re.findall(r"\b(g_[a-zA-Z0-9_]+)\s*(?:\[[^\]]*\])?\s*=", body))
+    memcpy_targets = set(re.findall(r"memcpy\s*\(\s*(?:&)?(g_[a-zA-Z0-9_]+)", body))
+    return assigned | memcpy_targets
+
+
 class TestSettingsParity(unittest.TestCase):
     def test_settings_parity(self):
+        with open(HDR, encoding="utf-8") as f:
+            hdr_text = f.read()
         with open(SRC, encoding="utf-8") as f:
-            text = f.read()
-        fields = struct_fields(text)
-        save_b = func_body(text, "settings_save")
+            src_text = f.read()
 
-        load_funcs = re.findall(r"\b(settings_load\w*)\s*\([^)]*\)\s*\{", text)
-        self.assertTrue(load_funcs, "Could not find any settings_load functions")
-        load_b = "\n".join(func_body(text, name) for name in sorted(set(load_funcs)))
+        tags = enum_tags(hdr_text)
+        self.assertTrue(tags, "No tags found in settings_tag_t")
 
-        defs_funcs = re.findall(r"\b(settings_defaults\w*)\s*\([^)]*\)\s*\{", text)
-        self.assertTrue(defs_funcs, "Could not find any settings_defaults functions")
-        defs_b = "\n".join(func_body(text, name) for name in sorted(set(defs_funcs)))
+        save_b = strip_comments(func_body(src_text, "settings_save"))
+        load_tlv_b = strip_comments(func_body(src_text, "settings_load_tlv_tag"))
 
-        save_clean = strip_comments(save_b)
-        load_clean = strip_comments(load_b)
-
-        saved = {f for f in fields if re.search(r"s\." + f + r"\b", save_clean)}
-        loaded = {f for f in fields if re.search(r"s->" + f + r"\b", load_clean)}
-        load_globals = assigned_globals(load_clean, require_sref=True)
-        def_globals = assigned_globals(strip_comments(defs_b))
+        saved_tags = {t for t in tags if re.search(r"\b" + t + r"\b", save_b)}
+        loaded_tags = {t for t in tags if re.search(r"\b" + t + r"\b", load_tlv_b)}
 
         errors = []
-        write_only = sorted(saved - loaded)
-        if write_only:
-            errors.append("saved but never loaded (write-only flash field): "
-                          + ", ".join(write_only))
+        unsaved_tags = sorted(tags - saved_tags)
+        if unsaved_tags:
+            errors.append(f"tags in settings_tag_t but never serialized in settings_save(): {', '.join(unsaved_tags)}")
+
+        unloaded_tags = sorted(tags - loaded_tags)
+        if unloaded_tags:
+            errors.append(f"tags in settings_tag_t but not handled in settings_load_tlv_tag(): {', '.join(unloaded_tags)}")
+
+        defs_funcs = re.findall(r"\b(settings_defaults\w*)\s*\([^)]*\)\s*\{", src_text)
+        self.assertTrue(defs_funcs, "Could not find settings_defaults functions")
+        defs_b = "\n".join(func_body(src_text, name) for name in sorted(set(defs_funcs)))
+
+        load_funcs = re.findall(r"\b(settings_load\w*)\s*\([^)]*\)\s*\{", src_text)
+        self.assertTrue(load_funcs, "Could not find settings_load functions")
+        load_b = "\n".join(func_body(src_text, name) for name in sorted(set(load_funcs)))
+
+        def_globals = extract_globals(strip_comments(defs_b))
+        load_globals = extract_globals(strip_comments(load_b)) - SKIP_GLOBALS
+
         loaded_not_defaulted = sorted(load_globals - def_globals)
         if loaded_not_defaulted:
-            errors.append("loaded from flash but not seeded in settings_defaults(): "
-                          + ", ".join(loaded_not_defaulted))
+            errors.append(f"loaded from flash but not seeded in settings_defaults(): {', '.join(loaded_not_defaulted)}")
+
+        # Legacy v63 struct check
+        v63_fields = struct_fields_v63(src_text)
+        load_v63_b = strip_comments(func_body(src_text, "settings_load_v63"))
+        loaded_v63 = {f for f in v63_fields if re.search(r"s->" + f + r"\b", load_v63_b)}
+        v63_unloaded = sorted(v63_fields - loaded_v63)
+        if v63_unloaded:
+            errors.append(f"v63 fields not loaded in settings_load_v63(): {', '.join(v63_unloaded)}")
 
         if errors:
             self.fail("FAIL settings parity:\n" + "\n".join(f"  - {e}" for e in errors))

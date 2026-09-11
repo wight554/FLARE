@@ -108,14 +108,14 @@ Persistent tunables follow this path:
 2. Add default and generated `CONF_*` macro in `scripts/gen_config.py`.
 3. Regenerate `firmware/include/tune.h` with `python3 scripts/gen_config.py`.
 4. Add/update owning runtime variable in appropriate module (`main.c`, `motion.c`, `sync.c`, `toolchange.c`, or another owner; shared externs in `controller_shared.h`).
-5. Add field to `settings_t` in `firmware/src/settings_store.c` if value must persist.
-6. Wire defaults/save/load/reset in `settings_store.c`.
+5. Add tag to `settings_tag_t` in `firmware/include/settings_store.h` if value must persist.
+6. Wire defaults in `settings_store.c`, serialization in `settings_save()`, deserialization in `settings_load_tlv_tag()`, and clamping in `settings_apply_clamps()`.
 7. If value affects hardware registers, update TMC apply path in `settings_store.c`.
 8. Add `SET:` / `GET:` handling in `firmware/src/protocol.c`.
 9. Update relevant docs (`MANUAL.md`, `BEHAVIOR.md`, `README.md`, etc.).
-10. Bump `SETTINGS_VERSION` in `firmware/src/settings_store.c` when `settings_t` layout changes.
+10. Additive tunables do NOT require wiping flash or bumping `SETTINGS_VERSION`: packed TLV schema auto-initializes new fields to compiled defaults while retaining operator calibration. Bump `SETTINGS_VERSION` only if the underlying wire format itself changes.
 
-Current `SETTINGS_VERSION`: `63` in `firmware/src/settings_store.c`.
+Current `SETTINGS_VERSION`: `64` in `firmware/include/settings_store.h` (packed TLV with legacy v63 backward compatibility).
 
 ---
 
@@ -137,10 +137,10 @@ Current `SETTINGS_VERSION`: `63` in `firmware/src/settings_store.c`.
 - Toolchange phases like `TC_LOAD_WAIT_TH` or `TC_UNLOAD_WAIT_OUT` observe underlying lane task, react when it stops.
 - Old names `TC_LOAD_MS` / `TC_UNLOAD_MS` = legacy protocol aliases, not real time-based limits.
 
-### 4. Persistence is activity-gated & dual ping-pong
+### 4. Persistence is activity-gated, dual ping-pong & packed TLV
 
 - `SV:`, `LD:`, `RS:` rejected with `ER:PERSIST_BUSY` while motion, toolchange, cutter activity, or boot stabilization active.
-- Dual 4 KB sectors (Sector A at `0x1FE000`, Sector B at `0x1FF000`) alternate saves atomically. Monotonic sequence counter and CRC32 verification guarantee zero calibration loss during unexpected power loss/brownout.
+- Dual 4 KB sectors (Sector A at `0x1FE000`, Sector B at `0x1FF000`) alternate saves atomically using 1024B buffer. Monotonic sequence counter and CRC32 verification guarantee zero calibration loss during unexpected power loss/brownout. Packed TLV format skips unknown tags safely and lazily migrates legacy v63 flat sectors on save.
 
 ### 5. Speed conversion helpers are shared
 

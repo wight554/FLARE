@@ -13,6 +13,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 - [x] **Phase 5: Automated Calibration & Live Tuning** - Deterministic sensor calibration routines and live serial tuning CLI
 - [x] **Phase 6: Advanced Toolchange & RELOAD Automation** - Mechanical cutter sequencing, spool failover, and filament bypass mode
 - [x] **Phase 7: Flash Ping-Pong Atomic Persistence** - Dual A/B ping-pong sectors with sequence arbitration and brownout recovery
+- [x] **Phase 8: Settings TLV / Delta Schema Migration** - Non-destructive schema evolution via packed Tag-Length-Value encoding with v63 lazy migration
 
 ## Phase Details
 
@@ -93,6 +94,18 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   4. Write readback verification prevents active sector pointer flip on flash programming failure
 **Plans**: 1 plan complete (07-01)
 
+### Phase 8: Settings TLV / Delta Schema Migration
+**Goal**: Non-destructive schema evolution for RP2040 NOR flash persistence to prevent operator calibration wipes on firmware upgrades
+**Depends on**: Phase 7
+**Requirements**: REQ-persistence-contract
+**Success Criteria** (what must be TRUE):
+  1. Packed Tag-Length-Value (TLV) flash encoding with 1024B buffer fits current and future tunables
+  2. Legacy v63 flat struct detected and migrated lazily into globals without overwriting flash
+  3. Unknown tags skipped safely without parser bounds overflows or crashes
+  4. Global CRC32 and sequence arbitration maintain ping-pong atomicity
+  5. Parity tests enforce full enum tag coverage across defaults, load, and save
+**Plans**: 1 plan complete (08-01)
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -104,3 +117,4 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 5. Automated Calibration & Live Tuning | 1/1 | Complete | 2026-09-11 |
 | 6. Advanced Toolchange & RELOAD Automation | 1/1 | Complete | 2026-09-11 |
 | 7. Flash Ping-Pong Atomic Persistence | 1/1 | Complete | 2026-09-11 |
+| 8. Settings TLV / Delta Schema Migration | 1/1 | Complete | 2026-09-11 |

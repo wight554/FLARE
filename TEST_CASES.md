@@ -156,15 +156,16 @@ Make sure settings layout and persistence behavior stay internally consistent.
 
 #### Steps
 
-1. Review the diff in `firmware/src/settings_store.c`.
-2. If `settings_t` changed, confirm `SETTINGS_VERSION` was bumped.
+1. Review the diff in `firmware/src/settings_store.c` and `firmware/include/settings_store.h`.
+2. If persisted fields changed, confirm corresponding tag was added to `settings_tag_t` in `firmware/include/settings_store.h`.
 3. If a tunable was added or removed, confirm the full path is present:
   `config.ini.example` -> `scripts/gen_config.py` -> owning runtime variable -> `settings_store.c` -> `protocol.c` -> docs.
 4. If persistence commands or busy guards changed, confirm `SV:`, `LD:`, and `RS:` semantics still match `MANUAL.md`.
 
 #### Expected Result
 
-- `SETTINGS_VERSION` changes whenever persisted layout changes.
+- `settings_tag_t` covers all persistent tunables without collision; additive tunables evolve non-destructively without wiping calibration.
+- `scripts/test_settings_parity.py` and `tests/host/test_persistence` pass 100%.
 - No new runtime tunable exists only in one layer.
 - Persistence behavior stays aligned with the documented protocol.
 

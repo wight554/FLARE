@@ -121,8 +121,10 @@ There is no database in the conventional sense. Two persistence stores:
   guaranteeing zero calibration loss during brownout.
 - Row count analogue: 1 record active (ping-pong across 2 sectors).
 
-**Migration approach:** `SETTINGS_VERSION` is `63` (`settings_store.c`).
-A version mismatch causes the loader to discard the stored blob and reset to defaults.
+**Migration approach:** `SETTINGS_VERSION` is `64` (`settings_store.h`).
+Settings evolve non-destructively via a packed Tag-Length-Value (TLV) stream.
+Unknown tags are skipped gracefully on load and pruned on re-save. Legacy v63 flat
+sectors are lazily migrated on the first post-boot save without wiping operator calibration.
 Dual ping-pong sectors ensure write-interruption safety across unexpected reboots.
 
 **B. Daemon SQLite.** `scripts/flare_daemon.py:121-166`. File at `<data dir>/flare.db`.

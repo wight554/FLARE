@@ -6,18 +6,21 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 7: Flash Ping-Pong Atomic Persistence
+**Current focus:** Phase 8: Settings TLV / Delta Schema Migration
 
 ## Current Position
 
-- **Phase**: 7 - Flash Ping-Pong Atomic Persistence (`.planning/phases/07-flash-pingpong-atomic-persistence/`)
-- **Active Feature in Progress**: Phase 7 - Plan 07-01
-- **Status**: Complete (Plan 07-01 complete and validated)
+- **Phase**: 8 - Settings TLV / Delta Schema Migration (`.planning/phases/08-settings-tlv-migration/`)
+- **Active Feature in Progress**: Phase 8 - Plan 08-01
+- **Status**: Complete (Plan 08-01 complete and validated)
 - **Progress**: [====================] 100% complete
 
 ## Accumulated Context
 
 ### Active Backlog Streams & Phases
+- `.planning/phases/08-settings-tlv-migration/`:
+  - `08-SPEC.md` (done): Packed Tag-Length-Value (TLV) flash encoding, 1024B buffer, v63 lazy migration, unknown tag pruning, bounds safety.
+  - `08-01-PLAN.md` (done): Schema definitions, TLV serializer/deserializer, v63 fallback, parity test updates, host simulation tests.
 - `.planning/phases/07-flash-pingpong-atomic-persistence/`:
   - `07-SPEC.md` (done): Dual 4 KB ping-pong sectors (0x1FE000 and 0x1FF000), monotonic sequence number `seq`, SETTINGS_VERSION 63, signed sequence arbitration, and CRC32 verification.
   - `07-01-PLAN.md` (done): Firmware save/load implementation, readback CRC verification, host unit test suite (`test_persistence.c`), and parity/regression integration.
