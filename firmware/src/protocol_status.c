@@ -45,7 +45,7 @@ void cmd_handle_status_dump(void) {
         "LN:%d,TC:%s,L1T:%s,L2T:%s,"
         "I1:%d,O1:%d,I2:%d,O2:%d,"
         "TH:%d,YS:%d,BUF:%s,MM:%.1f,BF:%.1f,BP:%.2f,SM:%d,BL:%s,ST:%d,TPR:%d,CU:%d,RELOAD:%d,UC:%d,"
-        "BST:%d,"
+        "BST:%d,BY:%d,"
         "EST:%.1f,RE:%.2f,AV:%.2f,SC:%.1f",
         g_active_lane, tc_state_name(g_tc_ctx.state), task_name(g_lane_l1.task),
         task_name(g_lane_l2.task), lane_in_present(&g_lane_l1) ? 1 : 0,
@@ -55,6 +55,7 @@ void cmd_handle_status_dump(void) {
         (double)sps_to_mm_per_min(active_flow_param.baseline_sps), (double)g_buf_pos,
         sync_enabled ? 1 : 0, sync_buffer_lock_arm_str(), (int)g_sync_state, g_auto_preload ? 1 : 0,
         g_enable_cutter ? 1 : 0, g_reload_mode, g_unload_cut ? 1 : 0, g_buf_sensor_type,
+        g_bypass ? 1 : 0,
         (double)sps_to_mm_per_min((int)g_extruder_est_sps), (double)sync_reserve_error_mm(),
         (double)g_buf.arm_vel_mm_s, (double)sps_to_mm_per_min_idx(g_tmc_stealthchop_sps[idx], idx));
 

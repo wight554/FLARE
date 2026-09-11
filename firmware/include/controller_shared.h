@@ -243,6 +243,7 @@ extern int g_unload_tension_block_ms;
 extern uint32_t g_flash_erase_count;
 extern int g_tc_timeout_th_ms;
 extern int g_tc_timeout_y_ms;
+extern bool g_bypass;
 extern int g_tc_ts_retries;
 extern float g_tc_ts_retry_retract_mm;
 extern float g_tc_ts_park_mm;

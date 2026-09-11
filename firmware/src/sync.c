@@ -2022,7 +2022,7 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
 
 void sync_tick(uint32_t now_ms) {
     lane_t *lane = lane_ptr(g_active_lane);
-    if (!lane || tc_state() != TC_IDLE || g_boot_stabilizing)
+    if (g_bypass || !lane || tc_state() != TC_IDLE || g_boot_stabilizing)
         return;
 
     if (sync_tick_gated_checks(lane, now_ms))

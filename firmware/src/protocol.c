@@ -678,6 +678,8 @@ static bool cmd_get_reload_cutter_params(const char *param, int idx, char *out, 
         snprintf(out, out_len, "AUTO_MODE:%d", g_auto_mode);
     else if (!strcmp(param, "RELOAD_MODE"))
         snprintf(out, out_len, "RELOAD_MODE:%d", g_reload_mode);
+    else if (!strcmp(param, "BYPASS"))
+        snprintf(out, out_len, "BYPASS:%d", g_bypass ? 1 : 0);
     else if (!strcmp(param, "RUNOUT_COOLDOWN_MS"))
         snprintf(out, out_len, "RUNOUT_COOLDOWN_MS:%d", g_runout_cooldown_ms);
 #ifdef FLARE_DEV_TUNING
@@ -858,7 +860,13 @@ static bool cmd_set_reload_motion_params(const char *base_param, int iv, float f
         g_auto_mode = clamp_i(iv, 0, 1);
     else if (!strcmp(base_param, "RELOAD_MODE"))
         g_reload_mode = (iv != 0) ? 1 : 0;
-    else if (!strcmp(base_param, "RUNOUT_COOLDOWN_MS"))
+    else if (!strcmp(base_param, "BYPASS")) {
+        g_bypass = (iv != 0);
+        if (g_bypass) {
+            sync_disable(false);
+            stop_all();
+        }
+    } else if (!strcmp(base_param, "RUNOUT_COOLDOWN_MS"))
         g_runout_cooldown_ms = clamp_i(iv, 0, LONG_TIMEOUT_MAX_MS);
 #ifdef FLARE_DEV_TUNING
     else if (!strcmp(base_param, "POST_PRINT_STAB_MS"))
@@ -1733,7 +1741,7 @@ static bool cmd_handle_bl_command(const char *p, uint32_t now_ms) {
 }
 
 static bool cmd_handle_sensor_status(const char *cmd, const char *p, uint32_t now_ms) {
-    if (!strcmp(cmd, "ST")) {
+    if (!strcmp(cmd, "ST") || !strcmp(cmd, "STOP") || !strcmp(cmd, "PA")) {
         tc_abort();
         cutter_abort();
         manual_unload_reset();
@@ -1908,9 +1916,22 @@ static bool cmd_handle_system(const char *cmd, const char *p, uint32_t now_ms) {
     return false;
 }
 
+static bool is_motion_cmd(const char *cmd) {
+    return !strcmp(cmd, "FL") || !strcmp(cmd, "LO") || !strcmp(cmd, "MV") ||
+           !strcmp(cmd, "TC") || !strcmp(cmd, "RL") || !strcmp(cmd, "UL") ||
+           !strcmp(cmd, "UM") || !strcmp(cmd, "FD") || !strcmp(cmd, "RV") ||
+           !strcmp(cmd, "BL") || !strcmp(cmd, "BS") || !strcmp(cmd, "CU") ||
+           !strcmp(cmd, "CX");
+}
+
 static void cmd_execute(const char *cmd, const char *p, uint32_t now_ms) {
-    if (manual_unload_active() && strcmp(cmd, "ST") != 0 && strcmp(cmd, "?") != 0 &&
-        strcmp(cmd, "GET") != 0) {
+    if (g_bypass && is_motion_cmd(cmd)) {
+        cmd_reply("ER", "BYPASS_ACTIVE");
+        return;
+    }
+
+    if (manual_unload_active() && strcmp(cmd, "ST") != 0 && strcmp(cmd, "STOP") != 0 &&
+        strcmp(cmd, "PA") != 0 && strcmp(cmd, "?") != 0 && strcmp(cmd, "GET") != 0) {
         cmd_reply("ER", "BUSY:UNLOAD");
         return;
     }

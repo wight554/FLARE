@@ -143,6 +143,8 @@ void tc_abort(void) {
 }
 
 void reload_trigger(int runout_lane, uint32_t now_ms) {
+    if (g_bypass)
+        return;
     memset(&g_tc_ctx, 0, sizeof(g_tc_ctx));
     int other = (runout_lane == 1) ? 2 : 1;
     lane_t *other_lane_ptr = lane_ptr(other);

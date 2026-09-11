@@ -154,6 +154,7 @@ int g_unload_tension_block_ms = CONF_UNLOAD_TENSION_BLOCK_MS;
 uint32_t g_flash_erase_count = 0;
 int g_tc_timeout_th_ms = FLARE_INT_TC_TIMEOUT_TH_MS;
 int g_tc_timeout_y_ms = FLARE_INT_TC_TIMEOUT_Y_MS;
+bool g_bypass = false;
 int g_tc_ts_retries = CONF_TC_TS_RETRIES;
 float g_tc_ts_retry_retract_mm = CONF_TC_TS_RETRY_RETRACT_MM;
 float g_tc_ts_park_mm = CONF_TC_TS_PARK_MM;
@@ -383,7 +384,7 @@ int other_lane(int lane) {
 }
 
 static void autopreload_tick(uint32_t now_ms) {
-    if (!g_auto_mode && !g_auto_preload) {
+    if (g_bypass || (!g_auto_mode && !g_auto_preload)) {
         g_prev_lane1_in_present = lane_in_present(&g_lane_l1);
         g_prev_lane2_in_present = lane_in_present(&g_lane_l2);
         return;
