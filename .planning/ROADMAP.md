@@ -193,7 +193,9 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   3. `MMU_TEST_CONFIG`, `MMU_LED`, `MMU_GRIP`/`MMU_RELEASE`/`MMU_SERVO`, `MMU_PRINT_START`/`MMU_PRINT_END` and the `*_VARS` dialogs register as ack/no-op so panel dialogs don't error
   4. `action` reports HH strings (`Cutting Filament`, `Preload`, `Loading`, `Unloading`, …) derived from existing `EV:` events
   5. A `test_status_fields_exist_before_ready`-style unit test asserts the full status schema before the daemon connects
-**Plans**: TBD
+**Plans**: 2 plans
+  - **Wave 1**: 14-01-PLAN.md — FlowGuard tracer + daemon-mirrored keys (`sync_drive`/`is_paused`/`reason_for_pause`/`sync_feedback_flow_rate`) + static missing keys + `clog_detection_enabled` rename; registers the six phase REQ IDs
+  - **Wave 2** *(blocked on Wave 1)*: 14-02-PLAN.md — 9 command stubs, expanded action-string vocabulary, `mmu_machine.happy_hare_version`, full schema-presence test, `validate_regression.py`/AGENTS.md/KLIPPER.md docs
 
 ### Phase 15: Daemon Moonraker Lane Data & Maintenance Counters
 **Goal**: Extend `flare_daemon.py` with the two Happy-Hare Moonraker-side features FLARE lacks — slicer lane discovery and consumable maintenance tracking
@@ -234,6 +236,6 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 11. Firmware Forensics & Main Loop Jitter | 1/1 | Complete | 2026-09-11 |
 | 12. Post-Phase 2–10 Regression Fixes | 1/1 | Complete (HW pending) | 2026-09-11 |
 | 13. Type-P Sync Relief & Fault Trip | 0/? | Not planned | - |
-| 14. Klipper MMU Status Parity | 0/? | Not planned | - |
+| 14. Klipper MMU Status Parity | 0/2 | Planned | - |
 | 15. Daemon Moonraker Lane Data & Maintenance Counters | 0/? | Not planned | - |
 | 16. TMC Tension Current Boost | 0/? | Not planned | - |

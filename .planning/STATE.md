@@ -11,7 +11,7 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 ## Current Position
 
 - **Phase**: 12 - Post-Phase 2–10 Regression Fixes (`.planning/phases/12-post-phase-2-10-regression-fixes/`)
-- **Active Feature in Progress**: none — Phase 12 Plan 12-01 complete; HW validation pending. Next: `gsd-plan-phase 14` (host-only, no rig) or `13` after the real-print baseline capture
+- **Active Feature in Progress**: Phase 14 planned (2 plans, 2 waves, checker passed 2026-09-12) — ready to execute: `gsd-execute-phase 14`. Phase 12 HW validation still pending; Phase 13 waits on the real-print baseline capture
 - **Status**: Complete (software); `HW:` items in 12-SPEC.md unchecked
 - **Progress**: [====================] 100% complete
 

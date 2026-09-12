@@ -543,22 +543,25 @@ self.gcode.register_command('MMU_SOFTWARE_VARS', self.cmd_MMU_NOOP, desc="FLARE:
 | A7 | `_FLARE_SYNC_TOOLHEAD` macro exists for `MMU_PRINT_START`/`MMU_PRINT_END` stub delegation | Command stub gap list | If the macro doesn't exist, wiring the stub to it would error; planner must grep `klipper/flare_mmu.cfg` before implementing, fall back to bare no-op if absent |
 | A8 | `max_clog`/`max_tangle` reset policy (lifetime high-water mark vs. per-print-job reset) | FlowGuard dict proposal | If reset policy diverges from user expectation, the meter could show a stale "worst-ever" value that never clears, or clear too eagerly and hide a real trend |
 
-## Open Questions
+## Open Questions (RESOLVED — orchestrator decisions 2026-09-12, recorded in 14-01/14-02-PLAN.md)
 
 1. **Exact `EV:`/`tc_state` -> HH action-string mapping for `"Preload"`, `"Homing"`, `"Checking"`, `"Selecting"`**
    - What we know: HH's full 14-value vocabulary (verified above) and FLARE's `TC:*`/`RELOAD:*`/`EV:` event catalog (verified above).
    - What's unclear: Which FLARE `lane*_task`/`tc_state` values correspond to `"Preload"` vs the existing `PRELOAD` event's semantics already used for `AUTO_LOAD`; whether `"Homing"`/`"Selecting"`/`"Checking"` have any FLARE equivalent at all (FLARE is a `VirtualSelector`, no physical homing/selecting step).
    - Recommendation: Grep `task_name(` in `firmware/src/toolchange.c`/`firmware/src/motion.c` before finalizing the map; consider shipping only the well-grounded subset (`Loading`, `Unloading`, `Idle`, `Cutting Filament`, `Preload`) for Phase 14 and deferring the rest.
+   - **RESOLVED:** executor derives the map from `task_name()` + the `EV:` catalogue; ship the grounded subset; any HH action with no FLARE analogue maps to `Idle` (14-02-PLAN.md Task 2).
 
 2. **`is_paused`/`reason_for_pause` semantics**
    - What we know: `cmd_MMU_PAUSE` dispatches `STOP` but tracks no pause attribute; `last_error` already exists.
    - What's unclear: Whether Fluidd/Mainsail's pause-UI actually needs a real `is_paused` toggle for Phase 14's stated success criteria, or whether a permanently-`False` stub is sufficient to stop dialogs from erroring (the phase brief only requires the *key to exist with correct type*, not necessarily correct semantics).
    - Recommendation: Confirm with `/gsd-discuss-phase` whether "exists with correct type" (minimum bar, static `False`/`''`) or "reflects real pause state" (requires new state tracking) is the actual bar for success criterion #2.
+   - **RESOLVED:** minimum bar — derive `is_paused`/`reason_for_pause` from daemon-known `SYNC_FAULT_HOLD` state already in `status_cache`; no new firmware state (14-01-PLAN.md Task 2).
 
 3. **`mmu_machine.happy_hare_version` exact string**
    - What we know: HH v4 = `"4.0.0"`; borrow-scan recommends "a v3 string" without specifying which.
    - What's unclear: Which Fluidd/Mainsail `develop` code paths, if any, actually branch on this value today (untraced by either research session).
    - Recommendation: A quick targeted grep (`happy_hare_version` in Fluidd/Mainsail `mixins/mmu.ts`) before committing to a specific string, or ship without the key changed and monitor for UI regressions via `checkpoint:human-verify`.
+   - **RESOLVED:** executor verifies against Fluidd/Mainsail `develop` version-branch logic first; if unverifiable, emit HH `ef8431c`'s version string (`4.0.0`) and note it in the summary (14-02-PLAN.md Task 2).
 
 ## Sources
 
