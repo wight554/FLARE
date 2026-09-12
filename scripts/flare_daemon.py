@@ -1495,7 +1495,8 @@ def klipper_syncer(moonraker_url):
         keys = [
             "board_online", "active_lane", "tc_state",
             "buf_state", "in1", "out1", "in2", "out2",
-            "toolhead", "y_split", "reload_mode", "enable_cutter", "unload_cut"
+            "toolhead", "y_split", "reload_mode", "enable_cutter", "unload_cut",
+            "tension_dwell_ms", "compression_dwell_ms"
         ]
 
         changed = False
