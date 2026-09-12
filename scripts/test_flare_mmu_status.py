@@ -507,7 +507,7 @@ def run_tests():
           isinstance(hh_version, str) and len(hh_version) > 0, hh_version)
 
     print("status schema keys present — fresh mock, never SET_MMU'd (test_status_fields_exist_before_ready analogue)")
-    EXPECTED_STATUS_KEYS = frozenset({
+    expected_status_keys = frozenset({
         "enabled", "is_homed", "num_gates", "active_gate", "gate", "tool", "bypass",
         "gate_status", "gate_sensor", "gate_color", "gate_material", "gate_spool_id",
         "gate_color_rgb", "gate_name", "gate_filament_name", "ttg_map", "tool_color",
@@ -534,9 +534,9 @@ def run_tests():
     })
     m, p = new_mock()  # fresh mock, no cmd_SET_MMU call — status right after __init__
     fresh_status = m.get_status(0)
-    missing_keys = sorted(EXPECTED_STATUS_KEYS - set(fresh_status.keys()))
+    missing_keys = sorted(expected_status_keys - set(fresh_status.keys()))
     check("status schema keys present on a never-SET_MMU'd fresh mock",
-          EXPECTED_STATUS_KEYS <= set(fresh_status.keys()), missing_keys)
+          expected_status_keys <= set(fresh_status.keys()), missing_keys)
 
     print(f"\n{_PASS} passed, {_FAIL} failed")
     sys.exit(1 if _FAIL else 0)
