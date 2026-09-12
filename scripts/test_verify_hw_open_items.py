@@ -17,6 +17,32 @@ def ev(t, evt_type, data=""):
     return {"time": t, "type": evt_type, "data": data}
 
 
+class FindEventTests(unittest.TestCase):
+    """Regression coverage for the #9 cutter-abort false-FAIL found on real
+    hardware: the daemon splits "EV:CUT:ERROR:ABORTED" into type="CUT:ERROR",
+    data="ABORTED" — a caller matching the full dotted string as one type
+    never finds it, even though the firmware behaved correctly."""
+
+    def test_type_plus_data_split_like_the_daemon_does(self):
+        events = [ev(5.0, "CUT:ERROR", data="ABORTED")]
+        self.assertIsNone(v.find_event(events, "CUT:ERROR:ABORTED", 0.0))
+        hit = v.find_event(events, "CUT:ERROR", 0.0, data_contains="ABORTED")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit["data"], "ABORTED")
+
+    def test_data_contains_rejects_wrong_reason(self):
+        events = [ev(5.0, "CUT:ERROR", data="FEED_TIMEOUT")]
+        self.assertIsNone(v.find_event(events, "CUT:ERROR", 0.0, data_contains="ABORTED"))
+
+    def test_none_data_contains_matches_type_only(self):
+        events = [ev(5.0, "CUT:ERROR", data="ANYTHING")]
+        self.assertIsNotNone(v.find_event(events, "CUT:ERROR", 0.0))
+
+    def test_respects_since_ts(self):
+        events = [ev(1.0, "CUT:ERROR", data="ABORTED")]
+        self.assertIsNone(v.find_event(events, "CUT:ERROR", 5.0, data_contains="ABORTED"))
+
+
 class SingleOccurrenceTests(unittest.TestCase):
     def test_pending_when_absent(self):
         verdict, _ = v.classify_single_occurrence([], "BL:TIMEOUT", 0.0, burst_window_s=30)

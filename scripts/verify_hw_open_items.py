@@ -278,7 +278,7 @@ FIRE_ITEMS = {
     "9-cutter-abort": dict(
         phase="12", desc="STOP mid-cut -> cutter aborts cleanly (EV:CUT:ERROR:ABORTED)",
         precondition="Active lane has filament loaded (lane_in_present); other lane's OUT sensor clear.",
-        pre_cmd="CU", cmd="STOP", expect_event="CUT:ERROR:ABORTED",
+        pre_cmd="CU", cmd="STOP", expect_event="CUT:ERROR", expect_event_data="ABORTED",
     ),
 }
 
@@ -316,16 +316,29 @@ def run_fire_bl_bare_vs_args(args):
     return 0 if verdict1 == "pass" and verdict2 == "pass" else 1
 
 
-def wait_for_event(evt_type, since_ts, timeout_s, poll_interval_s=0.2):
-    """Poll the daemon's /status until evt_type appears at/after since_ts,
-    or timeout_s elapses. Returns the matching event dict or None."""
+def find_event(events, evt_type, since_ts, data_contains=None):
+    """Pure matcher, unit-testable without a daemon. The daemon splits
+    "EV:CUT:ERROR:ABORTED" into type="CUT:ERROR", data="ABORTED" — never a
+    single "CUT:ERROR:ABORTED" type — so a caller checking for the full
+    dotted string as `evt_type` will never match; pass the base type plus
+    `data_contains` instead."""
+    for e in events:
+        if (e["type"] == evt_type and e["time"] >= since_ts
+                and (data_contains is None or data_contains in e["data"])):
+            return e
+    return None
+
+
+def wait_for_event(evt_type, since_ts, timeout_s, poll_interval_s=0.2, data_contains=None):
+    """Poll the daemon's /status until find_event matches, or timeout_s
+    elapses. Returns the matching event dict or None."""
     deadline = time.time() + timeout_s
     while time.time() < deadline:
         snap = get_daemon_snapshot()
         if snap is not None:
-            for e in snap.get("events", []):
-                if e["type"] == evt_type and e["time"] >= since_ts:
-                    return e
+            hit = find_event(snap.get("events", []), evt_type, since_ts, data_contains)
+            if hit is not None:
+                return hit
         time.sleep(poll_interval_s)
     return None
 
@@ -358,11 +371,13 @@ def run_fire(item_id, args):
     print(f"  reply: {reply}")
 
     if "expect_event" in item:
-        evt = wait_for_event(item["expect_event"], since_ts, timeout_s=min(args.timeout, 10.0))
+        evt = wait_for_event(item["expect_event"], since_ts, timeout_s=min(args.timeout, 10.0),
+                              data_contains=item.get("expect_event_data"))
         if evt is not None:
             print(f"  PASS ({item_id}): observed EV:{evt['type']}:{evt['data']}")
             return 0
-        print(f"  FAIL ({item_id}): never saw EV:{item['expect_event']} within the timeout")
+        expect_str = item["expect_event"] + (f":{item['expect_event_data']}" if item.get("expect_event_data") else "")
+        print(f"  FAIL ({item_id}): never saw EV:{expect_str} within the timeout")
         return 1
 
     if reply is None:
