@@ -1529,6 +1529,7 @@ class MMUMock:
             'gate_speed_override': list(self.gate_speed_override),
             'gate_speed': self.gate_speed_override[self.active_gate] if 0 <= self.active_gate < len(self.gate_speed_override) else 100,
             'clogs_enabled': False,
+            'clog_detection_enabled': False,
             'clogs_suspended': True,
             'clogs_detected': False,
             'clogs_total': 0,
@@ -1537,7 +1538,26 @@ class MMUMock:
             'encoder_enabled': False,
             'encoder_suspended': True,
             'encoder_tangle_detected': False,
-            'encoder_clog_detected': False
+            'encoder_clog_detected': False,
+            # Static/derived keys with no FLARE hardware source: literal values
+            # or arithmetic over already-existing attributes (14-PATTERNS.md).
+            'has_bypass': True,  # top-level, distinct from mmu_machine.unit_0.has_bypass
+            'unit': 0,
+            'operation': '',
+            'drying_state': '',
+            'espooler': [''] * self.num_gates,
+            'espooler_active': '',
+            'extruder_filament_remaining': 0.0,
+            'filament_direction': 1 if self.current_phase == "load" else (-1 if self.current_phase == "unload" else 0),
+            'gate_temperature': [0] * self.num_gates,
+            'grip': "Gripped",  # [ASSUMED] FLARE's gear is always engaged, no physical selector
+            'last_tool': self.tool,
+            'next_tool': self.tool,  # [ASSUMED] 1:1 gate==tool, synchronous toolchange
+            'slicer_tool_map': {},
+            'endless_spool_enabled': self.reload_mode == 1,  # [ASSUMED] RELOAD_MODE maps to endless spool
+            'endless_spool_groups': list(range(self.num_gates)),
+            'toolchange_purge_volume': 0.0,
+            'encoder': None,  # literal key, not omitted (RESEARCH.md Pitfall 2)
         }
 
 def load_config(config):

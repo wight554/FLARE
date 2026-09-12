@@ -389,6 +389,47 @@ def run_tests():
           flare_daemon._mmu_status_matches_fields(status, bypass_fields),
           (status["active_gate"], status["gate"], status["tool"]))
 
+    print("status schema — Plan-01 partial coverage: static/derived keys + Tasks 1-2 keys exist with correct type")
+    # `status` here is the freshly-SET_MMU'd bypass-gate mock from the reconcile block above.
+    expected_types = {
+        # Task 1 — flowguard
+        "flowguard": dict,
+        # Task 2 — daemon-mirrored keys
+        "sync_drive": bool,
+        "is_paused": bool,
+        "reason_for_pause": str,
+        "sync_feedback_flow_rate": float,
+        "baseline_sps": float,
+        # Task 3 — static/derived keys (18)
+        "has_bypass": bool,
+        "unit": int,
+        "operation": str,
+        "drying_state": str,
+        "espooler": list,
+        "espooler_active": str,
+        "extruder_filament_remaining": float,
+        "filament_direction": int,
+        "gate_temperature": list,
+        "grip": str,
+        "last_tool": int,
+        "next_tool": int,
+        "slicer_tool_map": dict,
+        "endless_spool_enabled": bool,
+        "endless_spool_groups": list,
+        "toolchange_purge_volume": float,
+        "clog_detection_enabled": bool,
+    }
+    for _key, _type in expected_types.items():
+        _val = status.get(_key, "<MISSING>")
+        check(f"status['{_key}'] present with type {_type.__name__}",
+              _key in status and isinstance(_val, _type), _val)
+    # 'encoder' is a deliberate literal None, not a missing key (Pitfall 2) --
+    # can't use isinstance-of-NoneType generically above, assert separately.
+    check("status['encoder'] is literal None (not omitted)",
+          "encoder" in status and status["encoder"] is None, status.get("encoder", "<MISSING>"))
+    check("clogs_enabled alias retained alongside clog_detection_enabled",
+          status.get("clogs_enabled") is False, status.get("clogs_enabled"))
+
     print("slicer purge hook — MMU_SET_PURGE delegates to _FLARE_SET_PURGE")
     m, p = new_mock()
     m.cmd_MMU_SET_PURGE(FakeGcmd({"PURGE": 42.5}))
