@@ -108,3 +108,19 @@ python3 scripts/verify_hw_open_items.py watch --log hw_evidence_realprint.jsonl
 If you don't want to dedicate a full print just for this, the bench items
 above still cover 12/16 items cleanly — #13/#14 can wait for a print you're
 already running for other reasons; just have `watch` attached when you do.
+
+**Results 2026-09-12 (real 2h Type-P print, ~10 swaps):**
+- **#13 — captured.** `.planning/phases/13-type-p-sync-relief-fault-trip/baseline-capture.md`
+  documents the snap-to-max hunting (2.4–3.4 s cadence, −0.68…+1.00 span,
+  both rails stressed). Phase 13's baseline dependency is satisfied.
+- **#14 — captured (data side).** 975 `SET_MMU FLOWGUARD_LEVEL=…` pushes
+  from Moonraker `server/gcode_store`: level ramps to +0.996 (compression)
+  and −0.494 (tension) during sustained sync, and the first push after sync
+  deactivates is `FLOWGUARD_ACTIVE=0 FLOWGUARD_LEVEL=0.000` (~100 ms).
+  Details in `14-VERIFICATION.md` "Human Verification Required" #1. The
+  `watch` sessions during the same day's swap-only testing show
+  `min=max=0.00` because sync never ran long enough for a dwell timer to
+  accumulate — expected, not a failure. Re-confirm via `watch`'s flowguard
+  line on the next real print if a Moonraker-query-sourced sample is wanted.
+- The print also surfaced the `UNLOAD_TIMEOUT` fault (root-caused and fixed
+  in `51bdca8`, 4/4 swaps validated) — see the baseline-capture note's caveat.
