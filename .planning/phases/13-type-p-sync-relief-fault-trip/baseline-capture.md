@@ -76,6 +76,29 @@ against the held MMU — the tip never parks, so the TC unload retracts the
 full `UNLOAD_MAX_MM` (3000 mm / 30 s at 100 mm/s) with OUT still covered.
 The `92e39e7` `PAUSE=1.0` removal was a red herring (sim shows the dwell
 makes no difference). Fix: break/follow-gate relative to the deepest reading
-actually observed at the rail (`g_bl_lock_extreme`, `BL_BREAK_DELTA_NORM`).
+actually observed at the rail (`g_bl_lock_extreme`, `BL_BREAK_DELTA_NORM`),
+commit `51bdca8`.
+
+HW validation, same rig, 2026-09-12 after flashing `51bdca8`:
+- Rail reading confirmed: a bare `BL:T` prime with the filament still
+  jammed in the cold extruder only reached `BP -0.36` (same at
+  `SYNC_MAX_RATE` 1500 and 3000, so not step loss); with the hotend hot
+  the tip-form primes reach `-0.99/-1.00`. Either way the old absolute
+  `<= -0.75` engage gate was never guaranteed.
+- `FLARE_UNLOAD_TOOLHEAD` + 4 consecutive toolchanges: 4/4 clean, no
+  `UNLOAD_TIMEOUT`. Every >8 mm `_FLARE_BL_RETRACT` now shows
+  `BL:LOCKED -> BL:BREAK -> BL:FOLLOW -> FOLLOW_DONE/FOLLOW_GATED`; the
+  `TC:UNLOADING -> TC:CUTTING` gap is a consistent 19.0-19.2 s
+  (~1.9 m of bowden at 100 mm/s), versus the 30 s / 3000 mm limit hit
+  when nothing moved.
+- 50 ms `BP` trace through one tip-form chain: buffer spans -1.00 to
+  +0.42, never approaches the compression rail, so the follow keeps up
+  with the 28 mm and 43 mm retracts.
+- Open observation (tuning, not a fault): an occasional near-slip sound
+  during the chain. Not a rail hit per the trace; candidates are the
+  motor pushing against the hard stop for the remainder of a
+  `PRIME_BOUND` prime cap, or spool-side drag during the 20-35 mm
+  follows.
+
 This is a **separate, unrelated bug** — not part of Phase 13's scope, and not
 itself evidence against the snap-to-max baseline above. Tracked separately; not blocking this baseline capture.
