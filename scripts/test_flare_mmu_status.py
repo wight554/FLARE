@@ -42,9 +42,13 @@ class FakeGcode:
     """Permissive stub with command call recording."""
     def __init__(self):
         self.commands = []
+        self.registered = {}
 
     def run_script_from_command(self, cmd):
         self.commands.append(cmd)
+
+    def register_command(self, name, handler, desc=None):
+        self.registered[name] = handler
 
     def __getattr__(self, _name):
         return lambda *a, **k: None
@@ -436,6 +440,32 @@ def run_tests():
     check("MMU_SET_PURGE invokes _FLARE_SET_PURGE",
           p._gcode.commands == ["_FLARE_SET_PURGE PURGE=42.5"],
           p._gcode.commands)
+
+    print("command stubs — 9 Fluidd/Mainsail maintenance/print-lifecycle commands registered")
+    m, p = new_mock()
+    noop_names = {"MMU_TEST_CONFIG", "MMU_LED", "MMU_GRIP", "MMU_RELEASE",
+                  "MMU_SERVO", "MMU_LED_VARS", "MMU_SOFTWARE_VARS"}
+    print_sync_names = {"MMU_PRINT_START", "MMU_PRINT_END"}
+    all_new_names = noop_names | print_sync_names
+    check("all 9 new command names registered",
+          all_new_names <= set(p._gcode.registered.keys()),
+          sorted(p._gcode.registered.keys()))
+    check("7 no-op names map to cmd_MMU_NOOP",
+          all(p._gcode.registered[n] == m.cmd_MMU_NOOP for n in noop_names),
+          {n: p._gcode.registered.get(n) for n in noop_names})
+    check("MMU_PRINT_START/MMU_PRINT_END map to cmd_MMU_PRINT_SYNC",
+          all(p._gcode.registered[n] == m.cmd_MMU_PRINT_SYNC for n in print_sync_names),
+          {n: p._gcode.registered.get(n) for n in print_sync_names})
+    m.cmd_MMU_PRINT_SYNC(FakeGcmd({}))
+    check("cmd_MMU_PRINT_SYNC delegates to _FLARE_SYNC_TOOLHEAD (no RESET)",
+          p._gcode.commands == ["_FLARE_SYNC_TOOLHEAD"],
+          p._gcode.commands)
+    try:
+        m.cmd_MMU_NOOP(FakeGcmd({}))
+        noop_raised = False
+    except Exception:
+        noop_raised = True
+    check("cmd_MMU_NOOP does not raise", not noop_raised, noop_raised)
 
     print(f"\n{_PASS} passed, {_FAIL} failed")
     sys.exit(1 if _FAIL else 0)

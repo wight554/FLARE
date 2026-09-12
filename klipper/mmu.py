@@ -183,6 +183,30 @@ class MMUMock:
         self.gcode.register_command('MMU_SET_PURGE', self.cmd_MMU_SET_PURGE,
                                     desc="Set dynamic purge length for the next toolchange")
 
+        # Fluidd/Mainsail maintenance-dialog stubs: these buttons cannot be
+        # disabled from the mock (gated only by canSend), so acknowledge
+        # instead of raising "Unknown command". 7 are bare no-ops; the
+        # PRINT_START/PRINT_END pair delegates to the existing toolhead-sync
+        # macro (no RESET -- that flag is CANCEL_PRINT-only).
+        self.gcode.register_command('MMU_TEST_CONFIG', self.cmd_MMU_NOOP,
+                                    desc="No-op: Fluidd/Mainsail maintenance-dialog compatibility stub")
+        self.gcode.register_command('MMU_LED', self.cmd_MMU_NOOP,
+                                    desc="No-op: Fluidd/Mainsail maintenance-dialog compatibility stub")
+        self.gcode.register_command('MMU_GRIP', self.cmd_MMU_NOOP,
+                                    desc="No-op: Fluidd/Mainsail maintenance-dialog compatibility stub")
+        self.gcode.register_command('MMU_RELEASE', self.cmd_MMU_NOOP,
+                                    desc="No-op: Fluidd/Mainsail maintenance-dialog compatibility stub")
+        self.gcode.register_command('MMU_SERVO', self.cmd_MMU_NOOP,
+                                    desc="No-op: Fluidd/Mainsail maintenance-dialog compatibility stub")
+        self.gcode.register_command('MMU_LED_VARS', self.cmd_MMU_NOOP,
+                                    desc="No-op: Fluidd/Mainsail maintenance-dialog compatibility stub")
+        self.gcode.register_command('MMU_SOFTWARE_VARS', self.cmd_MMU_NOOP,
+                                    desc="No-op: Fluidd/Mainsail maintenance-dialog compatibility stub")
+        self.gcode.register_command('MMU_PRINT_START', self.cmd_MMU_PRINT_SYNC,
+                                    desc="FLARE: reconcile toolhead state via _FLARE_SYNC_TOOLHEAD")
+        self.gcode.register_command('MMU_PRINT_END', self.cmd_MMU_PRINT_SYNC,
+                                    desc="FLARE: reconcile toolhead state via _FLARE_SYNC_TOOLHEAD")
+
     def cmd_SET_MMU(self, gcmd):
         """Update MMU state parameters dynamically."""
         enabled = gcmd.get_int('ENABLED', None)
@@ -591,6 +615,12 @@ class MMUMock:
         """Set dynamic purge length for the next toolchange."""
         purge = gcmd.get_float('PURGE', 0.0)
         self.gcode.run_script_from_command(f"_FLARE_SET_PURGE PURGE={purge}")
+
+    def cmd_MMU_PRINT_SYNC(self, gcmd):
+        """Reconcile toolhead/board state via the existing PRINT_START/PRINT_END
+        macro hook. No RESET is passed here -- that flag is CANCEL_PRINT-only
+        per _FLARE_SYNC_TOOLHEAD's own header comment (klipper/flare_mmu.cfg)."""
+        self.gcode.run_script_from_command('_FLARE_SYNC_TOOLHEAD')
 
     def cmd_MMU_CHECK_GATE(self, gcmd):
         """Acknowledge MMU gate check command and report status."""
