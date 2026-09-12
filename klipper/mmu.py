@@ -1585,7 +1585,11 @@ class MMUMock:
             'has_bypass': True,  # top-level, distinct from mmu_machine.unit_0.has_bypass
             'unit': 0,
             'operation': '',
-            'drying_state': '',
+            # Per-gate list, not a scalar (Fluidd src/typings/klipper.d.ts:
+            # `drying_state?: string[]`; MmuUnitFooter.vue does
+            # `.slice(start,end).some(...)` on it — a bare string has no
+            # .some(), so a scalar crashes Fluidd's dashboard on every render).
+            'drying_state': [''] * self.num_gates,
             'espooler': [''] * self.num_gates,
             'espooler_active': '',
             'extruder_filament_remaining': 0.0,

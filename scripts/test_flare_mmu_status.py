@@ -408,7 +408,7 @@ def run_tests():
         "has_bypass": bool,
         "unit": int,
         "operation": str,
-        "drying_state": str,
+        "drying_state": list,
         "espooler": list,
         "espooler_active": str,
         "extruder_filament_remaining": float,
