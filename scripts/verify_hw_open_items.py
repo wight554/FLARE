@@ -283,12 +283,41 @@ FIRE_ITEMS = {
 }
 
 
+def poll_until_verdict(check_fn, timeout_s, poll_interval_s=0.3):
+    """Re-run check_fn(events) -> (verdict, evidence) against fresh daemon
+    snapshots until it stops returning "pending" or timeout_s elapses.
+
+    Needed because flare_cmd.send_daemon_cmd only waits for the command's
+    immediate OK:/ER: reply (flare_daemon.py's execute_serial_command sets
+    command_event on that first line) — it does NOT wait for a command's
+    actual completion event like EV:BUF_STAB:DONE the way flare_cmd.py's own
+    CLI mode does via its separate SSE-listener/COMPLETION_EVENTS path. A
+    single immediate snapshot check right after "OK" is a race against that
+    later event; polling here closes it without re-implementing the SSE
+    listener."""
+    deadline = time.time() + timeout_s
+    verdict, evidence = "pending", None
+    while time.time() < deadline:
+        snap = get_daemon_snapshot()
+        events = snap.get("events", []) if snap else []
+        verdict, evidence = check_fn(events)
+        if verdict != "pending":
+            return verdict, evidence
+        time.sleep(poll_interval_s)
+    return verdict, evidence
+
+
 def run_fire_bl_bare_vs_args(args):
     """Item #10: a bare `BL:T` (no args) must be a no-op on retract (no
     BL:BREAK/FOLLOW, motor stays still, BS -> BUF_STAB:DONE); an argumented
     `BL:T:20:300` on the same retract must show BREAK->FOLLOW->FOLLOW_DONE."""
     configure_daemon(args.daemon_url, flare_cmd.get_auth_token(args.auth_token))
     print("Firing 10-bl-bare-vs-args: bare BL:T must no-op, BL:T:20:300 must FOLLOW")
+    # Independent of --timeout (that's for command-reply waits): if an explicit
+    # BS doesn't release a bare BL:T lock immediately, the observed fallback is
+    # firmware's own ~30s BL:TIMEOUT auto-releasing it (verified on hardware:
+    # LOCKED -> ~30s -> BL:TIMEOUT -> BUF_STAB:START/DONE). Give that margin.
+    poll_timeout = 45.0
 
     t0 = time.time()
     print("  -> sending bare 'BL:T' now (on a retract)")
@@ -298,19 +327,18 @@ def run_fire_bl_bare_vs_args(args):
     reply2 = flare_cmd.send_daemon_cmd("BS", timeout=args.timeout)
     print(f"     reply: {reply2}")
 
-    snap = get_daemon_snapshot()
-    events = snap.get("events", []) if snap else []
-    verdict1, evidence1 = classify_absence_then(events, ["BL:BREAK", "BL:FOLLOW"], "BUF_STAB:DONE", t0, window_s=30)
+    verdict1, evidence1 = poll_until_verdict(
+        lambda events: classify_absence_then(events, ["BL:BREAK", "BL:FOLLOW"], "BUF_STAB:DONE", t0, window_s=30),
+        timeout_s=poll_timeout)
     print(f"  bare BL:T no-op: {verdict1.upper()} (evidence: {evidence1})")
 
     t1 = time.time()
     print("  -> sending 'BL:T:20:300' now (on a retract)")
     reply3 = flare_cmd.send_daemon_cmd("BL:T:20:300", timeout=args.timeout)
     print(f"     reply: {reply3}")
-    time.sleep(2.0)
-    snap = get_daemon_snapshot()
-    events = snap.get("events", []) if snap else []
-    verdict2, evidence2 = classify_sequence(events, ["BL:BREAK", "BL:FOLLOW", "BL:FOLLOW_DONE"], t1, max_total_span_s=30)
+    verdict2, evidence2 = poll_until_verdict(
+        lambda events: classify_sequence(events, ["BL:BREAK", "BL:FOLLOW", "BL:FOLLOW_DONE"], t1, max_total_span_s=30),
+        timeout_s=poll_timeout)
     print(f"  BL:T:20:300 follow sequence: {verdict2.upper()} (evidence: {evidence2})")
 
     return 0 if verdict1 == "pass" and verdict2 == "pass" else 1
