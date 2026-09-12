@@ -4,7 +4,7 @@ validation items (ROADMAP phases 1, 11, 12, 13, 14). No UI, no eyeballing:
 everything here reads the flare_daemon HTTP API (board EV:/status telemetry)
 or Moonraker's REST API (printer.mmu status + gcode dispatch).
 
-Pairs with `.planning/PRINT_TEST_PLAN.md`, which says what to slice/print and
+Pairs with `.planning/MANUAL_TEST_PLAN.md`, which says what to slice/print and
 when to fire each trigger below during that one print.
 
 Modes
@@ -18,15 +18,18 @@ watch     Long-running passive monitor. Polls the daemon's /status (event
 
 fire      Actively trigger one timing-sensitive item right now: sends a
           command via the daemon and checks the immediate OK:/ER: reply
-          (items 1/2/3/9/10), or dispatches the 9 Fluidd/Mainsail
-          maintenance-dialog stubs via Moonraker and checks each response
-          plus (optionally) greps klippy.log for "Unknown command" (item 15).
+          (items 1/2/3/9/10), or dispatches the 7 true no-op Fluidd/Mainsail
+          maintenance-dialog stubs via Moonraker (item 15). MMU_PRINT_START/
+          MMU_PRINT_END are NOT no-ops — they run the real _FLARE_SYNC_TOOLHEAD
+          macro and can block Klipper's gcode queue for minutes if the buffer
+          isn't already settled — pass --include-print-sync to fire those two
+          too, only once sync is idle and BS has already completed.
 
 report    Re-render the final PASS/PENDING/FAIL table from a watch log file,
           without re-running anything.
 
 Items NOT covered here (need a bench step or a design decision, not a
-log-based check during a print) — see PRINT_TEST_PLAN.md:
+log-based check during a print) — see MANUAL_TEST_PLAN.md:
   #5  flash-wear counter persistence across reboot
   #7  forced main-loop stall to trip the 1s watchdog (the *trigger* is a bench
       step; `fire watchdog-check` below reads --crashlog/--loop-stats output
@@ -47,11 +50,9 @@ import flare_cmd  # noqa: E402  (path insert must precede this import)
 
 DEFAULT_MOONRAKER_URL = "http://localhost:7125"
 
-# The 9 Fluidd/Mainsail maintenance-dialog command stubs (14-02,
-# REQ-klipper-status-parity-command-stubs). Args are placeholders — Klipper
-# rejects unknown commands before it validates arguments, so any well-formed
-# call is sufficient to prove the command is registered.
-MAINTENANCE_STUB_GCODES = [
+# The 7 true no-op stubs (bound to cmd_MMU_NOOP) — instant, harmless, safe to
+# fire anytime the printer is idle.
+NOOP_STUB_GCODES = [
     "MMU_TEST_CONFIG",
     "MMU_LED",
     "MMU_GRIP",
@@ -59,9 +60,16 @@ MAINTENANCE_STUB_GCODES = [
     "MMU_SERVO",
     "MMU_LED_VARS",
     "MMU_SOFTWARE_VARS",
-    "MMU_PRINT_START",
-    "MMU_PRINT_END",
 ]
+
+# MMU_PRINT_START/MMU_PRINT_END are NOT no-ops (14-02-PLAN.md): they delegate
+# to the real _FLARE_SYNC_TOOLHEAD macro, whose _FLARE_BUFFER_STABILIZE step
+# runs a synchronous `RUN_SHELL_COMMAND CMD=flare PARAMS="BS"` that blocks
+# Klipper's whole gcode queue until the daemon reports EV:BUF_STAB:DONE/
+# TIMEOUT — up to the shell command's own 300s ceiling (KLIPPER.md). Firing
+# these outside a real print's controlled buffer state can genuinely hang
+# Klipper for minutes; they're excluded from the default stub sweep.
+PRINT_SYNC_STUB_GCODES = ["MMU_PRINT_START", "MMU_PRINT_END"]
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +99,15 @@ def moonraker_query(moonraker_url, objects_query, timeout=2.0):
 
 
 def moonraker_gcode_script(moonraker_url, script, timeout=3.0):
-    """POST one gcode script to Moonraker. Returns (ok, error_text_or_None)."""
+    """POST one gcode script to Moonraker.
+
+    Returns (status, detail): status is "ok" (200 before timeout), "error"
+    (Klipper/Moonraker responded with an error — e.g. "Unknown command",
+    which comes back near-instantly) or "timeout" (no response within
+    `timeout` — for a long-running command this means it's still executing,
+    NOT that it failed to register; Klipper rejects unknown commands
+    immediately, it doesn't need to run them first to know they don't exist).
+    """
     payload = json.dumps({"script": script}).encode("utf-8")
     req = urllib.request.Request(
         f"{moonraker_url}/printer/gcode/script",
@@ -102,11 +118,17 @@ def moonraker_gcode_script(moonraker_url, script, timeout=3.0):
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8", errors="ignore")
-            return resp.status == 200, (None if resp.status == 200 else body)
+            return ("ok" if resp.status == 200 else "error"), (None if resp.status == 200 else body)
     except urllib.error.HTTPError as e:
-        return False, e.read().decode("utf-8", errors="ignore")
+        return "error", e.read().decode("utf-8", errors="ignore")
+    except TimeoutError:
+        return "timeout", None
+    except urllib.error.URLError as e:
+        if isinstance(e.reason, TimeoutError):
+            return "timeout", None
+        return "error", str(e)
     except Exception as e:
-        return False, str(e)
+        return "error", str(e)
 
 
 def klippy_log_has_unknown_command(klippy_log_path, since_ts, gcode_name):
@@ -354,22 +376,53 @@ def run_fire(item_id, args):
 
 
 def run_fire_stubs(args):
-    print(f"Firing item 15: {len(MAINTENANCE_STUB_GCODES)} maintenance-dialog stubs via Moonraker")
+    total = len(NOOP_STUB_GCODES) + (len(PRINT_SYNC_STUB_GCODES) if args.include_print_sync else 0)
+    print(f"Firing item 15: {total} maintenance-dialog stub(s) via Moonraker")
     failures = []
-    for gcode in MAINTENANCE_STUB_GCODES:
+
+    for gcode in NOOP_STUB_GCODES:
         since_ts = time.time()
-        ok, err = moonraker_gcode_script(args.moonraker_url, gcode)
+        status, detail = moonraker_gcode_script(args.moonraker_url, gcode, timeout=3.0)
         log_hit = klippy_log_has_unknown_command(args.klippy_log, since_ts, gcode)
-        if ok and log_hit is None:
+        if status == "ok" and log_hit is None:
             print(f"  PASS  {gcode}")
         else:
             failures.append(gcode)
-            reason = err or log_hit or "unknown"
+            reason = detail or log_hit or status
             print(f"  FAIL  {gcode}: {reason}")
+
+    if not args.include_print_sync:
+        print(f"  SKIP  {PRINT_SYNC_STUB_GCODES}: not no-ops — they run the real _FLARE_SYNC_TOOLHEAD "
+              "macro (synchronous BS, can block Klipper's gcode queue for minutes if the buffer "
+              "isn't already settled). Pass --include-print-sync only with sync idle and BS already "
+              "done (check `watch`'s live output first).")
+    else:
+        print("  Firing MMU_PRINT_START/MMU_PRINT_END — precondition: sync idle, buffer already "
+              "settled (BUF_STAB:DONE). A short-probe timeout below is expected and does NOT mean "
+              "failure — Klipper rejects unknown commands instantly, so any response past that "
+              "window means the command registered and _FLARE_SYNC_TOOLHEAD is genuinely running.")
+        for gcode in PRINT_SYNC_STUB_GCODES:
+            since_ts = time.time()
+            # Short probe: long enough that a normal "Unknown command" error
+            # (near-instant) is distinguishable from a registered command
+            # that's now running the real macro, short enough not to sit
+            # through the full 300s shell-command ceiling ourselves.
+            status, detail = moonraker_gcode_script(args.moonraker_url, gcode, timeout=5.0)
+            log_hit = klippy_log_has_unknown_command(args.klippy_log, since_ts, gcode)
+            if status == "error" or log_hit is not None:
+                failures.append(gcode)
+                print(f"  FAIL  {gcode}: {detail or log_hit}")
+            elif status == "timeout":
+                print(f"  PASS  {gcode} (registered — _FLARE_SYNC_TOOLHEAD still running past the "
+                      "probe window; confirm it completes via `watch`'s BUF_STAB:DONE/EV:SYNC output, "
+                      "or FIRMWARE_RESTART if it never does)")
+            else:
+                print(f"  PASS  {gcode} (registered and completed within the probe window)")
+
     if failures:
-        print(f"\n{len(failures)}/{len(MAINTENANCE_STUB_GCODES)} stub(s) failed: {failures}")
+        print(f"\n{len(failures)}/{total} stub(s) failed: {failures}")
         return 1
-    print(f"\nAll {len(MAINTENANCE_STUB_GCODES)} stubs registered cleanly.")
+    print(f"\nAll {total} fired stub(s) registered cleanly.")
     return 0
 
 
@@ -457,7 +510,7 @@ def print_report(state, flowguard_history):
         print("\n  flowguard.level: no samples (item 14 needs --moonraker-url reachable)")
     print("\nNot covered by this script: #5 (flash wear + reboot), #7-trigger (bench stall — "
           "use `fire watchdog-check` to read evidence after triggering it), #12 (design "
-          "question), #16 (TMC thermal). See PRINT_TEST_PLAN.md.")
+          "question), #16 (TMC thermal). See MANUAL_TEST_PLAN.md.")
 
 
 def run_report(args):
@@ -504,6 +557,11 @@ def build_parser():
                          help="3-tc-busy only: lane to request second (the one that should get ER:BUSY:TC)")
     fire_p.add_argument("--tc-other-lane", type=int, default=2,
                          help="3-tc-busy only: lane to start the toolchange to first (pre_cmd)")
+    fire_p.add_argument("--include-print-sync", action="store_true",
+                         help="15-command-stubs only: also fire MMU_PRINT_START/MMU_PRINT_END. "
+                              "These run the real _FLARE_SYNC_TOOLHEAD macro (not a no-op) and can "
+                              "block Klipper's gcode queue for minutes if the buffer isn't already "
+                              "settled — only pass this with sync idle and BS already done.")
 
     report_p = sub.add_parser("report", help="Re-render the final table from a watch log")
     report_p.add_argument("log")

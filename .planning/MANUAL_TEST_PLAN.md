@@ -50,7 +50,9 @@ each command; no manual coordination required.
 | #4 | `python3 scripts/flare_cmd.py BL:T` — then just **don't** send `BS`, wait ~30s | `EV:BL:TIMEOUT` fires once, not repeated (the `watch` monitor classifies this automatically) |
 | #10 | `python3 scripts/verify_hw_open_items.py fire 10-bl-bare-vs-args` | bare `BL:T` no-ops (no `BREAK`/`FOLLOW`); `BL:T:20:300` on the same retract does `BREAK`→`FOLLOW`→`FOLLOW_DONE` |
 | #11 | unplug lane-2 TMC UART/5V for ~1s, replug — printer can be fully idle | exactly one `EV:TMC:FAULT:2:COMM_FAIL`, no storm, then `EV:TMC:RESTORED:2` on replug (monitor classifies this passively) |
-| #15 | `python3 scripts/verify_hw_open_items.py fire 15-command-stubs` | all 9 Fluidd/Mainsail maintenance-dialog stubs register (no "Unknown command"), Klipper connected but printer idle is fine |
+| #15 | `python3 scripts/verify_hw_open_items.py fire 15-command-stubs` | the 7 true no-op stubs register (no "Unknown command"), Klipper connected but printer idle is fine |
+
+`MMU_PRINT_START`/`MMU_PRINT_END` are excluded from that command by default — they're not no-ops, they run the real `_FLARE_SYNC_TOOLHEAD` macro (synchronous `BS`) and can block Klipper's gcode queue for minutes if fired while the buffer isn't already settled (this is what caused the "Moonraker hanging" `Request 'gcode/script' pending: N seconds` symptom during initial bench testing). Only add `--include-print-sync` once `watch`'s live output shows sync idle and the last `BUF_STAB:DONE` has already landed; if it still hangs, `FIRMWARE_RESTART` clears the stuck queue.
 
 ## Bench items — need Klipper connected + one manual gcode line (no queued print)
 
