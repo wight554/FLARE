@@ -1,7 +1,7 @@
 ---
 phase: 14-klipper-mmu-status-parity
 verified: 2026-09-12T00:00:00Z
-status: human_needed
+status: passed
 score: 5/5 must-haves verified
 covered_files:
   - .planning/REQUIREMENTS.md
@@ -35,7 +35,7 @@ human_verification:
 
 **Phase Goal:** Keep the `klipper/mmu.py` Happy-Hare facade and daemon mirror rendering correctly in current Fluidd/Mainsail/KlipperScreen builds (verified against their `develop` sources)
 **Verified:** 2026-09-12
-**Status:** human_needed
+**Status:** passed — closed 2026-09-12 (human items: #1 FlowGuard trend confirmed from real-print data + meter observed in UI; #2 7/9 stubs dispatched via Moonraker, `MMU_PRINT_START/END` deferred to item 15 `--include-print-sync`)
 **Re-verification:** No — initial verification
 
 ## Goal Achievement

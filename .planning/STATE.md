@@ -9,7 +9,7 @@ progress:
   total_plans: 16
   completed_plans: 0
   percent: 0
-current_phase_name: Klipper MMU Status Parity
+current_phase_name: Type-P Sync Relief & Fault Trip
 ---
 
 # Project State: FLARE
@@ -20,12 +20,12 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 14 — Klipper MMU Status Parity
+**Current focus:** Phase 13 — Type-P Sync Relief & Fault Trip (baseline captured; ready to plan)
 
 ## Current Position
 
 - **Phase**: 12 - Post-Phase 2–10 Regression Fixes (`.planning/phases/12-post-phase-2-10-regression-fixes/`)
-- **Active Feature in Progress**: Phase 14 planned (2 plans, 2 waves, checker passed 2026-09-12) — ready to execute: `gsd-execute-phase 14`. Phase 12 HW validation still pending; Phase 13 waits on the real-print baseline capture
+- **Active Feature in Progress**: Phase 14 complete 2026-09-12 (2/2 plans, verification passed, human items closed on real-print data). Phase 13 baseline captured (`13-.../baseline-capture.md`) — next: `gsd-plan-phase 13`; carry the rail-relative-threshold caveat from ROADMAP Phase 13. Phase 12 HW validation still pending (non-blocking)
 - **Status**: Complete (software); `HW:` items in 12-SPEC.md unchecked
 - **Progress**: [====================] 100% complete
 

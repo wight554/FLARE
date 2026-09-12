@@ -19,7 +19,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 - [x] **Phase 11: Firmware Forensics & Main Loop Jitter Instrumentation** - Retention RAM blackbox crash logging across watchdog resets, GET:CRASHLOG retrieval, and high-resolution loop jitter benchmarking
 - [x] **Phase 12: Post-Phase 2–10 Regression Fixes** - Close spec/decision-note regressions from the 2026-09-11 review of `79f7a95..2a24a33` (load park FAULT_BUF, cutter abort limp servo, bare-BL catch creep, heartbeat lockout, --dump rebuild)
 - [ ] **Phase 13: Type-P Sync Relief & Fault Trip** - Happy-Hare borrow: bounded relief snap (≤1.33× demand) replacing snap-to-max, distance-based (mm) pegged-fault trip with arm-after-first-transition, firmware-local feed probe for the +1.0 tension ambiguity
-- [ ] **Phase 14: Klipper MMU Status Parity** - Happy-Hare v4 / Fluidd / Mainsail `develop` parity: `flowguard` dict, missing `printer.mmu` keys, `happy_hare_version`, dialog command stubs, richer `action` strings, status-schema test
+- [x] **Phase 14: Klipper MMU Status Parity** - Happy-Hare v4 / Fluidd / Mainsail `develop` parity: `flowguard` dict, missing `printer.mmu` keys, `happy_hare_version`, dialog command stubs, richer `action` strings, status-schema test
 - [ ] **Phase 15: Daemon Moonraker Lane Data & Maintenance Counters** - Moonraker `lane_data` push for OrcaSlicer and persisted maintenance counters (blade cuts, swaps) with warning/limit thresholds
 - [ ] **Phase 16: TMC Tension Current Boost** - Happy-Hare tangle prevention: raise gear IRUN while type-P tension is pegged during active sync, routed through the heartbeat shadow registers
 
@@ -174,6 +174,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 **Depends on**: Phase 12 (touches `sync.c` refill path landed in 12-01); real-print baseline capture of current snap-to-max behaviour first (decision in `typep-feed-hunting`)
 **Requirements**: TBD (derive from `.planning/research/2026-09-11-happy-hare-borrow-scan.md` §1.1, §1.2, §1.4)
 **Research**: `.planning/research/2026-09-11-happy-hare-borrow-scan.md` — HH `main` @ `ef8431c` (2026-09-08)
+**Carried caveat (2026-09-12, from the `UNLOAD_TIMEOUT` root cause, `51bdca8`)**: the type-P normalized rail reading is situational, not calibrated truth — a bare MMU prime reached only `BP -0.36` with the filament held by a cold extruder, `-0.6…-0.7` mid-print, `-1.00` with a hot extruder pulling; three same-day commits that gated BL on an absolute `-0.75` disabled follow entirely on this rig. Every threshold Phase 13 adds (the +1.0 tension-ambiguity probe, `SYNC_TENSION_STOP_MM` arming, relief-snap triggers) MUST be expressed relative to an observed extreme or arm-after-first-transition, never as an absolute `±0.xx` compare; `flare_sim` scenarios must include a shallow-rail case (`type_p_rail_scale` plant knob, see `bl_retract_immediate`).
 **Success Criteria** (what must be TRUE):
   1. Urgent refill in the TENSION soft-wall (`sync.c` refill branch) targets `min(max_sps, est × SYNC_PSF_RELIEF_MULT)` (default 1.33, HH `extreme_relief_frac=0.25`) with a temporarily doubled slew cap, never `max_sps` directly; `g_psf_target_filt` still seeds at demand
   2. New `SYNC_TENSION_STOP_MM` (config.ini + SET/GET + `--dump` + MANUAL.md) accumulates relief motion while pegged and trips `FAULT_HOLD` alongside the existing `sync_tension_dwell_stop_ms`; both arm only after the first observed buffer-state transition in the active-sync window
@@ -236,6 +237,6 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 11. Firmware Forensics & Main Loop Jitter | 1/1 | Complete | 2026-09-11 |
 | 12. Post-Phase 2–10 Regression Fixes | 1/1 | Complete (HW pending) | 2026-09-11 |
 | 13. Type-P Sync Relief & Fault Trip | 0/? | Not planned | - |
-| 14. Klipper MMU Status Parity | 0/2 | Planned | - |
+| 14. Klipper MMU Status Parity | 2/2 | Complete | 2026-09-12 |
 | 15. Daemon Moonraker Lane Data & Maintenance Counters | 0/? | Not planned | - |
 | 16. TMC Tension Current Boost | 0/? | Not planned | - |
