@@ -66,6 +66,10 @@ class MMUMock:
         self.flowguard_level = 0.0
         self.flowguard_max_clog = 0.0
         self.flowguard_max_tangle = 0.0
+        self.sync_drive = False
+        self.is_paused = False
+        self.reason_for_pause = ""
+        self.baseline_sps = 0.0
         self.buf_sensor_type = 0
         self.print_job_state = "standby"
         self.print_state = "ready"
@@ -220,6 +224,10 @@ class MMUMock:
         self.flowguard_level = gcmd.get_float('FLOWGUARD_LEVEL', self.flowguard_level)
         self.flowguard_max_clog = gcmd.get_float('FLOWGUARD_MAX_CLOG', self.flowguard_max_clog)
         self.flowguard_max_tangle = gcmd.get_float('FLOWGUARD_MAX_TANGLE', self.flowguard_max_tangle)
+        self.sync_drive = gcmd.get_int('SYNC_DRIVE', 1 if self.sync_drive else 0) != 0
+        self.is_paused = gcmd.get_int('IS_PAUSED', 1 if self.is_paused else 0) != 0
+        self.reason_for_pause = gcmd.get('REASON_FOR_PAUSE', self.reason_for_pause).strip("'\"")
+        self.baseline_sps = gcmd.get_float('BASELINE_SPS', self.baseline_sps)
         self.buf_sensor_type = gcmd.get_int('BUF_SENSOR_TYPE', self.buf_sensor_type)
         
         # Strip quotes from standard string parameters
@@ -1438,6 +1446,14 @@ class MMUMock:
             sensors_dict['mmu_gear'] = path_gear
             sensors_dict['mmu_gate'] = bool(path_gate or path_toolhead or lane_loaded)
 
+        # Happy-Hare-shaped flow-rate percentage: current step rate vs the
+        # steady-state baseline captured while sync was stable (borrow-scan
+        # 2026-09-11:228-230). Guarded against div-by-zero.
+        if self.sps > 0:
+            sync_feedback_flow_rate = round(100.0 * min(1.0, self.baseline_sps / self.sps), 1)
+        else:
+            sync_feedback_flow_rate = 100.0
+
         return {
             'enabled': self.enabled,
             'is_homed': self.is_homed,
@@ -1485,6 +1501,11 @@ class MMUMock:
                 'max_clog': self.flowguard_max_clog,
                 'max_tangle': self.flowguard_max_tangle,
             },
+            'sync_drive': self.sync_drive,
+            'is_paused': bool(self.is_paused),
+            'reason_for_pause': self.reason_for_pause,
+            'baseline_sps': self.baseline_sps,
+            'sync_feedback_flow_rate': sync_feedback_flow_rate,
             'print_job_state': self.print_job_state,
             'print_state': self.print_state,
             'board_online': self.board_online,

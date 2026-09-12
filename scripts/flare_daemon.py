@@ -611,7 +611,7 @@ def parse_status_line(line):
                 "active_lane", "tc_state", "lane1_task", "lane2_task",
                 "buf_sensor_type", "buf_state", "in1", "out1", "in2", "out2",
                 "toolhead", "y_split", "reload_mode", "enable_cutter", "unload_cut",
-                "tension_dwell_ms", "compression_dwell_ms"
+                "tension_dwell_ms", "compression_dwell_ms", "sync_state", "sync_enabled"
             )
             field_changed = any(
                 k in new_data and new_data[k] != status_cache.get(k)
@@ -1260,6 +1260,10 @@ _MMU_RECONCILE_STATUS_KEYS = {
     "FLOWGUARD_LEVEL": ("flowguard", "level"),
     "FLOWGUARD_MAX_CLOG": ("flowguard", "max_clog"),
     "FLOWGUARD_MAX_TANGLE": ("flowguard", "max_tangle"),
+    "SYNC_DRIVE": "sync_drive",
+    "IS_PAUSED": "is_paused",
+    "REASON_FOR_PAUSE": "reason_for_pause",
+    "BASELINE_SPS": "baseline_sps",
 }
 
 _MMU_RECONCILE_FLOATS = {
@@ -1270,6 +1274,7 @@ _MMU_RECONCILE_FLOATS = {
     "FLOWGUARD_LEVEL": 3,
     "FLOWGUARD_MAX_CLOG": 3,
     "FLOWGUARD_MAX_TANGLE": 3,
+    "BASELINE_SPS": 3,
 }
 
 _MMU_RECONCILE_STRINGS = {
@@ -1288,6 +1293,7 @@ _MMU_RECONCILE_STRINGS = {
     "GATE_FILAMENT_NAME",
     "FLOWGUARD_TRIGGER",
     "FLOWGUARD_REASON",
+    "REASON_FOR_PAUSE",
 }
 
 def _moonraker_get_mmu_status(moonraker_url):
@@ -1405,6 +1411,10 @@ def _flowguard_level(sync_active, tension_dwell_ms, compression_dwell_ms,
     return level, trigger
 
 
+# firmware/include/sync.h sync_state_t: 5th enum member (0-indexed 4) = SYNC_FAULT_HOLD.
+_SYNC_STATE_FAULT_HOLD = 4
+
+
 def _derive_action(tc_state, active_lane, lane1_task, lane2_task):
     """Map FLARE toolchange/lane-task state to a Happy Hare action string so
     Fluidd shows 'Loading: X mm' / 'Unloading: X mm' during operations."""
@@ -1496,7 +1506,7 @@ def klipper_syncer(moonraker_url):
             "board_online", "active_lane", "tc_state",
             "buf_state", "in1", "out1", "in2", "out2",
             "toolhead", "y_split", "reload_mode", "enable_cutter", "unload_cut",
-            "tension_dwell_ms", "compression_dwell_ms"
+            "tension_dwell_ms", "compression_dwell_ms", "sync_state", "sync_enabled"
         ]
 
         changed = False
@@ -1632,6 +1642,14 @@ def klipper_syncer(moonraker_url):
         elif flowguard_level < 0:
             flowguard_max_tangle = min(flowguard_max_tangle, flowguard_level)
 
+        # Daemon-mirrored keys derived from existing status_cache fault/sync
+        # signals -- no new firmware state (RESEARCH.md Open Question 2).
+        sync_state_val = state.get("sync_state", 0)
+        is_paused = 1 if sync_state_val == _SYNC_STATE_FAULT_HOLD else 0
+        reason_for_pause = f"'{st['last_error']}'" if is_paused else "''"
+        sync_drive_val = 1 if state.get("sync_drive", False) else 0
+        baseline_sps = state.get("baseline_sps", 0.0)
+
         # All SET_MMU mirror fields as formatted strings, in a stable order. cmd_SET_MMU
         # keeps the current value for any absent param, so we can push only the fields
         # that changed (delta) and still leave the mock in the same state.
@@ -1677,6 +1695,10 @@ def klipper_syncer(moonraker_url):
             "FLOWGUARD_LEVEL": f"{flowguard_level:.3f}",
             "FLOWGUARD_MAX_CLOG": f"{flowguard_max_clog:.3f}",
             "FLOWGUARD_MAX_TANGLE": f"{flowguard_max_tangle:.3f}",
+            "SYNC_DRIVE": str(sync_drive_val),
+            "IS_PAUSED": str(is_paused),
+            "REASON_FOR_PAUSE": reason_for_pause,
+            "BASELINE_SPS": f"{baseline_sps:.3f}",
         }
 
         # Periodic restart recovery is a silent reconcile: read Klipper's mmu

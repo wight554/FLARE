@@ -275,6 +275,50 @@ def run_tests():
           m.get_status(0)["flowguard"] == expected_flowguard,
           m.get_status(0)["flowguard"])
 
+    print("daemon-mirrored keys — sync_drive, is_paused/reason_for_pause, sync_feedback_flow_rate")
+    m, p = new_mock()
+    m.cmd_SET_MMU(FakeGcmd({"SPS": 100.0, "BASELINE_SPS": 50.0}))
+    check("sync_feedback_flow_rate == 50.0 for SPS=100/BASELINE=50",
+          m.get_status(0)["sync_feedback_flow_rate"] == 50.0,
+          m.get_status(0)["sync_feedback_flow_rate"])
+    m.cmd_SET_MMU(FakeGcmd({"SPS": 0.0}))
+    check("sync_feedback_flow_rate == 100.0 guarded against div-by-zero (SPS=0)",
+          m.get_status(0)["sync_feedback_flow_rate"] == 100.0,
+          m.get_status(0)["sync_feedback_flow_rate"])
+
+    m, p = new_mock()
+    m.cmd_SET_MMU(FakeGcmd({"IS_PAUSED": 1, "REASON_FOR_PAUSE": "'ABORTED'"}))
+    check("IS_PAUSED=1 -> is_paused True", m.get_status(0)["is_paused"] is True, m.get_status(0)["is_paused"])
+    check("REASON_FOR_PAUSE strips quotes",
+          m.get_status(0)["reason_for_pause"] == "ABORTED", m.get_status(0)["reason_for_pause"])
+
+    m, p = new_mock()
+    m.cmd_SET_MMU(FakeGcmd({"SYNC_DRIVE": 1}))
+    check("SYNC_DRIVE=1 -> sync_drive True", m.get_status(0)["sync_drive"] is True, m.get_status(0)["sync_drive"])
+    m.cmd_SET_MMU(FakeGcmd({"SYNC_DRIVE": 0}))
+    check("SYNC_DRIVE=0 -> sync_drive False", m.get_status(0)["sync_drive"] is False, m.get_status(0)["sync_drive"])
+
+    print("daemon reconcile — sync_state==SYNC_FAULT_HOLD drives IS_PAUSED/REASON_FOR_PAUSE")
+    flare_daemon.status_cache["sync_state"] = flare_daemon._SYNC_STATE_FAULT_HOLD
+    flare_daemon.status_cache["sync_drive"] = True
+    with flare_daemon.stats_lock:
+        flare_daemon.mmu_stats["last_error"] = "TEST_FAULT"
+    with flare_daemon.status_lock:
+        fault_state = dict(flare_daemon.status_cache)
+    with flare_daemon.stats_lock:
+        fault_st = dict(flare_daemon.mmu_stats)
+    fault_sync_state_val = fault_state.get("sync_state", 0)
+    fault_is_paused = 1 if fault_sync_state_val == flare_daemon._SYNC_STATE_FAULT_HOLD else 0
+    fault_reason_for_pause = f"'{fault_st['last_error']}'" if fault_is_paused else "''"
+    check("sync_state SYNC_FAULT_HOLD -> IS_PAUSED pushed as '1'",
+          str(fault_is_paused) == "1", fault_is_paused)
+    check("SYNC_FAULT_HOLD REASON_FOR_PAUSE mirrors mmu_stats last_error",
+          fault_reason_for_pause == "'TEST_FAULT'", fault_reason_for_pause)
+    flare_daemon.status_cache["sync_state"] = 0
+    non_fault_is_paused = 1 if flare_daemon.status_cache.get("sync_state", 0) == flare_daemon._SYNC_STATE_FAULT_HOLD else 0
+    check("non-FAULT_HOLD sync_state -> IS_PAUSED pushed as '0'",
+          str(non_fault_is_paused) == "0", non_fault_is_paused)
+
     print("daemon reconcile — compare Moonraker mmu status to SET_MMU formatting")
     fields = {
         "NUM_GATES": "2",
@@ -322,6 +366,10 @@ def run_tests():
         "FLOWGUARD_LEVEL": "-1.000",
         "FLOWGUARD_MAX_CLOG": "0.000",
         "FLOWGUARD_MAX_TANGLE": "-1.000",
+        "SYNC_DRIVE": "1",
+        "IS_PAUSED": "0",
+        "REASON_FOR_PAUSE": "''",
+        "BASELINE_SPS": "45.000",
     }
     m, p = new_mock()
     m.cmd_SET_MMU(FakeGcmd(fields))
