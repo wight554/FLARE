@@ -343,8 +343,20 @@ def run_fire_bl_bare_vs_args(args):
     # cause that, it takes a real extruder move. _FLARE_BL_RETRACT's own
     # pattern is: arm via serial -> G0 E-{length} F{speed} -> M400; replicate
     # that here via Moonraker instead of leaving it as a manual step.
-    print("  -> issuing the matching real retract via Moonraker: G1 E-20 F1500 + M400")
-    ok, err = moonraker_gcode_script(args.moonraker_url, "G1 E-20 F1500\nM400", timeout=10.0)
+    print("  -> issuing the matching real retract via Moonraker (M83 + G1 E-20 F1500 + M400)")
+    # Every extrude-only move macro in klipper/flare_mmu.cfg wraps the move in
+    # SAVE_GCODE_STATE + M83 (relative extrude) + RESTORE_GCODE_STATE -- without
+    # M83, Klipper's default absolute mode (M82) means "G1 E-20" targets an
+    # absolute E position, not a 20mm retract, and can end up moving ~0mm
+    # depending on the extruder's current E value.
+    retract_gcode = (
+        "SAVE_GCODE_STATE NAME=_flare_hw_verify_retract\n"
+        "M83\n"
+        "G1 E-20 F1500\n"
+        "M400\n"
+        "RESTORE_GCODE_STATE NAME=_flare_hw_verify_retract"
+    )
+    ok, err = moonraker_gcode_script(args.moonraker_url, retract_gcode, timeout=10.0)
     if ok != "ok":
         print(f"     WARNING: retract gcode did not complete cleanly ({ok}: {err}) -- "
               "check Moonraker/Klipper is reachable and the extruder isn't otherwise busy")
