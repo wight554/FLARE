@@ -185,7 +185,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 ### Phase 14: Klipper MMU Status Parity
 **Goal**: Keep the `klipper/mmu.py` Happy-Hare facade and daemon mirror rendering correctly in current Fluidd/Mainsail/KlipperScreen builds (verified against their `develop` sources)
 **Depends on**: Nothing (host tooling); independent of Phase 13
-**Requirements**: TBD (derive from research §1.3, §5, §6, §7)
+**Requirements**: REQ-klipper-status-parity-flowguard-dict, REQ-klipper-status-parity-missing-keys, REQ-klipper-status-parity-hh-version, REQ-klipper-status-parity-command-stubs, REQ-klipper-status-parity-action-strings, REQ-klipper-status-parity-schema-test
 **Research**: `.planning/research/2026-09-11-happy-hare-borrow-scan.md`
 **Success Criteria** (what must be TRUE):
   1. `printer.mmu.flowguard` dict (`enabled/active/trigger/level/max_clog/max_tangle`) is published, `level` derived from firmware dwell/saturation timers and 0 whenever sync is inactive; Fluidd and Mainsail FlowGuard meters render
