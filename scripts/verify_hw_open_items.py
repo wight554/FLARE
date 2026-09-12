@@ -338,6 +338,19 @@ def run_fire_bl_bare_vs_args(args):
     print("  -> sending 'BL:T:20:300' to arm the lock")
     reply3 = flare_cmd.send_daemon_cmd("BL:T:20:300", timeout=args.timeout)
     print(f"     reply: {reply3}")
+    # "OK" here is only the immediate serial ack -- the arm's real completion
+    # is EV:BL:LOCKED/PRIME_BOUND once the buffer has actually primed into
+    # tension (send_daemon_cmd doesn't wait for it; that wait only exists in
+    # flare_cmd.py's own CLI path, which is what the real _FLARE_BL_RETRACT
+    # macro uses via RUN_SHELL_COMMAND). Firing the retract before priming
+    # finishes races the lock's engaged baseline. Wait for it first.
+    print("  -> waiting for EV:BL:LOCKED/PRIME_BOUND before retracting")
+    primed = wait_for_any_event(["BL:LOCKED", "BL:PRIME_BOUND"], t1, timeout_s=10.0)
+    if primed is None:
+        print("  FAIL (10-bl-bare-vs-args): never saw EV:BL:LOCKED/PRIME_BOUND after arming -- "
+              "check filament is present and the lane is idle")
+        return 1
+    print(f"     primed: EV:{primed['type']}")
     # EV:BL:BREAK only fires when the physical buffer-position sensor crosses
     # its threshold (sync.c sync_buffer_lock_locked()) -- arming alone can't
     # cause that, it takes a real extruder move. _FLARE_BL_RETRACT's own
@@ -378,6 +391,23 @@ def find_event(events, evt_type, since_ts, data_contains=None):
         if (e["type"] == evt_type and e["time"] >= since_ts
                 and (data_contains is None or data_contains in e["data"])):
             return e
+    return None
+
+
+def wait_for_any_event(evt_types, since_ts, timeout_s, poll_interval_s=0.2):
+    """Like wait_for_event, but matches whichever of evt_types shows up
+    first -- for alternative-outcome pairs like BL:LOCKED/BL:PRIME_BOUND
+    where either is a valid "armed" completion."""
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        snap = get_daemon_snapshot()
+        if snap is not None:
+            events = snap.get("events", [])
+            for evt_type in evt_types:
+                hit = find_event(events, evt_type, since_ts)
+                if hit is not None:
+                    return hit
+        time.sleep(poll_interval_s)
     return None
 
 
