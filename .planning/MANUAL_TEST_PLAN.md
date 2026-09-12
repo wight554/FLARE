@@ -48,7 +48,7 @@ each command; no manual coordination required.
 | Item | Command | What it proves |
 |---|---|---|
 | #4 | `python3 scripts/flare_cmd.py BL:T` — then just **don't** send `BS`, wait ~30s | `EV:BL:TIMEOUT` fires once, not repeated (the `watch` monitor classifies this automatically) |
-| #10 | `python3 scripts/verify_hw_open_items.py fire 10-bl-bare-vs-args` | bare `BL:T` no-ops (no `BREAK`/`FOLLOW`); `BL:T:20:300` on the same retract does `BREAK`→`FOLLOW`→`FOLLOW_DONE` |
+| #10 | `python3 scripts/verify_hw_open_items.py fire 10-bl-bare-vs-args` | bare `BL:T` no-ops (no `BREAK`/`FOLLOW`); `BL:T:20:300` self-triggers a real 20mm retract via Moonraker (`G1 E-20 F1500` + `M400`) and expects `BREAK`→`FOLLOW`→`FOLLOW_DONE` (needs `--moonraker-url` reachable and Klipper idle enough to accept the retract) |
 | #11 | unplug lane-2 TMC UART/5V for ~1s, replug — printer can be fully idle | exactly one `EV:TMC:FAULT:2:COMM_FAIL`, no storm, then `EV:TMC:RESTORED:2` on replug (monitor classifies this passively) |
 | #15 | `python3 scripts/verify_hw_open_items.py fire 15-command-stubs` | the 7 true no-op stubs register (no "Unknown command"), Klipper connected but printer idle is fine |
 

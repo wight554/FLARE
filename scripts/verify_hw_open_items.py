@@ -308,9 +308,11 @@ def poll_until_verdict(check_fn, timeout_s, poll_interval_s=0.3):
 
 
 def run_fire_bl_bare_vs_args(args):
-    """Item #10: a bare `BL:T` (no args) must be a no-op on retract (no
-    BL:BREAK/FOLLOW, motor stays still, BS -> BUF_STAB:DONE); an argumented
-    `BL:T:20:300` on the same retract must show BREAK->FOLLOW->FOLLOW_DONE."""
+    """Item #10: a bare `BL:T` (no args) must be a no-op (no BL:BREAK/FOLLOW,
+    motor stays still, BS -> BUF_STAB:DONE); an argumented `BL:T:20:300` must
+    show BREAK->FOLLOW->FOLLOW_DONE once a matching real retract is issued
+    (self-triggered here via Moonraker -- BL:BREAK only fires off the actual
+    buffer-position sensor, arming the lock alone can't cause it)."""
     configure_daemon(args.daemon_url, flare_cmd.get_auth_token(args.auth_token))
     print("Firing 10-bl-bare-vs-args: bare BL:T must no-op, BL:T:20:300 must FOLLOW")
     # Independent of --timeout (that's for command-reply waits): if an explicit
@@ -333,9 +335,19 @@ def run_fire_bl_bare_vs_args(args):
     print(f"  bare BL:T no-op: {verdict1.upper()} (evidence: {evidence1})")
 
     t1 = time.time()
-    print("  -> sending 'BL:T:20:300' now (on a retract)")
+    print("  -> sending 'BL:T:20:300' to arm the lock")
     reply3 = flare_cmd.send_daemon_cmd("BL:T:20:300", timeout=args.timeout)
     print(f"     reply: {reply3}")
+    # EV:BL:BREAK only fires when the physical buffer-position sensor crosses
+    # its threshold (sync.c sync_buffer_lock_locked()) -- arming alone can't
+    # cause that, it takes a real extruder move. _FLARE_BL_RETRACT's own
+    # pattern is: arm via serial -> G0 E-{length} F{speed} -> M400; replicate
+    # that here via Moonraker instead of leaving it as a manual step.
+    print("  -> issuing the matching real retract via Moonraker: G1 E-20 F1500 + M400")
+    ok, err = moonraker_gcode_script(args.moonraker_url, "G1 E-20 F1500\nM400", timeout=10.0)
+    if ok != "ok":
+        print(f"     WARNING: retract gcode did not complete cleanly ({ok}: {err}) -- "
+              "check Moonraker/Klipper is reachable and the extruder isn't otherwise busy")
     verdict2, evidence2 = poll_until_verdict(
         lambda events: classify_sequence(events, ["BL:BREAK", "BL:FOLLOW", "BL:FOLLOW_DONE"], t1, max_total_span_s=30),
         timeout_s=poll_timeout)
