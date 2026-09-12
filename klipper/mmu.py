@@ -8,6 +8,17 @@ class MMUMachineMock:
     def get_status(self, eventtime):
         return {
             'num_units': 1,
+            # [VERIFIED 2026-09-12] Checked Fluidd (src/mixins/mmu.ts,
+            # src/components/panels/Mmu/*.vue) and Mainsail
+            # (src/components/mixins/mmu.ts, src/components/panels/Mmu/*.vue)
+            # develop branches for any code path that branches on this exact
+            # string -- neither UI reads `happy_hare_version` at all today (the
+            # only `version` field either UI consumes is the per-unit
+            # `mmu_machine.unit_0.version`, already set below). No version-gated
+            # UI behavior to match, so this is a static value with no live
+            # regression risk (T-14-06); set to HH ef8431c4's own VERSION
+            # string (mmu_constants.py:20) as the documented fallback.
+            'happy_hare_version': '4.0.0',
             'unit_0': {
                 'name': 'FLARE',
                 'vendor': 'FYSETC',

@@ -467,6 +467,45 @@ def run_tests():
         noop_raised = True
     check("cmd_MMU_NOOP does not raise", not noop_raised, noop_raised)
 
+    print("action strings — Cutting Filament / Preload vocabulary expansion (14-02 Task 2)")
+    check("UNLOAD_CUT -> Cutting Filament",
+          flare_daemon._derive_action("UNLOAD_CUT", 1, "IDLE", "IDLE") == "Cutting Filament",
+          flare_daemon._derive_action("UNLOAD_CUT", 1, "IDLE", "IDLE"))
+    check("UNLOAD_WAIT_CUT -> Cutting Filament",
+          flare_daemon._derive_action("UNLOAD_WAIT_CUT", 1, "IDLE", "IDLE") == "Cutting Filament",
+          flare_daemon._derive_action("UNLOAD_WAIT_CUT", 1, "IDLE", "IDLE"))
+    check("plain UNLOAD still -> Unloading (cutting check doesn't swallow it)",
+          flare_daemon._derive_action("UNLOAD", 1, "IDLE", "IDLE") == "Unloading",
+          flare_daemon._derive_action("UNLOAD", 1, "IDLE", "IDLE"))
+    check("recent_preload_event=True at IDLE -> Preload",
+          flare_daemon._derive_action("IDLE", 0, "IDLE", "IDLE", recent_preload_event=True) == "Preload",
+          flare_daemon._derive_action("IDLE", 0, "IDLE", "IDLE", recent_preload_event=True))
+    check("UNLOAD_CUT beats a stale recent_preload_event flag",
+          flare_daemon._derive_action("UNLOAD_CUT", 1, "IDLE", "IDLE", recent_preload_event=True) == "Cutting Filament",
+          flare_daemon._derive_action("UNLOAD_CUT", 1, "IDLE", "IDLE", recent_preload_event=True))
+    check("no recent_preload_event kwarg -> Idle unaffected (default False)",
+          flare_daemon._derive_action("IDLE", 0, "IDLE", "IDLE") == "Idle",
+          flare_daemon._derive_action("IDLE", 0, "IDLE", "IDLE"))
+
+    print("action strings — _recent_event_seen decay window over event_history")
+    with flare_daemon.event_history_lock:
+        flare_daemon.event_history.clear()
+    flare_daemon.add_event_to_history("PRELOAD", "1")
+    check("_recent_event_seen('PRELOAD') True right after the event",
+          flare_daemon._recent_event_seen("PRELOAD", within_s=2.0) is True,
+          flare_daemon._recent_event_seen("PRELOAD", within_s=2.0))
+    check("_recent_event_seen('RUNOUT') False when only PRELOAD is recorded",
+          flare_daemon._recent_event_seen("RUNOUT", within_s=2.0) is False,
+          flare_daemon._recent_event_seen("RUNOUT", within_s=2.0))
+    with flare_daemon.event_history_lock:
+        flare_daemon.event_history.clear()
+
+    print("mmu_machine.happy_hare_version — non-empty string present")
+    m, p = new_mock()
+    hh_version = mmu.MMUMachineMock(m).get_status(0)["happy_hare_version"]
+    check("happy_hare_version is a non-empty string",
+          isinstance(hh_version, str) and len(hh_version) > 0, hh_version)
+
     print(f"\n{_PASS} passed, {_FAIL} failed")
     sys.exit(1 if _FAIL else 0)
 

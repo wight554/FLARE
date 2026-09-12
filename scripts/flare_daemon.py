@@ -1414,11 +1414,41 @@ def _flowguard_level(sync_active, tension_dwell_ms, compression_dwell_ms,
 # firmware/include/sync.h sync_state_t: 5th enum member (0-indexed 4) = SYNC_FAULT_HOLD.
 _SYNC_STATE_FAULT_HOLD = 4
 
+# Decay window for a recently-seen EV:PRELOAD event to still surface as the
+# "Preload" action string (14-RESEARCH.md "EV: events -> HH action strings").
+_ACTION_PRELOAD_DECAY_S = 2.0
 
-def _derive_action(tc_state, active_lane, lane1_task, lane2_task):
+
+def _recent_event_seen(event_type, within_s=2.0):
+    """True if an event_history entry of event_type landed within the last
+    within_s seconds. event_history is chronological (oldest first) and capped
+    at 100 entries, so scanning in reverse and breaking on the first
+    too-old entry keeps this bounded and cheap (T-14-05)."""
+    now = time.time()
+    with event_history_lock:
+        for entry in reversed(event_history):
+            if now - entry["time"] > within_s:
+                break
+            if entry["type"] == event_type:
+                return True
+    return False
+
+
+def _derive_action(tc_state, active_lane, lane1_task, lane2_task, recent_preload_event=False):
     """Map FLARE toolchange/lane-task state to a Happy Hare action string so
-    Fluidd shows 'Loading: X mm' / 'Unloading: X mm' during operations."""
+    Fluidd shows 'Loading: X mm' / 'Unloading: X mm' during operations.
+
+    Grounded subset only (14-RESEARCH.md "EV: events -> HH action strings",
+    Open Question 1, RESOLVED): "Forming Tip", "Heating", "Selecting",
+    "Checking", "Homing", and "Purging" have no live FLARE daemon signal --
+    no physical selector/heater/encoder, and tip-forming/purging happen
+    entirely inside Klipper macros the daemon never observes -- so they
+    intentionally fall through to the default "Idle" branch below rather
+    than fabricate a trigger condition for them.
+    """
     ts = (tc_state or "").upper()
+    if ts in ("UNLOAD_CUT", "UNLOAD_WAIT_CUT"):
+        return "Cutting Filament"
     if ts.startswith("LOAD") or ts == "SWAP" or ts.startswith("RELOAD"):
         return "Loading"
     if ts.startswith("UNLOAD"):
@@ -1429,6 +1459,8 @@ def _derive_action(tc_state, active_lane, lane1_task, lane2_task):
         return "Loading"
     if task == "UNLOAD":
         return "Unloading"
+    if recent_preload_event:
+        return "Preload"
     return "Idle"
 
 def _syncer_wait_time(now, host_busy, next_idle_probe, backoff, last_force_sync, retry_at):
@@ -1613,9 +1645,13 @@ def klipper_syncer(moonraker_url):
         with stats_lock:
             st = dict(mmu_stats)
 
+        # "Preload" is a fallback-from-Idle signal only: a live tc_state/task
+        # branch above always wins over a stale recent-PRELOAD flag.
+        recent_preload = _recent_event_seen("PRELOAD", within_s=_ACTION_PRELOAD_DECAY_S)
         action = _derive_action(tc_state, active_lane,
                                 state.get("lane1_task", "IDLE"),
-                                state.get("lane2_task", "IDLE"))
+                                state.get("lane2_task", "IDLE"),
+                                recent_preload_event=recent_preload)
 
         bypass = bool(state.get("bypass", False))
 
