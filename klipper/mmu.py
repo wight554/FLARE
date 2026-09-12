@@ -59,6 +59,13 @@ class MMUMock:
         self.sync_feedback = 0.0 # buffer compression/tension offset
         self.sync_feedback_state = "neutral"
         self.sync_feedback_enabled = False
+        self.flowguard_enabled = False
+        self.flowguard_active = False
+        self.flowguard_trigger = ""
+        self.flowguard_reason = ""
+        self.flowguard_level = 0.0
+        self.flowguard_max_clog = 0.0
+        self.flowguard_max_tangle = 0.0
         self.buf_sensor_type = 0
         self.print_job_state = "standby"
         self.print_state = "ready"
@@ -206,6 +213,13 @@ class MMUMock:
         self.toolhead_sensor = gcmd.get_int('TOOLHEAD_SENSOR', self.toolhead_sensor)
         self.sync_feedback = gcmd.get_float('SYNC_FEEDBACK', self.sync_feedback)
         self.sync_feedback_enabled = gcmd.get_int('SYNC_FEEDBACK_ENABLED', 1 if self.sync_feedback_enabled else 0) != 0
+        self.flowguard_enabled = gcmd.get_int('FLOWGUARD_ENABLED', 1 if self.flowguard_enabled else 0) != 0
+        self.flowguard_active = gcmd.get_int('FLOWGUARD_ACTIVE', 1 if self.flowguard_active else 0) != 0
+        self.flowguard_trigger = gcmd.get('FLOWGUARD_TRIGGER', self.flowguard_trigger).strip("'\"")
+        self.flowguard_reason = gcmd.get('FLOWGUARD_REASON', self.flowguard_reason).strip("'\"")
+        self.flowguard_level = gcmd.get_float('FLOWGUARD_LEVEL', self.flowguard_level)
+        self.flowguard_max_clog = gcmd.get_float('FLOWGUARD_MAX_CLOG', self.flowguard_max_clog)
+        self.flowguard_max_tangle = gcmd.get_float('FLOWGUARD_MAX_TANGLE', self.flowguard_max_tangle)
         self.buf_sensor_type = gcmd.get_int('BUF_SENSOR_TYPE', self.buf_sensor_type)
         
         # Strip quotes from standard string parameters
@@ -1462,6 +1476,15 @@ class MMUMock:
             'sync_feedback_bias': self.sync_feedback,
             'sync_feedback_bias_modelled': self.sync_feedback,
             'sync_feedback_enabled': self.sync_feedback_enabled,
+            'flowguard': {
+                'enabled': self.flowguard_enabled,
+                'active': self.flowguard_active,
+                'trigger': self.flowguard_trigger,
+                'reason': self.flowguard_reason,
+                'level': self.flowguard_level,
+                'max_clog': self.flowguard_max_clog,
+                'max_tangle': self.flowguard_max_tangle,
+            },
             'print_job_state': self.print_job_state,
             'print_state': self.print_state,
             'board_online': self.board_online,

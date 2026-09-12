@@ -593,6 +593,10 @@ def parse_status_line(line):
                 new_data["feed_rate_mms"] = float(val) / 60.0
             elif key == "UL_RATE":
                 new_data["rev_rate_mms"] = float(val) / 60.0
+            elif key == "TT":
+                new_data["tension_dwell_ms"] = int(val)
+            elif key == "CT":
+                new_data["compression_dwell_ms"] = int(val)
         except ValueError:
             pass # ignore malformed metrics
 
@@ -606,7 +610,8 @@ def parse_status_line(line):
             keys_to_check = (
                 "active_lane", "tc_state", "lane1_task", "lane2_task",
                 "buf_sensor_type", "buf_state", "in1", "out1", "in2", "out2",
-                "toolhead", "y_split", "reload_mode", "enable_cutter", "unload_cut"
+                "toolhead", "y_split", "reload_mode", "enable_cutter", "unload_cut",
+                "tension_dwell_ms", "compression_dwell_ms"
             )
             field_changed = any(
                 k in new_data and new_data[k] != status_cache.get(k)
@@ -1246,6 +1251,15 @@ _MMU_RECONCILE_STATUS_KEYS = {
     "GATE_SPOOL_ID": "gate_spool_id",
     "GATE_NAME": "gate_name",
     "GATE_FILAMENT_NAME": "gate_filament_name",
+    # FlowGuard sub-dict: 2-tuples resolve against get_status()['flowguard'][...]
+    # rather than a top-level scalar key (see _format_mmu_reconcile_value).
+    "FLOWGUARD_ENABLED": ("flowguard", "enabled"),
+    "FLOWGUARD_ACTIVE": ("flowguard", "active"),
+    "FLOWGUARD_TRIGGER": ("flowguard", "trigger"),
+    "FLOWGUARD_REASON": ("flowguard", "reason"),
+    "FLOWGUARD_LEVEL": ("flowguard", "level"),
+    "FLOWGUARD_MAX_CLOG": ("flowguard", "max_clog"),
+    "FLOWGUARD_MAX_TANGLE": ("flowguard", "max_tangle"),
 }
 
 _MMU_RECONCILE_FLOATS = {
@@ -1253,6 +1267,9 @@ _MMU_RECONCILE_FLOATS = {
     "SPS": 3,
     "FEED_RATE": 2,
     "REV_RATE": 2,
+    "FLOWGUARD_LEVEL": 3,
+    "FLOWGUARD_MAX_CLOG": 3,
+    "FLOWGUARD_MAX_TANGLE": 3,
 }
 
 _MMU_RECONCILE_STRINGS = {
@@ -1269,6 +1286,8 @@ _MMU_RECONCILE_STRINGS = {
     "GATE_SPOOL_ID",
     "GATE_NAME",
     "GATE_FILAMENT_NAME",
+    "FLOWGUARD_TRIGGER",
+    "FLOWGUARD_REASON",
 }
 
 def _moonraker_get_mmu_status(moonraker_url):
@@ -1298,14 +1317,25 @@ def _moonraker_get_idle_state(moonraker_url):
 def _format_mmu_reconcile_value(key, status, desired_fields):
     """Return the SET_MMU-formatted value represented by a Moonraker mmu status."""
     status_key = _MMU_RECONCILE_STATUS_KEYS.get(key)
-    if status_key is None or status_key not in status:
+    if status_key is None:
         return None
 
-    value = status[status_key]
-    if key in ("ACTIVE_GATE", "GATE", "TOOL") and desired_fields.get("BYPASS") == "1":
-        return desired_fields.get(key)  # cmd_SET_MMU stores -2 while command carries lane fields.
-    elif key == "BYPASS":
-        value = 1 if bool(value) else 0
+    if isinstance(status_key, tuple):
+        # Nested sub-dict (e.g. flowguard): resolve both levels, or bail if
+        # either is missing/not a dict rather than raising.
+        outer_key, inner_key = status_key
+        nested = status.get(outer_key)
+        if not isinstance(nested, dict) or inner_key not in nested:
+            return None
+        value = nested[inner_key]
+    else:
+        if status_key not in status:
+            return None
+        value = status[status_key]
+        if key in ("ACTIVE_GATE", "GATE", "TOOL") and desired_fields.get("BYPASS") == "1":
+            return desired_fields.get(key)  # cmd_SET_MMU stores -2 while command carries lane fields.
+        elif key == "BYPASS":
+            value = 1 if bool(value) else 0
 
     if key in _MMU_RECONCILE_FLOATS:
         return f"{float(value):.{_MMU_RECONCILE_FLOATS[key]}f}"
@@ -1339,6 +1369,41 @@ def _moonraker_set_active_spool(moonraker_url, spool_id):
         return True
     except Exception:
         return False
+
+# MANUAL.md documented default for SYNC_TENSION_STOP_MS. The live GET: is
+# FLARE_DEV_TUNING-gated (RESEARCH.md Pitfall 3), so hardcode the default
+# rather than query firmware for it.
+_FLOWGUARD_TENSION_STOP_MS = 6000
+# tune.h CONF_SYNC_AUTO_STOP_MS default.
+_FLOWGUARD_COMPRESSION_STOP_MS = 5000
+
+
+def _flowguard_level(sync_active, tension_dwell_ms, compression_dwell_ms,
+                      tension_stop_ms=_FLOWGUARD_TENSION_STOP_MS,
+                      compression_stop_ms=_FLOWGUARD_COMPRESSION_STOP_MS):
+    """Derive a Happy-Hare-shaped FlowGuard (level, trigger) from FLARE's
+    existing TT:/CT: dwell-timer telemetry -- no firmware change needed.
+
+    Sign convention matches HH's mmu_sync_controller.py:807-905: positive =
+    compression/"clog" side, negative = tension/"tangle" side. `trigger` is ""
+    until the corresponding dwell timer actually saturates its stop threshold
+    (i.e. the fault is imminent, not merely non-zero). Sync inactive always
+    forces (0.0, "") regardless of dwell state (Success Criterion 1).
+    """
+    if not sync_active:
+        return 0.0, ""
+
+    tension_frac = min(1.0, tension_dwell_ms / tension_stop_ms) if tension_stop_ms > 0 else 0.0
+    compression_frac = min(1.0, compression_dwell_ms / compression_stop_ms) if compression_stop_ms > 0 else 0.0
+
+    if tension_frac >= compression_frac:
+        level = -tension_frac
+        trigger = "tangle" if tension_frac >= 1.0 else ""
+    else:
+        level = compression_frac
+        trigger = "clog" if compression_frac >= 1.0 else ""
+    return level, trigger
+
 
 def _derive_action(tc_state, active_lane, lane1_task, lane2_task):
     """Map FLARE toolchange/lane-task state to a Happy Hare action string so
@@ -1386,6 +1451,8 @@ def klipper_syncer(moonraker_url):
     last_loaded_gate = None
     last_active_spool = object()  # sentinel distinct from None / any spool id
     last_pushed_fields = {}  # KEY -> last-pushed formatted value, for delta SET_MMU
+    flowguard_max_clog = 0.0  # FlowGuard high-water mark, tension/compression sides
+    flowguard_max_tangle = 0.0
     last_gate_dbg = None  # FLARE_GATE_DEBUG: last logged gate-input tuple
     gate_debug = bool(os.environ.get("FLARE_GATE_DEBUG"))
     host_busy = False   # gcode lock held by blocking command (e.g. MPC_CALIBRATE)
@@ -1541,6 +1608,29 @@ def klipper_syncer(moonraker_url):
 
         bypass = bool(state.get("bypass", False))
 
+        # FlowGuard: derive HH-shaped fault-approach telemetry from the
+        # dwell-timer fields already parsed off TT:/CT: -- no firmware change.
+        sync_active = bool(state.get("sync_drive", False))
+        tension_dwell_ms = state.get("tension_dwell_ms", 0)
+        compression_dwell_ms = state.get("compression_dwell_ms", 0)
+        flowguard_level, flowguard_trigger = _flowguard_level(
+            sync_active, tension_dwell_ms, compression_dwell_ms)
+        flowguard_active = sync_active and flowguard_level != 0.0
+        flowguard_enabled = sync_feedback_enabled
+        if flowguard_trigger == "tangle":
+            flowguard_reason = "Tension dwell approaching trip"
+        elif flowguard_trigger == "clog":
+            flowguard_reason = "Compression dwell approaching trip"
+        else:
+            flowguard_reason = ""
+        if not sync_active:
+            flowguard_max_clog = 0.0
+            flowguard_max_tangle = 0.0
+        elif flowguard_level > 0:
+            flowguard_max_clog = max(flowguard_max_clog, flowguard_level)
+        elif flowguard_level < 0:
+            flowguard_max_tangle = min(flowguard_max_tangle, flowguard_level)
+
         # All SET_MMU mirror fields as formatted strings, in a stable order. cmd_SET_MMU
         # keeps the current value for any absent param, so we can push only the fields
         # that changed (delta) and still leave the mock in the same state.
@@ -1579,6 +1669,13 @@ def klipper_syncer(moonraker_url):
             "UNLOADS_SUCCESS": str(st["unloads_success"]),
             "MMU_LAST_ERROR": f"'{st['last_error']}'",
             "BYPASS": str(1 if bypass else 0),
+            "FLOWGUARD_ENABLED": str(1 if flowguard_enabled else 0),
+            "FLOWGUARD_ACTIVE": str(1 if flowguard_active else 0),
+            "FLOWGUARD_TRIGGER": f"'{flowguard_trigger}'",
+            "FLOWGUARD_REASON": f"'{flowguard_reason}'",
+            "FLOWGUARD_LEVEL": f"{flowguard_level:.3f}",
+            "FLOWGUARD_MAX_CLOG": f"{flowguard_max_clog:.3f}",
+            "FLOWGUARD_MAX_TANGLE": f"{flowguard_max_tangle:.3f}",
         }
 
         # Periodic restart recovery is a silent reconcile: read Klipper's mmu

@@ -628,6 +628,49 @@ with `LANE=0` (or no `LANE`) it SHALL send `LO:` for the active lane; any other
 - **Source**: `.planning/specs/klipper-motion-tracking/spec.md`
 - **Description**: The workflow MUST retain manual G-code marker support when UDS or sidecar is unavailable.
 
+### REQ-klipper-status-parity-flowguard-dict
+- **Source**: `.planning/phases/14-klipper-mmu-status-parity/14-RESEARCH.md`
+- **Description**: `klipper/mmu.py` SHALL publish a Happy-Hare-shaped `printer.mmu.flowguard` dict
+(`enabled`/`active`/`trigger`/`reason`/`level`/`max_clog`/`max_tangle`) derived purely from
+FLARE's existing `TT:`/`CT:` dwell-timer telemetry, with no firmware change. `level` SHALL
+move toward +1.0 ("clog") as the compression dwell approaches its stop threshold and toward
+-1.0 ("tangle") as the tension dwell approaches its stop threshold, and SHALL be 0.0 with
+`active` False whenever sync is inactive, regardless of dwell state.
+
+### REQ-klipper-status-parity-missing-keys
+- **Source**: `.planning/phases/14-klipper-mmu-status-parity/14-RESEARCH.md`
+- **Description**: Every `printer.mmu` status key read by current Fluidd/Mainsail `develop`
+builds that has a FLARE-side source SHALL exist in `get_status()` with the correct type —
+including `sync_drive`, `is_paused`, `reason_for_pause`, `sync_feedback_flow_rate`,
+`has_bypass`, `unit`, `operation`, `drying_state`, `espooler`, `espooler_active`,
+`extruder_filament_remaining`, `filament_direction`, `gate_temperature`, `grip`, `last_tool`,
+`next_tool`, `slicer_tool_map`, `endless_spool_enabled`, `endless_spool_groups`,
+`toolchange_purge_volume`, `encoder`, and `clog_detection_enabled` (with `clogs_enabled`
+retained as a backward-compatible alias).
+
+### REQ-klipper-status-parity-hh-version
+- **Source**: `.planning/phases/14-klipper-mmu-status-parity/14-RESEARCH.md`
+- **Description**: `mmu_machine`'s status SHALL expose `happy_hare_version` so Fluidd/Mainsail
+version-gated MMU panel features render instead of falling back to a legacy/absent UI.
+
+### REQ-klipper-status-parity-command-stubs
+- **Source**: `.planning/phases/14-klipper-mmu-status-parity/14-RESEARCH.md`
+- **Description**: `MMU_TEST_CONFIG`, `MMU_LED`, `MMU_GRIP`/`MMU_RELEASE`/`MMU_SERVO`,
+`MMU_PRINT_START`/`MMU_PRINT_END`, and the `*_VARS` maintenance dialogs SHALL register as
+ack/no-op commands so Fluidd/Mainsail MMU panel dialogs do not error with "Unknown command".
+
+### REQ-klipper-status-parity-action-strings
+- **Source**: `.planning/phases/14-klipper-mmu-status-parity/14-RESEARCH.md`
+- **Description**: `action` SHALL report the full Happy-Hare action-string vocabulary (e.g.
+`Cutting Filament`, `Preload`, `Loading`, `Unloading`, …) derived from FLARE's existing `EV:`
+events, rather than the narrower `Loading`/`Unloading`/`Idle` set.
+
+### REQ-klipper-status-parity-schema-test
+- **Source**: `.planning/phases/14-klipper-mmu-status-parity/14-RESEARCH.md`
+- **Description**: A `test_status_fields_exist_before_ready`-style unit test SHALL assert the
+full `printer.mmu` status schema (every key Fluidd/Mainsail `develop` reads) is present with
+the correct type before the daemon connects, catching future key/type drift automatically.
+
 ### REQ-live-tuner-per-feature-velocity-buckets
 - **Source**: `.planning/specs/live-tuner/spec.md`
 - **Description**: The tuner SHALL aggregate telemetry into feature + velocity buckets (rate + bias).

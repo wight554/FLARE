@@ -228,6 +228,53 @@ def run_tests():
     check("buf_sensor_type 1 exposes filament_proportional", s["sensors"].get("filament_proportional") is True, s["sensors"])
     check("buf_sensor_type 1 does NOT expose filament_tension/compression", "filament_tension" not in s["sensors"] and "filament_compression" not in s["sensors"], s["sensors"])
 
+    print("flowguard — dwell-to-level derivation (pure function, no firmware change)")
+    check("saturated tension dwell -> tangle at -1.0",
+          flare_daemon._flowguard_level(True, 6000, 0) == (-1.0, "tangle"),
+          flare_daemon._flowguard_level(True, 6000, 0))
+    check("halfway compression dwell -> 0.5, not yet tripped",
+          flare_daemon._flowguard_level(True, 0, 2500) == (0.5, ""),
+          flare_daemon._flowguard_level(True, 0, 2500))
+    check("sync inactive forces level 0 regardless of dwell",
+          flare_daemon._flowguard_level(False, 6000, 0) == (0.0, ""),
+          flare_daemon._flowguard_level(False, 6000, 0))
+
+    print("flowguard — TT:/CT: wire parse feeds status_cache + wakes klipper_syncer")
+    with flare_daemon.status_lock:
+        flare_daemon.status_cache.update({
+            "active_lane": 1, "tc_state": "IDLE", "lane1_task": "IDLE", "lane2_task": "IDLE",
+            "buf_sensor_type": 0, "buf_state": "NEUTRAL", "in1": 0, "out1": 0, "in2": 0, "out2": 0,
+            "toolhead": 0, "y_split": 0, "reload_mode": 0, "enable_cutter": 0, "unload_cut": 0,
+            "board_online": True, "tension_dwell_ms": 0, "compression_dwell_ms": 0,
+        })
+    flare_daemon.klipper_sync_event.clear()
+    flare_daemon.parse_status_line("OK:LN:1,TC:IDLE,L1T:IDLE,L2T:IDLE,TT:1234,CT:0")
+    check("TT: parses to tension_dwell_ms",
+          flare_daemon.status_cache.get("tension_dwell_ms") == 1234,
+          flare_daemon.status_cache.get("tension_dwell_ms"))
+    check("CT: parses to compression_dwell_ms",
+          flare_daemon.status_cache.get("compression_dwell_ms") == 0,
+          flare_daemon.status_cache.get("compression_dwell_ms"))
+    check("dwell-timer edge wakes klipper_syncer (wake-gate tuple)",
+          flare_daemon.klipper_sync_event.is_set(),
+          flare_daemon.klipper_sync_event.is_set())
+
+    print("flowguard — round-trip through cmd_SET_MMU / get_status()")
+    m, p = new_mock()
+    m.cmd_SET_MMU(FakeGcmd({
+        "FLOWGUARD_ENABLED": 1, "FLOWGUARD_ACTIVE": 1, "FLOWGUARD_TRIGGER": "'tangle'",
+        "FLOWGUARD_REASON": "'Tension dwell approaching trip'", "FLOWGUARD_LEVEL": -1.0,
+        "FLOWGUARD_MAX_CLOG": 0.0, "FLOWGUARD_MAX_TANGLE": -1.0,
+    }))
+    expected_flowguard = {
+        "enabled": True, "active": True, "trigger": "tangle",
+        "reason": "Tension dwell approaching trip", "level": -1.0,
+        "max_clog": 0.0, "max_tangle": -1.0,
+    }
+    check("flowguard dict round-trips exactly",
+          m.get_status(0)["flowguard"] == expected_flowguard,
+          m.get_status(0)["flowguard"])
+
     print("daemon reconcile — compare Moonraker mmu status to SET_MMU formatting")
     fields = {
         "NUM_GATES": "2",
@@ -268,6 +315,13 @@ def run_tests():
         "GATE_SPOOL_ID": "'12,34'",
         "GATE_NAME": "'Gate 0,Gate 1'",
         "GATE_FILAMENT_NAME": "'Gate 0,Gate 1'",
+        "FLOWGUARD_ENABLED": "1",
+        "FLOWGUARD_ACTIVE": "1",
+        "FLOWGUARD_TRIGGER": "'tangle'",
+        "FLOWGUARD_REASON": "'Tension dwell approaching trip'",
+        "FLOWGUARD_LEVEL": "-1.000",
+        "FLOWGUARD_MAX_CLOG": "0.000",
+        "FLOWGUARD_MAX_TANGLE": "-1.000",
     }
     m, p = new_mock()
     m.cmd_SET_MMU(FakeGcmd(fields))
