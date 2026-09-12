@@ -48,7 +48,7 @@ each command; no manual coordination required.
 | Item | Command | What it proves |
 |---|---|---|
 | #4 | `python3 scripts/flare_cmd.py BL:T` — then just **don't** send `BS`, wait ~30s | `EV:BL:TIMEOUT` fires once, not repeated (the `watch` monitor classifies this automatically) |
-| #10 | `python3 scripts/verify_hw_open_items.py fire 10-bl-bare-vs-args` | bare `BL:T` no-ops (no `BREAK`/`FOLLOW`); `BL:T:20:300` self-triggers a real 20mm relative retract via Moonraker (`SAVE_GCODE_STATE` + `M83` + `G1 E-20 F1500` + `M400` + `RESTORE_GCODE_STATE`, matching every extrude macro's own convention) and expects `BREAK`→`FOLLOW`→`FOLLOW_DONE` (needs `--moonraker-url` reachable and Klipper idle enough to accept the retract) |
+| #10 | `python3 scripts/verify_hw_open_items.py fire 10-bl-bare-vs-args` | bare `BL:T` no-ops (no `BREAK`/`FOLLOW`); for the argumented case, first nudges the buffer toward tension with a relative extrude (`buf_max_travel × 1.5`) so `BL:T:20:300`'s PRIME phase has to cover far less ground before it can engage (`PSF_BREAK_THRESHOLD_NORM=0.75`), then arms and self-triggers a real 20mm relative retract via Moonraker, expecting `BREAK`→`FOLLOW`→`FOLLOW_DONE` (needs `--moonraker-url` reachable; a buffer resting near full compression when armed can PRIME_BOUND short of engaging — confirmed on hardware — hence the nudge) |
 | #11 | unplug lane-2 TMC UART/5V for ~1s, replug — printer can be fully idle | exactly one `EV:TMC:FAULT:2:COMM_FAIL`, no storm, then `EV:TMC:RESTORED:2` on replug (monitor classifies this passively) |
 | #15 | `python3 scripts/verify_hw_open_items.py fire 15-command-stubs` | the 7 true no-op stubs register (no "Unknown command"), Klipper connected but printer idle is fine |
 

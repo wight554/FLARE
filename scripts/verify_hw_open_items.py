@@ -131,6 +131,23 @@ def moonraker_gcode_script(moonraker_url, script, timeout=3.0):
         return "error", str(e)
 
 
+def moonraker_relative_extrude(moonraker_url, delta_mm, feedrate_mmpm=1500, timeout=10.0):
+    """Issue one relative extrude move (delta_mm negative = retract, positive
+    = extrude) via Moonraker, wrapped in SAVE_GCODE_STATE + M83 +
+    RESTORE_GCODE_STATE -- every extrude-only macro in klipper/flare_mmu.cfg
+    does exactly this because Klipper's default absolute extrusion mode
+    (M82) would otherwise turn "G1 E{delta_mm}" into a move to an absolute E
+    target instead of a delta_mm-length relative move."""
+    gcode = (
+        "SAVE_GCODE_STATE NAME=_flare_hw_verify_move\n"
+        "M83\n"
+        f"G1 E{delta_mm} F{feedrate_mmpm}\n"
+        "M400\n"
+        "RESTORE_GCODE_STATE NAME=_flare_hw_verify_move"
+    )
+    return moonraker_gcode_script(moonraker_url, gcode, timeout=timeout)
+
+
 def klippy_log_has_unknown_command(klippy_log_path, since_ts, gcode_name):
     """Grep klippy.log for an 'Unknown command' error naming gcode_name,
     logged at or after since_ts. Best-effort corroboration only — Moonraker's
@@ -334,8 +351,30 @@ def run_fire_bl_bare_vs_args(args):
         timeout_s=poll_timeout)
     print(f"  bare BL:T no-op: {verdict1.upper()} (evidence: {evidence1})")
 
+    # PSF_BREAK_THRESHOLD_NORM (controller_shared.h) is 0.75 -- BL:T's PRIME
+    # phase must drive buf_pos past -0.75 to ever engage the lock, and PRIME
+    # has a distance cap (BUF_MAX_TRAVEL_MM). If the buffer happens to be
+    # resting near full compression (BP close to +1.0) when we arm, that's
+    # nearly the whole travel range and PRIME_BOUNDs short of engaging --
+    # confirmed on hardware: BL:LOCKED/PRIME_BOUND fired, but buf_pos only
+    # reached -0.01, so BL:BREAK could never fire afterward regardless of the
+    # retract. Nudge the buffer toward tension first so PRIME has far less
+    # ground to cover. Do this immediately before arming (not as a separate,
+    # human-paced step) -- BL:T's own arm handler calls
+    # buffer_stabilize_cancel(), but only once armed; anything idle and off
+    # BUF_NEUTRAL is a target for the firmware's own auto buffer-stabilize in
+    # the meantime, which would undo the nudge if given time to run.
+    snap = get_daemon_snapshot()
+    buf_max_travel = (snap or {}).get("buf_max_travel") or 30.0
+    nudge_mm = buf_max_travel * 1.5
+    print(f"  -> nudging buffer toward tension first: extrude {nudge_mm:.0f}mm via Moonraker "
+          f"(buf_max_travel={buf_max_travel})")
+    ok, err = moonraker_relative_extrude(args.moonraker_url, nudge_mm, timeout=15.0)
+    if ok != "ok":
+        print(f"     WARNING: nudge extrude did not complete cleanly ({ok}: {err})")
+
     t1 = time.time()
-    print("  -> sending 'BL:T:20:300' to arm the lock")
+    print("  -> immediately sending 'BL:T:20:300' to arm the lock")
     reply3 = flare_cmd.send_daemon_cmd("BL:T:20:300", timeout=args.timeout)
     print(f"     reply: {reply3}")
     # "OK" here is only the immediate serial ack -- the arm's real completion
@@ -351,25 +390,15 @@ def run_fire_bl_bare_vs_args(args):
               "check filament is present and the lane is idle")
         return 1
     print(f"     primed: EV:{primed['type']}")
+    engaged_snap = get_daemon_snapshot()
+    print(f"     buffer position now: BP={((engaged_snap or {}).get('g_buf_pos'))}")
     # EV:BL:BREAK only fires when the physical buffer-position sensor crosses
     # its threshold (sync.c sync_buffer_lock_locked()) -- arming alone can't
     # cause that, it takes a real extruder move. _FLARE_BL_RETRACT's own
     # pattern is: arm via serial -> G0 E-{length} F{speed} -> M400; replicate
     # that here via Moonraker instead of leaving it as a manual step.
     print("  -> issuing the matching real retract via Moonraker (M83 + G1 E-20 F1500 + M400)")
-    # Every extrude-only move macro in klipper/flare_mmu.cfg wraps the move in
-    # SAVE_GCODE_STATE + M83 (relative extrude) + RESTORE_GCODE_STATE -- without
-    # M83, Klipper's default absolute mode (M82) means "G1 E-20" targets an
-    # absolute E position, not a 20mm retract, and can end up moving ~0mm
-    # depending on the extruder's current E value.
-    retract_gcode = (
-        "SAVE_GCODE_STATE NAME=_flare_hw_verify_retract\n"
-        "M83\n"
-        "G1 E-20 F1500\n"
-        "M400\n"
-        "RESTORE_GCODE_STATE NAME=_flare_hw_verify_retract"
-    )
-    ok, err = moonraker_gcode_script(args.moonraker_url, retract_gcode, timeout=10.0)
+    ok, err = moonraker_relative_extrude(args.moonraker_url, -20, timeout=10.0)
     if ok != "ok":
         print(f"     WARNING: retract gcode did not complete cleanly ({ok}: {err}) -- "
               "check Moonraker/Klipper is reachable and the extruder isn't otherwise busy")
