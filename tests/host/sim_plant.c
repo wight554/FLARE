@@ -175,6 +175,8 @@ void sim_plant_tick(sim_plant_t *p, const sim_scenario_t *scn, uint32_t t_ms, ui
 
     if (sensor_type == BUF_SENSOR_TYPE_P) {
         float norm = p->slack_mm / half_travel;
+        if (scn->type_p_rail_scale > 0.0f)
+            norm *= scn->type_p_rail_scale;
         if (norm > 1.0f)
             norm = 1.0f;
         if (norm < -1.0f)

@@ -139,6 +139,12 @@ typedef struct {
     uint32_t ul_start_at_ms;   // 0 = never; else call lane_start(..., TASK_UNLOAD, ...) at this
                                // tick (mirrors protocol.c's manual UL command)
     int ul_target_lane;        // 1 or 2
+
+    // bl-tension-lock-engage scenario support (UNLOAD_TIMEOUT after 92e39e7).
+    int buf_max_travel_override;  // 0 = default; else overrides g_buf_max_travel_mm
+    float type_p_rail_scale;      // 0 = 1.0; else plant emits norm * scale — models a
+                                  // rig whose physical hard end reads shallower than
+                                  // the calibrated +/-1.0 rail (e.g. 0.8 => rail at -0.80)
 } sim_scenario_t;
 
 extern const sim_scenario_t g_sim_scenarios[];

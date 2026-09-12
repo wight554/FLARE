@@ -402,6 +402,31 @@ class BufferStateLockTests(unittest.TestCase):
         self.assertLess(catch_end_pos, catch_start_pos,
                         f"expected catch to pull toward tension: {catch_start_pos} -> {catch_end_pos}")
 
+    def test_type_p_shallow_rail_still_follows_retract(self):
+        """Regression for the 2026-09-12 UNLOAD_TIMEOUT: a rig whose tension
+        hard end reads shallower than PSF_BREAK_THRESHOLD_NORM (-0.70 here,
+        baseline capture saw -0.68) never passed the absolute "engaged" test,
+        so an extruder retract longer than the buffer produced no BL:BREAK/
+        FOLLOW — the buffer pinned at the compression rail, the extruder
+        skipped against the held MMU and the tip never parked. The break must
+        be detected relative to the reading actually seen at the rail, and it
+        must not depend on a settle dwell between LOCKED and the retract."""
+        for scenario in ("bl_retract_immediate", "bl_retract_paused"):
+            with self.subTest(scenario=scenario):
+                run = run_scenario(scenario, sensor_type="p", ticks=None)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                events = run.events_text()
+                self.assertIn("BL,PRIME_BOUND", events)
+                self.assertIn("BL,LOCKED", events)
+                self.assertIn("BL,BREAK", events, "retract never broke the lock")
+                self.assertIn("BL,FOLLOW", events, "MMU never followed the retract")
+                self.assertLess(events.index("BL,LOCKED"), events.index("BL,BREAK"))
+                # The MMU followed the whole 43 mm: buffer ends on the tension
+                # side, not pinned at +half-travel (compression) like the rig.
+                self.assertLess(float(run.rows[-1]["bp_mm"]), 0.0,
+                                f"buffer ended at {run.rows[-1]['bp_mm']} mm (compression)")
+                self.assertNotIn("C", run.sats(), "buffer touched the compression rail")
+
 
 @unittest.skipIf(_skip_reason(), _skip_reason())
 class CutterFeedTimeoutTests(unittest.TestCase):

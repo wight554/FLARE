@@ -95,6 +95,18 @@ to the catch sub-state on the first raw edge, without waiting for the
   tick
 - **AND** `EV:BL:BREAK` is emitted
 
+#### Scenario: Type-P rail reads shallower than the calibrated extreme
+- **WHEN** the sensor is type-P and the prime ends at the armed rail
+  (predicted crossing or `PRIME_BOUND` travel cap)
+- **AND** the normalized reading at that hard end never reaches the
+  absolute break boundary (e.g. rests at `-0.70`)
+- **THEN** the lock is still considered engaged
+- **AND** an extruder retract that moves the buffer `BL_BREAK_DELTA_NORM`
+  back toward neutral from the deepest reading observed at the rail
+  emits `EV:BL:BREAK` and enters the catch sub-state
+- **AND** this does not depend on any host-side dwell between
+  `EV:BL:LOCKED` and the retract
+
 ### Requirement: Instant-Slam Catch With Asymmetric Safety
 On lock-break the firmware SHALL drive the active lane in the mirror
 direction (retract for `BL:T` break, feed for `BL:C` break) at

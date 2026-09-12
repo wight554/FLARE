@@ -563,6 +563,33 @@ const sim_scenario_t g_sim_scenarios[] = {
     // Left the trigger fields (tc_start_at_ms/tc_target_lane) in
     // sim_scenario.h/sim_main.c since they're real, working infrastructure;
     // just no scenario built on them yet. See memories/repo/host-sync-sim.md.
+
+    // Rig-shaped BL:T -> extruder retract chain (klipper _FLARE_BL_RETRACT on the
+    // 16 mm type-P rig). The extruder retract starts a short host round-trip
+    // after EV:BL:LOCKED (92e39e7 removed the 1 s G4 dwell that used to sit
+    // between them). rail_scale models a hard end that reads shallower than
+    // the calibrated rail. Success criterion: BL:BREAK + BL:FOLLOW fire so the
+    // MMU actually follows a retract longer than the buffer; without them the
+    // buffer pins at the compression rail and the extruder skips (tip never
+    // parks -> TC unload UNLOAD_TIMEOUT).
+    {
+        .name = "bl_retract_immediate",
+        .demand = {.kind = DEMAND_RETRACT, .level_mm_s = 50.0f, .t1_ms = 1560, .t2_ms = 2420},
+        .active_lane = 1, .start_sync_active = false,
+        .bl_arm_at_ms = 1000, .bl_arm_target = 1 /* BUF_TENSION */,
+        .bl_arm_follow_mm = 43.0f, .bl_arm_follow_rate_mmpm = 5000.0f,
+        .buf_max_travel_override = 16, .type_p_rail_scale = 0.7f,
+        .tick_ceiling = 300, .type_specific = true,
+    },
+    {
+        .name = "bl_retract_paused",
+        .demand = {.kind = DEMAND_RETRACT, .level_mm_s = 50.0f, .t1_ms = 2300, .t2_ms = 3160},
+        .active_lane = 1, .start_sync_active = false,
+        .bl_arm_at_ms = 1000, .bl_arm_target = 1 /* BUF_TENSION */,
+        .bl_arm_follow_mm = 43.0f, .bl_arm_follow_rate_mmpm = 5000.0f,
+        .buf_max_travel_override = 16, .type_p_rail_scale = 0.7f,
+        .tick_ceiling = 350, .type_specific = true,
+    },
 };
 // clang-format on
 

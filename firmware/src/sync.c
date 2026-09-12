@@ -118,6 +118,8 @@ static uint32_t g_bl_follow_ramp_tick_ms = 0; /* last FOLLOW ramp step */
 static uint32_t g_bl_arm_timeout_ms = 0;      /* configured watchdog window; 0 = default */
 static int g_bl_follow_seed_sps = 0;          /* FOLLOW seed rate (floor for rate servo) */
 static bool g_bl_lock_engaged = false;        /* lock confirmed in target rail zone */
+static float g_bl_lock_extreme = 0.0f;        /* type-P: deepest g_buf_pos seen since LOCKED
+                                                 (min for TENSION, max for COMPRESSION) */
 
 bool g_bl_autostart_suppressed = false;
 bool g_sync_tension_transitioned = false;
@@ -846,6 +848,7 @@ void sync_buffer_lock_arm(buf_state_t target, float follow_mm, float follow_rate
 
     g_bl_watchdog_ms = 0;
     g_bl_lock_engaged = false;
+    g_bl_lock_extreme = 0.0f;
     g_bl_sub_state = BL_PRIME;
 
     /* BL:T → retract (forward=false) to pull buffer toward tension extreme.
@@ -916,10 +919,19 @@ static void sync_buffer_lock_prime(lane_t *lane, uint32_t now_ms) {
         }
 
         if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
-            if (g_bl_target_state == BUF_TENSION)
-                g_bl_lock_engaged = (g_buf_pos <= -PSF_BREAK_THRESHOLD_NORM);
-            else if (g_bl_target_state == BUF_COMPRESSION)
-                g_bl_lock_engaged = (g_buf_pos >= PSF_BREAK_THRESHOLD_NORM);
+            /* Type-P: the prime has driven the buffer to the armed rail by
+               construction (predicted rail crossing, or the full-travel cap
+               against the hard end). The analog reading at that hard end is
+               whatever this rig's calibration says it is — on a rig whose
+               tension end reads shallower than PSF_BREAK_THRESHOLD_NORM an
+               absolute "pos <= -0.75" engage test never passes, break
+               detection stays disabled, the MMU never follows a retract
+               longer than the buffer and the extruder skips against the held
+               MMU (tip never parks -> TC unload UNLOAD_TIMEOUT). Engage
+               unconditionally and detect the break relative to the deepest
+               reading actually observed at the rail (g_bl_lock_extreme). */
+            g_bl_lock_engaged = true;
+            g_bl_lock_extreme = g_buf_pos;
         } else {
             buf_state_t raw = buf_state_raw();
             g_bl_lock_engaged = (raw == g_bl_target_state);
@@ -936,17 +948,20 @@ static void sync_buffer_lock_locked(lane_t *lane, uint32_t now_ms) {
     if (g_bl_follow_mm > 0.0f) {
         bool lock_broken = false;
         if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
-            if (!g_bl_lock_engaged) {
-                if (g_bl_target_state == BUF_TENSION)
-                    g_bl_lock_engaged = (g_buf_pos <= -PSF_BREAK_THRESHOLD_NORM);
-                else if (g_bl_target_state == BUF_COMPRESSION)
-                    g_bl_lock_engaged = (g_buf_pos >= PSF_BREAK_THRESHOLD_NORM);
-            }
-            if (g_bl_lock_engaged) {
-                if (g_bl_target_state == BUF_TENSION)
-                    lock_broken = (g_buf_pos > -PSF_BREAK_THRESHOLD_NORM);
-                else if (g_bl_target_state == BUF_COMPRESSION)
-                    lock_broken = (g_buf_pos < PSF_BREAK_THRESHOLD_NORM);
+            /* Track the deepest reading at the rail (the EMA keeps settling
+               after the prime motor stops), then break once the buffer has
+               moved BL_BREAK_DELTA_NORM back toward neutral from it. With a
+               perfectly calibrated rail (extreme = -1.0) this is the same
+               -0.75 boundary as before; with a shallow-reading rail it still
+               fires after the same physical travel. */
+            if (g_bl_target_state == BUF_TENSION) {
+                if (g_buf_pos < g_bl_lock_extreme)
+                    g_bl_lock_extreme = g_buf_pos;
+                lock_broken = (g_buf_pos > g_bl_lock_extreme + BL_BREAK_DELTA_NORM);
+            } else if (g_bl_target_state == BUF_COMPRESSION) {
+                if (g_buf_pos > g_bl_lock_extreme)
+                    g_bl_lock_extreme = g_buf_pos;
+                lock_broken = (g_buf_pos < g_bl_lock_extreme - BL_BREAK_DELTA_NORM);
             }
         } else {
             buf_state_t raw = buf_state_raw();
@@ -1016,8 +1031,14 @@ static void sync_buffer_lock_follow(lane_t *lane, uint32_t now_ms) {
         dt_s = BL_FOLLOW_DT_MAX_S;
 
     if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
-        bool rail_hit = (g_bl_target_state == BUF_TENSION) ? (g_buf_pos <= -PSF_FOLLOW_RAIL_NORM)
-                                                           : (g_buf_pos >= PSF_FOLLOW_RAIL_NORM);
+        /* Gate on the absolute rail or on the reading this rig actually
+           produced at the hard end during the prime — a shallow-reading rail
+           would otherwise let the open-loop follow drive into the hard stop. */
+        bool rail_hit = (g_bl_target_state == BUF_TENSION)
+                            ? (g_buf_pos <= -PSF_FOLLOW_RAIL_NORM ||
+                               g_buf_pos <= g_bl_lock_extreme + BL_FOLLOW_GATE_MARGIN_NORM)
+                            : (g_buf_pos >= PSF_FOLLOW_RAIL_NORM ||
+                               g_buf_pos >= g_bl_lock_extreme - BL_FOLLOW_GATE_MARGIN_NORM);
         if (rail_hit) {
             motor_set_rate_sps(&lane->m, 0);
             g_bl_sub_state = BL_LOCKED;

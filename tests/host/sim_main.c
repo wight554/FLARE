@@ -135,6 +135,8 @@ int main(int argc, char **argv) {
     g_auto_mode = scn->auto_mode ? 1 : 0;
     g_reload_mode = scn->reload_mode ? 1 : 0;
 
+    if (scn->buf_max_travel_override)
+        g_buf_max_travel_mm = scn->buf_max_travel_override;
     if (scn->cut_feed_mm_override)
         g_cut_feed_mm = scn->cut_feed_mm_override;
     if (scn->cut_timeout_feed_ms_override)

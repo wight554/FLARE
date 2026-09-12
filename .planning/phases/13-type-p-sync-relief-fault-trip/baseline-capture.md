@@ -64,12 +64,18 @@ plan/implementation stage, not a planning blocker.
 
 This print also hit a `TC:UNLOADING` → `EV:UNLOAD_TIMEOUT:1` →
 `EV:TC:ERROR:UNLOAD_TIMEOUT` → `EV:WARN:LOOP_LAG:22599:TC` fault, twice,
-right after a tip-forming (`BL:T`) sequence. Suspected cause: commit
-`92e39e7` (2026-09-11) removed a fixed `PAUSE=1.0` from the
-`_FLARE_BL_RETRACT` calls in the tip-form/unload chain in
-`klipper/flare_mmu.cfg`, relying solely on `EV:BL:LOCKED`/`PRIME_BOUND`
-completion events instead. This is a **separate, unrelated bug** — not
-part of Phase 13's scope, and not itself evidence against the snap-to-max
-baseline above (the fault happened during toolchange/tip-forming, not
-during the sustained-sync stretches the baseline data above is drawn
-from). Tracked separately; not blocking this baseline capture.
+right after a tip-forming (`BL:T`) sequence. Root cause (found 2026-09-12,
+host-sim reproduced): the same-day firmware commits `76b4b73`/`e0df203`
+made Type-P `BL` break detection depend on an absolute normalized threshold
+(`g_bl_lock_engaged = g_buf_pos <= -0.75`, prime "reached" at -0.95). On a
+rig whose tension hard end reads shallower than that (this print's deepest
+reading was -0.68), every prime ends `PRIME_BOUND`, the lock never counts as
+engaged, no `BL:BREAK`/`FOLLOW` fires for retracts longer than the 16 mm
+buffer, the buffer pins at the compression rail and the extruder skips
+against the held MMU — the tip never parks, so the TC unload retracts the
+full `UNLOAD_MAX_MM` (3000 mm / 30 s at 100 mm/s) with OUT still covered.
+The `92e39e7` `PAUSE=1.0` removal was a red herring (sim shows the dwell
+makes no difference). Fix: break/follow-gate relative to the deepest reading
+actually observed at the rail (`g_bl_lock_extreme`, `BL_BREAK_DELTA_NORM`).
+This is a **separate, unrelated bug** — not part of Phase 13's scope, and not
+itself evidence against the snap-to-max baseline above. Tracked separately; not blocking this baseline capture.
