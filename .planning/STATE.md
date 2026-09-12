@@ -1,3 +1,17 @@
+---
+gsd_state_version: "1.0"
+status: unknown
+last_updated: "2026-09-12T08:13:00.900Z"
+state_head: 297745cfdd0b1ec02fd2aa91fa6123c1d1d4802a
+progress:
+  total_phases: 16
+  completed_phases: 0
+  total_plans: 16
+  completed_plans: 0
+  percent: 0
+current_phase_name: Klipper MMU Status Parity
+---
+
 # Project State: FLARE
 
 ## Project Reference
@@ -6,7 +20,7 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 12: Post-Phase 2–10 Regression Fixes
+**Current focus:** Phase 14 — Klipper MMU Status Parity
 
 ## Current Position
 
@@ -18,10 +32,12 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 ## Accumulated Context
 
 ### Roadmap Evolution
+
 - 2026-09-12: Phases 13–16 added from Happy-Hare v4 borrow scan (`.planning/research/2026-09-11-happy-hare-borrow-scan.md`, HH `ef8431c`). Grouping: 13 = type-P firmware sync (bounded relief snap, mm fault trip, feed probe); 14 = Klipper mock/Fluidd/Mainsail status parity; 15 = daemon Moonraker lane_data + maintenance counters; 16 = TMC tension IRUN boost. Conflict-checked against reverted work (confident estimator, relay_min_flip_mm, type-D mid-band estimator, EST pivots, controller-side RD autotune) — none re-proposed. Note: host-side kp autotune (`flare_sync_check.py tune`) exists and is unaffected.
 - Deferred to backlog, not phased: stick-slip/hysteresis plant model for `sim_plant.c` (HH `utils/sync_feedback_sim.py`).
 
 ### Active Backlog Streams & Phases
+
 - `.planning/phases/12-post-phase-2-10-regression-fixes/`:
   - `12-SPEC.md` (done): 12 requirement groups from the 2026-09-11 review — 3 HIGH firmware (load park FAULT_BUF, cutter abort limp, bare-BL catch creep), 1 HIGH host (--dump rebuild), heartbeat lockout, STOP latch, daemon host decision.
   - `12-REVIEW.md` (done): severity-ranked findings, clean-spec list, eb0a942 migration audit.
