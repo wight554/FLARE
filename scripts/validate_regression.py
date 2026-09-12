@@ -6,7 +6,7 @@ Runs the full pre-commit validation sequence:
   2. cmake configure         (dev-tuning superset)
   3. ninja build
   4. host sync simulation    (build flare_sim, run the scenario suite)
-  5. py_compile all scripts
+  5. py_compile all scripts + klipper mock
   6. ruff lint
   7. unittest discover       (every scripts/test_*.py, incl. functest_adapter-wrapped runners)
   8. git diff --check
@@ -108,11 +108,14 @@ def main() -> None:
         print("Host sync simulation scenario suite failed.", file=sys.stderr)
         sys.exit(result.returncode)
 
-    # 5 — Python syntax
+    # 5 — Python syntax (scripts + the klipper mock, AGENTS.md Rule 2)
     _header("Python Syntax")
-    py_files = sorted(glob.glob(str(REPO_ROOT / "scripts" / "*.py")))
+    py_files = sorted(
+        set(glob.glob(str(REPO_ROOT / "scripts" / "*.py")))
+        | set(glob.glob(str(REPO_ROOT / "klipper" / "*.py")))
+    )
     if not py_files:
-        print("no scripts/*.py found", file=sys.stderr)
+        print("no scripts/*.py or klipper/*.py found", file=sys.stderr)
         sys.exit(1)
     _run("python3", "-m", "py_compile", *py_files)
 

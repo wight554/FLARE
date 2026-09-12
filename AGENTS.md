@@ -124,7 +124,7 @@ Load `CONTEXT.md` when task touches: a runtime parameter (full 10-step checklist
 ## Non-Negotiable Rules
 
 1. **Build must pass before EVERY commit.** `ninja -C build_local` (or `cmake --build build_clang`). Skip only if purely docs. Broken build = failed task.
-2. **Python validation** — `python3 -m py_compile scripts/*.py` before every commit touching scripts.
+2. **Python validation** — `python3 -m py_compile scripts/*.py klipper/*.py` before every commit touching scripts or the Klipper mock.
 3. **Commit + push after every change, automatically, without asking.** Don't ask "should I commit?" — do it.
 4. **Bump `SETTINGS_VERSION`** in `settings_store.c` when a `settings_t` field is added/removed. Grep current version.
 5. **No mock/stub hardware** — all changes must compile against real Pico SDK target.

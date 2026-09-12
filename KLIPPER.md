@@ -196,6 +196,7 @@ Because the install daemon registers mock `[mmu]` and `[mmu_sensors]` modules, M
 1. **Gate Track Indicators**: Filament status dots for both lanes (preloaded, loaded, or empty) and the filament-path checkpoints (gate / toolhead).
 2. **Buffer State**: The buffer's discrete state (compression / tension / neutral). FLARE mirrors only discrete, UI-meaningful state — not a continuous piston animation or a synthesized "Filament: X mm" readout — so the dashboard stays informative without spamming the Klipper gcode queue.
 3. **Control Buttons**: `MMU_LOAD` and `MMU_EJECT` buttons on the dashboard will function correctly, selecting and loading the chosen gate automatically.
+4. **FlowGuard Meter**: `printer.mmu.flowguard.level` is a -1..+1 fault-approach indicator (negative = tension/tangle side, positive = compression/clog side) derived from the same tension/compression dwell timers that already drive firmware fault trips — it reads 0 whenever sync is off. The Fluidd/Mainsail maintenance-dialog buttons (LED, test-config, grip/release, servo) now acknowledge instead of raising "Unknown command".
 
 If your WebUI console still shows historical `SET_MMU` status traffic, add
 `^SET_MMU` to the Mainsail/Fluidd hidden-command filter. This only hides console

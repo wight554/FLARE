@@ -506,6 +506,38 @@ def run_tests():
     check("happy_hare_version is a non-empty string",
           isinstance(hh_version, str) and len(hh_version) > 0, hh_version)
 
+    print("status schema keys present — fresh mock, never SET_MMU'd (test_status_fields_exist_before_ready analogue)")
+    EXPECTED_STATUS_KEYS = frozenset({
+        "enabled", "is_homed", "num_gates", "active_gate", "gate", "tool", "bypass",
+        "gate_status", "gate_sensor", "gate_color", "gate_material", "gate_spool_id",
+        "gate_color_rgb", "gate_name", "gate_filament_name", "ttg_map", "tool_color",
+        "tool_material", "tool_spool_id", "tool_color_rgb", "tool_name",
+        "tool_filament_name", "action", "num_toolchanges", "swaps_total",
+        "swaps_success", "swaps_failed", "loads_success", "unloads_success",
+        "last_error", "toolhead_sensor", "tc_state", "sync_feedback",
+        "sync_feedback_state", "sync_feedback_bias", "sync_feedback_bias_modelled",
+        "sync_feedback_enabled", "print_job_state", "print_state", "board_online",
+        "sps", "reload_mode", "buf_sensor_type", "enable_cutter", "unload_cut",
+        "board_feed_rate", "board_rev_rate", "spoolman_support", "filament",
+        "filament_pos", "filament_position", "bowden_progress", "gate_sensor_active",
+        "extruder_sensor_active", "pre_gate_sensor_active", "hub_sensor_active",
+        "sensors", "gate_speed_override", "gate_speed", "clogs_enabled",
+        "clogs_suspended", "clogs_detected", "clogs_total", "clogs_success",
+        "clogs_failed", "encoder_enabled", "encoder_suspended",
+        "encoder_tangle_detected", "encoder_clog_detected", "flowguard",
+        "sync_drive", "is_paused", "reason_for_pause", "sync_feedback_flow_rate",
+        "baseline_sps", "has_bypass", "unit", "operation", "drying_state",
+        "espooler", "espooler_active", "extruder_filament_remaining",
+        "filament_direction", "gate_temperature", "grip", "last_tool", "next_tool",
+        "slicer_tool_map", "endless_spool_enabled", "endless_spool_groups",
+        "toolchange_purge_volume", "encoder", "clog_detection_enabled",
+    })
+    m, p = new_mock()  # fresh mock, no cmd_SET_MMU call — status right after __init__
+    fresh_status = m.get_status(0)
+    missing_keys = sorted(EXPECTED_STATUS_KEYS - set(fresh_status.keys()))
+    check("status schema keys present on a never-SET_MMU'd fresh mock",
+          EXPECTED_STATUS_KEYS <= set(fresh_status.keys()), missing_keys)
+
     print(f"\n{_PASS} passed, {_FAIL} failed")
     sys.exit(1 if _FAIL else 0)
 
