@@ -232,22 +232,31 @@ WATCH_ITEMS = {
     ),
 }
 
+# Each item self-triggers its own busy/abort window via `pre_cmd` — the cut
+# (CU) and toolchange (TC:) cycles run for hundreds of ms to seconds
+# (SERVO_SETTLE_MS alone is 500ms, firmware/include/tune.h), so sending the
+# check command immediately after `pre_cmd` with no sleep reliably lands
+# inside the busy window. No manual timing / catching a live moment needed.
 FIRE_ITEMS = {
     "1-cal-busy": dict(
         phase="1", desc="CAL during active motion -> ER:PERSIST_BUSY, no flash corruption",
-        cmd="CAL:CRASHLOG_CLEAR", expect_reply_prefix="ER:PERSIST_BUSY",
+        precondition="Active lane has filament loaded (lane_in_present); other lane's OUT sensor clear.",
+        pre_cmd="CU", cmd="CAL:CRASHLOG_CLEAR", expect_reply_prefix="ER:PERSIST_BUSY",
     ),
     "2-cp-busy": dict(
         phase="1", desc="CP mid-cut -> ER:BUSY:CUTTER, cut still completes",
-        cmd="CP", expect_reply_prefix="ER:BUSY:CUTTER",
+        precondition="Active lane has filament loaded (lane_in_present); other lane's OUT sensor clear.",
+        pre_cmd="CU", cmd="CP:950", expect_reply_prefix="ER:BUSY:CUTTER",
     ),
     "3-tc-busy": dict(
         phase="1", desc="T:/TC: during active toolchange -> ER:BUSY:TC, toolchange unaffected",
-        cmd="TC:", expect_reply_prefix="ER:BUSY:TC",
+        precondition="Both lanes loaded with filament; active lane already selected (T:); not double-loaded.",
+        pre_cmd="TC:{other_lane}", cmd="TC:{lane}", expect_reply_prefix="ER:BUSY:TC",
     ),
     "9-cutter-abort": dict(
-        phase="12", desc="STOP mid-cut -> cutter aborts cleanly",
-        cmd="STOP", expect_reply_prefix="OK",
+        phase="12", desc="STOP mid-cut -> cutter aborts cleanly (EV:CUT:ERROR:ABORTED)",
+        precondition="Active lane has filament loaded (lane_in_present); other lane's OUT sensor clear.",
+        pre_cmd="CU", cmd="STOP", expect_event="CUT:ERROR:ABORTED",
     ),
 }
 
@@ -285,6 +294,20 @@ def run_fire_bl_bare_vs_args(args):
     return 0 if verdict1 == "pass" and verdict2 == "pass" else 1
 
 
+def wait_for_event(evt_type, since_ts, timeout_s, poll_interval_s=0.2):
+    """Poll the daemon's /status until evt_type appears at/after since_ts,
+    or timeout_s elapses. Returns the matching event dict or None."""
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        snap = get_daemon_snapshot()
+        if snap is not None:
+            for e in snap.get("events", []):
+                if e["type"] == evt_type and e["time"] >= since_ts:
+                    return e
+        time.sleep(poll_interval_s)
+    return None
+
+
 def run_fire(item_id, args):
     if item_id not in FIRE_ITEMS:
         print(f"Unknown fire item {item_id!r}. Known: {sorted(FIRE_ITEMS)}", file=sys.stderr)
@@ -292,12 +315,37 @@ def run_fire(item_id, args):
     item = FIRE_ITEMS[item_id]
     configure_daemon(args.daemon_url, flare_cmd.get_auth_token(args.auth_token))
     print(f"Firing {item_id}: {item['desc']}")
-    print(f"  -> sending {item['cmd']!r} now (make sure the rig is mid-operation as described above)")
-    reply = flare_cmd.send_daemon_cmd(item["cmd"], timeout=args.timeout)
+    if item.get("precondition"):
+        print(f"  precondition: {item['precondition']}")
+
+    pre_cmd = item.get("pre_cmd")
+    if pre_cmd:
+        pre_cmd = pre_cmd.format(lane=args.tc_lane, other_lane=args.tc_other_lane)
+        print(f"  -> self-triggering: sending {pre_cmd!r} to open the busy/abort window")
+        pre_reply = flare_cmd.send_daemon_cmd(pre_cmd, timeout=args.timeout)
+        print(f"     pre-trigger reply: {pre_reply}")
+        if pre_reply is None or pre_reply.startswith("ER"):
+            print(f"  FAIL ({item_id}): pre-trigger command was rejected — check the precondition above "
+                  "(filament loaded? correct active/other lane? cutter/gcode enabled?)")
+            return 1
+
+    since_ts = time.time()
+    cmd = item["cmd"].format(lane=args.tc_lane, other_lane=args.tc_other_lane)
+    print(f"  -> sending {cmd!r} now (no sleep — relying on the busy window pre_cmd just opened)")
+    reply = flare_cmd.send_daemon_cmd(cmd, timeout=args.timeout)
+    print(f"  reply: {reply}")
+
+    if "expect_event" in item:
+        evt = wait_for_event(item["expect_event"], since_ts, timeout_s=min(args.timeout, 10.0))
+        if evt is not None:
+            print(f"  PASS ({item_id}): observed EV:{evt['type']}:{evt['data']}")
+            return 0
+        print(f"  FAIL ({item_id}): never saw EV:{item['expect_event']} within the timeout")
+        return 1
+
     if reply is None:
         print("  NO REPLY (daemon unreachable or command timed out) -> FAIL")
         return 1
-    print(f"  reply: {reply}")
     if reply.startswith(item["expect_reply_prefix"]):
         print(f"  PASS ({item_id})")
         return 0
@@ -452,6 +500,10 @@ def build_parser():
     fire_p = sub.add_parser("fire", help="Actively trigger one timing-sensitive item")
     fire_p.add_argument("item", choices=sorted(
         list(FIRE_ITEMS) + ["10-bl-bare-vs-args", "15-command-stubs", "watchdog-check"]))
+    fire_p.add_argument("--tc-lane", type=int, default=1,
+                         help="3-tc-busy only: lane to request second (the one that should get ER:BUSY:TC)")
+    fire_p.add_argument("--tc-other-lane", type=int, default=2,
+                         help="3-tc-busy only: lane to start the toolchange to first (pre_cmd)")
 
     report_p = sub.add_parser("report", help="Re-render the final table from a watch log")
     report_p.add_argument("log")
