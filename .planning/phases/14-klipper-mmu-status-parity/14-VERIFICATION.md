@@ -109,6 +109,7 @@ None. Scanned `klipper/mmu.py`, `scripts/flare_daemon.py`, `scripts/test_flare_m
    - **Test:** Click MMU_LED, MMU_TEST_CONFIG, MMU_GRIP, MMU_RELEASE, MMU_SERVO (and `*_VARS`) dialogs in a live Fluidd/Mainsail session.
    - **Expected:** Each submits cleanly; Klipper console shows FLARE's ack, no "Unknown command" error.
    - **Why human:** Requires live gcode dispatch through the real UI dialog flow and a running Klipper instance; a unit test calling the Python handler directly proves the handler doesn't raise, but not that Klipper's command-registration path resolves correctly end-to-end in a live session.
+   - **CONFIRMED 2026-09-12 (7/9)** — `verify_hw_open_items.py fire 15-command-stubs` on rig dispatched all 7 no-op stubs through the real Moonraker `/printer/gcode/script` -> Klipper path (functionally equivalent to the UI dialog flow's command dispatch, though not literally mouse-clicked in Fluidd/Mainsail): all 7 registered cleanly, no "Unknown command". `MMU_PRINT_START`/`MMU_PRINT_END` remain unconfirmed — deliberately excluded by default (they run the real `_FLARE_SYNC_TOOLHEAD` macro, not a no-op; see `MANUAL_TEST_PLAN.md`), need `--include-print-sync` with sync idle and buffer already settled.
 
 ### Gaps Summary
 

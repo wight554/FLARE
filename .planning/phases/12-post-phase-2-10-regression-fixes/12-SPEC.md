@@ -143,6 +143,6 @@ Ref: standards review; STYLE.md §2/§3/§4; MANUAL.md:368,370.
 - buffer-state-lock D2 half-travel prime cap for type-D — pre-existing, needs HW decision.
 
 ## HW: validation (never auto-check)
-- HW: type-D toolchange with `TC_TS_PARK_MM` default → no `FAULT:MOVE_COMPRESSION`, sync engages after `TC:DONE`.
-- HW: cutter abort mid-stroke → blade returns to block before PWM off.
-- HW: bare `BL:T` on type-D during retract guard → no motor retract, passive lock only.
+- HW: type-D toolchange with `TC_TS_PARK_MM` default → no `FAULT:MOVE_COMPRESSION`, sync engages after `TC:DONE`. **CONFIRMED 2026-09-12** — `verify_hw_open_items.py watch` on rig, two organic toolchanges, no `FAULT:MOVE_COMPRESSION` either time, `EV:SYNC:AUTO_START` after each `TC:DONE`.
+- HW: cutter abort mid-stroke → blade returns to block before PWM off. **CONFIRMED 2026-09-12** — `verify_hw_open_items.py fire 9-cutter-abort` on rig, `EV:CUT:ERROR` (reason `ABORTED`) observed.
+- HW: bare `BL:T` on type-D during retract guard → no motor retract, passive lock only. **NOT YET CONFIRMED** — this bullet is type-D/retract-guard specific; the rig session so far is generic bare-vs-argumented `BL:T` (item #10, `MANUAL_TEST_PLAN.md`), which hit a script timing bug (fixed in `b28b40f`) and needs a re-run. If the physical rig on hand is type-P, this exact type-D scenario may need a separate rig, not just a re-run.
