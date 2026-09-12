@@ -181,7 +181,11 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   3. Bounded firmware-local feed probe distinguishes "home rail, no consumer" from "starved" at type-P +1.0 tension; result exposed in `ST:` and consumed by `mode × filament_present` resolution
   4. `flare_sim` scenarios cover refill-without-overshoot, mm-trip vs ms-trip ordering, and probe outcomes; no regression in the 16 PSF scenarios
   5. Nothing from the type-D relay path (confident estimator, mid-band estimator, EST pivots) is reintroduced; `HW:` items remain unchecked until rig validation
-**Plans**: TBD
+**Plans**: 4 plans (strictly sequential — every plan edits `firmware/src/sync.c`)
+  - **Wave 1**: 13-01-PLAN.md — tracer: bounded, rail-relative relief snap end-to-end (`SYNC_PSF_RELIEF_MULT` knob, doubled-slew smoothing path, `RELIEF_ON`/`RELIEF_OFF`, bound invariant asserted at rail scales 1.0/0.7/0.5); registers the six phase REQ IDs
+  - **Wave 2** *(blocked on Wave 1)*: 13-02-PLAN.md — `SYNC_TENSION_STOP_MM` distance trip on the existing accumulator, arm-after-first-transition gate shared with the ms trip, deliberate-hold suppression, `TM:`/`ARM:` telemetry with a proven `ST:` line budget
+  - **Wave 3** *(blocked on Wave 2)*: 13-03-PLAN.md — bounded firmware-local feed probe (CONSUMER vs NO_CONSUMER off the observed rail), `PR:` telemetry, `PROBE:` bench command, full sim coverage and SC#5 verification
+  - **Wave 4** *(blocked on Wave 3, human-gated)*: 13-04-PLAN.md — `13-HW-VALIDATION.md` acceptance sheet, the 2 h / ~10-swap rig A/B print against the 2026-09-12 baseline, verdict recorded (D-30/D-31/D-32)
 
 ### Phase 14: Klipper MMU Status Parity
 **Goal**: Keep the `klipper/mmu.py` Happy-Hare facade and daemon mirror rendering correctly in current Fluidd/Mainsail/KlipperScreen builds (verified against their `develop` sources)
