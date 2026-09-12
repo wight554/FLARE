@@ -2,15 +2,15 @@
 gsd_state_version: "1.0"
 status: unknown
 stopped_at: Phase 13 context gathered
-last_updated: "2026-09-12T18:50:19.256Z"
-state_head: 53e92ec3448235cde2668be55c3880a852929eba
+last_updated: "2026-09-12T23:47:54.616Z"
+state_head: 836b2cc03a650d8669acd42ca4b9784363a09996
 progress:
   total_phases: 16
   completed_phases: 0
-  total_plans: 16
+  total_plans: 20
   completed_plans: 2
   percent: 0
-current_phase_name: Type-P Sync Relief & Fault Trip
+current_phase_name: type-p-sync-relief-fault-trip
 ---
 
 # Project State: FLARE
