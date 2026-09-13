@@ -150,6 +150,43 @@ bool g_sync_trip_armed = false;
    early return in that function. */
 static bool g_sync_prev_hold_active = false;
 
+/* Phase 13 Plan 03 (D-15/D-16/D-19): type-P feed probe. Resolves the "+1.0
+   tension" ambiguity -- filament IN sensor present but the buffer has been
+   pinned in tension for a while -- by observing one probe distance's worth
+   of pinned relief feed and deciding, from the BEST deflection observed
+   across the whole window (REVIEW-02, g_sync_probe_peak_pos below), whether
+   the buffer genuinely moved back off its deepest reading (CONSUMER: a real
+   consumer is pulling and being refilled) or never did (NO_CONSUMER: the
+   lane feeds against nothing, e.g. a jam or an empty spool). Numeric values
+   are exactly D-19's 0/1/2/3 PR: encoding. */
+typedef enum {
+    SYNC_PROBE_NONE = 0,
+    SYNC_PROBE_RUNNING = 1,
+    SYNC_PROBE_CONSUMER = 2,
+    SYNC_PROBE_NO_CONSUMER = 3,
+} sync_probe_state_t;
+
+static sync_probe_state_t g_sync_probe_state = SYNC_PROBE_NONE;
+/* Once-per-episode latch (D-17): the probe decides at most once per pinned
+   episode, even though the buffer may re-cross the probe threshold again
+   before the episode ends (e.g. a subsequent BL hold, or the mm trip's own
+   later crossing at 2x this distance). Reset alongside g_sync_probe_state at
+   every site that resets the arm flag. */
+static bool g_sync_probe_decided = false;
+/* REVIEW-02: window-max deflection latch -- the least-tension-side (highest,
+   since g_buf_pos is +compression/-tension) g_buf_pos observed since the
+   probe window opened. The verdict compares THIS, not the instantaneous
+   g_buf_pos at the threshold-crossing tick, against the tracked tension
+   extreme -- a single boundary-tick sample is a coin flip on spring bounce,
+   ADC noise, or a momentary demand pulse. Monotone in favour of CONSUMER by
+   construction (fmaxf only ever raises it), so its own failure direction is
+   "the probe declines to escalate", already backstopped by the distance and
+   dwell trips. Re-seeded to the CURRENT g_buf_pos (never a constant) at
+   every site that resets the probe latch -- a peak carried over from a
+   previous episode reads as motion that never happened in this one and
+   manufactures the mirror-image false CONSUMER. */
+static float g_sync_probe_peak_pos = 0.0f;
+
 bool g_boot_stabilizing = false;
 uint32_t g_boot_stabilize_deadline_ms = 0;
 lane_t *g_boot_stabilize_lane = NULL;
@@ -1203,6 +1240,9 @@ void sync_disable(bool reset_estimator) {
     g_sync_tension_extreme_valid = false;
     g_sync_relief_active = false;
     g_sync_trip_armed = false;
+    g_sync_probe_state = SYNC_PROBE_NONE;
+    g_sync_probe_decided = false;
+    g_sync_probe_peak_pos = g_buf_pos;
     type_d_neutral_feed_reset();
 
     if (reset_estimator) {
@@ -1224,6 +1264,9 @@ void sync_rearm_active(lane_t *lane, uint32_t now_ms) {
     g_sync_tension_extreme_valid = false;
     g_sync_relief_active = false;
     g_sync_trip_armed = false;
+    g_sync_probe_state = SYNC_PROBE_NONE;
+    g_sync_probe_decided = false;
+    g_sync_probe_peak_pos = g_buf_pos;
     sync_set_state(SYNC_ACTIVE);
     g_sync_auto_started = true;
     g_sync_tail_assist_active = lane && !lane_in_present(lane) && lane_out_present(lane);
@@ -1425,6 +1468,15 @@ static void sync_trip_track_hold_edge(void) {
         if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
             g_sync_refill_effort_mm = 0.0f;
             g_sync_trip_armed = false;
+            /* Phase 13 Plan 03: the probe shares the mm trip's arm/accumulator
+               reset sites (D-16's ordering is only structural if the two
+               never drift apart) -- a hold releasing mid-episode must leave
+               the probe undecided too, re-seeded to the CURRENT reading so a
+               stale peak from before the hold cannot manufacture a false
+               CONSUMER in the next episode. */
+            g_sync_probe_state = SYNC_PROBE_NONE;
+            g_sync_probe_decided = false;
+            g_sync_probe_peak_pos = g_buf_pos;
         }
     }
     g_sync_prev_hold_active = hold_now;
@@ -1617,6 +1669,9 @@ static bool sync_tick_auto_start_stop(lane_t *lane, uint32_t now_ms, buf_state_t
         g_sync_tension_extreme_valid = false;
         g_sync_relief_active = false;
         g_sync_trip_armed = false;
+        g_sync_probe_state = SYNC_PROBE_NONE;
+        g_sync_probe_decided = false;
+        g_sync_probe_peak_pos = g_buf_pos;
         sync_set_state(SYNC_ACTIVE);
         g_sync_auto_started = true;
         g_sync_tail_assist_active = tail_assist;
@@ -1775,6 +1830,31 @@ static int sync_tension_trip_fire(lane_t *lane, uint32_t now_ms) {
     return -1;
 }
 
+/* Phase 13 Plan 03 (D-16/REVIEW-03): the probe's effective distance, clamped
+   strictly below the distance trip's own threshold on the SAME accumulator
+   so the ordering (probe resolves before the trip can fire) is a structural
+   property of the code, not an accident of two defaults. g_buf_max_travel_mm
+   is clamped to [10, 1000]mm (settings_store.c), so the UNCLAMPED geometry
+   basis this reads (declared in sync_internal.h) can exceed
+   g_sync_tension_stop_mm's 32mm default on any rig with a larger buffer --
+   without this clamp the trip fires first, resets the shared accumulator,
+   and the probe never evaluates at all on that rig (a silent feature
+   disable reached by configuration, not calibration). When the distance
+   trip is disabled (g_sync_tension_stop_mm 0) there is no ordering to
+   preserve, and clamping against 0 would collapse the probe distance to 0
+   and fire it on the first millimetre -- exactly the inversion this
+   function exists to prevent -- so that case returns the raw geometry basis
+   unclamped. math.h (fminf) is already included at sync.c:9. The geometry
+   read happens exactly once, into a local, right here -- nothing else in
+   this file may compare that alias against the accumulator directly. */
+static float sync_type_p_probe_mm(void) {
+    float geometry_mm = SYNC_FEED_PROBE_MM;
+    if (g_sync_tension_stop_mm > 0.0f) {
+        return fminf(geometry_mm, g_sync_tension_stop_mm * SYNC_PROBE_TRIP_FRAC);
+    }
+    return geometry_mm;
+}
+
 static int sync_check_tension_dwell_and_ramp(lane_t *lane, buf_state_t s, int target_sps,
                                              uint32_t now_ms) {
     if (s == BUF_TENSION && g_sync_tension_pin_since_ms != 0) {
@@ -1808,6 +1888,60 @@ static int sync_check_tension_dwell_and_ramp(lane_t *lane, buf_state_t s, int ta
            fault-hold first; this distance trip is the primary protection
            specifically on the shallow-reading rigs where that
            absolute-threshold guard never fires at all. */
+
+        /* Phase 13 Plan 03 (D-15/D-16): the feed probe evaluates BEFORE the
+           distance trip below, under the IDENTICAL guards (type-P only,
+           armed, no deliberate hold, lane IN sensor still present) -- the
+           same accumulator, at a threshold clamped strictly lower
+           (sync_type_p_probe_mm()), so the ordering is structural rather
+           than a sequencing flag (D-16). The window-max latch
+           (g_sync_probe_peak_pos) updates every tick the probe runs,
+           independent of whether this tick's probe distance has been
+           reached -- the verdict at the threshold-crossing tick must read
+           the BEST deflection observed across the whole window (REVIEW-02),
+           not the sample at that one tick. */
+        if (g_buf_sensor_type != BUF_SENSOR_TYPE_D && g_sync_trip_armed &&
+            !sync_type_p_hold_in_progress() && lane_in_present(lane)) {
+            if (g_sync_probe_state == SYNC_PROBE_NONE) {
+                g_sync_probe_state = SYNC_PROBE_RUNNING;
+                g_sync_probe_peak_pos = g_buf_pos;
+            }
+            if (g_sync_probe_state == SYNC_PROBE_RUNNING) {
+                g_sync_probe_peak_pos = fmaxf(g_sync_probe_peak_pos, g_buf_pos);
+                if (!g_sync_probe_decided &&
+                    g_sync_refill_effort_mm >= sync_type_p_probe_mm()) {
+                    g_sync_probe_decided = true;
+                    /* CONSUMER: the best deflection observed this window
+                       moved at least BL_BREAK_DELTA_NORM back off the
+                       tracked tension extreme (D-23 -- the one
+                       hardware-validated "moved off a rail" delta, reused
+                       verbatim, no new magic number). NO_CONSUMER
+                       otherwise, including when the extreme was never
+                       tracked valid (no baseline to compare against yet --
+                       treat as "never observed to move"). */
+                    bool moved_off_rail = g_sync_tension_extreme_valid &&
+                        (g_sync_probe_peak_pos >=
+                         g_sync_tension_extreme + BL_BREAK_DELTA_NORM);
+                    if (moved_off_rail) {
+                        g_sync_probe_state = SYNC_PROBE_CONSUMER;
+                        cmd_event("SYNC", "PROBE:CONSUMER");
+                    } else {
+                        g_sync_probe_state = SYNC_PROBE_NO_CONSUMER;
+                        cmd_event("SYNC", "PROBE:NO_CONSUMER");
+                        /* D-18/D-21: short-circuit the remaining trip budget
+                           straight into the shared escalate-then-fault-hold
+                           path. sync_try_runout_escalation() declines while
+                           the lane's IN sensor reads present (checked just
+                           above), so the practical outcome with filament
+                           loaded is fault-hold -- which is intended: D-15's
+                           ambiguous case is precisely "sensor says present,
+                           buffer says nothing moves". */
+                        return sync_tension_trip_fire(lane, now_ms);
+                    }
+                }
+            }
+        }
+
         if (g_buf_sensor_type != BUF_SENSOR_TYPE_D && g_sync_trip_armed &&
             !sync_type_p_hold_in_progress() && lane_in_present(lane) &&
             g_sync_tension_stop_mm > 0.0f && g_sync_refill_effort_mm >= g_sync_tension_stop_mm) {
@@ -2422,6 +2556,34 @@ float sync_tension_stop_trip_mm(void) {
         return 0.0f;
     }
     return g_sync_refill_effort_mm;
+}
+
+/* Phase 13 Plan 03 (D-19): PR: telemetry accessor -- exposes the current
+   probe state (0/1/2/3, latched for the pinned episode) to
+   protocol_status.c without reaching into sync.c internals. */
+int sync_type_p_probe_state(void) {
+    return (int)g_sync_probe_state;
+}
+
+/* Phase 13 Plan 03 Task 2 (D-17): forces a probe window to start immediately
+   for bench use. Arms the episode (a forced bench restart deliberately
+   bypasses the normal arm-after-observed-transition requirement -- that IS
+   the point of a manual override), resets the shared g_sync_refill_effort_mm
+   accumulator (both the distance trip and the probe read it, so restarting
+   the probe necessarily restarts the distance trip's own accumulation too --
+   the correct behaviour for a deliberate bench restart, not a side effect to
+   work around) and the once-per-episode latch, and re-seeds
+   g_sync_probe_peak_pos to the CURRENT g_buf_pos (REVIEW-02 -- a forced
+   restart that inherited the previous window's peak would report a CONSUMER
+   the new window never actually observed). The caller (protocol.c) has
+   already validated preconditions (type-P sensor, sync active, no
+   deliberate hold in progress) before calling this. */
+void sync_type_p_probe_force_start(void) {
+    g_sync_refill_effort_mm = 0.0f;
+    g_sync_trip_armed = true;
+    g_sync_probe_state = SYNC_PROBE_RUNNING;
+    g_sync_probe_decided = false;
+    g_sync_probe_peak_pos = g_buf_pos;
 }
 
 uint32_t sync_est_age_ms(uint32_t now_ms) {

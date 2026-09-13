@@ -53,6 +53,31 @@
 /// probe CONSUMER threshold -- the extreme can never relax without the probe
 /// already having grounds to call CONSUMER, so the two rules cannot disagree.
 #define SYNC_EXTREME_RELAX_MULT 2.0f
+/// @brief Type-P feed probe (Phase 13 Plan 03, D-15/D-16/D-29): geometry alias
+/// over the RUNTIME buffer travel (g_buf_max_travel_mm), implementing D-29's
+/// PROBE_MM. Deliberately derived from buffer geometry rather than being a
+/// separate per-rig knob -- the probe distance should track whatever this
+/// rig's buffer actually is. This is the UNCLAMPED geometry basis, NOT the
+/// effective probe threshold: every comparison in sync.c reads
+/// sync_type_p_probe_mm() instead, which clamps this against
+/// SYNC_PROBE_TRIP_FRAC * g_sync_tension_stop_mm (REVIEW-03) so the probe
+/// structurally resolves before the distance trip can fire. Unrelated to the
+/// type-D SYNC_TENSION_PROBE_* feed-floor knobs (protocol.c/controller_shared.h)
+/// despite the similar name -- that name collision is the single most likely
+/// misreading of this code.
+#define SYNC_FEED_PROBE_MM ((float)g_buf_max_travel_mm)
+/// @brief Fraction of g_sync_tension_stop_mm the type-P feed probe's effective
+/// distance is clamped to (REVIEW-03). g_buf_max_travel_mm is clamped to
+/// [10, 1000]mm (settings_store.c:38-39,:568) while g_sync_tension_stop_mm
+/// defaults to 32mm, so an UNCLAMPED probe distance exceeds the trip
+/// threshold on any rig configured with a buffer travel above 32mm -- the
+/// trip fires first, resets the shared accumulator, and the probe is
+/// silently dead on that rig (the 51bdca8 silent-disable family, reached by
+/// configuration rather than calibration). This fraction exists solely to
+/// keep the probe strictly inside the trip budget at ANY configured
+/// geometry -- see sync_type_p_probe_mm() in sync.c, the only place this is
+/// read.
+#define SYNC_PROBE_TRIP_FRAC 0.5f
 /// @brief Type-D neutral compression taper fraction.
 #define SYNC_NEUTRAL_COMPRESSION_TAPER_FRAC 0.5f
 /// @brief Type-D neutral compression floor fraction.

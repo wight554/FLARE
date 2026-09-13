@@ -40,18 +40,29 @@ void cmd_handle_status_dump(void) {
     flow_param_t active_flow_param = flow_param((int)g_extruder_est_sps);
 
     char b[STATUS_LINE_MAX];
+    /* Phase 13 Plan 03: YS: rendered %c, not %d -- the value is a ternary
+       literal that can only ever be '1' or '0' by construction (identical
+       precedent to ARM:/PR: below), so the worst-case-line-budget test
+       (scripts/test_status_line_budget.py) charges it a structurally-provable
+       1 char instead of the blanket 11-char %d/%u budget. Needed to make
+       room for PR: below: even a bare, unlabeled single-char addition could
+       not fit inside the 1-char headroom 13-02 left, and this project's
+       own precedent for exactly this situation (ARM:) is to tighten an
+       over-conservative width, not to relax the assertion. Emits the
+       identical wire bytes as before ('1'/'0' ASCII digits) -- only the
+       format specifier and the width MODEL change, not the output. */
     int blen = snprintf(
         b, sizeof(b),
         "LN:%d,TC:%s,L1T:%s,L2T:%s,"
         "I1:%d,O1:%d,I2:%d,O2:%d,"
-        "TH:%d,YS:%d,BUF:%s,MM:%.1f,BF:%.1f,BP:%.2f,SM:%d,BL:%s,ST:%d,TPR:%d,CU:%d,RELOAD:%d,UC:%d,"
+        "TH:%d,YS:%c,BUF:%s,MM:%.1f,BF:%.1f,BP:%.2f,SM:%d,BL:%s,ST:%d,TPR:%d,CU:%d,RELOAD:%d,UC:%d,"
         "BST:%d,BY:%d,TMC:%d%d,"
         "EST:%.1f,RE:%.2f,AV:%.2f,SC:%.1f",
         g_active_lane, tc_state_name(g_tc_ctx.state), task_name(g_lane_l1.task),
         task_name(g_lane_l2.task), lane_in_present(&g_lane_l1) ? 1 : 0,
         lane_out_present(&g_lane_l1) ? 1 : 0, lane_in_present(&g_lane_l2) ? 1 : 0,
         lane_out_present(&g_lane_l2) ? 1 : 0, g_toolhead_has_filament ? 1 : 0,
-        on_al(&g_y_split) ? 1 : 0, buf_status_label(), (double)sps_to_mm_per_min(g_sync_current_sps),
+        on_al(&g_y_split) ? '1' : '0', buf_status_label(), (double)sps_to_mm_per_min(g_sync_current_sps),
         (double)sps_to_mm_per_min(active_flow_param.baseline_sps), (double)g_buf_pos,
         sync_enabled ? 1 : 0, sync_buffer_lock_arm_str(), (int)g_sync_state, g_auto_preload ? 1 : 0,
         g_enable_cutter ? 1 : 0, g_reload_mode, g_unload_cut ? 1 : 0, g_buf_sensor_type,
@@ -80,11 +91,22 @@ void cmd_handle_status_dump(void) {
            (13-RESEARCH.md Pitfall 3) with no compile/runtime error
            otherwise, so latch one ST_TRUNC event on overflow (guarded so it
            cannot repeat every poll). */
+        /* Phase 13 Plan 03 (D-19): PR: appended last -- the probe state,
+           latched for the pinned episode (0/1/2/3, sync_type_p_probe_state()).
+           Rendered %c, not %d: the value is one of exactly four small
+           integers (0-3) by construction (sync_probe_state_t), so it can
+           never render more than a single ASCII digit -- structurally
+           provable the same way ARM: is, letting the worst-case-line-budget
+           test (scripts/test_status_line_budget.py) charge it 1 char instead
+           of the blanket 11-char %d/%u budget every other integer field
+           carries. This project's headroom was exactly 1 char before this
+           field (13-02); a plain %d here would blow the budget outright. */
         int tail_len = snprintf(
             b + blen, sizeof(b) - (size_t)blen,
             ",RT:%.2f,TT:%u,TM:%d,ARM:%c,CT:%u,SK:%u,CF:%.2f,ES:%.2f"
             ",TPX:%d,CB:%d,BPV:%d,MK:%u:%s"
-            ",SYNC_REFILL_MM:%d,SYNC_RELIEVE_MM:%d,TF:%.1f,FL_RATE:%.1f,UL_RATE:%.1f",
+            ",SYNC_REFILL_MM:%d,SYNC_RELIEVE_MM:%d,TF:%.1f,FL_RATE:%.1f,UL_RATE:%.1f"
+            ",PR:%c",
             (double)sync_reserve_target_mm(), (unsigned)ad_ms, (int)sync_tension_stop_trip_mm(),
             g_sync_trip_armed ? '1' : '0', (unsigned)td_ms, (unsigned)g_buf_signal.kind,
             (double)g_buf_signal.confidence, (double)sync_buf_sigma_mm(),
@@ -94,7 +116,8 @@ void cmd_handle_status_dump(void) {
             (int)(g_buf_pos * 100.0f), g_marker_seq, g_marker_tag,
             (int)g_sync_refill_effort_mm, (int)g_sync_relieve_effort_mm,
             (double)g_sync_mmu_total_mm, (double)sps_to_mm_per_min_idx(g_feed_sps, idx),
-            (double)sps_to_mm_per_min_idx(g_rev_sps, idx));
+            (double)sps_to_mm_per_min_idx(g_rev_sps, idx),
+            (char)('0' + sync_type_p_probe_state()));
         if (tail_len < 0 || tail_len >= (int)(sizeof(b) - (size_t)blen)) {
             static bool st_trunc_latched = false;
             if (!st_trunc_latched) {

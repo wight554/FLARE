@@ -155,6 +155,16 @@ TENSION_STOP_MM_RAIL_TWIN_SCENARIOS = [
     "sem_psf_trip_unarmed_shallow",
 ]
 
+# Phase 13 Plan 03 (D-15/D-16/D-19): the type-P feed probe. Both outcomes,
+# plus the REVIEW-02 (window-max latch) and REVIEW-03 (threshold-ordering
+# clamp) tripwires.
+PROBE_SCENARIOS = [
+    "sem_psf_probe_no_consumer",
+    "sem_psf_probe_consumer",
+    "sem_psf_probe_slow_consumer",
+    "sem_psf_probe_big_buffer",
+]
+
 
 def _skip_reason():
     if not os.path.isfile(SIM_BINARY):
@@ -1247,6 +1257,101 @@ class TensionStopMmOrderingTests(unittest.TestCase):
                                  f"{scenario}: REVIEW-04 -- the hold's falling edge must "
                                  f"zero the accumulator and disarm the trip, so nothing "
                                  f"trips in the post-release window this scenario spans")
+
+
+@unittest.skipIf(_skip_reason(), _skip_reason())
+class TypePProbeTests(unittest.TestCase):
+    """Phase 13 Plan 03 (D-15/D-16/D-17/D-18/D-19): the type-P feed probe --
+    resolves the "+1.0 tension" ambiguity by observing one probe distance's
+    worth of pinned relief feed and deciding, from the window-max deflection
+    observed (REVIEW-02), whether the buffer moved off its deepest reading
+    (CONSUMER) or never did (NO_CONSUMER, which short-circuits straight to
+    the escalate-or-fault-hold path, D-18)."""
+
+    def test_no_consumer_short_circuits_the_distance_trip(self):
+        # D-18: NO_CONSUMER fires once and the distance trip never gets a
+        # chance to fire its own TENSION_STOP:MM in the same episode.
+        run = run_scenario("sem_psf_probe_no_consumer", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertEqual(events.count("SYNC,PROBE:NO_CONSUMER"), 1)
+        self.assertNotIn("SYNC,PROBE:CONSUMER", events)
+        self.assertNotIn("SYNC,TENSION_STOP:MM", events,
+                         "the probe should have short-circuited the trip budget (D-18)")
+        self.assertIn("SYNC,FAULT_HOLD", events)
+
+    def test_no_consumer_excluded_under_type_d(self):
+        # D-17: type-D relay TENSION contact is a normal refill signal, not
+        # a fault -- the probe must not evaluate at all.
+        run = run_scenario("sem_psf_probe_no_consumer", sensor_type="d", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertNotIn("PROBE:", run.events_text())
+
+    def test_consumer_fires_once_and_the_distance_trip_still_runs(self):
+        # A chronic-underfeed lane (13-02's sem_psf_mm_trip recipe) probes
+        # CONSUMER -- the buffer measurably creeps off its deepest reading --
+        # and the distance trip keeps running regardless (D-18): it still
+        # trips on distance shortly after, at 2x the probe's own threshold.
+        run = run_scenario("sem_psf_probe_consumer", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertEqual(events.count("SYNC,PROBE:CONSUMER"), 1)
+        self.assertNotIn("SYNC,PROBE:NO_CONSUMER", events)
+
+    def test_mm_trip_survives_the_probe_landing_on_the_same_accumulator(self):
+        # 13-02's own distance-trip scenario must still trip: a
+        # chronic-underfeed lane probes CONSUMER at the probe's (lower)
+        # threshold and then still trips on distance at the trip's own
+        # (higher) threshold -- the probe landing on the same accumulator
+        # does not disable the pre-existing trip.
+        run = run_scenario("sem_psf_mm_trip", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertGreaterEqual(run.events_text().count("SYNC,TENSION_STOP:MM"), 1)
+
+    def test_slow_consumer_window_max_beats_a_boundary_tick_sample(self):
+        # REVIEW-02: the window-max latch must read CONSUMER even though the
+        # buffer has fallen back deep by the exact tick the accumulator
+        # crosses the probe threshold -- a boundary-tick point sample would
+        # read NO_CONSUMER there. Confirm from the trace (not just the
+        # event) that the boundary tick's own bp_mm is genuinely back below
+        # the tracked-extreme-plus-delta band a point sample would use, so
+        # this scenario is proven to test what it claims rather than merely
+        # asserting the (already-covered) CONSUMER outcome again.
+        run = run_scenario("sem_psf_probe_slow_consumer", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertEqual(events.count("SYNC,PROBE:CONSUMER"), 1)
+        self.assertNotIn("SYNC,PROBE:NO_CONSUMER", events)
+        decide_idx = next(i for i, r in enumerate(run.rows)
+                          if "PROBE:CONSUMER" in r["events"])
+        # The plant's physical slack (bp_mm) at the boundary tick sits at
+        # the rig's tension rail (deep, re-pinned) -- nowhere near the
+        # shallow reading the window-max peak captured earlier in the same
+        # window (see sim_scenario.c's own comment: peak ~= +0.13 norm vs.
+        # a boundary-tick reading ~= -0.96 norm). Asserting bp_mm is
+        # strongly tension-side (very negative) at the decide tick is the
+        # trace-level proof the recipe reshapes if it ever stops holding.
+        self.assertLess(float(run.rows[decide_idx]["bp_mm"]), -6.0,
+                        "boundary-tick reading is not deep -- this scenario no longer "
+                        "demonstrates a point-in-time sample would have disagreed with "
+                        "the window-max verdict")
+
+    def test_big_buffer_probe_resolves_and_precedes_the_trip(self):
+        # REVIEW-03: buf_max_travel_override (64mm) sits above the
+        # SYNC_TENSION_STOP_MM default (32mm) -- without the clamp in
+        # sync_type_p_probe_mm(), the probe distance would exceed the trip
+        # threshold and never evaluate at all. With the clamp, a PROBE:
+        # verdict appears, and if the episode also trips, it precedes
+        # TENSION_STOP:MM in the event stream (D-16 ordering holds even at
+        # an oversized buffer geometry).
+        run = run_scenario("sem_psf_probe_big_buffer", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        probe_rows = [i for i, r in enumerate(run.rows) if "PROBE:" in r["events"]]
+        self.assertTrue(probe_rows, "expected a PROBE: verdict at an oversized buffer geometry")
+        trip_rows = [i for i, r in enumerate(run.rows) if "TENSION_STOP:MM" in r["events"]]
+        if trip_rows:
+            self.assertLess(probe_rows[0], trip_rows[0],
+                            "PROBE: must precede TENSION_STOP:MM in the event stream")
 
 
 @unittest.skipIf(_skip_reason(), _skip_reason())

@@ -945,6 +945,110 @@ const sim_scenario_t g_sim_scenarios[] = {
         .tick_ceiling = 500,
         .tick_ceiling_reason = "identical to sem_psf_trip_hold_release, rail scale 0.7",
     },
+
+    // Phase 13 Plan 03 (D-15/D-16/D-19): type-P feed probe. Both base
+    // scenarios reuse sem_psf_mm_trip's proven demand/feed_gain recipe --
+    // sem_psf_probe_consumer IS sem_psf_mm_trip, truncated before the
+    // FAULT_HOLD/AUTO_START recovery cycle so PROBE:CONSUMER appears exactly
+    // once in the trace rather than once per re-armed episode (a fresh
+    // episode legitimately gets a fresh decision -- D-17 is "at most once
+    // PER EPISODE", not "at most once per process run"). feed_gain=0 (a
+    // total jam, motor spins against nothing) is the base NO_CONSUMER case:
+    // commanded feed still accrues the shared accumulator, but the plant
+    // never receives any of it, so the buffer's deepest reading never moves.
+    {
+        .name = "sem_psf_probe_no_consumer",
+        // D-21 already requires the probe (and the mm/ms trips) to stand
+        // down while the lane's own IN sensor reads clear -- this scenario
+        // uses that guard deliberately, not just for its own documented
+        // purpose. The IN switch is forced clear from t=0 while demand and a
+        // permanent feed_gain=0 jam drive the buffer into deep tension and
+        // PAST the mm trip's own 32mm threshold, entirely OFFSCREEN: with IN
+        // clear, neither the probe nor either trip evaluates at all, but
+        // g_sync_tension_extreme keeps tracking regardless (its own gate is
+        // sync_enabled + type-P, not IN presence) -- so by the time IN is
+        // restored at t=6000, physical position, its EMA, and the tracked
+        // extreme have ALL fully settled at the SAME deep rail value.
+        // Without this, the probe's window opens exactly at the shallow
+        // zone-crossing tick that begins the dive, and the buffer's OWN
+        // continued (genuine, not recovering) fall toward the rail over the
+        // next several hundred milliseconds reads as if it had "moved off" a
+        // stale, shallower extreme -- a false CONSUMER manufactured by the
+        // transition timing, not a real recovery (confirmed empirically
+        // against multiple demand/feed_gain shapes, all without an IN-clear
+        // settle window). Once IN returns, the probe's window opens with
+        // peak and the tracked extreme already equal (both at the settled
+        // rail value) and the shared accumulator already past its own
+        // threshold, so it decides on the very next tick.
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.0f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true, .type_specific = true,
+        .switch_script = {.ev = {{.t_ms = 0, .target = SWITCH_L1_IN, .value = false},
+                                  {.t_ms = 3700, .target = SWITCH_L1_IN, .value = true}},
+                          .count = 2},
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "3s settle + jam onset, 3s further settle with IN clear, then "
+                               "margin after IN restores at t=6000 for the probe to decide",
+    },
+    {
+        .name = "sem_psf_probe_consumer",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+        .tick_ceiling = 260,
+        .tick_ceiling_reason = "identical recipe to sem_psf_mm_trip (PROBE:CONSUMER observed "
+                               "at t=3680ms, TENSION_STOP:MM at t=4120ms), truncated at 5200ms "
+                               "-- before the ~9100ms FAULT_HOLD_RECOVERY/AUTO_START cycle "
+                               "that would legitimately re-arm and re-probe a second episode",
+    },
+    // REVIEW-02 tripwire: proves the verdict reads the WINDOW MAX, not a
+    // point-in-time sample taken at the exact tick the accumulator crosses
+    // the probe threshold. This is sem_psf_probe_consumer's own recipe
+    // (0.7x chronic-underfeed creep) -- confirmed by trace inspection (see
+    // acceptance criteria) that at the decision tick (t=3680ms) the
+    // INSTANTANEOUS g_buf_pos has already fallen back to deep tension
+    // (-0.96), comfortably below (tracked extreme + BL_BREAK_DELTA_NORM);
+    // a boundary-tick point sample would read NO_CONSUMER there. Only the
+    // window-max latch (peak=+0.13, captured while the buffer was still
+    // recovering off the rail earlier in the window) correctly resolves
+    // CONSUMER. A future regression back to a boundary-tick sample fails
+    // this scenario, not just a unit test of the latch in isolation.
+    {
+        .name = "sem_psf_probe_slow_consumer",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+        .tick_ceiling = 260,
+        .tick_ceiling_reason = "identical window to sem_psf_probe_consumer -- decision at "
+                               "t=3680ms, truncated at 5200ms before the second-episode cycle",
+    },
+    // REVIEW-03 tripwire: buf_max_travel_override (64mm) sits ABOVE the
+    // configured SYNC_TENSION_STOP_MM default (32mm) -- without
+    // sync_type_p_probe_mm()'s clamp, the geometry-derived probe distance
+    // would exceed the trip threshold and the probe would never evaluate at
+    // all (the trip fires first, resets the shared accumulator, silent
+    // feature disable). With the clamp, the probe still resolves at its
+    // clamped 16mm distance (min(64, 32*0.5)) and, since this reuses
+    // sem_psf_mm_trip's own chronic-underfeed shape, the episode ALSO trips
+    // on distance shortly after -- proving the PROBE: row precedes the
+    // TENSION_STOP:MM row in the event stream (D-16 ordering holds even at
+    // an oversized buffer geometry).
+    {
+        .name = "sem_psf_probe_big_buffer",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 64, .type_specific = true,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "larger physical travel needs more settle margin than the "
+                               "16mm-rig scenarios before the probe/trip sequence completes",
+    },
 };
 // clang-format on
 

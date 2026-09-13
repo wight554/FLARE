@@ -86,3 +86,12 @@ extern bool g_sync_trip_armed;
    Deliberately NOT the raw accumulator (already on the wire as
    SYNC_REFILL_MM:) since that keeps counting through a suppressed hold. */
 float sync_tension_stop_trip_mm(void);
+
+/* Phase 13 Plan 03 (D-15/D-16/D-19): type-P feed probe. PR: telemetry
+   accessor -- 0=none, 1=running, 2=CONSUMER, 3=NO_CONSUMER (D-19 encoding),
+   latched for the pinned episode. */
+int sync_type_p_probe_state(void);
+/* PROBE: bench command entry point (protocol.c, Task 2) -- forces a probe
+   window to start immediately. Caller must have already validated
+   preconditions (type-P sensor, sync active, no deliberate hold). */
+void sync_type_p_probe_force_start(void);
