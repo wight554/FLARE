@@ -2411,6 +2411,19 @@ uint32_t sync_tension_dwell_ms(uint32_t now_ms) {
     return now_ms - g_sync_tension_pin_since_ms;
 }
 
+/* Phase 13 Plan 02 Task 2 (D-11): TM: telemetry accessor. Reports what the
+   TRIP sees -- 0 while unarmed or while a deliberate hold is in progress,
+   otherwise the accumulated tension travel g_sync_refill_effort_mm holds --
+   not the raw accumulator, which is already on the wire as
+   SYNC_REFILL_MM:. Exposed here rather than reaching into sync.c internals
+   from the status formatter. */
+float sync_tension_stop_trip_mm(void) {
+    if (!g_sync_trip_armed || sync_type_p_hold_in_progress()) {
+        return 0.0f;
+    }
+    return g_sync_refill_effort_mm;
+}
+
 uint32_t sync_est_age_ms(uint32_t now_ms) {
     if (g_extruder_est_last_update_ms == 0)
         return 0;

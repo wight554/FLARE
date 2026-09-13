@@ -114,6 +114,7 @@ DUMP_PARAMS = [
     ("SYNC_AUTO_STOP",    "sync_auto_stop_ms",       False),
     ("POST_PRINT_STAB_MS", "post_print_stab_delay_ms", False),
     ("SYNC_PSF_RELIEF_MULT", "sync_psf_relief_mult", False),
+    ("SYNC_TENSION_STOP_MM", "sync_tension_stop_mm", False),
     # --- Tension Hardening ---
     ("SYNC_TENSION_STOP_MS",  "sync_tension_dwell_stop_ms", False),
     ("SYNC_TENSION_RAMP_MS",  "sync_tension_ramp_delay_ms", False),
