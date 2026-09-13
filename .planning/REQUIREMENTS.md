@@ -689,6 +689,41 @@ executing via non-blocking background queue with retry resilience.
 - **Description**: `scripts/flare_daemon.py` SHALL query the `lane_data` namespace and issue Moonraker DB
 DELETE requests for any orphaned keys (`lane<N>` where `N >= NUM_GATES`) whenever synchronization runs.
 
+### REQ-maintenance-counters-persistence
+- **Source**: `.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/15-SPEC.md`
+- **Description**: `scripts/flare_daemon.py` SHALL persist consumable maintenance counters in an SQLite
+`maintenance_counters` table (`name`, `count`, `limit_val`, `warning`, `pause`, `last_reset`), auto-seeding
+defaults (`cutter_cuts`, `swaps`, `reload_failovers`) and maintaining state across daemon restarts.
+
+### REQ-maintenance-counter-event-hooks
+- **Source**: `.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/15-SPEC.md`
+- **Description**: Firmware board events received by `flare_daemon.py` SHALL automatically increment their
+corresponding maintenance counters: `EV:CUT:DONE` increments `cutter_cuts`, `TC:DONE` increments `swaps`,
+and RELOAD failover events increment `reload_failovers`.
+
+### REQ-maintenance-counter-threshold-actions
+- **Source**: `.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/15-SPEC.md`
+- **Description**: When a maintenance counter meets or exceeds its configured `limit_val`, `flare_daemon.py`
+SHALL record an active warning in `/status`, emit a console warning message via Moonraker gcode script (`M118`),
+and dispatch a Klipper `PAUSE` script if `pause == 1`.
+
+### REQ-maintenance-klipper-command-parity
+- **Source**: `.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/15-SPEC.md`
+- **Description**: `klipper/mmu.py` `MMU_STATS` SHALL support Happy-Hare maintenance parameters
+`COUNTER=<name> [INCR=<n>] [LIMIT=<n>] [WARNING="<text>"] [PAUSE=0|1] [RESET=1] [DELETE=1]`, and list all
+tracked maintenance counters in bare `MMU_STATS` / `SHOWCOUNTS=1` output.
+
+### REQ-maintenance-webui-dashboard
+- **Source**: `.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/15-SPEC.md`
+- **Description**: The FLARE WebUI dashboard SHALL render a dedicated Maintenance & Consumables card showing
+all active counters, current usage vs limit progress bars, status alerts, and an interactive Reset button.
+
+### REQ-daemon-maintenance-unit-tests
+- **Source**: `.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/15-SPEC.md`
+- **Description**: Comprehensive unit test suites (`scripts/test_moonraker_lane_data.py` and
+`scripts/test_flare_daemon_maintenance.py`) SHALL validate all Moonraker `lane_data` synchronization,
+orphan cleanup, maintenance counter persistence, threshold alerts, and command parity.
+
 ### REQ-live-tuner-per-feature-velocity-buckets
 - **Source**: `.planning/specs/live-tuner/spec.md`
 - **Description**: The tuner SHALL aggregate telemetry into feature + velocity buckets (rate + bias).

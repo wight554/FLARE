@@ -1,0 +1,93 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": null,
+  "phases": [
+    {
+      "number": "1",
+      "name": "Hardware Validation & Audit Closeout",
+      "status": "pending"
+    },
+    {
+      "number": "2",
+      "name": "Buffer Retract & Catch Hardening",
+      "status": "complete"
+    },
+    {
+      "number": "3",
+      "name": "Klipper Event-Driven Mirror & Slicer Purge",
+      "status": "complete"
+    },
+    {
+      "number": "4",
+      "name": "Host Sync Simulation Coverage",
+      "status": "complete"
+    },
+    {
+      "number": "5",
+      "name": "Automated Calibration & Live Tuning",
+      "status": "complete"
+    },
+    {
+      "number": "6",
+      "name": "Advanced Toolchange & RELOAD Automation",
+      "status": "complete"
+    },
+    {
+      "number": "7",
+      "name": "Flash Ping-Pong Atomic Persistence",
+      "status": "complete"
+    },
+    {
+      "number": "8",
+      "name": "Settings TLV / Delta Schema Migration",
+      "status": "complete"
+    },
+    {
+      "number": "9",
+      "name": "Daemon Security & Remote Command Hardening",
+      "status": "complete"
+    },
+    {
+      "number": "10",
+      "name": "TMC2209 Register Heartbeat & Auto-Recovery",
+      "status": "complete"
+    },
+    {
+      "number": "11",
+      "name": "Firmware Forensics & Main Loop Jitter",
+      "status": "complete"
+    },
+    {
+      "number": "12",
+      "name": "Post-Phase 2–10 Regression Fixes",
+      "status": "pending"
+    },
+    {
+      "number": "13",
+      "name": "Type-P Sync Relief & Fault Trip",
+      "status": "pending"
+    },
+    {
+      "number": "14",
+      "name": "Klipper MMU Status Parity",
+      "status": "complete"
+    },
+    {
+      "number": "15",
+      "name": "Daemon Moonraker Lane Data & Maintenance Counters",
+      "status": "complete"
+    },
+    {
+      "number": "16",
+      "name": "TMC Tension Current Boost",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
+  },
+  "updated_at": "2026-09-12T23:51:12.943Z"
+}

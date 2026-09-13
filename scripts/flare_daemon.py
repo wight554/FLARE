@@ -84,6 +84,7 @@ status_cache = {
     "reload_mode": 0,
     "buf_sensor_type": 0,
     "tmc_health": "11",
+    "maintenance": {"counters": {}, "warnings": []},
     "timestamp": 0.0
 }
 
@@ -147,8 +148,29 @@ def db_init():
                     key   TEXT PRIMARY KEY,
                     value TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS maintenance_counters (
+                    name        TEXT PRIMARY KEY,
+                    count       INTEGER NOT NULL DEFAULT 0,
+                    limit_val   INTEGER,
+                    warning     TEXT,
+                    pause       INTEGER NOT NULL DEFAULT 0,
+                    last_reset  TEXT
+                );
             """)
             con.commit()
+            rows = con.execute("SELECT COUNT(*) FROM maintenance_counters").fetchone()
+            if rows and rows[0] == 0:
+                now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                defaults = [
+                    ("cutter_cuts", 0, 1000, "Cutter blade wear limit reached. Replace blade and reset counter.", 0, now_iso),
+                    ("swaps", 0, None, "", 0, now_iso),
+                    ("reload_failovers", 0, None, "", 0, now_iso),
+                ]
+                con.executemany(
+                    "INSERT INTO maintenance_counters (name, count, limit_val, warning, pause, last_reset) VALUES (?, ?, ?, ?, ?, ?)",
+                    defaults
+                )
+                con.commit()
         finally:
             con.close()
 
@@ -230,6 +252,181 @@ def record_event_stats(evt_type, evt_data):
             changed = False
     if changed:
         save_mmu_stats()
+
+    # Maintenance counter event hooks
+    try:
+        if evt_type == "EV:CUT:DONE":
+            update_maintenance_counter("cutter_cuts", incr=1)
+        elif evt_type == "TC:DONE":
+            update_maintenance_counter("swaps", incr=1)
+        elif evt_type.startswith("EV:RELOAD:") or evt_type == "EV:RELOAD":
+            update_maintenance_counter("reload_failovers", incr=1)
+    except Exception as e:
+        print(f"flare_daemon: error updating maintenance counter for event {evt_type}: {e}", file=sys.stderr)
+
+# Maintenance tracking
+_maintenance_lock = threading.Lock()
+_maintenance_paused_counters = set()
+
+def _trigger_klipper_pause(reason):
+    """Send PAUSE script to Klipper via Moonraker."""
+    script = f'M118 FLARE MAINTENANCE PAUSE: {reason}\nPAUSE'
+    payload = json.dumps({"script": script}).encode("utf-8")
+    try:
+        req = urllib.request.Request(
+            f"{MOONRAKER_URL}/printer/gcode/script",
+            data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            resp.read()
+        return True
+    except Exception as e:
+        print(f"flare_daemon: failed to send pause to Klipper: {e}", file=sys.stderr)
+        return False
+
+def _emit_klipper_warning(msg):
+    """Send M118 message to Klipper console."""
+    script = f'M118 FLARE WARNING: {msg}'
+    payload = json.dumps({"script": script}).encode("utf-8")
+    try:
+        req = urllib.request.Request(
+            f"{MOONRAKER_URL}/printer/gcode/script",
+            data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            resp.read()
+        return True
+    except Exception:
+        return False
+
+def get_maintenance_counters():
+    """Return all maintenance counters from database."""
+    if not os.path.exists(_DB_PATH):
+        return {}
+    with _db_lock:
+        try:
+            con = sqlite3.connect(_DB_PATH)
+            con.row_factory = sqlite3.Row
+            try:
+                rows = con.execute("SELECT name, count, limit_val, warning, pause, last_reset FROM maintenance_counters").fetchall()
+                out = {}
+                for r in rows:
+                    out[r["name"]] = {
+                        "count": r["count"],
+                        "limit_val": r["limit_val"],
+                        "warning": r["warning"] or "",
+                        "pause": bool(r["pause"]),
+                        "last_reset": r["last_reset"],
+                    }
+                return out
+            finally:
+                con.close()
+        except sqlite3.OperationalError:
+            return {}
+
+def _refresh_maintenance_status():
+    """Update status_cache with maintenance counter summary and active warnings."""
+    counters = get_maintenance_counters()
+    warnings = []
+    for k, v in counters.items():
+        if v["limit_val"] is not None and v["limit_val"] > 0 and v["count"] >= v["limit_val"]:
+            warnings.append({
+                "counter": k,
+                "count": v["count"],
+                "limit": v["limit_val"],
+                "warning": v["warning"],
+            })
+    with status_lock:
+        status_cache["maintenance"] = {
+            "counters": counters,
+            "warnings": warnings,
+        }
+
+def update_maintenance_counter(name, incr=0, limit_val=None, warning=None, pause=None, reset=False, delete=False):
+    """Atomically update or mutate a maintenance counter and evaluate limits."""
+    os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
+    with _db_lock:
+        con = sqlite3.connect(_DB_PATH)
+        con.row_factory = sqlite3.Row
+        try:
+            if delete:
+                con.execute("DELETE FROM maintenance_counters WHERE name=?", (name,))
+                con.commit()
+                with _maintenance_lock:
+                    _maintenance_paused_counters.discard(name)
+                _refresh_maintenance_status()
+                return {"deleted": True, "name": name}
+
+            row = con.execute(
+                "SELECT name, count, limit_val, warning, pause, last_reset FROM maintenance_counters WHERE name=?",
+                (name,)
+            ).fetchone()
+
+            now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+            if row is None:
+                cur_count = 0
+                cur_limit = int(limit_val) if limit_val is not None and limit_val != "" else None
+                cur_warning = warning or ""
+                cur_pause = 1 if pause else 0
+                cur_reset = now_iso
+                con.execute(
+                    "INSERT INTO maintenance_counters (name, count, limit_val, warning, pause, last_reset) VALUES (?, ?, ?, ?, ?, ?)",
+                    (name, cur_count, cur_limit, cur_warning, cur_pause, cur_reset)
+                )
+            else:
+                cur_count = row["count"]
+                cur_limit = row["limit_val"]
+                cur_warning = row["warning"]
+                cur_pause = row["pause"]
+                cur_reset = row["last_reset"]
+
+            if reset:
+                cur_count = 0
+                cur_reset = now_iso
+                with _maintenance_lock:
+                    _maintenance_paused_counters.discard(name)
+
+            if incr:
+                cur_count += incr
+
+            if limit_val is not None:
+                cur_limit = int(limit_val) if limit_val != "" else None
+            if warning is not None:
+                cur_warning = str(warning)
+            if pause is not None:
+                cur_pause = 1 if pause else 0
+
+            con.execute(
+                "UPDATE maintenance_counters SET count=?, limit_val=?, warning=?, pause=?, last_reset=? WHERE name=?",
+                (cur_count, cur_limit, cur_warning, cur_pause, cur_reset, name)
+            )
+            con.commit()
+
+            result = {
+                "name": name,
+                "count": cur_count,
+                "limit_val": cur_limit,
+                "warning": cur_warning,
+                "pause": bool(cur_pause),
+                "last_reset": cur_reset,
+            }
+        finally:
+            con.close()
+
+    # Threshold checking
+    if result["limit_val"] is not None and result["limit_val"] > 0:
+        if result["count"] >= result["limit_val"]:
+            warn_text = result["warning"] or f"Maintenance counter '{name}' exceeded limit ({result['count']}/{result['limit_val']})"
+            _emit_klipper_warning(warn_text)
+            if result["pause"]:
+                with _maintenance_lock:
+                    should_pause = name not in _maintenance_paused_counters
+                    if should_pause:
+                        _maintenance_paused_counters.add(name)
+                if should_pause:
+                    _trigger_klipper_pause(warn_text)
+
+    _refresh_maintenance_status()
+    return result
 
 # Endpoints / Spoolman config (set from CLI args in main())
 MOONRAKER_URL = "http://localhost:7125"
@@ -1178,6 +1375,15 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(res.encode("utf-8"))
 
+        elif self.path == "/maintenance":
+            counters = get_maintenance_counters()
+            res = json.dumps({"counters": counters})
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_cors_headers()
+            self.end_headers()
+            self.wfile.write(res.encode("utf-8"))
+
         elif self.path == "/" or self.path == "/index.html":
             self.serve_static_file("index.html", "text/html")
         elif self.path == "/app.js":
@@ -1283,6 +1489,35 @@ class FlareHTTPHandler(BaseHTTPRequestHandler):
             self.send_cors_headers()
             self.end_headers()
             self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+
+        elif self.path == "/maintenance":
+            try:
+                body = json.loads(post_data.decode("utf-8")) if post_data else {}
+            except Exception:
+                self.send_error(400, "Invalid JSON payload")
+                return
+            action = body.get("action", "update")
+            name = body.get("name")
+            if not name:
+                self.send_error(400, "Missing 'name' in maintenance request")
+                return
+            if action == "reset":
+                res = update_maintenance_counter(name, reset=True)
+            elif action == "delete":
+                res = update_maintenance_counter(name, delete=True)
+            else:
+                res = update_maintenance_counter(
+                    name,
+                    incr=int(body.get("incr", 0)),
+                    limit_val=body.get("limit_val"),
+                    warning=body.get("warning"),
+                    pause=body.get("pause")
+                )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps({"result": "ok", "counter": res}).encode("utf-8"))
 
         else:
             self.send_error(404, "Not Found")

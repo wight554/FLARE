@@ -1,15 +1,15 @@
 ---
 gsd_state_version: "1.0"
-status: unknown
-stopped_at: Completed 15-01-PLAN.md (Moonraker lane_data sync)
-last_updated: "2026-09-13T21:19:00Z"
+status: complete
+stopped_at: Completed 15-02-PLAN.md (Maintenance counters, MMU_STATS parity, WebUI card)
+last_updated: "2026-09-13T21:26:00Z"
 state_head: 1ed58a3
 progress:
   total_phases: 16
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 22
-  completed_plans: 6
-  percent: 27
+  completed_plans: 7
+  percent: 32
 current_phase_name: Daemon Moonraker Lane Data & Maintenance Counters
 ---
 
@@ -20,14 +20,14 @@ current_phase_name: Daemon Moonraker Lane Data & Maintenance Counters
 See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 15 — Daemon Moonraker Lane Data & Maintenance Counters
+**Current focus:** Phase 15 complete; awaiting Phase 13 HW validation or Phase 16 planning
 
 ## Current Position
 
 - **Phase**: 15 - Daemon Moonraker Lane Data & Maintenance Counters (`.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/`)
-- **Active Feature in Progress**: 15-01-PLAN.md complete (1/2 plans) — Moonraker `lane_data` DB namespace push for OrcaSlicer sync, Spoolman metadata enrichment, fallback handling, orphan cleanup, non-blocking sync queue worker, and unit tests (`scripts/test_moonraker_lane_data.py`). Next: 15-02-PLAN.md (maintenance counters + MMU_STATS + WebUI). Phase 13 HW validation pending on test rig.
-- **Status**: In Progress (15-01 of 2 plans complete)
-- **Progress**: [==========          ] 50% complete (1/2 plans)
+- **Active Feature in Progress**: Complete (2/2 plans) — 15-01 (Moonraker lane_data DB sync + Spoolman enrichment) and 15-02 (maintenance counters, MMU_STATS command parity, WebUI dashboard card, unit tests). Phase 13 HW validation pending on physical test rig.
+- **Status**: Complete (2/2 plans complete)
+- **Progress**: [====================] 100% complete (2/2 plans)
 
 ## Accumulated Context
 

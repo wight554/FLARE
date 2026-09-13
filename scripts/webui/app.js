@@ -163,6 +163,11 @@ function updateUIState(data) {
 
     // 7. Usage statistics
     if (data.mmu_stats) updateStats(data.mmu_stats);
+
+    // 8. Maintenance counters
+    if (data.maintenance && data.maintenance.counters) {
+        updateMaintenance(data.maintenance.counters);
+    }
 }
 
 function updateStats(stats) {
@@ -173,6 +178,77 @@ function updateStats(stats) {
     document.getElementById('stat-loads').textContent = stats.loads_success || 0;
     document.getElementById('stat-unloads').textContent = stats.unloads_success || 0;
     document.getElementById('stat-last-error').textContent = stats.last_error || 'None';
+}
+
+function updateMaintenance(counters) {
+    const container = document.getElementById('maintenance-counters-list');
+    if (!container) return;
+
+    const names = Object.keys(counters).sort();
+    let html = '';
+    for (const name of names) {
+        const c = counters[name];
+        const count = c.count || 0;
+        const limit = c.limit_val;
+        const hasLimit = limit != null && limit > 0;
+        const pct = hasLimit ? Math.min(100, Math.round((count / limit) * 100)) : 0;
+        const isOver = hasLimit && count >= limit;
+        const isWarn = hasLimit && pct >= 80 && !isOver;
+
+        let statusClass = 'status-ok';
+        let badgeText = 'OK';
+        if (isOver) {
+            statusClass = 'status-alert';
+            badgeText = 'LIMIT';
+        } else if (isWarn) {
+            statusClass = 'status-warn';
+            badgeText = `${pct}%`;
+        }
+
+        html += `
+            <div class="maintenance-item ${statusClass}">
+                <div class="maintenance-header">
+                    <span class="maintenance-name">${escapeHtml(name)}</span>
+                    <span class="maintenance-badge ${statusClass}">${badgeText}</span>
+                </div>
+                <div class="maintenance-metric">
+                    <span class="metric-count">${count}</span>
+                    <span class="metric-limit">${hasLimit ? '/ ' + limit : '(no limit)'}</span>
+                </div>
+                ${hasLimit ? `
+                <div class="maintenance-progress-bar">
+                    <div class="progress-fill ${statusClass}" style="width: ${pct}%"></div>
+                </div>
+                ` : ''}
+                <div class="maintenance-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="resetMaintenanceCounter('${escapeHtml(name)}')">Reset</button>
+                </div>
+            </div>
+        `;
+    }
+    container.innerHTML = html;
+}
+
+function resetMaintenanceCounter(name) {
+    fetch('/maintenance', {
+        method: 'POST',
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ action: 'reset', name: name }),
+    })
+    .then(async (r) => {
+        if (r.status === 401) {
+            const token = promptForApiToken('Authentication required to reset maintenance counter.');
+            if (token) {
+                return fetch('/maintenance', {
+                    method: 'POST',
+                    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+                    body: JSON.stringify({ action: 'reset', name: name }),
+                });
+            }
+        }
+        return r;
+    })
+    .catch(e => console.error('Failed to reset counter:', e));
 }
 
 // ---- Bypass mode: hide buffer telemetry panel when direct-feed spool is active ----

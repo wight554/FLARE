@@ -43,6 +43,8 @@ scripts/test_stream.log
 .codegraph/
 .codex/
 .gemini/
+.gsd/
+.planning/milestone.lock
 .github/skills/
 .github/prompts/
 skills-lock.json

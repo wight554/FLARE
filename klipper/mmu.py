@@ -123,6 +123,7 @@ class MMUMock:
         self.loads_success = 0
         self.unloads_success = 0
         self.last_error = "None"
+        self.maintenance_counters = {}
 
         # Register command to update status
         self.gcode = self.printer.lookup_object('gcode')
@@ -405,8 +406,115 @@ class MMUMock:
 
         self._ensure_array_lengths()
 
+    def _query_daemon_maintenance(self, payload=None):
+        import json
+        import urllib.request
+        url = "http://127.0.0.1:4111/maintenance"
+        try:
+            if payload:
+                data = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+            else:
+                req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=0.5) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception:
+            return None
+
     def cmd_MMU_STATS(self, gcmd):
-        """Report live usage statistics (counted by the daemon from board events)."""
+        """Report or manage live usage statistics and maintenance counters."""
+        counter_name = gcmd.get('COUNTER', None)
+        if counter_name:
+            counter_name = counter_name.strip("'\"")
+            is_reset = gcmd.get_int('RESET', 0) != 0
+            is_delete = gcmd.get_int('DELETE', 0) != 0
+            incr = gcmd.get_int('INCR', 0)
+            limit_val = gcmd.get_int('LIMIT', None)
+            warning = gcmd.get('WARNING', None)
+            if warning:
+                warning = warning.strip("'\"")
+            pause = gcmd.get_int('PAUSE', None)
+
+            # Build mutation payload if needed
+            mutation = None
+            if is_reset:
+                mutation = {"action": "reset", "name": counter_name}
+            elif is_delete:
+                mutation = {"action": "delete", "name": counter_name}
+            elif incr or limit_val is not None or warning is not None or pause is not None:
+                mutation = {
+                    "action": "update",
+                    "name": counter_name,
+                    "incr": incr,
+                    "limit_val": limit_val,
+                    "warning": warning,
+                    "pause": pause
+                }
+
+            # Update daemon if reachable
+            res = self._query_daemon_maintenance(mutation) if mutation else None
+            if res and "counter" in res:
+                c = res["counter"]
+                self.maintenance_counters[counter_name] = c
+                gcmd.respond_info(
+                    f"FLARE: Maintenance counter '{counter_name}' updated: "
+                    f"count={c.get('count')}, limit={c.get('limit_val')}, warning='{c.get('warning')}', pause={c.get('pause')}"
+                )
+                return
+            elif res and res.get("deleted"):
+                self.maintenance_counters.pop(counter_name, None)
+                gcmd.respond_info(f"FLARE: Maintenance counter '{counter_name}' deleted.")
+                return
+
+            # Local fallback if daemon not running (e.g. offline unit test)
+            if mutation:
+                if is_reset:
+                    if counter_name in self.maintenance_counters:
+                        self.maintenance_counters[counter_name]["count"] = 0
+                    gcmd.respond_info(f"FLARE: Maintenance counter '{counter_name}' reset to 0.")
+                    return
+                elif is_delete:
+                    self.maintenance_counters.pop(counter_name, None)
+                    gcmd.respond_info(f"FLARE: Maintenance counter '{counter_name}' deleted.")
+                    return
+                else:
+                    c = self.maintenance_counters.setdefault(counter_name, {
+                        "count": 0, "limit_val": None, "warning": "", "pause": False, "last_reset": None
+                    })
+                    if incr:
+                        c["count"] += incr
+                    if limit_val is not None:
+                        c["limit_val"] = limit_val
+                    if warning is not None:
+                        c["warning"] = warning
+                    if pause is not None:
+                        c["pause"] = bool(pause)
+                    gcmd.respond_info(
+                        f"FLARE: Maintenance counter '{counter_name}' updated: "
+                        f"count={c.get('count')}, limit={c.get('limit_val')}, warning='{c.get('warning')}', pause={c.get('pause')}"
+                    )
+                    return
+
+            # Query existing counter
+            data = self._query_daemon_maintenance()
+            counters = data.get("counters", {}) if data else self.maintenance_counters
+            if counter_name in counters:
+                c = counters[counter_name]
+                msg = (
+                    f"Maintenance Counter: {counter_name}\n"
+                    f"  Count:      {c.get('count', 0)}\n"
+                    f"  Limit:      {c.get('limit_val') if c.get('limit_val') is not None else 'None'}\n"
+                    f"  Warning:    {c.get('warning') or 'None'}\n"
+                    f"  Pause:      {c.get('pause', False)}\n"
+                    f"  Last Reset: {c.get('last_reset') or 'Never'}"
+                )
+                gcmd.respond_info(msg)
+                return
+            else:
+                gcmd.respond_info(f"FLARE: Maintenance counter '{counter_name}' not found.")
+                return
+
+        # Default stats display
         total = self.swaps_total
         rate = (100.0 * self.swaps_success / total) if total else 100.0
         msg = (
@@ -426,6 +534,19 @@ class MMUMock:
                 spool = self.gate_spool_id[i] if i < len(self.gate_spool_id) else -1
                 lines.append(f"Gate {i}: status={status} spool_id={spool}")
             msg += "\n".join(lines)
+
+        data = self._query_daemon_maintenance()
+        counters = data.get("counters", {}) if data else self.maintenance_counters
+        if counters:
+            m_lines = ["\n--------------- Maintenance Counters -----------------"]
+            for name, c in sorted(counters.items()):
+                count = c.get("count", 0)
+                lim = c.get("limit_val")
+                lim_str = f"/ {lim}" if lim is not None else "(no limit)"
+                status_str = "[ALERT]" if lim is not None and count >= lim else "[OK]"
+                m_lines.append(f"  {name}: {count} {lim_str} {status_str}")
+            msg += "\n".join(m_lines)
+
         gcmd.respond_info(msg)
 
     def cmd_MMU_PRELOAD(self, gcmd):

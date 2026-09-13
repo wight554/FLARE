@@ -265,7 +265,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 **Plans**: 2 plans
 
   - [x] 15-01-PLAN.md
-  - [ ] 15-02-PLAN.md
+  - [x] 15-02-PLAN.md
   - **Wave 1**: 15-01-PLAN.md — Moonraker `lane_data` namespace sync + orphan cleanup + Spoolman integration + unit test coverage
   - **Wave 2** *(blocked on Wave 1)*: 15-02-PLAN.md — Persistent maintenance counters + `MMU_STATS` parity + WebUI card + unit tests
 
@@ -301,5 +301,5 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 12. Post-Phase 2–10 Regression Fixes | 1/1 | Complete (HW pending) | 2026-09-11 |
 | 13. Type-P Sync Relief & Fault Trip | 3/4 | In Progress|  |
 | 14. Klipper MMU Status Parity | 2/2 | Complete | 2026-09-12 |
-| 15. Daemon Moonraker Lane Data & Maintenance Counters | 1/2 | In Progress |  |
+| 15. Daemon Moonraker Lane Data & Maintenance Counters | 2/2 | Complete | 2026-09-13 |
 | 16. TMC Tension Current Boost | 0/? | Not planned | - |
