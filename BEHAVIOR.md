@@ -270,10 +270,38 @@ not wall-clock — mirroring Happy-Hare's `rd_filter_len_mm` / `rd_rate_per_mm`:
 
 Because both stages scale with flow, feed changes are gentle at low flow and go
 to ~0 when the printer is idle. `fast_brake` still forces an instant stop (and
-resets the filter). The old time-ramp (`SYNC_RAMP_UP/DN_SPS`) and the brief
-direct-apply both applied only to non-type-P or were replaced by this path. Both
-knobs are live-tunable (`SET:SYNC_PSF_SLEW_PER_MM` / `SET:SYNC_PSF_FILTER_MM`),
-runtime-only (not persisted; re-seeded from defaults each boot).
+resets the filter). The old time-ramp (`SYNC_RAMP_UP/DN_SPS`) applies only to
+non-type-P. Both smoothing knobs are live-tunable (`SET:SYNC_PSF_SLEW_PER_MM` /
+`SET:SYNC_PSF_FILTER_MM`), runtime-only (not persisted; re-seeded from defaults
+each boot).
+
+#### Type-P bounded relief (starved into the tension rail)
+
+When the buffer is starved into the tension rail, the target above is *not*
+applied directly at `max_sps` (a pre-Phase-13 direct-apply snap did this and
+was the root of a snap→pause→restart hunting cycle). Instead entry is decided
+rail-relatively: once the deepest `g_buf_pos` observed since entering
+`BUF_TENSION` this sync window (`g_sync_tension_extreme`) is tracked, relief
+engages once the buffer is at or below that extreme plus a small margin
+(`SOFT_WALL_MARGIN_NORM`, 0.15); before an extreme exists, entry falls back to
+the debounced `BUF_TENSION` state. Never an absolute `±0.xx` position literal
+— the same class of bug `51bdca8` fixed for `BL`.
+
+Once in relief, the commanded target is bounded to
+`min(max_sps, max(extruder_est_sps * SYNC_PSF_RELIEF_MULT, baseline_sps))` —
+demand scaled by a live, flash-persisted multiplier (default `1.33`), floored
+at the flow schedule's learned baseline, ceilinged at `max_sps` as an
+independent second limit. That bound is routed through the *same* two-stage
+smoothing above, but with a doubled slew allowance
+(`SYNC_RELIEF_SLEW_MULT`, 2x) and the target EMA length divided by 4
+(`SYNC_RELIEF_FILTER_DIV`) — from 25 mm down to ~6 mm — so the bounded target
+arrives before the rail does on a 16 mm buffer instead of after. The ordinary
+(non-relief) smoothing path is unaffected. A single uncalibrated deep
+deflection spike cannot depress the relief threshold for the rest of a print:
+`g_sync_tension_extreme` relaxes (re-seeds to the current reading) once the
+buffer is observed well off the rail (`SYNC_EXTREME_RELAX_MULT` ×
+`BL_BREAK_DELTA_NORM`). `EV:SYNC:RELIEF_ON`/`RELIEF_OFF` bracket each episode
+on the edge only (never per tick), distinct from `RELIEF_PAUSE`.
 
 #### Type-P buffer-stabilize rail breakaway
 
@@ -513,7 +541,12 @@ than `SYNC_TENSION_RAMP_MS`, the sync controller bypasses the estimator ceiling 
 forces the target speed toward `SYNC_MAX_RATE`. The default is `0`, so this
 estimator-bypass refill ramp is disabled; normal reserve control and the hard
 tension stop remain active. Operators can re-enable the ramp as a runtime
-escape hatch if hardware evidence supports it.
+escape hatch if hardware evidence supports it. For type-P, this escalation is
+itself capped at the same bounded-relief target the apply-side path uses
+(`sync_type_p_relief_bound_sps()`, see "Type-P bounded relief" above) rather
+than `SYNC_MAX_RATE` directly — the ramp can still force the estimator ceiling
+open, but not past the same bound relief already computed; type-D is
+unaffected.
 
 If the arm remains pinned for longer than `SYNC_TENSION_STOP_MS` (default 6000
 ms), sync enters a non-destructive fault hold with `EV:SYNC:FAULT_HOLD`. This
