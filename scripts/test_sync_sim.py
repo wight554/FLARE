@@ -90,7 +90,25 @@ RAMP_CAPPED_SCENARIOS = [
 # while sat=T) applies identically regardless of demand shape, so it runs
 # over all five scenarios -- the three rail-scale twins plus the two ramp
 # scenarios -- in one parametrized test (see TypePReliefBoundTests).
-BOUND_INVARIANT_SCENARIOS = TYPE_P_RELIEF_SCENARIOS + RAMP_CAPPED_SCENARIOS
+# Phase 13 Task 3: every new scenario that physically saturates (has sat=T
+# rows) joins the bound invariant, widening it rather than leaving it
+# pinned to the scenarios it was born with. sem_psf_trip_unarmed(_shallow)
+# are excluded -- by design they never leave their resting position, so
+# they never produce a sat=T row for the invariant to check.
+TENSION_STOP_BOUND_SCENARIOS = [
+    "sem_psf_mm_trip",
+    "sem_psf_mm_trip_shallow",
+    "sem_psf_mm_before_ms",
+    "sem_psf_mm_before_ms_shallow",
+    "sem_psf_ms_fallback",
+    "sem_psf_ms_fallback_shallow",
+    "sem_psf_trip_held_suppressed",
+    "sem_psf_trip_held_suppressed_shallow",
+    "sem_psf_trip_hold_release",
+    "sem_psf_trip_hold_release_shallow",
+]
+
+BOUND_INVARIANT_SCENARIOS = TYPE_P_RELIEF_SCENARIOS + RAMP_CAPPED_SCENARIOS + TENSION_STOP_BOUND_SCENARIOS
 
 # Phase 13 Task 1 (D-07/D-08/D-09/D-10): SYNC_TENSION_STOP_MM distance trip.
 # Type-P only -- the trip's own D-14 exclusion (g_buf_sensor_type !=
@@ -99,6 +117,42 @@ BOUND_INVARIANT_SCENARIOS = TYPE_P_RELIEF_SCENARIOS + RAMP_CAPPED_SCENARIOS
 TENSION_STOP_MM_SCENARIOS = [
     "sem_psf_mm_trip",
     "sem_psf_trip_unarmed",
+]
+
+# Phase 13 Task 3 (D-08/D-09/D-25/D-26/REVIEW-04): ordering, arming, and
+# hold-suppression scenarios, each a (scenario, expected-event,
+# forbidden-event) triple. type_specific=True in the C table -- type-D
+# exclusion for the mm/ms family is asserted once, directly, in
+# TensionStopMmTripTests.test_mm_trip_excludes_type_d; it does not need a
+# per-triple repeat here.
+TENSION_STOP_ORDERING_TRIPLES = [
+    ("sem_psf_mm_before_ms", "SYNC,TENSION_STOP:MM", "SYNC,TENSION_STOP:MS"),
+    ("sem_psf_mm_before_ms_shallow", "SYNC,TENSION_STOP:MM", "SYNC,TENSION_STOP:MS"),
+    ("sem_psf_ms_fallback", "SYNC,TENSION_STOP:MS", "SYNC,TENSION_STOP:MM"),
+    ("sem_psf_ms_fallback_shallow", "SYNC,TENSION_STOP:MS", "SYNC,TENSION_STOP:MM"),
+]
+
+# D-26: a BL lock/prime/follow cycle armed across the whole window
+# suppresses BOTH trips entirely -- no expected event, just an absence.
+TENSION_STOP_HELD_SCENARIOS = [
+    "sem_psf_trip_held_suppressed",
+    "sem_psf_trip_held_suppressed_shallow",
+]
+
+# REVIEW-04: hold falling edge -- the accumulator/arm flag reset when the
+# hold releases means no trip fires in the post-release window this
+# scenario spans (see its own comment in sim_scenario.c for why that window
+# is, empirically, the rest of the run).
+TENSION_STOP_HOLD_RELEASE_SCENARIOS = [
+    "sem_psf_trip_hold_release",
+    "sem_psf_trip_hold_release_shallow",
+]
+
+# D-25 rail-scale twins of Task 1's own two scenarios (arms/fires + never
+# arms), proving both hold at a shallower analog reading too.
+TENSION_STOP_MM_RAIL_TWIN_SCENARIOS = [
+    "sem_psf_mm_trip_shallow",
+    "sem_psf_trip_unarmed_shallow",
 ]
 
 
@@ -1138,6 +1192,61 @@ class TensionStopMmTripTests(unittest.TestCase):
         self.assertNotIn("TENSION_STOP:MM", run.events_text(),
                          "knob at 0 must disable the mm trip even though the scenario's "
                          "dynamics are otherwise identical to sem_psf_mm_trip")
+
+    def test_rail_scale_twins_arm_and_trip_identically(self):
+        # D-25: sem_psf_mm_trip_shallow / sem_psf_trip_unarmed_shallow prove
+        # the Task 1 scenarios' outcomes hold at a shallower analog reading
+        # too -- same subTest-over-triples shape as the ordering tests below.
+        run = run_scenario("sem_psf_mm_trip_shallow", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("SYNC,TENSION_STOP:MM", run.events_text())
+
+        run = run_scenario("sem_psf_trip_unarmed_shallow", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertNotIn("TENSION_STOP:", run.events_text())
+        self.assertEqual(len(set(run.zones())), 1,
+                         "sem_psf_trip_unarmed_shallow: expected a single zone for the "
+                         "whole run")
+
+
+@unittest.skipIf(_skip_reason(), _skip_reason())
+class TensionStopMmOrderingTests(unittest.TestCase):
+    """Phase 13 Task 3: distance is the PRIMARY trip at print flow, time is
+    the slow-flow FALLBACK (D-08/D-09) -- proven by two scenarios that trip
+    on DIFFERENT thresholds, not by one that trips on both, at two rail
+    scales each. Also: deliberate holds suppress the trip entirely (D-26),
+    and a hold's falling edge resets the accumulator/arm so nothing
+    re-trips in the immediate post-release window (REVIEW-04)."""
+
+    def test_mm_before_ms_and_ms_fallback_trip_on_different_thresholds(self):
+        for scenario, expected_event, forbidden_event in TENSION_STOP_ORDERING_TRIPLES:
+            with self.subTest(scenario=scenario):
+                run = run_scenario(scenario, sensor_type="p", ticks=None)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                events = run.events_text()
+                self.assertIn(expected_event, events, f"{scenario}: expected {expected_event}")
+                self.assertNotIn(forbidden_event, events,
+                                 f"{scenario}: {forbidden_event} fired -- proves masking, "
+                                 f"not that distance is primary and time is the fallback")
+
+    def test_held_lock_suppresses_both_trips(self):
+        for scenario in TENSION_STOP_HELD_SCENARIOS:
+            with self.subTest(scenario=scenario):
+                run = run_scenario(scenario, sensor_type="p", ticks=None)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertNotIn("TENSION_STOP:", run.events_text(),
+                                 f"{scenario}: D-26 -- a held BL lock must suppress both "
+                                 f"trips for as long as it holds")
+
+    def test_hold_release_resets_accumulator_and_arm(self):
+        for scenario in TENSION_STOP_HOLD_RELEASE_SCENARIOS:
+            with self.subTest(scenario=scenario):
+                run = run_scenario(scenario, sensor_type="p", ticks=None)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                self.assertNotIn("TENSION_STOP:", run.events_text(),
+                                 f"{scenario}: REVIEW-04 -- the hold's falling edge must "
+                                 f"zero the accumulator and disarm the trip, so nothing "
+                                 f"trips in the post-release window this scenario spans")
 
 
 @unittest.skipIf(_skip_reason(), _skip_reason())

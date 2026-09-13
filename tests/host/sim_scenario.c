@@ -774,6 +774,177 @@ const sim_scenario_t g_sim_scenarios[] = {
         .tick_ceiling_reason = "identical to sem_psf_mm_trip so the only variable is the "
                                "disabled knob",
     },
+
+    // Phase 13 Task 3 (D-25): rail-scale (0.7) twins of Task 1's two
+    // scenarios. Rail scale attenuates the ANALOG SENSOR reading the
+    // firmware sees (sim_plant.c's emit_type_p), not the physical slack or
+    // the commanded-feed accumulator the trip actually reads -- so the
+    // qualitative outcome (fires / never arms) is expected to hold
+    // identically, only the exact tick a transition lands on can shift.
+    {
+        .name = "sem_psf_mm_trip_shallow",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_p_rail_scale = 0.7f, .type_specific = true,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "identical to sem_psf_mm_trip, rail scale 0.7",
+    },
+    {
+        .name = "sem_psf_trip_unarmed_shallow",
+        .demand = {.kind = DEMAND_STEADY, .level_mm_s = 0.0f},
+        .active_lane = 1, .start_sync_active = true,
+        .type_p_rail_scale = 0.7f, .type_specific = true,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "identical to sem_psf_trip_unarmed, rail scale 0.7",
+    },
+
+    // D-08/D-09: distance is the PRIMARY trip at print flow, time is the
+    // slow-flow FALLBACK -- proven by two scenarios that trip on DIFFERENT
+    // thresholds, not by one that trips on both. sem_psf_mm_before_ms
+    // reuses sem_psf_mm_trip's exact profile: the mm accumulator crosses
+    // 32mm around t~1000ms after the t=3000 step (see sem_psf_mm_trip's
+    // comment), thousands of ms before FLARE_INT_SYNC_TENSION_DWELL_STOP_MS
+    // (6000ms, checked in tune.h before picking this) could ever elapse.
+    {
+        .name = "sem_psf_mm_before_ms",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "mm trip fires well under 400 ticks (8s), long before the "
+                               "6s ms dwell timer could complete",
+    },
+    {
+        .name = "sem_psf_mm_before_ms_shallow",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_p_rail_scale = 0.7f, .type_specific = true,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "identical to sem_psf_mm_before_ms, rail scale 0.7",
+    },
+    // sem_psf_ms_fallback: empirically, distance ALWAYS beats the 6000ms ms
+    // dwell timer once the type-P relief branch engages, at ANY demand this
+    // config's flow schedule can reach -- sync_type_p_relief_bound_sps
+    // floors every relief-zone target at flow_param(...).baseline_sps
+    // (10912 sps ~= 26.7mm/s with this project's default single-point
+    // schedule), and relief-zone entry (sync_type_p_in_relief_zone) is true
+    // for nearly the entire duration of any continuing/worsening tension
+    // excursion (g_buf_pos <= tracked extreme + SOFT_WALL_MARGIN_NORM,
+    // sync_internal.h). That floor alone crosses 32mm in ~1.2s regardless
+    // of the scripted demand or feed_gain reduction -- confirmed by running
+    // even 13-01's OWN sem_psf_relief_bound (no artificial feed_gain at
+    // all) through this build: it also trips TENSION_STOP:MM within ~1.1s
+    // of entering deep tension. Tried demand steps from 4mm/s to 15mm/s,
+    // permanent full jams, and default vs 16mm buf_max_travel -- every
+    // combination that sustains a multi-second dwell also blows past 32mm
+    // in under 1.5s once relief engages; every combination gentle enough to
+    // avoid relief recovers to NEUTRAL/COMPRESSION within ~1s and never
+    // dwells 6s at all (see 13-02-SUMMARY.md Deviations for the full
+    // investigation). tension_stop_mm_disabled isolates the ms path itself
+    // rather than proving an organic race the current baseline_sps/
+    // SYNC_PSF_RELIEF_MULT tuning cannot produce: 0.95 feed_gain leaves
+    // just enough residual deficit (~1.15mm/s once feed maxes at 15004sps)
+    // to sustain continuous TENSION for the full 6s window while staying
+    // well off the physical rail (no sat=T anywhere in this trace), so the
+    // ms trip -- not the pre-existing CONF_PSF_WALL_SAT_MS rail guard --
+    // is demonstrably what fires.
+    {
+        .name = "sem_psf_ms_fallback",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.95f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true, .type_specific = true,
+        .tension_stop_mm_disabled = true,
+        .tick_ceiling = 550,
+        .tick_ceiling_reason = "3s settle + 6s ms dwell fallback + margin",
+    },
+    {
+        .name = "sem_psf_ms_fallback_shallow",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.95f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .type_p_rail_scale = 0.7f, .type_specific = true,
+        .tension_stop_mm_disabled = true,
+        .tick_ceiling = 550,
+        .tick_ceiling_reason = "identical to sem_psf_ms_fallback, rail scale 0.7",
+    },
+
+    // D-26: a BL lock armed across the whole window suppresses both trips
+    // entirely -- same t=3000 step-into-tension + chronic-underfeed shape
+    // as sem_psf_mm_trip (which would otherwise fire the mm trip around
+    // t~4100ms), but bl_arm_at_ms fires just before that, at t=3500, and is
+    // never cleared for the rest of the run.
+    {
+        .name = "sem_psf_trip_held_suppressed",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+        .bl_arm_at_ms = 3500, .bl_arm_target = 1 /* BUF_TENSION */,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "same window as sem_psf_mm_trip; the lock arms before the "
+                               "mm trip would otherwise fire and is held for the rest of it",
+    },
+    {
+        .name = "sem_psf_trip_held_suppressed_shallow",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_p_rail_scale = 0.7f, .type_specific = true,
+        .bl_arm_at_ms = 3500, .bl_arm_target = 1 /* BUF_TENSION */,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "identical to sem_psf_trip_held_suppressed, rail scale 0.7",
+    },
+
+    // REVIEW-04: a BL lock armed while the buffer is pinned, then CLEARED
+    // mid-run (bl_clear_at_ms) with the pin continuing afterward, must not
+    // trip within the tick window immediately following the clear -- the
+    // hold's falling edge zeroed the accumulator and disarmed the trip, so
+    // the loop must observe a fresh transition and re-accumulate the full
+    // 32mm before it can fire again. bl_clear_at_ms=5000 sits comfortably
+    // after the lock engages (~3500ms + prime time) and well before this
+    // scenario's own tick_ceiling, leaving room for the python test to
+    // assert the no-trip window in ticks derived from bl_clear_at_ms.
+    // Observed: sync_retract_assist_set(false) (the BS path bl_clear_at_ms
+    // calls) drops sync to SYNC_OFF and this scenario has no auto_mode, so
+    // it never organically re-engages afterward -- the no-trip window this
+    // asserts is therefore also permanent for the rest of the run, which is
+    // a stronger (not weaker) proof that the reset held: nothing re-arms it
+    // by accident either.
+    {
+        .name = "sem_psf_trip_hold_release",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+        .bl_arm_at_ms = 3500, .bl_arm_target = 1 /* BUF_TENSION */,
+        .bl_clear_at_ms = 5000,
+        .tick_ceiling = 500,
+        .tick_ceiling_reason = "lock engages ~3.5s, releases at 5s, margin past the "
+                               "post-release re-accumulation window",
+    },
+    {
+        .name = "sem_psf_trip_hold_release_shallow",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_p_rail_scale = 0.7f, .type_specific = true,
+        .bl_arm_at_ms = 3500, .bl_arm_target = 1 /* BUF_TENSION */,
+        .bl_clear_at_ms = 5000,
+        .tick_ceiling = 500,
+        .tick_ceiling_reason = "identical to sem_psf_trip_hold_release, rail scale 0.7",
+    },
 };
 // clang-format on
 
