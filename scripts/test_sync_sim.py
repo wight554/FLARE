@@ -108,7 +108,26 @@ TENSION_STOP_BOUND_SCENARIOS = [
     "sem_psf_trip_hold_release_shallow",
 ]
 
-BOUND_INVARIANT_SCENARIOS = TYPE_P_RELIEF_SCENARIOS + RAMP_CAPPED_SCENARIOS + TENSION_STOP_BOUND_SCENARIOS
+# Phase 13 Plan 03 Task 3: every probe scenario that physically saturates
+# (has sat=T rows) joins the bound invariant too -- sem_psf_probe_consumer
+# proves relief is still bounded while the probe runs (the plan's own
+# example); the others share the identical recipe/physics and saturate
+# identically. sem_psf_probe_big_buffer(_shallow) are excluded -- at a 64mm
+# buffer geometry this recipe never reaches physical saturation within the
+# scenario's tick window, so they produce no sat=T row for the invariant to
+# check (the same reason sem_psf_trip_unarmed is excluded above).
+PROBE_BOUND_SCENARIOS = [
+    "sem_psf_probe_no_consumer",
+    "sem_psf_probe_no_consumer_shallow",
+    "sem_psf_probe_consumer",
+    "sem_psf_probe_consumer_shallow",
+    "sem_psf_probe_slow_consumer",
+    "sem_psf_probe_slow_consumer_shallow",
+    "sem_psf_probe_small_buffer",
+]
+
+BOUND_INVARIANT_SCENARIOS = (TYPE_P_RELIEF_SCENARIOS + RAMP_CAPPED_SCENARIOS +
+                             TENSION_STOP_BOUND_SCENARIOS + PROBE_BOUND_SCENARIOS)
 
 # Phase 13 Task 1 (D-07/D-08/D-09/D-10): SYNC_TENSION_STOP_MM distance trip.
 # Type-P only -- the trip's own D-14 exclusion (g_buf_sensor_type !=
@@ -165,6 +184,15 @@ PROBE_SCENARIOS = [
     "sem_psf_probe_big_buffer",
 ]
 
+# D-25 rail-scale (0.7) twins of all four PROBE_SCENARIOS entries, as
+# (base, twin) pairs sharing the same expected verdict.
+PROBE_RAIL_TWIN_PAIRS = [
+    ("sem_psf_probe_no_consumer", "sem_psf_probe_no_consumer_shallow", "NO_CONSUMER"),
+    ("sem_psf_probe_consumer", "sem_psf_probe_consumer_shallow", "CONSUMER"),
+    ("sem_psf_probe_slow_consumer", "sem_psf_probe_slow_consumer_shallow", "CONSUMER"),
+    ("sem_psf_probe_big_buffer", "sem_psf_probe_big_buffer_shallow", "CONSUMER"),
+]
+
 
 def _skip_reason():
     if not os.path.isfile(SIM_BINARY):
@@ -174,6 +202,8 @@ def _skip_reason():
 
 
 TUNE_H = os.path.join(REPO_ROOT, "firmware", "include", "tune.h")
+SYNC_INTERNAL_H = os.path.join(REPO_ROOT, "firmware", "include", "sync_internal.h")
+SETTINGS_STORE_C = os.path.join(REPO_ROOT, "firmware", "src", "settings_store.c")
 
 
 def _conf_int(name):
@@ -1336,6 +1366,37 @@ class TypePProbeTests(unittest.TestCase):
                         "demonstrates a point-in-time sample would have disagreed with "
                         "the window-max verdict")
 
+    def test_rail_scale_twins_reach_the_same_verdict(self):
+        # D-25: the probe's rail-relative comparison (against the tracked
+        # extreme, never an absolute normalized-position literal) means
+        # every verdict holds at a shallower analog reading too.
+        for _base, twin, verdict in PROBE_RAIL_TWIN_PAIRS:
+            with self.subTest(twin=twin):
+                run = run_scenario(twin, sensor_type="p", ticks=None)
+                self.assertEqual(run.returncode, 0, run.stderr)
+                events = run.events_text()
+                self.assertEqual(events.count(f"SYNC,PROBE:{verdict}"), 1,
+                                 f"{twin}: expected exactly one PROBE:{verdict}")
+                other = "NO_CONSUMER" if verdict == "CONSUMER" else "CONSUMER"
+                self.assertNotIn(f"SYNC,PROBE:{other}", events)
+
+    def test_small_buffer_geometry_tracks_a_smaller_probe_distance(self):
+        # Task 3: buf_max_travel_override well BELOW the default (10mm, the
+        # settings_store.c clamp floor) proves SYNC_FEED_PROBE_MM's geometry
+        # derivation actually tracks the runtime buffer rather than a frozen
+        # constant -- the probe distance clamps to 10mm here (vs. 16mm for
+        # the identical recipe at the default/16mm buffer), so the verdict
+        # is reached after proportionally less pinned feed.
+        small = run_scenario("sem_psf_probe_small_buffer", sensor_type="p", ticks=None)
+        self.assertEqual(small.returncode, 0, small.stderr)
+        big16 = run_scenario("sem_psf_probe_consumer", sensor_type="p", ticks=None)
+        self.assertEqual(big16.returncode, 0, big16.stderr)
+        small_ts = next(int(r["ts_ms"]) for r in small.rows if "PROBE:CONSUMER" in r["events"])
+        big16_ts = next(int(r["ts_ms"]) for r in big16.rows if "PROBE:CONSUMER" in r["events"])
+        self.assertLess(small_ts, big16_ts,
+                        "a smaller buffer geometry should reach its (smaller) probe "
+                        "distance sooner than the default/16mm-buffer recipe")
+
     def test_big_buffer_probe_resolves_and_precedes_the_trip(self):
         # REVIEW-03: buf_max_travel_override (64mm) sits above the
         # SYNC_TENSION_STOP_MM default (32mm) -- without the clamp in
@@ -1352,6 +1413,62 @@ class TypePProbeTests(unittest.TestCase):
         if trip_rows:
             self.assertLess(probe_rows[0], trip_rows[0],
                             "PROBE: must precede TENSION_STOP:MM in the event stream")
+
+
+class ProbeOrderingInvariantTests(unittest.TestCase):
+    """Phase 13 Plan 03 Task 3 (REVIEW-03): the PROBE_MM < STOP_MM <
+    CANNOT_REFILL_MM ordering asserted directly against the firmware's own
+    clamp arithmetic -- no flare_sim run required, and no dependency on any
+    scenario's dynamics. Fails if a future edit removes or weakens the
+    sync_type_p_probe_mm() clamp, independently of any scenario passing."""
+
+    def _regex_read_float(self, path, pattern, label):
+        with open(path) as f:
+            text = f.read()
+        m = re.search(pattern, text)
+        if not m:
+            raise AssertionError(f"{label} not found in {path}")
+        return float(m.group(1))
+
+    def _regex_read_int(self, path, pattern, label):
+        with open(path) as f:
+            text = f.read()
+        m = re.search(pattern, text)
+        if not m:
+            raise AssertionError(f"{label} not found in {path}")
+        return int(m.group(1))
+
+    def test_probe_mm_ordering_holds_across_the_full_travel_clamp_band(self):
+        stop_mm = _conf_float("SYNC_TENSION_STOP_MM")
+        cannot_refill_mm = _conf_float("SYNC_CANNOT_REFILL_MM")
+        trip_frac = self._regex_read_float(
+            SYNC_INTERNAL_H, r"#define\s+SYNC_PROBE_TRIP_FRAC\s+([\d.]+)f\b",
+            "SYNC_PROBE_TRIP_FRAC")
+        travel_min_mm = self._regex_read_int(
+            SETTINGS_STORE_C, r"BUF_TRAVEL_MIN_MM\s*=\s*(\d+)", "BUF_TRAVEL_MIN_MM")
+        travel_max_mm = self._regex_read_int(
+            SETTINGS_STORE_C, r"BUF_TRAVEL_MAX_MM\s*=\s*(\d+)", "BUF_TRAVEL_MAX_MM")
+        default_travel_mm = _conf_int("BUF_MAX_TRAVEL_MM")
+
+        # The band this scenario must hold across: the clamp's own min/max,
+        # the config default, and a value just above stop_mm (where an
+        # unclamped probe distance would otherwise invert the ordering).
+        sample_travels_mm = sorted(set([
+            travel_min_mm, travel_max_mm, default_travel_mm, int(stop_mm) + 1,
+        ]))
+        self.assertGreaterEqual(stop_mm, 0.0)
+        self.assertLess(stop_mm, cannot_refill_mm,
+                        "SYNC_TENSION_STOP_MM default must itself sit below "
+                        "SYNC_CANNOT_REFILL_MM (REVIEW-06)")
+        for travel_mm in sample_travels_mm:
+            with self.subTest(buf_max_travel_mm=travel_mm):
+                # Mirrors sync_type_p_probe_mm() exactly: fminf(geometry, stop*frac).
+                probe_mm = min(float(travel_mm), stop_mm * trip_frac)
+                self.assertLess(probe_mm, stop_mm,
+                                f"buf_max_travel_mm={travel_mm}: probe_mm ({probe_mm}) did "
+                                f"not stay strictly below stop_mm ({stop_mm}) -- the D-16 "
+                                f"ordering guarantee is broken at this buffer geometry")
+                self.assertLess(stop_mm, cannot_refill_mm)
 
 
 @unittest.skipIf(_skip_reason(), _skip_reason())

@@ -988,8 +988,8 @@ const sim_scenario_t g_sim_scenarios[] = {
                                   {.t_ms = 3700, .target = SWITCH_L1_IN, .value = true}},
                           .count = 2},
         .tick_ceiling = 400,
-        .tick_ceiling_reason = "3s settle + jam onset, 3s further settle with IN clear, then "
-                               "margin after IN restores at t=6000 for the probe to decide",
+        .tick_ceiling_reason = "3s settle + jam onset + 700ms further settle with IN clear, "
+                               "then margin after IN restores at t=3700 for the probe to decide",
     },
     {
         .name = "sem_psf_probe_consumer",
@@ -1048,6 +1048,73 @@ const sim_scenario_t g_sim_scenarios[] = {
         .tick_ceiling = 400,
         .tick_ceiling_reason = "larger physical travel needs more settle margin than the "
                                "16mm-rig scenarios before the probe/trip sequence completes",
+    },
+
+    // Phase 13 Plan 03 Task 3 (D-25): rail-scale (0.7) twins of all four
+    // probe scenarios above, proving the CONSUMER/NO_CONSUMER verdicts hold
+    // at a shallower analog reading too -- the probe's rail-relative
+    // comparison (against the tracked extreme, never an absolute
+    // normalized-position literal) is what makes this possible.
+    {
+        .name = "sem_psf_probe_no_consumer_shallow",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.0f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true, .type_specific = true,
+        .type_p_rail_scale = 0.7f,
+        .switch_script = {.ev = {{.t_ms = 0, .target = SWITCH_L1_IN, .value = false},
+                                  {.t_ms = 3700, .target = SWITCH_L1_IN, .value = true}},
+                          .count = 2},
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "identical to sem_psf_probe_no_consumer, rail scale 0.7",
+    },
+    {
+        .name = "sem_psf_probe_consumer_shallow",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true, .type_p_rail_scale = 0.7f,
+        .tick_ceiling = 260,
+        .tick_ceiling_reason = "identical to sem_psf_probe_consumer, rail scale 0.7",
+    },
+    {
+        .name = "sem_psf_probe_slow_consumer_shallow",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true, .type_p_rail_scale = 0.7f,
+        .tick_ceiling = 260,
+        .tick_ceiling_reason = "identical to sem_psf_probe_slow_consumer, rail scale 0.7",
+    },
+    {
+        .name = "sem_psf_probe_big_buffer_shallow",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 64, .type_specific = true, .type_p_rail_scale = 0.7f,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "identical to sem_psf_probe_big_buffer, rail scale 0.7",
+    },
+
+    // Phase 13 Plan 03 Task 3: a buf_max_travel_override well BELOW the
+    // default (10mm, the settings_store.c clamp floor) -- the oversized case
+    // is already covered by sem_psf_probe_big_buffer (64mm); this proves
+    // SYNC_FEED_PROBE_MM's geometry derivation tracks a SMALLER buffer too
+    // (probe distance clamps to min(10, 16) = 10mm, reached after
+    // proportionally less pinned feed than the 16mm-rig scenarios).
+    {
+        .name = "sem_psf_probe_small_buffer",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 10, .type_specific = true,
+        .tick_ceiling = 260,
+        .tick_ceiling_reason = "identical recipe to sem_psf_probe_consumer at a 10mm buffer -- "
+                               "the probe distance clamps to 10mm here instead of 16mm",
     },
 };
 // clang-format on
