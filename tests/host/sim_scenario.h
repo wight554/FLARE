@@ -152,6 +152,16 @@ typedef struct {
     // override is the only way to exercise the ramp path in sim.
     int tension_ramp_delay_ms_override; // 0 = default (disabled); else overrides
                                         // g_sync_tension_ramp_delay_ms
+
+    // Phase 13 Task 1 (D-08): SYNC_TENSION_STOP_MM ships on by default (32mm),
+    // so a pre-13-02 scenario built to isolate an UNRELATED mechanism (e.g.
+    // REVIEW-07 extreme relaxation) can legitimately cross the new threshold
+    // as an incidental side effect of its own sustained tension-pin demand
+    // shape, confounding what it was actually built to prove. Set true to
+    // force g_sync_tension_stop_mm to 0 (the documented disable value) for
+    // that one scenario only -- mirrors tension_ramp_delay_ms_override's
+    // "exercise/suppress a knob the sim never SET:s" pattern.
+    bool tension_stop_mm_disabled;
 } sim_scenario_t;
 
 extern const sim_scenario_t g_sim_scenarios[];

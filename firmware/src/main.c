@@ -181,6 +181,12 @@ float g_sync_psf_filter_mm = CONF_SYNC_PSF_FILTER_MM;
    through flash via TAG_SYNC_PSF_RELIEF_MULT and is re-clamped on every load
    by settings_apply_clamps() (REVIEW-05). */
 float g_sync_psf_relief_mult = CONF_SYNC_PSF_RELIEF_MULT;
+/* Phase 13 Plan 02 (D-08/D-28): distance-based type-P tension fault trip
+   threshold on the same accumulator SYNC_PSF_RELIEF_MULT's neighbor
+   CONF_SYNC_CANNOT_REFILL_MM already warns off of. Persisted (TAG_SYNC_
+   TENSION_STOP_MM) and re-clamped on every load by settings_apply_clamps()
+   (REVIEW-05). 0 disables the trip. */
+float g_sync_tension_stop_mm = CONF_SYNC_TENSION_STOP_MM;
 int g_psf_stab_stagnant_ms = CONF_PSF_STAB_STAGNANT_MS;
 float g_psf_stab_stagnant_norm = CONF_PSF_STAB_STAGNANT_NORM;
 int g_psf_stab_rail_break_ms = CONF_PSF_STAB_RAIL_BREAK_MS;

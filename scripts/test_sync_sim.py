@@ -92,6 +92,15 @@ RAMP_CAPPED_SCENARIOS = [
 # scenarios -- in one parametrized test (see TypePReliefBoundTests).
 BOUND_INVARIANT_SCENARIOS = TYPE_P_RELIEF_SCENARIOS + RAMP_CAPPED_SCENARIOS
 
+# Phase 13 Task 1 (D-07/D-08/D-09/D-10): SYNC_TENSION_STOP_MM distance trip.
+# Type-P only -- the trip's own D-14 exclusion (g_buf_sensor_type !=
+# BUF_SENSOR_TYPE_D) is asserted directly against --sensor-type d, not via
+# this list.
+TENSION_STOP_MM_SCENARIOS = [
+    "sem_psf_mm_trip",
+    "sem_psf_trip_unarmed",
+]
+
 
 def _skip_reason():
     if not os.path.isfile(SIM_BINARY):
@@ -1081,6 +1090,54 @@ class TypePReliefBoundTests(unittest.TestCase):
             with self.subTest(scenario=scenario):
                 run = run_scenario(scenario, sensor_type="p", ticks=400)
                 self.assertEqual(run.returncode, 0, run.stderr)
+
+
+@unittest.skipIf(_skip_reason(), _skip_reason())
+class TensionStopMmTripTests(unittest.TestCase):
+    """SYNC_TENSION_STOP_MM distance trip (D-07/D-08/D-09/D-10/D-14/D-21):
+    fires alongside the existing ms dwell trip, armed only after a real
+    buffer-state transition, type-D excluded, and disable-able via the knob."""
+
+    def test_mm_trip_fires_before_ms_fallback(self):
+        run = run_scenario("sem_psf_mm_trip", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertIn("SYNC,TENSION_STOP:MM", events)
+        self.assertNotIn("SYNC,TENSION_STOP:MS", events,
+                         "mm trip should have fired and reset the accumulator before the "
+                         "slower ms dwell fallback could ever fire in the same episode")
+        self.assertIn("SYNC,FAULT_HOLD", events)
+
+    def test_mm_trip_excludes_type_d(self):
+        run = run_scenario("sem_psf_mm_trip", sensor_type="d", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertNotIn("TENSION_STOP:", events,
+                         "D-14: type-D relay TENSION contact is a normal refill signal, "
+                         "not a fault -- neither trip should fire under type-D")
+
+    def test_unarmed_scenario_never_trips(self):
+        run = run_scenario("sem_psf_trip_unarmed", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertNotIn("TENSION_STOP:", run.events_text(),
+                         "D-10: no buffer-state transition was ever observed, so the trip "
+                         "must never arm regardless of how long the accumulator would run")
+        zones = set(run.zones())
+        self.assertEqual(len(zones), 1,
+                         f"sem_psf_trip_unarmed: expected a single zone for the whole run "
+                         f"(confirms it genuinely never transitions), got {zones}")
+
+    def test_disabled_knob_suppresses_the_trip(self):
+        # D-08/D-28: SET:SYNC_TENSION_STOP_MM:0 disables the trip. The sim
+        # harness can't process SET: commands, so tension_stop_mm_disabled
+        # forces the underlying global directly -- same demand/feed_gain
+        # shape as sem_psf_mm_trip, proving the identical dynamics that trip
+        # above emit nothing at the documented disable value.
+        run = run_scenario("sem_psf_mm_trip_disabled", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertNotIn("TENSION_STOP:MM", run.events_text(),
+                         "knob at 0 must disable the mm trip even though the scenario's "
+                         "dynamics are otherwise identical to sem_psf_mm_trip")
 
 
 @unittest.skipIf(_skip_reason(), _skip_reason())

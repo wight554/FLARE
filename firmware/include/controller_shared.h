@@ -256,6 +256,7 @@ extern int g_sync_tick_ms;
 extern float g_sync_psf_slew_per_mm;
 extern float g_sync_psf_filter_mm;
 extern float g_sync_psf_relief_mult;
+extern float g_sync_tension_stop_mm;
 extern int g_psf_stab_stagnant_ms;
 extern float g_psf_stab_stagnant_norm;
 extern int g_psf_stab_rail_break_ms;

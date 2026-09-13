@@ -71,3 +71,18 @@ float sync_bp_drift_correction_applied_mm(void);
 extern float g_sync_refill_effort_mm;
 extern float g_sync_relieve_effort_mm;
 extern float g_sync_mmu_total_mm;
+
+/* Phase 13 Plan 02 (D-08/D-09/D-10/D-12): armed only after a real buffer-state
+   transition is observed while sync has genuinely auto-started; cleared on
+   sync_disable()/sync_rearm_active()/the AUTO_START path (mirroring
+   g_sync_tension_extreme's reset sites) and on the falling edge of a
+   deliberate rail hold (sync_trip_track_hold_edge(), sync.c). Gates both the
+   mm distance trip and the pre-existing ms dwell trip so they arm/disarm in
+   lockstep and can never drift apart. */
+extern bool g_sync_trip_armed;
+/* TM: telemetry accessor (protocol_status.c, Task 2) -- reports what the
+   TRIP sees: 0 while unarmed or while a deliberate hold is in progress,
+   otherwise the accumulated tension travel g_sync_refill_effort_mm holds.
+   Deliberately NOT the raw accumulator (already on the wire as
+   SYNC_REFILL_MM:) since that keeps counting through a suppressed hold. */
+float sync_tension_stop_trip_mm(void);

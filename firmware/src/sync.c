@@ -136,6 +136,20 @@ static bool g_sync_relief_active = false; /* edge detection for RELIEF_ON/RELIEF
 bool g_bl_autostart_suppressed = false;
 bool g_sync_tension_transitioned = false;
 
+/* Phase 13 Plan 02 (D-08/D-09/D-10/D-12): gates both the new mm distance trip
+   and the pre-existing ms dwell trip so they arm/disarm in lockstep off one
+   shared flag. Set in sync_on_transition() on any observed buffer-state edge
+   while g_sync_auto_started; cleared in sync_disable()/sync_rearm_active()/
+   the AUTO_START path (the same three re-entry points g_sync_tension_extreme
+   resets at) and on the falling edge of a deliberate rail hold (REVIEW-04,
+   sync_trip_track_hold_edge() below). */
+bool g_sync_trip_armed = false;
+/* REVIEW-04: previous-tick value of sync_type_p_hold_in_progress(), sampled
+   unconditionally at the very top of sync_tick() -- see the call site and
+   sync_trip_track_hold_edge() comments below for why it must run above every
+   early return in that function. */
+static bool g_sync_prev_hold_active = false;
+
 bool g_boot_stabilizing = false;
 uint32_t g_boot_stabilize_deadline_ms = 0;
 lane_t *g_boot_stabilize_lane = NULL;
@@ -1188,6 +1202,7 @@ void sync_disable(bool reset_estimator) {
     g_sync_tension_extreme = 0.0f;
     g_sync_tension_extreme_valid = false;
     g_sync_relief_active = false;
+    g_sync_trip_armed = false;
     type_d_neutral_feed_reset();
 
     if (reset_estimator) {
@@ -1208,6 +1223,7 @@ void sync_rearm_active(lane_t *lane, uint32_t now_ms) {
     g_sync_tension_extreme = 0.0f;
     g_sync_tension_extreme_valid = false;
     g_sync_relief_active = false;
+    g_sync_trip_armed = false;
     sync_set_state(SYNC_ACTIVE);
     g_sync_auto_started = true;
     g_sync_tail_assist_active = lane && !lane_in_present(lane) && lane_out_present(lane);
@@ -1307,6 +1323,32 @@ void sync_apply_to_active(void) {
 }
 
 void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t now_ms) {
+    /* D-10/D-12: this is the only place a buffer-state edge is observed, so
+       it is the natural place to arm the mm/ms starvation trip -- any
+       TENSION/NEUTRAL/COMPRESSION edge counts, deliberately with no near-
+       neutral position clause (D-10: a |pos| window would be another
+       absolute-literal compare, the exact 51bdca8 failure class). Gated on
+       sync_enabled (SYNC_ACTIVE) rather than g_sync_auto_started: the latter
+       tracks only the organic-engage/rearm entry points and stays false for
+       a directly-forced active session (a host SET:, a manual toolhead-
+       insert engage with auto_mode off, or the sim's start_sync_active
+       shortcut) even though sync is genuinely driving the buffer and
+       observing real transitions in exactly the same way -- gating on it
+       would suppress the pre-existing ms dwell trip in every one of those
+       sessions, not just the false-positive case D-10 targets (empirically
+       confirmed: it silently changed the settled equilibrium of an existing
+       13-01 sim scenario by preventing a legitimate fault-hold/recovery
+       cycle from ever occurring). "Armed only after a transition has been
+       observed since sync started actively driving" is the D-10 intent;
+       sync_enabled is the correct predicate for "actively driving", not
+       g_sync_auto_started. Cleared back to false in sync_disable()/
+       sync_rearm_active()/the AUTO_START branch of sync_tick_auto_start_stop()
+       (mirroring g_sync_tension_extreme's reset sites) and on a hold's
+       falling edge (REVIEW-04, below). */
+    if (sync_enabled) {
+        g_sync_trip_armed = true;
+    }
+
     if (prev == BUF_TENSION && now_state == BUF_COMPRESSION) {
         g_sync_fast_brake_until_ms = now_ms + SYNC_FAST_BRAKE_MS;
     }
@@ -1349,6 +1391,43 @@ void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t now_ms
         !g_sync_compression_recovery_active && !sync_guard_active) {
         baseline_update_on_settle(g_buf.dwell_ms, now_ms);
     }
+}
+
+/* Phase 13 Plan 02 (D-26/D-27): true while a deliberate rail hold is in
+   progress -- a BL lock/prime/follow cycle, tail-assist feed, an active
+   buffer-stabilize drive, or a RELOAD follow -- any of which can legitimately
+   pin the buffer in BUF_TENSION (or keep commanding feed while it's there)
+   for longer than the mm/ms trip thresholds without that being starvation.
+   While true, the trip must not evaluate at all (D-26); does NOT reset on a
+   paused/idle extruder by itself -- that just stops the accumulator from
+   growing further, which is the specified behaviour (D-27, no reset). */
+static bool sync_type_p_hold_in_progress(void) {
+    return (g_bl_sub_state != BL_IDLE) || g_sync_tail_assist_active || g_boot_stabilizing ||
+           (tc_state() == TC_RELOAD_FOLLOW);
+}
+
+/* REVIEW-04: the hold predicate above must be sampled unconditionally, every
+   main-loop pass, from a position that runs before sync_tick()'s early
+   returns can swallow it -- see the call site in sync_tick() for why. On the
+   falling edge (hold WAS in progress, now is not) the trip's accumulator and
+   arm flag are zeroed/cleared so the loop must observe a fresh buffer
+   transition and re-accumulate the full threshold before it can trip again;
+   without this, a hold that releases while the lane is bypassed, mid-
+   toolchange, gated, or simply not in BUF_TENSION would leave the
+   accumulator carrying the millimetres fed during the hold, tripping a
+   healthy print shortly after the hold ends. The reset body is guarded on
+   BUF_SENSOR_TYPE_P (type-D accounting is untouched); the previous-value
+   store is NOT guarded, so a sensor-type change mid-session cannot leave a
+   stale `true` latched. */
+static void sync_trip_track_hold_edge(void) {
+    bool hold_now = sync_type_p_hold_in_progress();
+    if (g_sync_prev_hold_active && !hold_now) {
+        if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
+            g_sync_refill_effort_mm = 0.0f;
+            g_sync_trip_armed = false;
+        }
+    }
+    g_sync_prev_hold_active = hold_now;
 }
 
 /* psf-runout-escalation-race-fix: a genuine runout (lane present, RELOAD
@@ -1537,6 +1616,7 @@ static bool sync_tick_auto_start_stop(lane_t *lane, uint32_t now_ms, buf_state_t
         g_sync_tension_extreme = 0.0f;
         g_sync_tension_extreme_valid = false;
         g_sync_relief_active = false;
+        g_sync_trip_armed = false;
         sync_set_state(SYNC_ACTIVE);
         g_sync_auto_started = true;
         g_sync_tail_assist_active = tail_assist;
@@ -1678,31 +1758,74 @@ static int sync_type_p_relief_bound_sps(int max_sps) {
     return bound_sps;
 }
 
+/* Phase 13 Plan 02 (D-07/D-09/D-16): shared fault-hold body the mm and ms
+   tension traps both run once their own threshold condition trips -- try
+   runout escalation first (a lane that genuinely ran out hands off to
+   RELOAD/RUNOUT instead of looping FAULT_HOLD/AUTO_START forever), otherwise
+   fault-hold and reset the estimator timestamp. Always returns -1 (the
+   caller's target_sps sentinel for "tick already handled, apply and stop"). */
+static int sync_tension_trip_fire(lane_t *lane, uint32_t now_ms) {
+    if (sync_try_runout_escalation(lane, now_ms)) {
+        return -1;
+    }
+    sync_fault_hold();
+    g_extruder_est_last_update_ms = now_ms;
+    sync_apply_to_active();
+    cmd_event("SYNC", "FAULT_HOLD");
+    return -1;
+}
+
 static int sync_check_tension_dwell_and_ramp(lane_t *lane, buf_state_t s, int target_sps,
                                              uint32_t now_ms) {
     if (s == BUF_TENSION && g_sync_tension_pin_since_ms != 0) {
         uint32_t tension_dwell_ms = now_ms - g_sync_tension_pin_since_ms;
+        /* Phase 13 Plan 02 (D-07/D-08/D-09): distance is the PRIMARY trip,
+           evaluated BEFORE the ms fallback below so the ordering is
+           structural, not incidental. Reuses the same g_sync_refill_effort_mm
+           accumulator sync_buf.c's warn-only cannot_refill event already
+           reads (no parallel counter, 13-RESEARCH.md "Don't Hand-Roll").
+           Requires: type-D excluded (D-14, same exclusion the ms path below
+           carries -- a type-D relay TENSION contact is the normal refill
+           signal, not a fault); armed (D-10 -- a real buffer-state
+           transition has been observed since the last re-entry or hold
+           release); no deliberate hold in progress (D-26); the lane's own IN
+           sensor still present (D-21 -- with IN clear this is an ordinary
+           runout and the ordinary runout path already owns that outcome, so
+           the distance trip stands down rather than racing it); and the
+           knob itself armed (0 disables, a documented in-band value, not an
+           out-of-range escape).
+
+           REVIEW-06: the 32 mm default sits BELOW the pre-existing 50 mm
+           warn-only CONF_SYNC_CANNOT_REFILL_MM threshold on this SAME
+           accumulator (sync_buf.c) -- at defaults this trip fires and
+           resets the accumulator before the warn can ever reach 50 mm, so
+           the warn becomes practically dormant for type-P and stays
+           primarily a type-D diagnostic. This is a documented threshold
+           interaction, not a bug to fix by moving either threshold: raising
+           this knob above 50, or setting it to 0, makes the warn reachable
+           again. On a well-calibrated rail the 1 s CONF_PSF_WALL_SAT_MS
+           saturation guard (sync_tick_type_p_rail_guard) usually reaches
+           fault-hold first; this distance trip is the primary protection
+           specifically on the shallow-reading rigs where that
+           absolute-threshold guard never fires at all. */
+        if (g_buf_sensor_type != BUF_SENSOR_TYPE_D && g_sync_trip_armed &&
+            !sync_type_p_hold_in_progress() && lane_in_present(lane) &&
+            g_sync_tension_stop_mm > 0.0f && g_sync_refill_effort_mm >= g_sync_tension_stop_mm) {
+            cmd_event("SYNC", "TENSION_STOP:MM");
+            return sync_tension_trip_fire(lane, now_ms);
+        }
         /* RELAY: TENSION switch contact is the normal "buffer empty, refill"
          * signal, not a fault. Only fault-hold on tension dwell in analog
-         * mode; the type-D relay catch-up path refills it. */
-        if (g_buf_sensor_type != BUF_SENSOR_TYPE_D && g_sync_tension_dwell_stop_ms > 0 &&
+         * mode; the type-D relay catch-up path refills it. Phase 13 Plan 02
+         * (D-09/D-10): now the slow-flow FALLBACK behind the mm trip above
+         * -- gated on the same arm flag and the same deliberate-hold
+         * suppression so the two traps arm/disarm in lockstep and neither
+         * can fire mid-hold (D-26). */
+        if (g_buf_sensor_type != BUF_SENSOR_TYPE_D && g_sync_trip_armed &&
+            !sync_type_p_hold_in_progress() && g_sync_tension_dwell_stop_ms > 0 &&
             tension_dwell_ms >= (uint32_t)g_sync_tension_dwell_stop_ms) {
-            /* A sustained tension dwell with the lane's own sensors both clear
-             * is a genuine runout, not a transient control-law stall: hand off
-             * to the same RUNOUT/RELOAD escalation motion.c uses instead of
-             * looping FAULT_HOLD/AUTO_START forever. That loop resets the
-             * buffer model to NEUTRAL and restarts feed at a conservative
-             * bootstrap rate each cycle (sync_rearm_active), so the
-             * distance-since-IN-clear motion.c's own escalation needs
-             * accumulates too slowly (or not at all) to ever fire on its own. */
-            if (sync_try_runout_escalation(lane, now_ms)) {
-                return -1;
-            }
-            sync_fault_hold();
-            g_extruder_est_last_update_ms = now_ms;
-            sync_apply_to_active();
-            cmd_event("SYNC", "FAULT_HOLD");
-            return -1;
+            cmd_event("SYNC", "TENSION_STOP:MS");
+            return sync_tension_trip_fire(lane, now_ms);
         }
         if (g_sync_tension_ramp_delay_ms > 0 &&
             tension_dwell_ms >= (uint32_t)g_sync_tension_ramp_delay_ms) {
@@ -2207,6 +2330,17 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
 // ============================================================================
 
 void sync_tick(uint32_t now_ms) {
+    /* REVIEW-04: must run BEFORE every early return below -- the g_bypass/
+       tc_state()/g_boot_stabilizing guard, sync_tick_gated_checks(),
+       sync_tick_auto_start_stop(), and the tick-rate gate further down all
+       swallow a hold's falling edge if the sampler sits under any of them.
+       sync_tick() is called unconditionally every main-loop pass
+       (main.c:~697), so this is the one position that samples the hold
+       predicate on every pass regardless of bypass, toolchange, gate, or
+       tick-rate state. A later refactor that moves this call below any of
+       the four returns named above is silently wrong -- do not move it. */
+    sync_trip_track_hold_edge();
+
     lane_t *lane = lane_ptr(g_active_lane);
     if (g_bypass || !lane || tc_state() != TC_IDLE || g_boot_stabilizing)
         return;

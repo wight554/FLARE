@@ -68,6 +68,9 @@ run_current:
 # [DEFAULT]
 # sync_fault_hold_recovery_ms: 5000     # VERIFY: retune from FAULT_HOLD/FAULT_HOLD_RECOVERY event logs
 # sync_cannot_refill_mm: 50.0
+# sync_tension_stop_mm: 32.0  # type-P distance fault trip on the same accumulator as
+                              # sync_cannot_refill_mm (Phase 13 SC#2); 0 disables; arms only
+                              # after the first observed buffer-state transition; live + flash-persisted
 # sync_cannot_relieve_mm: 50.0
 # global_max_rate: 5000         # absolute ceiling for every commanded motor rate (mm/min)
 # sync_kp_rate: 900             # rig-validated (2026-05-28): passes autotune at accel=150

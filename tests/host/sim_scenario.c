@@ -634,6 +634,15 @@ const sim_scenario_t g_sim_scenarios[] = {
                         .count = 5},
         .active_lane = 1, .start_sync_active = true,
         .buf_max_travel_override = 16, .type_specific = true,
+        // Phase 13 Plan 02: this scenario's sustained tension-pin demand
+        // shape (by design, to stress extreme-tracking) legitimately crosses
+        // the new SYNC_TENSION_STOP_MM=32mm default as an unrelated side
+        // effect, firing FAULT_HOLD/AUTO_START and confounding the REVIEW-07
+        // assertion below (which specifically checks that no AUTO_START
+        // occurs). Disabled here, not by weakening the trip: this scenario
+        // isolates extreme-relaxation, not the distance trip -- Task 3 adds
+        // purpose-built scenarios for the trip itself.
+        .tension_stop_mm_disabled = true,
     },
     // Phase 13 Task 2 (D-04): FLARE_INT_SYNC_TENSION_RAMP_DELAY_MS defaults to
     // 0 (disabled) so tension_ramp_delay_ms_override shortens it to 500ms --
@@ -678,6 +687,92 @@ const sim_scenario_t g_sim_scenarios[] = {
         .tick_ceiling_reason = "demand step at 3000ms + shortened 500ms ramp delay + hold "
                                "long enough to observe the capped ramp",
         .type_specific = true,
+    },
+
+    // Phase 13 Task 1 (D-07/D-08/D-09/D-10): SYNC_TENSION_STOP_MM distance
+    // trip. feed_gain=0.3 (chronic underfeed) rather than jam_upstream's
+    // drop-to-zero: at 0.3 the commanded feed still reaches the plant at 30%
+    // strength, so the buffer keeps creeping (never fully stalls) while
+    // staying pinned inside BUF_TENSION long enough for the commanded-feed
+    // accumulator (g_sync_refill_effort_mm, sync_buf.c) to pass the 32mm
+    // default. A drop-to-zero feed_gain would ALSO trip this, but 13-03's
+    // ~16mm probe evaluates the same accumulator and short-circuits on a
+    // buffer that never moves at all -- a chronic-creep shape stays valid
+    // sim coverage once that probe lands, a hard-stall shape would not.
+    {
+        .name = "sem_psf_mm_trip",
+        // Same demand shape as 13-01's proven sem_psf_relief_bound (D-08's
+        // read_first flags this file's own bl_retract twin idiom, but the
+        // relevant precedent here is that THIS exact profile is already
+        // confirmed, by running it, to settle NEUTRAL/slight-COMPRESSION by
+        // t~2000-3000ms before the t1=3000 demand step drives it back into
+        // TENSION -- a genuine observed edge, which is what arms the trip
+        // (sync_on_transition() is the only place that does, and a boot-time
+        // buf_force_stable_state() call already classifies the goal-relative
+        // centre as TENSION for this rig's compression-biased goal, so a
+        // demand profile that is TENSION from tick 0 never produces an
+        // observed edge at all and stays permanently unarmed). At t1=3000,
+        // demand steps to 36mm/s AND feed_gain drops to 0.7 in the same
+        // tick (print resumes with a partial jam already present) -- 0.7,
+        // not jam_upstream's drop-to-zero and not the plan-suggested 0.3,
+        // empirically chosen (by reading the trace) as the largest
+        // reduction whose physical position still creeps rather than
+        // slamming to the rail fast enough to let the pre-existing 1s
+        // CONF_PSF_WALL_SAT_MS absolute-saturation guard win the race
+        // against the mm accumulator (whose commanded-feed clock, not the
+        // physical slack, is what this trip actually measures). The buffer
+        // must creep measurably off its deepest reading while staying
+        // inside BUF_TENSION long enough for the accumulator to pass 32mm;
+        // this is also chronic-creep, not a hard stall, so 13-03's ~16mm
+        // probe (which short-circuits on a buffer that never moves at all)
+        // stays exercised by this scenario once it lands.
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "3s settle + chronic 0.7x underfeed at 36mm/s demand crosses "
+                               "the 32mm trip well inside 400 ticks (8s)",
+    },
+    // D-10 arming: a scenario that starts pinned at tension and never
+    // produces a single buffer-state transition must never trip, regardless
+    // of how long the (would-be) accumulator would otherwise run -- the
+    // steady demand keeps commanded feed flat with no jam/gain schedule at
+    // all, and the buffer settles into TENSION on tick 1 and never leaves.
+    {
+        .name = "sem_psf_trip_unarmed",
+        // Zero demand, no gain schedule, no switch script: the buffer boots
+        // directly into the goal-relative TENSION classification (this
+        // rig's compression-biased goal reads the centred rest position as
+        // TENSION -- see sem_psf_mm_trip's comment) and, with nothing to
+        // disturb it, never leaves that single zone for the whole run --
+        // sync_on_transition() never fires, so g_sync_trip_armed never
+        // becomes true, regardless of how long this scenario would
+        // otherwise run.
+        .demand = {.kind = DEMAND_STEADY, .level_mm_s = 0.0f},
+        .active_lane = 1, .start_sync_active = true, .type_specific = true,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "same window as sem_psf_mm_trip for an easy side-by-side "
+                               "comparison; this scenario must show zero zone transitions",
+    },
+    // D-08/D-28: SET:SYNC_TENSION_STOP_MM:0 disables the trip. The sim
+    // harness never processes SET: commands (sim_scenario.h's own note on
+    // tension_ramp_delay_ms_override), so tension_stop_mm_disabled forces
+    // g_sync_tension_stop_mm to 0 directly -- identical demand/feed_gain
+    // shape to sem_psf_mm_trip, proving the same dynamics that trip above
+    // emit nothing with the knob at its documented disable value.
+    {
+        .name = "sem_psf_mm_trip_disabled",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                  .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+        .tension_stop_mm_disabled = true,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "identical to sem_psf_mm_trip so the only variable is the "
+                               "disabled knob",
     },
 };
 // clang-format on

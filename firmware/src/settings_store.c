@@ -56,6 +56,14 @@ static const float RELAY_FRAC_MAX = 3.0f;
    sync_type_p_relief_bound_sps() is an independent ceiling regardless. */
 static const float SYNC_RELIEF_MULT_MIN = 1.0f;
 static const float SYNC_RELIEF_MULT_MAX = 3.0f;
+/* Phase 13 Plan 02 (REVIEW-05, second half): shared by settings_defaults_sync()
+   and settings_apply_clamps() below; protocol.c mirrors these bounds with its
+   own same-named #define, matching the SYNC_RELIEF_MULT_MIN/MAX split above.
+   0 is a legitimate, documented "trip disabled" value, not an out-of-range
+   escape -- the clamp only bounds the upper edge against a corrupt/foreign
+   TLV record landing an absurd value on this hard fault threshold. */
+static const float SYNC_TENSION_STOP_MIN_MM = 0.0f;
+static const float SYNC_TENSION_STOP_MAX_MM = 500.0f;
 static const float COMPRESSION_DRAIN_MAX_FRAC = 0.9f;
 static const float COMPRESSION_DRAIN_BUDGET_MAX_MM = 25.0f;
 static const float SYNC_EST_ATTACK_MIN_ALPHA = 0.65f;
@@ -228,6 +236,8 @@ static void settings_defaults_sync(void) {
                 mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
     g_sync_psf_relief_mult =
         clamp_f(CONF_SYNC_PSF_RELIEF_MULT, SYNC_RELIEF_MULT_MIN, SYNC_RELIEF_MULT_MAX);
+    g_sync_tension_stop_mm =
+        clamp_f(CONF_SYNC_TENSION_STOP_MM, SYNC_TENSION_STOP_MIN_MM, SYNC_TENSION_STOP_MAX_MM);
 
     g_sync_compression_bias_frac =
         clamp_f(CONF_SYNC_COMPRESSION_BIAS_FRAC, 0.0f, COMPRESSION_BIAS_MAX_FRAC);
@@ -478,6 +488,7 @@ void settings_save(void) {
     tlv_emit_f32(&w, TAG_RELAY_NEUTRAL_FRAC, g_relay_neutral_frac);
     tlv_emit_f32(&w, TAG_SYNC_COMPRESSION_BIAS_FRAC, g_sync_compression_bias_frac);
     tlv_emit_f32(&w, TAG_SYNC_PSF_RELIEF_MULT, g_sync_psf_relief_mult);
+    tlv_emit_f32(&w, TAG_SYNC_TENSION_STOP_MM, g_sync_tension_stop_mm);
 
     tlv_emit_u32(&w, TAG_FLASH_ERASE_COUNT, g_flash_erase_count);
 
@@ -620,6 +631,12 @@ static void settings_apply_clamps(float buf_switch_span_mm) {
        treatment above. */
     g_sync_psf_relief_mult =
         clamp_f(g_sync_psf_relief_mult, SYNC_RELIEF_MULT_MIN, SYNC_RELIEF_MULT_MAX);
+    /* REVIEW-05 (13-02 half): same rationale as g_sync_psf_relief_mult above --
+       a bare memcpy TLV case with no range check would land an unconstrained
+       float straight on this hard fault threshold. 0 stays a legitimate
+       documented disable value. */
+    g_sync_tension_stop_mm =
+        clamp_f(g_sync_tension_stop_mm, SYNC_TENSION_STOP_MIN_MM, SYNC_TENSION_STOP_MAX_MM);
 
     g_sync_compression_bias_frac =
         clamp_f(g_sync_compression_bias_frac, 0.0f, COMPRESSION_BIAS_MAX_FRAC);
@@ -903,6 +920,10 @@ static void settings_load_tlv_tag(uint8_t tag, uint8_t len, const uint8_t *val,
     case TAG_SYNC_PSF_RELIEF_MULT:
         if (len == sizeof(float))
             memcpy(&g_sync_psf_relief_mult, val, sizeof(float));
+        break;
+    case TAG_SYNC_TENSION_STOP_MM:
+        if (len == sizeof(float))
+            memcpy(&g_sync_tension_stop_mm, val, sizeof(float));
         break;
     case TAG_FLASH_ERASE_COUNT:
         if (len == sizeof(uint32_t))
