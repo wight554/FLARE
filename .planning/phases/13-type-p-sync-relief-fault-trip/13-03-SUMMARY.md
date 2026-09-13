@@ -238,3 +238,10 @@ None - no external service configuration required.
 ---
 *Phase: 13-type-p-sync-relief-fault-trip*
 *Completed: 2026-09-13*
+
+## Self-Check: PASSED
+
+- All 12 key files verified present on disk (firmware/src/sync.c, firmware/include/sync.h, firmware/include/sync_internal.h, firmware/src/protocol.c, firmware/src/protocol_status.c, scripts/test_sync_sim.py, tests/host/sim_scenario.c, MANUAL.md, TEST_CASES.md, this SUMMARY.md, STATE.md, ROADMAP.md).
+- All 4 commits verified present in `git log`: `b2e50d9` (Task 1), `7714e29` (Task 2), `f89c381` (Task 3), `cf637ae` (docs).
+- Every acceptance criterion from all three tasks re-run and passing (SYNC_FEED_PROBE_MM/SYNC_PROBE_TRIP_FRAC greps, REVIEW-02/REVIEW-03 scenario assertions, PROBE: command greps, PR:/budget test, ordering-invariant unit test, SC#5 diff/HW checks — see Coverage block and Deviations for full command-by-command evidence).
+- Plan-level `<verification>`: `python3 scripts/validate_regression.py` re-run at self-check time — exits 0, "Static Regression Gate Passed".
