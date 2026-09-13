@@ -1905,6 +1905,25 @@ static bool cmd_handle_sensor_status(const char *cmd, const char *p, uint32_t no
             cmd_reply("ER", "ARG");
         }
         return true;
+    } else if (!strcmp(cmd, "PROBE")) {
+        /* Phase 13 Plan 03 Task 2 (D-17): bench/diagnostic aid -- forces the
+           type-P feed probe to restart its window immediately, for bench
+           testing without waiting for an organic pinned episode. Not a
+           motion command (no is_motion_cmd entry): it commands no motion of
+           its own, only resets probe/accumulator bookkeeping. Refuses with a
+           specific reason rather than silently succeeding when the request
+           cannot be honoured. */
+        if (g_buf_sensor_type != BUF_SENSOR_TYPE_P) {
+            cmd_reply("ER", "NOT_TYPE_P");
+        } else if (!sync_enabled) {
+            cmd_reply("ER", "SYNC_NOT_ACTIVE");
+        } else if (sync_type_p_hold_active()) {
+            cmd_reply("ER", "HOLD_ACTIVE");
+        } else {
+            sync_type_p_probe_force_start();
+            cmd_reply("OK", NULL);
+        }
+        return true;
     }
     return false;
 }

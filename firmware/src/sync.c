@@ -2565,6 +2565,15 @@ int sync_type_p_probe_state(void) {
     return (int)g_sync_probe_state;
 }
 
+/* Phase 13 Plan 03 Task 2 (D-17): exposes sync_type_p_hold_in_progress() for
+   protocol.c's PROBE: handler, which must refuse (ER:HOLD_ACTIVE) rather
+   than force-start a probe window while a deliberate rail hold is in
+   progress -- the same predicate the trip/probe evaluation itself already
+   gates on. */
+bool sync_type_p_hold_active(void) {
+    return sync_type_p_hold_in_progress();
+}
+
 /* Phase 13 Plan 03 Task 2 (D-17): forces a probe window to start immediately
    for bench use. Arms the episode (a forced bench restart deliberately
    bypasses the normal arm-after-observed-transition requirement -- that IS

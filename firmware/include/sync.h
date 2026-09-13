@@ -95,3 +95,8 @@ int sync_type_p_probe_state(void);
    window to start immediately. Caller must have already validated
    preconditions (type-P sensor, sync active, no deliberate hold). */
 void sync_type_p_probe_force_start(void);
+/* True while a deliberate rail hold (BL:, tail-assist, buffer-stabilize,
+   RELOAD follow) is in progress -- PROBE:'s own precondition check
+   (protocol.c) reads this to refuse with ER:HOLD_ACTIVE rather than force-
+   start a probe window mid-hold. */
+bool sync_type_p_hold_active(void);
