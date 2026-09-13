@@ -1,15 +1,15 @@
 ---
 gsd_state_version: "1.0"
 status: unknown
-stopped_at: Completed 13-01-PLAN.md (bounded type-P relief)
-last_updated: "2026-09-13T07:28:08.210Z"
-state_head: 2cc5bf4b72fb0db6548ad899db128c6b5b7962da
+stopped_at: Completed 13-02-PLAN.md (SYNC_TENSION_STOP_MM distance trip)
+last_updated: "2026-09-13T12:39:20Z"
+state_head: ee5bf7b
 progress:
   total_phases: 16
   completed_phases: 0
   total_plans: 20
-  completed_plans: 3
-  percent: 0
+  completed_plans: 4
+  percent: 20
 current_phase_name: Type-P Sync Relief & Fault Trip
 ---
 
@@ -26,9 +26,9 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 ## Current Position
 
 - **Phase**: 13 - Type-P Sync Relief & Fault Trip (`.planning/phases/13-type-p-sync-relief-fault-trip/`)
-- **Active Feature in Progress**: 13-01-PLAN.md complete (1/4 plans) — bounded, rail-relative type-P relief replacing the direct-apply snap; `SYNC_PSF_RELIEF_MULT` full public surface; tension-dwell ramp capped; six phase REQ IDs registered. Next: 13-02-PLAN.md (`SYNC_TENSION_STOP_MM` distance trip, wave 2). Phase 12 HW validation still pending (non-blocking)
-- **Status**: In Progress (13-01 of 4 plans complete)
-- **Progress**: [=====               ] 25% complete (1/4 plans)
+- **Active Feature in Progress**: 13-02-PLAN.md complete (2/4 plans) — `SYNC_TENSION_STOP_MM` distance trip (TAG 66) with arm gate (`sync_enabled`, not `g_sync_auto_started` — see Decisions), REVIEW-04 hold-suppression sampled unconditionally at the top of `sync_tick()`, `TM:`/`ARM:` telemetry with a machine-proven (1 char headroom) `ST:` line budget, and sim coverage (53→61 tests) for ordering/arming/hold-suppression at two rail scales. Next: 13-03-PLAN.md (feed probe, wave 2 continued) then 13-04 (HW validation gate). Phase 12 HW validation still pending (non-blocking)
+- **Status**: In Progress (13-02 of 4 plans complete)
+- **Progress**: [==========          ] 50% complete (2/4 plans)
 
 ## Accumulated Context
 
@@ -77,8 +77,8 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 ## Session
 
-**Last session:** 2026-09-13T07:28:08.178Z
-**Stopped at:** Completed 13-01-PLAN.md (bounded type-P relief)
+**Last session:** 2026-09-13T12:39:20Z
+**Stopped at:** Completed 13-02-PLAN.md (SYNC_TENSION_STOP_MM distance trip)
 **Resume file:** None
 
 ## Performance Metrics
@@ -86,8 +86,11 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 13 P01 | 64min | 3 tasks | 18 files |
+| Phase 13 P02 | ~150min active (session interrupted by a rate limit mid-Task-3; wall-clock span ~5h) | 3 tasks | 20 files |
 
 ## Decisions
 
 - [Phase 13]: Rewrote retired snap test against sem_psf_relief_bound (36mm/s) not step_up (40mm/s): step_up's demand exceeds hardware capacity so completely feed legitimately converges to exactly max_sps before saturation registers
 - [Phase 13]: Responsiveness threshold calibrated to 85% not plan's 90% to absorb one 20ms tick of quantization at the buffer-travel boundary
+- [Phase 13 P02]: Arm gate uses `sync_enabled` (SYNC_ACTIVE) not `g_sync_auto_started` as the plan's action text literally specified — the latter stays false for any directly-forced-active session (host SET:, manual toolhead-insert with auto_mode off, the sim's start_sync_active shortcut), which would have suppressed the pre-existing ms dwell trip in nearly every scenario, not just false positives (confirmed empirically: it silently changed 13-01's own sem_psf_relief_bound trajectory)
+- [Phase 13 P02]: sem_psf_ms_fallback isolates the ms path via tension_stop_mm_disabled rather than an organic demand-rate split — sync_type_p_relief_bound_sps floors every relief-zone target at this project's baseline_sps (10912 sps ~= 26.7mm/s), so distance crosses 32mm in ~1-1.5s regardless of demand/feed_gain once a multi-second dwell is sustained at all; see 13-02-SUMMARY.md Deviations

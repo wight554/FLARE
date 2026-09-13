@@ -220,10 +220,10 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   4. `flare_sim` scenarios cover refill-without-overshoot, mm-trip vs ms-trip ordering, and probe outcomes; no regression in the 16 PSF scenarios
   5. Nothing from the type-D relay path (confident estimator, mid-band estimator, EST pivots) is reintroduced; `HW:` items remain unchecked until rig validation
 
-**Plans**: 1/4 plans executed — 13-01 (wave 1), 13-02 (wave 2), 13-03 (wave 3), 13-04 (wave 4, human-gated) — strictly sequential, every plan edits `firmware/src/sync.c`
+**Plans**: 2/4 plans executed — 13-01 (wave 1), 13-02 (wave 2), 13-03 (wave 3), 13-04 (wave 4, human-gated) — strictly sequential, every plan edits `firmware/src/sync.c`
 
 - [x] 13-01-PLAN.md
-- [ ] 13-02-PLAN.md
+- [x] 13-02-PLAN.md
 - [ ] 13-03-PLAN.md
 - [ ] 13-04-PLAN.md
   - **Wave 1**: 13-01-PLAN.md — tracer: bounded, rail-relative relief snap end-to-end (`SYNC_PSF_RELIEF_MULT` knob, doubled-slew smoothing path, `RELIEF_ON`/`RELIEF_OFF`, bound invariant asserted at rail scales 1.0/0.7/0.5); registers the six phase REQ IDs
@@ -294,7 +294,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 10. TMC2209 Register Heartbeat & Auto-Recovery | 1/1 | Complete | 2026-09-11 |
 | 11. Firmware Forensics & Main Loop Jitter | 1/1 | Complete | 2026-09-11 |
 | 12. Post-Phase 2–10 Regression Fixes | 1/1 | Complete (HW pending) | 2026-09-11 |
-| 13. Type-P Sync Relief & Fault Trip | 1/4 | In Progress|  |
+| 13. Type-P Sync Relief & Fault Trip | 2/4 | In Progress|  |
 | 14. Klipper MMU Status Parity | 2/2 | Complete | 2026-09-12 |
 | 15. Daemon Moonraker Lane Data & Maintenance Counters | 0/? | Not planned | - |
 | 16. TMC Tension Current Boost | 0/? | Not planned | - |
