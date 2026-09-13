@@ -74,6 +74,24 @@ TYPE_P_RELIEF_SCENARIOS = [
 # not the universal boot transient every type-P scenario shows.
 TYPE_P_RELIEF_STEP_MS = 3000
 
+# Phase 13 Task 2 (D-04): proves the tension-dwell ramp's target-raise is
+# capped at the same relief bound as the apply-side branch, not just at
+# max_sps. Demand shape differs from TYPE_P_RELIEF_SCENARIOS (gain-modulated
+# spike + recovery vs a plain step), so these get their own list rather than
+# joining TYPE_P_RELIEF_SCENARIOS -- they don't share TYPE_P_RELIEF_STEP_MS's
+# assumption of a step at t=3000ms and would break the responsiveness test's
+# "first RELIEF_ON at/after the step" scoping if merged in.
+RAMP_CAPPED_SCENARIOS = [
+    "sem_psf_relief_ramp_capped",
+    "sem_psf_relief_ramp_capped_shallow",
+]
+
+# The bound invariant itself (D-01/D-04: no path commands the raw clamped max
+# while sat=T) applies identically regardless of demand shape, so it runs
+# over all five scenarios -- the three rail-scale twins plus the two ramp
+# scenarios -- in one parametrized test (see TypePReliefBoundTests).
+BOUND_INVARIANT_SCENARIOS = TYPE_P_RELIEF_SCENARIOS + RAMP_CAPPED_SCENARIOS
+
 
 def _skip_reason():
     if not os.path.isfile(SIM_BINARY):
@@ -906,10 +924,15 @@ class TypePReliefBoundTests(unittest.TestCase):
         # must_haves.truths #1 (13-CONTEXT.md <specifics>, the single
         # invariant Phase 13 SC#1 names): no path commands the raw clamped
         # max step rate while the plant reports the buffer saturated at the
-        # tension rail, at every rail scale.
-        for scenario in TYPE_P_RELIEF_SCENARIOS:
+        # tension rail. Parametrized across all five scenarios (D-04, Task
+        # 2): the three rail-scale twins plus the two ramp-capped scenarios
+        # -- adding a sixth demand shape later is a one-line addition to
+        # BOUND_INVARIANT_SCENARIOS, not a new test method. ticks=None lets
+        # each scenario's own tick_ceiling apply (the ramp scenarios need
+        # more headroom than the rail-scale twins' default).
+        for scenario in BOUND_INVARIANT_SCENARIOS:
             with self.subTest(scenario=scenario):
-                run = run_scenario(scenario, sensor_type="p", ticks=1500)
+                run = run_scenario(scenario, sensor_type="p", ticks=None)
                 self.assertEqual(run.returncode, 0, run.stderr)
                 sat_t_feeds = [int(r["feed_sps"]) for r in run.rows if r["sat"] == "T"]
                 self.assertTrue(sat_t_feeds, f"{scenario}: expected sat=T rows (no physical "

@@ -145,6 +145,13 @@ typedef struct {
     float type_p_rail_scale;      // 0 = 1.0; else plant emits norm * scale — models a
                                   // rig whose physical hard end reads shallower than
                                   // the calibrated +/-1.0 rail (e.g. 0.8 => rail at -0.80)
+
+    // Phase 13 Task 2 (D-04): FLARE_INT_SYNC_TENSION_RAMP_DELAY_MS defaults to
+    // 0 (ramp disabled) and is a FLARE_DEV_TUNING-gated SET: at runtime on
+    // real hardware — flare_sim never processes SET: commands, so this
+    // override is the only way to exercise the ramp path in sim.
+    int tension_ramp_delay_ms_override; // 0 = default (disabled); else overrides
+                                        // g_sync_tension_ramp_delay_ms
 } sim_scenario_t;
 
 extern const sim_scenario_t g_sim_scenarios[];

@@ -635,6 +635,50 @@ const sim_scenario_t g_sim_scenarios[] = {
         .active_lane = 1, .start_sync_active = true,
         .buf_max_travel_override = 16, .type_specific = true,
     },
+    // Phase 13 Task 2 (D-04): FLARE_INT_SYNC_TENSION_RAMP_DELAY_MS defaults to
+    // 0 (disabled) so tension_ramp_delay_ms_override shortens it to 500ms --
+    // long enough to distinguish "ramp fired" from "ramp never fires" but
+    // short enough the run doesn't need extending past the shared demand
+    // step's saturation window. Proves the ramp's target-raise (D-04) is
+    // capped at the same relief bound as the apply-side branch, not just at
+    // max_sps, even once the ramp's own escalation has kicked in.
+    {
+        .name = "sem_psf_relief_ramp_capped",
+        // Brief huge spike (13.3x -> 200mm/s for 300ms) drives the buffer
+        // deep into tension near the physical rail, then demand drops to a
+        // clearly-achievable 15mm/s: the buffer recovers GRADUALLY (several
+        // seconds), passing through the band between (tracked extreme +
+        // SOFT_WALL_MARGIN_NORM) and wherever the debounced BUF_TENSION
+        // classification actually ends. g_sync_tension_pin_since_ms keeps
+        // counting the whole time (state never leaves BUF_TENSION), so once
+        // the shortened 500ms ramp delay elapses the ramp forces
+        // target_sps=max_sps on every tick for as long as s stays TENSION --
+        // including ticks where in_relief_zone has already gone false. At
+        // 15mm/s the relief bound is far below max_sps, so an uncapped ramp
+        // and a capped one produce clearly different feed values here.
+        .demand = {.kind = DEMAND_STEADY, .level_mm_s = 15.0f},
+        .demand_gain = {.bp = {{.t_ms = 0, .value = 1.0f},
+                               {.t_ms = 2000, .value = 13.3333f},
+                               {.t_ms = 2300, .value = 1.0f}},
+                        .count = 3},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .tension_ramp_delay_ms_override = 500,
+        .tick_ceiling = 2000,
+        .tick_ceiling_reason = "spike at 2000ms + gradual multi-second recovery through the "
+                               "extreme-relative/debounce gap + shortened 500ms ramp delay",
+        .type_specific = true,
+    },
+    {
+        .name = "sem_psf_relief_ramp_capped_shallow",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f, .t1_ms = 3000},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .tension_ramp_delay_ms_override = 500,
+        .type_p_rail_scale = 0.7f,
+        .tick_ceiling = 1500,
+        .tick_ceiling_reason = "demand step at 3000ms + shortened 500ms ramp delay + hold "
+                               "long enough to observe the capped ramp",
+        .type_specific = true,
+    },
 };
 // clang-format on
 

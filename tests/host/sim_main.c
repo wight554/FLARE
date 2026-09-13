@@ -145,6 +145,8 @@ int main(int argc, char **argv) {
         g_servo_settle_ms = scn->servo_settle_ms_override;
     if (scn->cut_timeout_settle_ms_override)
         g_cut_timeout_settle_ms = scn->cut_timeout_settle_ms_override;
+    if (scn->tension_ramp_delay_ms_override)
+        g_sync_tension_ramp_delay_ms = scn->tension_ramp_delay_ms_override;
 
     // lane_id is set by lane_setup() in real firmware boot (main.c), which we
     // never call (motor/GPIO init is meaningless over the fakes) — but

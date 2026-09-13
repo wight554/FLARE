@@ -1656,6 +1656,28 @@ static int sync_apply_type_d_probe_floor(buf_state_t s, int target_sps) {
     return target_sps;
 }
 
+/* Type-P bounded relief (D-01): the relief target is demand scaled by the
+   persisted g_sync_psf_relief_mult, floored at the flow schedule's learned
+   baseline for the current demand (never ask for less than the schedule
+   already knows is needed), and finally clamped to max_sps -- a second,
+   independent ceiling so even an unclamped g_sync_psf_relief_mult (REVIEW-05
+   covers that separately, via settings_apply_clamps()) can never command
+   above the configured max rate. Defined ahead of
+   sync_check_tension_dwell_and_ramp below (D-04, Task 2) so that ramp path
+   can share the same bound rather than duplicating the formula. */
+static int sync_type_p_relief_bound_sps(int max_sps) {
+    int demand_sps = (int)g_extruder_est_sps;
+    int bound_sps = (int)((float)demand_sps * g_sync_psf_relief_mult);
+    int baseline_sps = flow_param(demand_sps).baseline_sps;
+    if (baseline_sps > bound_sps)
+        bound_sps = baseline_sps;
+    if (bound_sps <= 0)
+        bound_sps = g_sync_min_sps;
+    if (bound_sps > max_sps)
+        bound_sps = max_sps;
+    return bound_sps;
+}
+
 static int sync_check_tension_dwell_and_ramp(lane_t *lane, buf_state_t s, int target_sps,
                                              uint32_t now_ms) {
     if (s == BUF_TENSION && g_sync_tension_pin_since_ms != 0) {
@@ -1687,6 +1709,22 @@ static int sync_check_tension_dwell_and_ramp(lane_t *lane, buf_state_t s, int ta
             int max_sps = sync_clamp_max_sps(g_sync_max_sps);
             if (target_sps < max_sps)
                 target_sps = max_sps;
+            /* D-04 (Task 2): cap this escalation at the same relief bound the
+               apply-side branch (sync_tick_apply_rate) uses. Without this,
+               the ramp can raise target_sps to max_sps while the buffer
+               sits in the debounced BUF_TENSION state but OUTSIDE the
+               extreme-relative relief zone (in_relief_zone false) -- that
+               value then flows into the ORDINARY (non-relief) type-P
+               smoothing branch, which has no bound of its own and would
+               eventually converge feed toward the raw max while the plant
+               is still physically saturated. Guarded to type-P only:
+               type-D's ramp behaviour (its own fault-hold guard at the top
+               of this function already excludes it there) is unchanged. */
+            if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
+                int bound_sps = sync_type_p_relief_bound_sps(max_sps);
+                if (target_sps > bound_sps)
+                    target_sps = bound_sps;
+            }
         }
     }
     return target_sps;
@@ -1989,26 +2027,6 @@ static int sync_type_d_compression_drain_target(int max_sps, lane_t *lane) {
     return 0;
 }
 
-/* Type-P bounded relief (D-01): the relief target is demand scaled by the
-   persisted g_sync_psf_relief_mult, floored at the flow schedule's learned
-   baseline for the current demand (never ask for less than the schedule
-   already knows is needed), and finally clamped to max_sps -- a second,
-   independent ceiling so even an unclamped g_sync_psf_relief_mult (REVIEW-05
-   covers that separately, via settings_apply_clamps()) can never command
-   above the configured max rate. */
-static int sync_type_p_relief_bound_sps(int max_sps) {
-    int demand_sps = (int)g_extruder_est_sps;
-    int bound_sps = (int)((float)demand_sps * g_sync_psf_relief_mult);
-    int baseline_sps = flow_param(demand_sps).baseline_sps;
-    if (baseline_sps > bound_sps)
-        bound_sps = baseline_sps;
-    if (bound_sps <= 0)
-        bound_sps = g_sync_min_sps;
-    if (bound_sps > max_sps)
-        bound_sps = max_sps;
-    return bound_sps;
-}
-
 /* Type-P bounded relief entry (D-22/D-23): rail-relative, never an absolute
    normalized-position literal (the 51bdca8 root cause this phase's carried
    caveat exists to prevent). Once an extreme has been observed this sync
@@ -2092,9 +2110,9 @@ static void sync_type_p_apply_relief(int target_sps, int max_sps) {
     int bound_sps = sync_type_p_relief_bound_sps(max_sps);
     int relief_target_sps = (target_sps < bound_sps) ? target_sps : bound_sps;
     float dt_s = (float)g_sync_tick_ms / MS_PER_SECOND_F;
-    g_sync_current_sps = sync_apply_type_p_smoothing(
-        relief_target_sps, dt_s, g_sync_psf_slew_per_mm * SYNC_RELIEF_SLEW_MULT,
-        g_sync_psf_filter_mm / SYNC_RELIEF_FILTER_DIV);
+    g_sync_current_sps = sync_apply_type_p_smoothing(relief_target_sps, dt_s,
+                                                     g_sync_psf_slew_per_mm * SYNC_RELIEF_SLEW_MULT,
+                                                     g_sync_psf_filter_mm / SYNC_RELIEF_FILTER_DIV);
 }
 
 static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms, lane_t *lane) {
