@@ -1814,6 +1814,42 @@ into constant COMPRESSION clicking. `SYNC_MIN_RATE` SHALL remain operator-tunabl
 for those who prefer the loud zero-fast-step-skip behavior, and TUNING.md SHALL
 document the trade-off.
 
+### REQ-type-p-sync-relief-bounded-refill
+- **Source**: `.planning/phases/13-type-p-sync-relief-fault-trip/13-RESEARCH.md`
+- **Description**: The urgent-refill branch in the type-P TENSION soft wall SHALL target
+`min(max_sps, max(est × SYNC_PSF_RELIEF_MULT, baseline_sps))`, never `max_sps` directly,
+applied through the existing distance-EMA/slew path with a doubled slew cap while pegged.
+
+### REQ-type-p-sync-relief-distance-trip
+- **Source**: `.planning/phases/13-type-p-sync-relief-fault-trip/13-RESEARCH.md`
+- **Description**: A new `SYNC_TENSION_STOP_MM` SHALL accumulate raw lane feed travel while
+`BUF_TENSION` and trip `FAULT_HOLD` alongside the existing ms dwell trip, both arming only
+after the first observed buffer-state transition in the active-sync window.
+
+### REQ-type-p-sync-relief-feed-probe
+- **Source**: `.planning/phases/13-type-p-sync-relief-fault-trip/13-RESEARCH.md`
+- **Description**: A bounded, passive firmware-local probe SHALL distinguish "home rail, no
+consumer" from "starved" at type-P +1.0 tension using the same accumulator, evaluated at
+`PROBE_MM` before the mm trip fires.
+
+### REQ-type-p-sync-relief-rail-relative-triggers
+- **Source**: `.planning/phases/13-type-p-sync-relief-fault-trip/13-RESEARCH.md`
+- **Description**: Every new threshold (relief snap, mm trip, probe) SHALL be expressed
+relative to an observed per-window tension extreme, never as an absolute `±0.xx` compare,
+mirroring the `51bdca8` BL fix.
+
+### REQ-type-p-sync-relief-sim-coverage
+- **Source**: `.planning/phases/13-type-p-sync-relief-fault-trip/13-RESEARCH.md`
+- **Description**: `flare_sim` SHALL cover refill-without-overshoot, mm-trip vs ms-trip
+ordering, and probe outcomes at both `type_p_rail_scale` 1.0 and 0.7 (plus a 0.5 tripwire),
+with no regression in the existing type-P scenario set.
+
+### REQ-type-p-sync-relief-no-relay-reintroduction
+- **Source**: `.planning/phases/13-type-p-sync-relief-fault-trip/13-RESEARCH.md`
+- **Description**: Nothing from the type-D relay path (confident estimator, mid-band
+estimator, EST pivots) SHALL be reintroduced; `HW:` items remain unchecked until rig
+validation.
+
 ## Traceability
 
 | Requirement | Phase | Status |

@@ -597,7 +597,7 @@ class RelayFallbackTests(unittest.TestCase):
         # TENSION is relay_base * RELAY_CATCHUP_FRAC(1.3), clamped elsewhere to
         # <= g_sync_max_sps (15004 default) -- bounds check, not exact formula.
         self.assertTrue(all(f >= 682 for f in neutral_feeds if f > 0))
-        self.assertTrue(all(f <= 15004 for f in tension_feeds))
+        self.assertTrue(all(f <= _conf_int("SYNC_MAX_SPS") for f in tension_feeds))
 
     def test_compression_converges_to_zero_not_sync_min(self):
         run = run_scenario("idle_zero", sensor_type="d", ticks=3000)
@@ -844,23 +844,51 @@ class PsfTypePSensorTests(unittest.TestCase):
                 self.assertIn("SYNC,AUTO_START", events)
                 self.assertNotIn("FAULT_HOLD", events)
 
-    def test_type_p_tension_refill_snap(self):
-        # Requirement: Type-P Tension Refill Snap (psf-type-p-sensor spec).
-        # When demand pulls the type-P buffer into the tension soft-wall
-        # (buf_pos_norm() < -CONF_PSF_SOFT_WALL_START), feed snaps immediately to
-        # soft-wall max_sps (CONF_SYNC_MAX_SPS = 15004) rather than ramping slowly
-        # through the distance-EMA smoothing filter.
-        run = run_scenario("step_up", sensor_type="p", ticks=350)
+    def test_type_p_relief_rises_without_snapping(self):
+        # Supersedes "Type-P Tension Refill Snap" (psf-type-p-sensor spec):
+        # Phase 13 SC#1 replaced the direct-apply snap-to-max_sps this test
+        # used to assert with bounded relief (13-01-PLAN.md Task 1). Relief
+        # is NOT disabled -- feed still rises measurably and promptly once
+        # the buffer enters the relief zone -- but it must never reach
+        # CONF_SYNC_MAX_SPS on a row the plant marks tension-saturated
+        # (sat=="T").
+        #
+        # Scenario choice: NOT step_up (this test's own former scenario).
+        # step_up's demand (40mm/s) exceeds the hardware's max deliverable
+        # rate (~36.7mm/s) so thoroughly that feed legitimately CONVERGES to
+        # exactly max_sps and holds there roughly 1.2s before physical
+        # saturation ever registers (confirmed empirically this task,
+        # scripts/test_sync_sim.py history) -- correct steady-state
+        # behavior for genuinely unachievable demand, not a snap, and there
+        # is no tick window where step_up shows both a saturated row and
+        # feed below max_sps. sem_psf_relief_bound's 36mm/s step is also
+        # unachievable at the 1.33x multiplier (bound clamps to max_sps
+        # there too) but never reaches exactly max_sps on a saturated row
+        # even across a full 3000-tick run -- a clean substrate for this
+        # specific "never reaches max while sat=T" contract.
+        run = run_scenario("sem_psf_relief_bound", sensor_type="p", ticks=1500)
         self.assertEqual(run.returncode, 0, run.stderr)
+        max_sps = _conf_int("SYNC_MAX_SPS")
+
+        first_idx = next((i for i, r in enumerate(run.rows) if "RELIEF_ON" in r["events"]), None)
+        self.assertIsNotNone(first_idx, "expected RELIEF_ON to fire")
         feeds = [int(r["feed_sps"]) for r in run.rows]
-        self.assertIn(15004, feeds, "expected feed to snap to max_sps in tension soft-wall")
-        # Verify snap occurs as a discrete step (jump > 5000 sps in 1 tick), not a gradual ramp
-        snap_detected = False
-        for i in range(1, len(feeds)):
-            if feeds[i] == 15004 and feeds[i] - feeds[i - 1] > 5000:
-                snap_detected = True
-                break
-        self.assertTrue(snap_detected, "expected discrete snap jump to max_sps")
+        rise_window = feeds[first_idx:first_idx + 51]  # 1s at the default 20ms tick
+        self.assertGreater(max(rise_window) - rise_window[0], 1000,
+                          "expected feed to rise measurably within 1s of RELIEF_ON -- "
+                          "relief looks disabled")
+        # Not a discrete step either: no single-tick jump inside that same
+        # window looks like the retired snap (> half of max_sps in one tick).
+        increases = [rise_window[i] - rise_window[i - 1] for i in range(1, len(rise_window))
+                    if rise_window[i] > rise_window[i - 1]]
+        self.assertLess(max(increases, default=0), max_sps // 2,
+                        "single-tick jump right after RELIEF_ON looks like the retired snap")
+
+        sat_t_feeds = [int(r["feed_sps"]) for r in run.rows if r["sat"] == "T"]
+        self.assertTrue(sat_t_feeds, "expected sat=T rows in this run")
+        self.assertTrue(all(f < max_sps for f in sat_t_feeds),
+                        "feed reached max_sps while physically saturated -- the "
+                        "direct-apply bypass is back")
 
 
 @unittest.skipIf(_skip_reason(), _skip_reason())

@@ -172,7 +172,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 ### Phase 13: Type-P Sync Relief & Fault Trip
 **Goal**: Close the open type-P feed-hunting and tension-ambiguity items by borrowing Happy-Hare v4 sync-controller mechanics that fit FLARE's buffer-only (Klipper-agnostic) control loop
 **Depends on**: Phase 12 (touches `sync.c` refill path landed in 12-01); real-print baseline capture of current snap-to-max behaviour first (decision in `typep-feed-hunting`)
-**Requirements**: TBD (derive from `.planning/research/2026-09-11-happy-hare-borrow-scan.md` §1.1, §1.2, §1.4)
+**Requirements**: REQ-type-p-sync-relief-bounded-refill, REQ-type-p-sync-relief-distance-trip, REQ-type-p-sync-relief-feed-probe, REQ-type-p-sync-relief-rail-relative-triggers, REQ-type-p-sync-relief-sim-coverage, REQ-type-p-sync-relief-no-relay-reintroduction
 **Research**: `.planning/research/2026-09-11-happy-hare-borrow-scan.md` — HH `main` @ `ef8431c` (2026-09-08)
 **Carried caveat (2026-09-12, from the `UNLOAD_TIMEOUT` root cause, `51bdca8`)**: the type-P normalized rail reading is situational, not calibrated truth — a bare MMU prime reached only `BP -0.36` with the filament held by a cold extruder, `-0.6…-0.7` mid-print, `-1.00` with a hot extruder pulling; three same-day commits that gated BL on an absolute `-0.75` disabled follow entirely on this rig. Every threshold Phase 13 adds (the +1.0 tension-ambiguity probe, `SYNC_TENSION_STOP_MM` arming, relief-snap triggers) MUST be expressed relative to an observed extreme or arm-after-first-transition, never as an absolute `±0.xx` compare; `flare_sim` scenarios must include a shallow-rail case (`type_p_rail_scale` plant knob, see `bl_retract_immediate`).
 **Success Criteria** (what must be TRUE):
@@ -181,7 +181,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   3. Bounded firmware-local feed probe distinguishes "home rail, no consumer" from "starved" at type-P +1.0 tension; result exposed in `ST:` and consumed by `mode × filament_present` resolution
   4. `flare_sim` scenarios cover refill-without-overshoot, mm-trip vs ms-trip ordering, and probe outcomes; no regression in the 16 PSF scenarios
   5. Nothing from the type-D relay path (confident estimator, mid-band estimator, EST pivots) is reintroduced; `HW:` items remain unchecked until rig validation
-**Plans**: 4 plans (strictly sequential — every plan edits `firmware/src/sync.c`)
+**Plans**: 4 plans — 13-01 (wave 1), 13-02 (wave 2), 13-03 (wave 3), 13-04 (wave 4, human-gated) — strictly sequential, every plan edits `firmware/src/sync.c`
   - **Wave 1**: 13-01-PLAN.md — tracer: bounded, rail-relative relief snap end-to-end (`SYNC_PSF_RELIEF_MULT` knob, doubled-slew smoothing path, `RELIEF_ON`/`RELIEF_OFF`, bound invariant asserted at rail scales 1.0/0.7/0.5); registers the six phase REQ IDs
   - **Wave 2** *(blocked on Wave 1)*: 13-02-PLAN.md — `SYNC_TENSION_STOP_MM` distance trip on the existing accumulator, arm-after-first-transition gate shared with the ms trip, deliberate-hold suppression, `TM:`/`ARM:` telemetry with a proven `ST:` line budget
   - **Wave 3** *(blocked on Wave 2)*: 13-03-PLAN.md — bounded firmware-local feed probe (CONSUMER vs NO_CONSUMER off the observed rail), `PR:` telemetry, `PROBE:` bench command, full sim coverage and SC#5 verification
