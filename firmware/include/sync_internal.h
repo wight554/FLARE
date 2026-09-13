@@ -35,6 +35,24 @@
 #define BL_BREAK_DELTA_NORM (1.0f - PSF_BREAK_THRESHOLD_NORM)
 /// @brief Type-P BL_FOLLOW gate margin above the deepest rail reading seen during the prime.
 #define BL_FOLLOW_GATE_MARGIN_NORM 0.05f
+/// @brief Type-P bounded-relief entry margin above the tracked tension extreme
+/// (rail-relative, D-22/D-29). Under BL_BREAK_DELTA_NORM (0.25) so entering
+/// relief is strictly easier than declaring a BL break.
+#define SOFT_WALL_MARGIN_NORM 0.15f
+/// @brief Type-P bounded-relief slew allowance multiplier applied to
+/// g_sync_psf_slew_per_mm while relieving (D-02).
+#define SYNC_RELIEF_SLEW_MULT 2.0f
+/// @brief Divisor applied to g_sync_psf_filter_mm while relieving (REVIEW-01):
+/// takes the effective target EMA length from 25 mm to ~6 mm, comfortably
+/// inside one 16 mm buffer travel, so the bounded relief target arrives
+/// before the rail does instead of after.
+#define SYNC_RELIEF_FILTER_DIV 4.0f
+/// @brief How many BL_BREAK_DELTA_NORM above the recorded tension extreme the
+/// buffer must be observed before the extreme re-seeds (REVIEW-07). Deliberately
+/// greater than 1.0 so the relaxation threshold sits strictly above 13-03's
+/// probe CONSUMER threshold -- the extreme can never relax without the probe
+/// already having grounds to call CONSUMER, so the two rules cannot disagree.
+#define SYNC_EXTREME_RELAX_MULT 2.0f
 /// @brief Type-D neutral compression taper fraction.
 #define SYNC_NEUTRAL_COMPRESSION_TAPER_FRAC 0.5f
 /// @brief Type-D neutral compression floor fraction.

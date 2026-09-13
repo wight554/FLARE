@@ -121,6 +121,18 @@ static bool g_bl_lock_engaged = false;        /* lock confirmed in target rail z
 static float g_bl_lock_extreme = 0.0f;        /* type-P: deepest g_buf_pos seen since LOCKED
                                                  (min for TENSION, max for COMPRESSION) */
 
+/* Type-P bounded relief (D-01/D-02/D-22/REVIEW-07): tracks the deepest
+   g_buf_pos observed since BUF_TENSION entry, independent of the BL
+   extreme above (different lifecycle -- BL is armed/locked per event, this
+   tracks continuously whenever sync is enabled). Reset at sync_disable(),
+   sync_rearm_active(), and the AUTO_START path in
+   sync_tick_auto_start_stop() -- a stale deep extreme from a previous
+   window would make the relief zone unreachable and silently disable
+   relief (the 51bdca8 failure class). */
+static float g_sync_tension_extreme = 0.0f;
+static bool g_sync_tension_extreme_valid = false;
+static bool g_sync_relief_active = false; /* edge detection for RELIEF_ON/RELIEF_OFF */
+
 bool g_bl_autostart_suppressed = false;
 bool g_sync_tension_transitioned = false;
 
@@ -1173,6 +1185,9 @@ void sync_disable(bool reset_estimator) {
     g_relay_flip_travel_since_mm = 0.0f;
     g_relay_neutral_trim_sps = 0.0f;
     g_relay_trim_last_leak_ms = 0;
+    g_sync_tension_extreme = 0.0f;
+    g_sync_tension_extreme_valid = false;
+    g_sync_relief_active = false;
     type_d_neutral_feed_reset();
 
     if (reset_estimator) {
@@ -1190,6 +1205,9 @@ void sync_rearm_active(lane_t *lane, uint32_t now_ms) {
     }
     g_sync_current_sps = sync_bootstrap_sps();
     g_sync_tension_pin_since_ms = was_tension ? now_ms : 0;
+    g_sync_tension_extreme = 0.0f;
+    g_sync_tension_extreme_valid = false;
+    g_sync_relief_active = false;
     sync_set_state(SYNC_ACTIVE);
     g_sync_auto_started = true;
     g_sync_tail_assist_active = lane && !lane_in_present(lane) && lane_out_present(lane);
@@ -1516,6 +1534,9 @@ static bool sync_tick_auto_start_stop(lane_t *lane, uint32_t now_ms, buf_state_t
            transition, even while sync is OFF) accumulates a large stale dwell. On
            auto-start the tension-dwell fault would then fire instantly. Restart it. */
         g_sync_tension_pin_since_ms = (g_buf.state == BUF_TENSION) ? now_ms : 0;
+        g_sync_tension_extreme = 0.0f;
+        g_sync_tension_extreme_valid = false;
+        g_sync_relief_active = false;
         sync_set_state(SYNC_ACTIVE);
         g_sync_auto_started = true;
         g_sync_tail_assist_active = tail_assist;
@@ -1854,26 +1875,37 @@ static int sync_tick_calculate_target(buf_state_t s, uint32_t now_ms, lane_t *la
     return target_sps;
 }
 
-static int sync_apply_type_p_smoothing(int target_sps, float dt_s) {
+static int sync_apply_type_p_smoothing(int target_sps, float dt_s, float slew_per_mm,
+                                       float filter_len_mm) {
     /* Type-P distance-based smoothing (Happy-Hare-style). Both the target
        EMA and the slew limit are keyed to filament distance moved this tick,
        not wall-clock — so feed changes scale with flow and go to zero when
        the printer is idle, instead of the old time-ramp (flow-blind, 2-tick
        bang-bang) or the direct apply (snaps to the noisy PD target instantly).
-       "move" = extruder flow demand this tick (the system's distance clock). */
+       "move" = extruder flow demand this tick (the system's distance clock).
+
+       slew_per_mm/filter_len_mm are parameters, not read from the caller's
+       smoothing globals directly (REVIEW-01): the ordinary type-P branch
+       passes its usual smoothing globals unchanged (bit-identical to before
+       this parameterization), while the bounded-relief branch passes a
+       doubled slew and a divided filter length so the bound actually
+       arrives before the rail does on a 16 mm buffer. One shared
+       g_psf_target_filt state, two parameter sets — not a second filter. */
     uint8_t idx = (g_active_lane == 2) ? 1 : 0;
     float move = fabsf(g_extruder_est_sps) * g_mm_per_step[idx] * dt_s;
 
-    /* 1. EMA the target over distance: alpha = 1 - exp(-move/L). */
-    float filter_len_mm =
-        (g_sync_psf_filter_mm > PSF_FILTER_MIN_MM) ? g_sync_psf_filter_mm : PSF_FILTER_MIN_MM;
-    float alpha = 1.0f - expf(-move / filter_len_mm);
+    /* 1. EMA the target over distance: alpha = 1 - exp(-move/L). Floor keeps
+          the relief branch's filter_len_mm/SYNC_RELIEF_FILTER_DIV from ever
+          producing a zero-or-negative EMA length. */
+    float eff_filter_len_mm =
+        (filter_len_mm > PSF_FILTER_MIN_MM) ? filter_len_mm : PSF_FILTER_MIN_MM;
+    float alpha = 1.0f - expf(-move / eff_filter_len_mm);
     g_psf_target_filt += alpha * ((float)target_sps - g_psf_target_filt);
 
     /* 2. Slew-limit the applied rate, clamped so it never overshoots the
           filtered target (overshoot is what made the old ramp oscillate).
           Floor the step so a tiny creep is always allowed off idle. */
-    float max_step = g_sync_psf_slew_per_mm * move;
+    float max_step = slew_per_mm * move;
     if (max_step < 1.0f)
         max_step = 1.0f;
     float cur = (float)g_sync_current_sps;
@@ -1957,6 +1989,114 @@ static int sync_type_d_compression_drain_target(int max_sps, lane_t *lane) {
     return 0;
 }
 
+/* Type-P bounded relief (D-01): the relief target is demand scaled by the
+   persisted g_sync_psf_relief_mult, floored at the flow schedule's learned
+   baseline for the current demand (never ask for less than the schedule
+   already knows is needed), and finally clamped to max_sps -- a second,
+   independent ceiling so even an unclamped g_sync_psf_relief_mult (REVIEW-05
+   covers that separately, via settings_apply_clamps()) can never command
+   above the configured max rate. */
+static int sync_type_p_relief_bound_sps(int max_sps) {
+    int demand_sps = (int)g_extruder_est_sps;
+    int bound_sps = (int)((float)demand_sps * g_sync_psf_relief_mult);
+    int baseline_sps = flow_param(demand_sps).baseline_sps;
+    if (baseline_sps > bound_sps)
+        bound_sps = baseline_sps;
+    if (bound_sps <= 0)
+        bound_sps = g_sync_min_sps;
+    if (bound_sps > max_sps)
+        bound_sps = max_sps;
+    return bound_sps;
+}
+
+/* Type-P bounded relief entry (D-22/D-23): rail-relative, never an absolute
+   normalized-position literal (the 51bdca8 root cause this phase's carried
+   caveat exists to prevent). Once an extreme has been observed this sync
+   window, compare against it directly; before one exists, fall back to the
+   debounced BUF_TENSION state (itself goal-relative -- sync_buf.c). */
+static bool sync_type_p_in_relief_zone(buf_state_t s) {
+    if (g_sync_tension_extreme_valid)
+        return g_buf_pos <= g_sync_tension_extreme + SOFT_WALL_MARGIN_NORM;
+    return s == BUF_TENSION;
+}
+
+/* Type-P tension extreme tracking + staleness relaxation (D-22/REVIEW-07).
+   Deepens the tracked extreme while starved, and separately relaxes it once
+   the buffer is observed well off the rail -- both rail-relative and
+   clock-free, no wall-clock decay, no tick counter, no numeric position
+   literal. The relaxation runs on every type-P tick while sync is enabled,
+   not only in BUF_TENSION, since the recovery it watches for happens
+   outside the tension zone by definition. Without it, a single
+   uncalibrated deep deflection spike would depress the relief threshold for
+   the rest of a long print (the same silent-disable family as 51bdca8,
+   reached by a different route). Its failure direction is "relief fires
+   slightly more often", already bounded by the RELIEF_ON fewer-than-10-per-
+   run assertion. */
+static void sync_type_p_track_tension_extreme(buf_state_t s) {
+    if (!sync_enabled || g_buf_sensor_type != BUF_SENSOR_TYPE_P)
+        return;
+
+    if (s == BUF_TENSION) {
+        if (!g_sync_tension_extreme_valid || g_buf_pos < g_sync_tension_extreme) {
+            g_sync_tension_extreme = g_buf_pos;
+            g_sync_tension_extreme_valid = true;
+        }
+    }
+
+    if (g_sync_tension_extreme_valid &&
+        g_buf_pos >= g_sync_tension_extreme + SYNC_EXTREME_RELAX_MULT * BL_BREAK_DELTA_NORM) {
+        g_sync_tension_extreme = g_buf_pos;
+    }
+}
+
+/// @brief Track the type-P tension extreme and detect the relief-zone edge
+/// for this tick, emitting RELIEF_ON/RELIEF_OFF exactly once per transition
+/// and seeding the smoothing target on entry (D-06/D-22/D-23). Split out of
+/// sync_tick_apply_rate to keep it under the STYLE.md function-size limit.
+static bool sync_type_p_update_relief_zone(buf_state_t s, bool fast_brake_active) {
+    sync_type_p_track_tension_extreme(s);
+
+    /* D-22/D-23: fast_brake takes priority over relief entry, matching the
+       original branch's precedence (a fast_brake episode zeroes feed
+       regardless of buffer position). */
+    bool in_relief_zone = !fast_brake_active && g_buf_sensor_type == BUF_SENSOR_TYPE_P &&
+                          sync_type_p_in_relief_zone(s);
+
+    /* D-06: edge-triggered RELIEF_ON/RELIEF_OFF, never per tick. */
+    if (in_relief_zone != g_sync_relief_active) {
+        g_sync_relief_active = in_relief_zone;
+        cmd_event("SYNC", in_relief_zone ? "RELIEF_ON" : "RELIEF_OFF");
+        if (in_relief_zone) {
+            /* Seed the smoothing target at DEMAND, exactly once on entry --
+               seeding every tick would defeat the EMA the bound is supposed
+               to run through. Once the buffer climbs out of the relief zone
+               the smoothing resumes from here, so feed eases to the
+               extruder rate instead of staying pinned high. */
+            g_psf_target_filt = g_extruder_est_sps;
+        }
+    }
+    return in_relief_zone;
+}
+
+/// @brief Apply the bounded relief target through the smoothing path
+/// (D-01/D-02/REVIEW-01). Split out of sync_tick_apply_rate to keep it
+/// under the STYLE.md function-size limit.
+static void sync_type_p_apply_relief(int target_sps, int max_sps) {
+    /* Bounded relief (D-01/D-02): replaces the old direct-apply snap to
+       target_sps. The bound is routed through the SAME smoothing path
+       as the ordinary type-P branch below, but with a doubled slew
+       allowance and a shortened EMA (REVIEW-01) so it actually arrives
+       before the rail does on a 16 mm buffer -- doubling max_step alone
+       in step 2 of sync_apply_type_p_smoothing cannot outrun a
+       throttled step 1. */
+    int bound_sps = sync_type_p_relief_bound_sps(max_sps);
+    int relief_target_sps = (target_sps < bound_sps) ? target_sps : bound_sps;
+    float dt_s = (float)g_sync_tick_ms / MS_PER_SECOND_F;
+    g_sync_current_sps = sync_apply_type_p_smoothing(
+        relief_target_sps, dt_s, g_sync_psf_slew_per_mm * SYNC_RELIEF_SLEW_MULT,
+        g_sync_psf_filter_mm / SYNC_RELIEF_FILTER_DIV);
+}
+
 static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms, lane_t *lane) {
     bool compression_wall_critical = false;
     if (g_buf_sensor_type == BUF_SENSOR_TYPE_D && s == BUF_COMPRESSION) {
@@ -2006,26 +2146,17 @@ static void sync_tick_apply_rate(int target_sps, buf_state_t s, uint32_t now_ms,
         }
     }
 
+    bool in_relief_zone = sync_type_p_update_relief_zone(s, fast_brake_active);
+
     if (fast_brake_active) {
         g_sync_current_sps = 0;
         g_psf_target_filt = 0.0f;
-    } else if (g_buf_sensor_type == BUF_SENSOR_TYPE_P &&
-               buf_pos_norm() < -CONF_PSF_SOFT_WALL_START && target_sps > g_sync_current_sps) {
-        /* Urgent refill: the buffer is starved into the TENSION soft-wall zone and
-           the distance-EMA below is far too slow to ramp feed before it slams the
-           rail (cannot_refill). Feed-up into tension is the safe+urgent direction
-           (worst case is a brief overfeed once recovered, which COMPRESSION-side
-           smoothing handles), so snap straight to the soft-wall target. Once the
-           buffer climbs back out of the wall, the smoothing path resumes. */
-        g_sync_current_sps = target_sps;
-        /* Seed the smoothing target at DEMAND, not the wall's max_sps: once the
-           buffer climbs out of the wall the smoothing resumes from here, so feed
-           eases to the extruder rate instead of staying pinned at max and
-           overshooting into COMPRESSION. */
-        g_psf_target_filt = g_extruder_est_sps;
+    } else if (in_relief_zone) {
+        sync_type_p_apply_relief(target_sps, max_sps);
     } else if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
         float dt_s = (float)g_sync_tick_ms / MS_PER_SECOND_F;
-        g_sync_current_sps = sync_apply_type_p_smoothing(target_sps, dt_s);
+        g_sync_current_sps = sync_apply_type_p_smoothing(target_sps, dt_s, g_sync_psf_slew_per_mm,
+                                                         g_sync_psf_filter_mm);
     } else if (g_sync_current_sps > target_sps) {
         g_sync_current_sps -= ramp_dn_sps;
         if (g_sync_current_sps < target_sps)

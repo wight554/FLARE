@@ -590,6 +590,51 @@ const sim_scenario_t g_sim_scenarios[] = {
         .buf_max_travel_override = 16, .type_p_rail_scale = 0.7f,
         .tick_ceiling = 350, .type_specific = true,
     },
+
+    // Phase 13 (type-P bounded relief, D-01/D-02/D-22): a step_up-shaped
+    // demand strong enough to hold the type-P buffer pinned at the tension
+    // rail for hundreds of ticks, at the rig's real 16 mm buffer travel
+    // (buf_max_travel_override) rather than this config's 25 mm dev default.
+    // sem_psf_relief_bound/_shallow/_shallow_rail are rail-scale twins
+    // (1.0/0.7/0.5, D-25) proving the relief bound + RELIEF_ON trigger are
+    // rail-relative, not the absolute-literal 51bdca8 failure class.
+    {
+        .name = "sem_psf_relief_bound",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f, .t1_ms = 3000},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+    },
+    {
+        .name = "sem_psf_relief_bound_shallow",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f, .t1_ms = 3000},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_p_rail_scale = 0.7f, .type_specific = true,
+    },
+    {
+        .name = "sem_psf_relief_shallow_rail",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f, .t1_ms = 3000},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_p_rail_scale = 0.5f, .type_specific = true,
+    },
+    // REVIEW-07 tripwire: an early transient deflection excursion deeper
+    // than the rail the run subsequently settles at (demand_gain spike to
+    // 4x), a full recovery well off it (demand_gain back to 1x), then a
+    // second, shallower starvation later in the same sync window (demand_gain
+    // to 2.5x, no AUTO_START in between). Without the extreme relaxation the
+    // second episode never re-enters the relief zone (it's shallower than the
+    // stale extreme from the first spike).
+    {
+        .name = "sem_psf_relief_extreme_stale",
+        .demand = {.kind = DEMAND_STEADY, .level_mm_s = 20.0f},
+        .demand_gain = {.bp = {{.t_ms = 0, .value = 1.0f},
+                               {.t_ms = 4000, .value = 2.5f},
+                               {.t_ms = 4400, .value = 1.0f},
+                               {.t_ms = 12000, .value = 1.8f},
+                               {.t_ms = 12400, .value = 1.0f}},
+                        .count = 5},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+    },
 };
 // clang-format on
 

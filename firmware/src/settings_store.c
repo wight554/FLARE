@@ -48,6 +48,14 @@ static const float GLOBAL_MAX_MIN_MM_MIN = 1000.0f;
 static const float GLOBAL_MAX_MAX_MM_MIN = 12000.0f;
 static const float RELAY_FRAC_MIN = 0.5f;
 static const float RELAY_FRAC_MAX = 3.0f;
+/* Shared by settings_defaults_sync() and settings_apply_clamps() below; the
+   SET:/GET: handler in protocol.c mirrors these bounds with its own
+   same-named #define, matching the existing RELAY_FRAC_MIN/MAX split
+   between this file and protocol.c. Below 1.0 would mean "relief less than
+   demand", which is not relief; the outer min(max_sps, ...) in
+   sync_type_p_relief_bound_sps() is an independent ceiling regardless. */
+static const float SYNC_RELIEF_MULT_MIN = 1.0f;
+static const float SYNC_RELIEF_MULT_MAX = 3.0f;
 static const float COMPRESSION_DRAIN_MAX_FRAC = 0.9f;
 static const float COMPRESSION_DRAIN_BUDGET_MAX_MM = 25.0f;
 static const float SYNC_EST_ATTACK_MIN_ALPHA = 0.65f;
@@ -218,6 +226,8 @@ static void settings_defaults_sync(void) {
     g_sync_tension_probe_neutral_sps_per_s =
         clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0,
                 mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
+    g_sync_psf_relief_mult =
+        clamp_f(CONF_SYNC_PSF_RELIEF_MULT, SYNC_RELIEF_MULT_MIN, SYNC_RELIEF_MULT_MAX);
 
     g_sync_compression_bias_frac =
         clamp_f(CONF_SYNC_COMPRESSION_BIAS_FRAC, 0.0f, COMPRESSION_BIAS_MAX_FRAC);
@@ -467,6 +477,7 @@ void settings_save(void) {
     tlv_emit_f32(&w, TAG_RELAY_CATCHUP_FRAC, g_relay_catchup_frac);
     tlv_emit_f32(&w, TAG_RELAY_NEUTRAL_FRAC, g_relay_neutral_frac);
     tlv_emit_f32(&w, TAG_SYNC_COMPRESSION_BIAS_FRAC, g_sync_compression_bias_frac);
+    tlv_emit_f32(&w, TAG_SYNC_PSF_RELIEF_MULT, g_sync_psf_relief_mult);
 
     tlv_emit_u32(&w, TAG_FLASH_ERASE_COUNT, g_flash_erase_count);
 
@@ -601,6 +612,14 @@ static void settings_apply_clamps(float buf_switch_span_mm) {
     g_sync_tension_probe_neutral_sps_per_s =
         clamp_i(CONF_SYNC_TENSION_PROBE_NEUTRAL_SPS_PER_S, 0,
                 mm_per_min_to_sps(TENSION_PROBE_RAMP_MAX_MM_MIN));
+    /* REVIEW-05: the TLV `case` below is a bare memcpy by project convention,
+       so a corrupt or foreign flash sector can land an unconstrained float in
+       the control loop. Re-clamp here (settings_load_tlv() calls this as its
+       final statement, and the v63 path calls it too) rather than adding a
+       range check inside the TLV case, matching the g_relay_catchup_frac
+       treatment above. */
+    g_sync_psf_relief_mult =
+        clamp_f(g_sync_psf_relief_mult, SYNC_RELIEF_MULT_MIN, SYNC_RELIEF_MULT_MAX);
 
     g_sync_compression_bias_frac =
         clamp_f(g_sync_compression_bias_frac, 0.0f, COMPRESSION_BIAS_MAX_FRAC);
@@ -880,6 +899,10 @@ static void settings_load_tlv_tag(uint8_t tag, uint8_t len, const uint8_t *val,
     case TAG_SYNC_COMPRESSION_BIAS_FRAC:
         if (len == sizeof(float))
             memcpy(&g_sync_compression_bias_frac, val, sizeof(float));
+        break;
+    case TAG_SYNC_PSF_RELIEF_MULT:
+        if (len == sizeof(float))
+            memcpy(&g_sync_psf_relief_mult, val, sizeof(float));
         break;
     case TAG_FLASH_ERASE_COUNT:
         if (len == sizeof(uint32_t))

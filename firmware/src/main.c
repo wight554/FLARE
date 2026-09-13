@@ -177,6 +177,10 @@ int g_sync_tick_ms = CONF_SYNC_TICK_MS;
    each boot, matching BUF_STAB_SPS). Tune live via SET; reflash changes the default. */
 float g_sync_psf_slew_per_mm = CONF_SYNC_PSF_SLEW_PER_MM;
 float g_sync_psf_filter_mm = CONF_SYNC_PSF_FILTER_MM;
+/* Unlike its siblings above, this one IS persisted (D-28): it round-trips
+   through flash via TAG_SYNC_PSF_RELIEF_MULT and is re-clamped on every load
+   by settings_apply_clamps() (REVIEW-05). */
+float g_sync_psf_relief_mult = CONF_SYNC_PSF_RELIEF_MULT;
 int g_psf_stab_stagnant_ms = CONF_PSF_STAB_STAGNANT_MS;
 float g_psf_stab_stagnant_norm = CONF_PSF_STAB_STAGNANT_NORM;
 int g_psf_stab_rail_break_ms = CONF_PSF_STAB_RAIL_BREAK_MS;

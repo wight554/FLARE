@@ -72,6 +72,12 @@
 #define SYNC_PSF_FILTER_MIN_MM 0.1f
 #define SYNC_PSF_FILTER_MAX_MM 500.0f
 #define SYNC_PSF_DECAY_MAX_SPS_PER_S 200000.0f
+/* Mirrors settings_store.c's SYNC_RELIEF_MULT_MIN/MAX (same split as
+   RELAY_FRAC_MIN/MAX below: one pair of values, one #define copy per
+   translation unit). Below 1.0 would mean "relief less than demand", which
+   is not relief. */
+#define SYNC_RELIEF_MULT_MIN 1.0f
+#define SYNC_RELIEF_MULT_MAX 3.0f
 #define SYNC_RESERVE_MAX_PCT 150
 #define COMPRESSION_BIAS_MAX_FRAC 0.7f
 #define SYNC_AUTO_STOP_MAX_MS 30000
@@ -538,6 +544,8 @@ static bool cmd_get_sync_control_params(const char *param, int idx, char *out, s
         snprintf(out, out_len, "SYNC_PSF_SLEW_PER_MM:%.1f", (double)g_sync_psf_slew_per_mm);
     else if (!strcmp(param, "SYNC_PSF_FILTER_MM"))
         snprintf(out, out_len, "SYNC_PSF_FILTER_MM:%.2f", (double)g_sync_psf_filter_mm);
+    else if (!strcmp(param, "SYNC_PSF_RELIEF_MULT"))
+        snprintf(out, out_len, "SYNC_PSF_RELIEF_MULT:%.3f", (double)g_sync_psf_relief_mult);
     else if (!strcmp(param, "SYNC_PSF_DECAY_SPS_PER_S"))
         snprintf(out, out_len, "SYNC_PSF_DECAY_SPS_PER_S:%.1f", (double)g_sync_psf_decay_sps_per_s);
     else if (!strcmp(param, "PSF_STAB_STAGNANT_MS"))
@@ -1071,6 +1079,8 @@ static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, fl
         g_sync_psf_slew_per_mm = clamp_f(fv, 1.0f, SYNC_PSF_SLEW_MAX);
     else if (!strcmp(base_param, "SYNC_PSF_FILTER_MM"))
         g_sync_psf_filter_mm = clamp_f(fv, SYNC_PSF_FILTER_MIN_MM, SYNC_PSF_FILTER_MAX_MM);
+    else if (!strcmp(base_param, "SYNC_PSF_RELIEF_MULT"))
+        g_sync_psf_relief_mult = clamp_f(fv, SYNC_RELIEF_MULT_MIN, SYNC_RELIEF_MULT_MAX);
     else if (!strcmp(base_param, "SYNC_PSF_DECAY_SPS_PER_S"))
         g_sync_psf_decay_sps_per_s = clamp_f(fv, 0.0f, SYNC_PSF_DECAY_MAX_SPS_PER_S);
     else if (!strcmp(base_param, "PSF_STAB_STAGNANT_MS"))

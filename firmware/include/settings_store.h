@@ -82,6 +82,7 @@ typedef enum {
     TAG_RELAY_NEUTRAL_FRAC = 62,
     TAG_SYNC_COMPRESSION_BIAS_FRAC = 63,
     TAG_FLASH_ERASE_COUNT = 64,
+    TAG_SYNC_PSF_RELIEF_MULT = 65,
 } settings_tag_t;
 
 extern int g_active_sector;

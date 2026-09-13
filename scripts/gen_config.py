@@ -113,6 +113,10 @@ DEFAULTS = {
     "sync_tick_ms": "20",
     "sync_psf_slew_per_mm": "1500",   # type-P feed slew: max sps change per mm filament moved (lower = gentler)
     "sync_psf_filter_mm": "25.0",     # type-P feed target EMA length in mm (bigger = smoother)
+    "sync_psf_relief_mult": "1.33",   # type-P bounded-relief multiplier applied to estimated
+                                      # extruder demand while relieving (Phase 13 SC#1); clamped
+                                      # 1.0-3.0 in settings_defaults_sync()/settings_apply_clamps()
+                                      # and the SET: handler
     "psf_stab_stagnant_ms": "600",    # type-P BS dry-spin window after leaving a saturated rail
     "psf_stab_stagnant_norm": "0.03", # type-P BS min normalized motion inside the dry-spin window
     "psf_stab_rail_break_ms": "3000", # type-P BS max drive time while still saturated at a rail
@@ -534,6 +538,7 @@ def main():
         f"#define CONF_SYNC_TICK_MS       {get('sync_tick_ms')}",
         f"#define CONF_SYNC_PSF_SLEW_PER_MM  {get_float('sync_psf_slew_per_mm')}f",
         f"#define CONF_SYNC_PSF_FILTER_MM {get_float('sync_psf_filter_mm')}f",
+        f"#define CONF_SYNC_PSF_RELIEF_MULT {get_float('sync_psf_relief_mult')}f",
         f"#define CONF_PSF_STAB_STAGNANT_MS {get('psf_stab_stagnant_ms')}",
         f"#define CONF_PSF_STAB_STAGNANT_NORM {get_float('psf_stab_stagnant_norm')}f",
         f"#define CONF_PSF_STAB_RAIL_BREAK_MS {get('psf_stab_rail_break_ms')}",

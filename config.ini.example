@@ -43,6 +43,9 @@ run_current:
 # ─── Buffer Sync ─────────────────────────────────────────────────────────────
 # sync_psf_slew_per_mm: 1500   # type-P feed slew: max sps change per mm filament (lower = gentler; live-tunable via SET)
 # sync_psf_filter_mm: 25.0     # type-P feed target EMA length in mm (bigger = smoother; live-tunable via SET)
+# sync_psf_relief_mult: 1.33   # type-P bounded-relief multiplier on estimated extruder demand while
+                               # relieving at the tension rail (Phase 13 SC#1); floored at the learned
+                               # per-lane baseline, ceilinged at the clamped max rate; live + flash-persisted
 # psf_stab_stagnant_ms: 600    # type-P BS dry-spin window after leaving saturated rail (live-tunable via SET)
 # psf_stab_stagnant_norm: 0.03 # type-P BS min normalized motion inside stagnant window (live-tunable via SET)
 # psf_stab_rail_break_ms: 3000 # type-P BS max time to break away from saturated rail (live-tunable via SET)
