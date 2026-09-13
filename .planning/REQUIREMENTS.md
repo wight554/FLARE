@@ -671,6 +671,24 @@ events, rather than the narrower `Loading`/`Unloading`/`Idle` set.
 full `printer.mmu` status schema (every key Fluidd/Mainsail `develop` reads) is present with
 the correct type before the daemon connects, catching future key/type drift automatically.
 
+### REQ-moonraker-lane-data-push
+- **Source**: `.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/15-SPEC.md`
+- **Description**: `scripts/flare_daemon.py` SHALL push `lane_data` to Moonraker DB namespace `lane_data`
+under keys `lane<N>` matching the schema expected by OrcaSlicer (`vendor_name`, `name`, `color`,
+`material`, `bed_temp`, `nozzle_temp`, `scan_time`, `td`, `lane`, `spool_id`, `filament_id`), enriched
+from Spoolman when connected and falling back to gate map defaults.
+
+### REQ-moonraker-lane-data-sync-lifecycle
+- **Source**: `.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/15-SPEC.md`
+- **Description**: Moonraker DB `lane_data` synchronization SHALL trigger automatically on daemon startup,
+upon any gate map modification (`/gatemap` or `_write_gate_map_db`), and upon Spoolman cache refresh,
+executing via non-blocking background queue with retry resilience.
+
+### REQ-moonraker-lane-data-cleanup
+- **Source**: `.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/15-SPEC.md`
+- **Description**: `scripts/flare_daemon.py` SHALL query the `lane_data` namespace and issue Moonraker DB
+DELETE requests for any orphaned keys (`lane<N>` where `N >= NUM_GATES`) whenever synchronization runs.
+
 ### REQ-live-tuner-per-feature-velocity-buckets
 - **Source**: `.planning/specs/live-tuner/spec.md`
 - **Description**: The tuner SHALL aggregate telemetry into feature + velocity buckets (rate + bias).

@@ -153,12 +153,17 @@ def db_init():
             con.close()
 
 def db_get(table, key, default=None):
+    if not os.path.exists(_DB_PATH):
+        return default
     with _db_lock:
-        con = sqlite3.connect(_DB_PATH)
         try:
-            row = con.execute(f"SELECT value FROM {table} WHERE key=?", (key,)).fetchone()
-        finally:
-            con.close()
+            con = sqlite3.connect(_DB_PATH)
+            try:
+                row = con.execute(f"SELECT value FROM {table} WHERE key=?", (key,)).fetchone()
+            finally:
+                con.close()
+        except sqlite3.OperationalError:
+            return default
     if row is None:
         return default
     try:
@@ -167,6 +172,7 @@ def db_get(table, key, default=None):
         return row[0]
 
 def db_set(table, key, value):
+    os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
     with _db_lock:
         con = sqlite3.connect(_DB_PATH)
         try:
@@ -278,6 +284,7 @@ def _write_gate_map_db(gate, fields):
     try:
         for key in ("gate_material", "gate_color", "gate_spool_id", "gate_name"):
             db_set("gate_config", key, gm[key])
+        trigger_moonraker_lane_data_sync()
         return True
     except Exception as e:
         print(f"flare_daemon: failed to write gate map to db: {e}", file=sys.stderr)
@@ -325,12 +332,20 @@ def _spoolman_fetch_spool(spool_id):
     if not isinstance(spool, dict):
         return None
     fil = spool.get("filament", {}) or {}
+    vendor = fil.get("vendor", {}) or {}
+    extra = spool.get("extra", {}) or {}
     return {
+        "id": spool.get("id"),
         "name": fil.get("name") or spool.get("name"),
         "material": fil.get("material"),
         "color_hex": fil.get("color_hex"),
         "remaining_weight": spool.get("remaining_weight"),
         "remaining_length": spool.get("remaining_length"),
+        "vendor_name": vendor.get("name") if isinstance(vendor, dict) else "",
+        "bed_temp": fil.get("settings_bed_temp"),
+        "nozzle_temp": fil.get("settings_extruder_temp"),
+        "filament_id": fil.get("id"),
+        "td": extra.get("transmission_distance", 0.0) if isinstance(extra, dict) else 0.0,
     }
 
 def _spoolman_get_spool(spool_id):
@@ -342,7 +357,141 @@ def _spoolman_get_spool(spool_id):
     data = _spoolman_fetch_spool(spool_id)
     with _spool_cache_lock:
         _spool_cache[spool_id] = (now, data)
+    trigger_moonraker_lane_data_sync()
     return data
+
+# --- Moonraker DB lane_data synchronization ---
+_lane_sync_queue = queue.Queue(maxsize=10)
+
+def _moonraker_db_post_item(namespace, key, value):
+    """Write an item to Moonraker's database component."""
+    url = f"{MOONRAKER_URL}/server/database/item"
+    payload = json.dumps({"namespace": namespace, "key": key, "value": value}).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
+            resp.read()
+        return True
+    except Exception:
+        return False
+
+def _moonraker_db_delete_item(namespace, key):
+    """Delete an item from Moonraker's database component."""
+    url = f"{MOONRAKER_URL}/server/database/item?namespace={urllib.parse.quote(namespace)}&key={urllib.parse.quote(key)}"
+    req = urllib.request.Request(url, method="DELETE")
+    try:
+        with urllib.request.urlopen(req, timeout=2.0) as resp:
+            resp.read()
+        return True
+    except Exception:
+        return False
+
+def _moonraker_db_get_namespace(namespace):
+    """Retrieve all items in a Moonraker database namespace."""
+    url = f"{MOONRAKER_URL}/server/database/item?namespace={urllib.parse.quote(namespace)}"
+    try:
+        with urllib.request.urlopen(url, timeout=2.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        res = data.get("result", {})
+        if isinstance(res, dict):
+            val = res.get("value", {})
+            if isinstance(val, dict):
+                return val
+        return {}
+    except Exception:
+        return {}
+
+def build_moonraker_lane_payload(gate_idx):
+    """Format lane_data entry for Moonraker DB in the shape OrcaSlicer expects."""
+    gm = _read_gate_map()
+    g = int(gate_idx)
+    num_gates = gm.get("num_gates", NUM_GATES)
+    if not (0 <= g < num_gates):
+        return None
+
+    sid = gm["gate_spool_id"][g] if g < len(gm["gate_spool_id"]) else -1
+    spool = _spoolman_get_spool(sid) if isinstance(sid, int) and sid >= 0 else None
+
+    default_name = gm["gate_name"][g] if g < len(gm["gate_name"]) else f"Gate {g}"
+    default_mat = gm["gate_material"][g] if g < len(gm["gate_material"]) else ""
+    default_color = gm["gate_color"][g] if g < len(gm["gate_color"]) else ""
+
+    if spool and isinstance(spool, dict):
+        vendor_name = spool.get("vendor_name") or ""
+        name = spool.get("name") or default_name
+        material = spool.get("material") or default_mat
+        color = (spool.get("color_hex") or default_color).lstrip("#")[:6].upper()
+        bed_temp = int(spool.get("bed_temp") or 0)
+        nozzle_temp = int(spool.get("nozzle_temp") or 0)
+        td = float(spool.get("td") or 0.0)
+        spool_id = int(spool.get("id") or sid)
+        filament_id = int(spool.get("filament_id") if spool.get("filament_id") is not None else -1)
+    else:
+        vendor_name = ""
+        name = default_name
+        material = default_mat
+        color = default_color.lstrip("#")[:6].upper()
+        bed_temp = 0
+        nozzle_temp = 0
+        td = 0.0
+        spool_id = int(sid) if isinstance(sid, int) else -1
+        filament_id = -1
+
+    return {
+        "vendor_name": vendor_name,
+        "name": name,
+        "color": color,
+        "material": material,
+        "bed_temp": bed_temp,
+        "nozzle_temp": nozzle_temp,
+        "scan_time": time.time(),
+        "td": td,
+        "lane": g,
+        "spool_id": spool_id,
+        "filament_id": filament_id,
+    }
+
+def sync_moonraker_lane_data():
+    """Push lane_data for all active gates to Moonraker DB and prune orphans."""
+    gm = _read_gate_map()
+    num_gates = gm.get("num_gates", NUM_GATES)
+    for g in range(num_gates):
+        payload = build_moonraker_lane_payload(g)
+        if payload:
+            _moonraker_db_post_item("lane_data", f"lane{g}", payload)
+
+    # Cleanup orphaned lanes
+    existing = _moonraker_db_get_namespace("lane_data")
+    if isinstance(existing, dict):
+        for k in list(existing.keys()):
+            if k.startswith("lane"):
+                try:
+                    idx = int(k[4:])
+                    if idx >= num_gates:
+                        _moonraker_db_delete_item("lane_data", k)
+                except ValueError:
+                    pass
+
+def trigger_moonraker_lane_data_sync():
+    """Queue a non-blocking lane_data synchronization."""
+    try:
+        _lane_sync_queue.put_nowait(True)
+    except (queue.Full, Exception):
+        pass
+
+def _lane_sync_worker():
+    while True:
+        try:
+            _lane_sync_queue.get()
+            time.sleep(0.05)
+            while not _lane_sync_queue.empty():
+                try:
+                    _lane_sync_queue.get_nowait()
+                except queue.Empty:
+                    break
+            sync_moonraker_lane_data()
+        except Exception as e:
+            print(f"flare_daemon: lane_data sync worker error: {e}", file=sys.stderr)
 
 # --- Filament usage tracking (consumption) ---
 FILAMENT_DIAMETER_MM = 1.75
@@ -506,6 +655,7 @@ def apply_gatemap_edit(gate, fields):
     if fields.get("spool_id") is not None:
         with _spool_cache_lock:
             _spool_cache.pop(int(fields["spool_id"]), None)
+    trigger_moonraker_lane_data_sync()
     return {"pushed": pushed}
 
 def parse_status_line(line):
@@ -1910,6 +2060,9 @@ def main():
         print(f"flare_daemon: Klipper telemetry syncer enabled targeting {args.moonraker_url}")
         syncer_t = threading.Thread(target=klipper_syncer, args=(args.moonraker_url,), daemon=True)
         syncer_t.start()
+        lane_worker_t = threading.Thread(target=_lane_sync_worker, daemon=True)
+        lane_worker_t.start()
+        trigger_moonraker_lane_data_sync()
 
     # 4. Start HTTP & SSE proxy web server
     if not is_loopback(args.host) and not AUTH_TOKEN:

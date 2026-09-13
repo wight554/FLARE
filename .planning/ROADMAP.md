@@ -254,7 +254,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 
 **Goal**: Extend `flare_daemon.py` with the two Happy-Hare Moonraker-side features FLARE lacks — slicer lane discovery and consumable maintenance tracking
 **Depends on**: Phase 14 (shares the status/mirror surface)
-**Requirements**: TBD (derive from research §5, §6)
+**Requirements**: REQ-moonraker-lane-data-push, REQ-moonraker-lane-data-sync-lifecycle, REQ-moonraker-lane-data-cleanup, REQ-maintenance-counters-persistence, REQ-maintenance-counter-event-hooks, REQ-maintenance-counter-threshold-actions, REQ-maintenance-klipper-command-parity, REQ-maintenance-webui-dashboard, REQ-daemon-maintenance-unit-tests
 **Research**: `.planning/research/2026-09-11-happy-hare-borrow-scan.md`
 **Success Criteria** (what must be TRUE):
 
@@ -262,7 +262,12 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   2. Persisted counters (blade cuts from `EV:CUT:DONE`, swaps, RELOAD failovers) with per-counter `limit`/`warning`/`pause` thresholds, exposed in `/status`, WebUI, and an `MMU_STATS COUNTER=` equivalent; reset command available
   3. Counters survive daemon restart and are covered by unit tests
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+  - [x] 15-01-PLAN.md
+  - [ ] 15-02-PLAN.md
+  - **Wave 1**: 15-01-PLAN.md — Moonraker `lane_data` namespace sync + orphan cleanup + Spoolman integration + unit test coverage
+  - **Wave 2** *(blocked on Wave 1)*: 15-02-PLAN.md — Persistent maintenance counters + `MMU_STATS` parity + WebUI card + unit tests
 
 ### Phase 16: TMC Tension Current Boost
 
@@ -296,5 +301,5 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 12. Post-Phase 2–10 Regression Fixes | 1/1 | Complete (HW pending) | 2026-09-11 |
 | 13. Type-P Sync Relief & Fault Trip | 3/4 | In Progress|  |
 | 14. Klipper MMU Status Parity | 2/2 | Complete | 2026-09-12 |
-| 15. Daemon Moonraker Lane Data & Maintenance Counters | 0/? | Not planned | - |
+| 15. Daemon Moonraker Lane Data & Maintenance Counters | 1/2 | In Progress |  |
 | 16. TMC Tension Current Boost | 0/? | Not planned | - |

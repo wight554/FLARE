@@ -1,16 +1,16 @@
 ---
 gsd_state_version: "1.0"
 status: unknown
-stopped_at: Completed 13-03-PLAN.md (type-P feed probe)
-last_updated: "2026-09-13T13:36:00Z"
-state_head: f89c381
+stopped_at: Completed 15-01-PLAN.md (Moonraker lane_data sync)
+last_updated: "2026-09-13T21:19:00Z"
+state_head: 1ed58a3
 progress:
   total_phases: 16
   completed_phases: 0
-  total_plans: 20
-  completed_plans: 5
-  percent: 25
-current_phase_name: Type-P Sync Relief & Fault Trip
+  total_plans: 22
+  completed_plans: 6
+  percent: 27
+current_phase_name: Daemon Moonraker Lane Data & Maintenance Counters
 ---
 
 # Project State: FLARE
@@ -20,15 +20,14 @@ current_phase_name: Type-P Sync Relief & Fault Trip
 See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 13 — Type-P Sync Relief & Fault Trip
+**Current focus:** Phase 15 — Daemon Moonraker Lane Data & Maintenance Counters
 
 ## Current Position
 
-- **Phase**: 13 - Type-P Sync Relief & Fault Trip (`.planning/phases/13-type-p-sync-relief-fault-trip/`)
-- **Active Feature in Progress**: 13-03-PLAN.md complete (3/4 plans) — type-P feed probe resolves the "+1.0 tension" ambiguity: window-max deflection latch (`g_sync_probe_peak_pos`, REVIEW-02) compared rail-relatively against the 13-01 tension extreme, on the same accumulator the 13-02 distance trip reads, at a threshold clamped strictly below it (`SYNC_PROBE_TRIP_FRAC`, REVIEW-03). `PROBE:` bench command + `PR:` telemetry (0-3). Sim coverage 61→70 tests (4 probe scenarios + 4 rail-scale twins + 1 undersized-buffer proof + a standalone ordering-invariant unit test). Next: 13-04-PLAN.md (HW validation gate, closes the phase). Phase 12 HW validation still pending (non-blocking)
-- **Status**: In Progress (13-03 of 4 plans complete)
-- **Progress**: [===============     ] 75% complete (3/4 plans)
+- **Phase**: 15 - Daemon Moonraker Lane Data & Maintenance Counters (`.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/`)
+- **Active Feature in Progress**: 15-01-PLAN.md complete (1/2 plans) — Moonraker `lane_data` DB namespace push for OrcaSlicer sync, Spoolman metadata enrichment, fallback handling, orphan cleanup, non-blocking sync queue worker, and unit tests (`scripts/test_moonraker_lane_data.py`). Next: 15-02-PLAN.md (maintenance counters + MMU_STATS + WebUI). Phase 13 HW validation pending on test rig.
+- **Status**: In Progress (15-01 of 2 plans complete)
+- **Progress**: [==========          ] 50% complete (1/2 plans)
 
 ## Accumulated Context
 
