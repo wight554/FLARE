@@ -1,15 +1,15 @@
 ---
 gsd_state_version: "1.0"
 status: unknown
-stopped_at: Completed 13-02-PLAN.md (SYNC_TENSION_STOP_MM distance trip)
-last_updated: "2026-09-13T12:39:20Z"
-state_head: ee5bf7b
+stopped_at: Completed 13-03-PLAN.md (type-P feed probe)
+last_updated: "2026-09-13T13:36:00Z"
+state_head: f89c381
 progress:
   total_phases: 16
   completed_phases: 0
   total_plans: 20
-  completed_plans: 4
-  percent: 20
+  completed_plans: 5
+  percent: 25
 current_phase_name: Type-P Sync Relief & Fault Trip
 ---
 
@@ -26,9 +26,9 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 ## Current Position
 
 - **Phase**: 13 - Type-P Sync Relief & Fault Trip (`.planning/phases/13-type-p-sync-relief-fault-trip/`)
-- **Active Feature in Progress**: 13-02-PLAN.md complete (2/4 plans) — `SYNC_TENSION_STOP_MM` distance trip (TAG 66) with arm gate (`sync_enabled`, not `g_sync_auto_started` — see Decisions), REVIEW-04 hold-suppression sampled unconditionally at the top of `sync_tick()`, `TM:`/`ARM:` telemetry with a machine-proven (1 char headroom) `ST:` line budget, and sim coverage (53→61 tests) for ordering/arming/hold-suppression at two rail scales. Next: 13-03-PLAN.md (feed probe, wave 2 continued) then 13-04 (HW validation gate). Phase 12 HW validation still pending (non-blocking)
-- **Status**: In Progress (13-02 of 4 plans complete)
-- **Progress**: [==========          ] 50% complete (2/4 plans)
+- **Active Feature in Progress**: 13-03-PLAN.md complete (3/4 plans) — type-P feed probe resolves the "+1.0 tension" ambiguity: window-max deflection latch (`g_sync_probe_peak_pos`, REVIEW-02) compared rail-relatively against the 13-01 tension extreme, on the same accumulator the 13-02 distance trip reads, at a threshold clamped strictly below it (`SYNC_PROBE_TRIP_FRAC`, REVIEW-03). `PROBE:` bench command + `PR:` telemetry (0-3). Sim coverage 61→70 tests (4 probe scenarios + 4 rail-scale twins + 1 undersized-buffer proof + a standalone ordering-invariant unit test). Next: 13-04-PLAN.md (HW validation gate, closes the phase). Phase 12 HW validation still pending (non-blocking)
+- **Status**: In Progress (13-03 of 4 plans complete)
+- **Progress**: [===============     ] 75% complete (3/4 plans)
 
 ## Accumulated Context
 
@@ -77,8 +77,8 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 ## Session
 
-**Last session:** 2026-09-13T12:39:20Z
-**Stopped at:** Completed 13-02-PLAN.md (SYNC_TENSION_STOP_MM distance trip)
+**Last session:** 2026-09-13T13:36:00Z
+**Stopped at:** Completed 13-03-PLAN.md (type-P feed probe)
 **Resume file:** None
 
 ## Performance Metrics
@@ -87,6 +87,7 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 |------|----------|-------|-------|
 | Phase 13 P01 | 64min | 3 tasks | 18 files |
 | Phase 13 P02 | ~150min active (session interrupted by a rate limit mid-Task-3; wall-clock span ~5h) | 3 tasks | 20 files |
+| Phase 13 P03 | ~57min | 3 tasks | 9 files |
 
 ## Decisions
 
@@ -94,3 +95,5 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 - [Phase 13]: Responsiveness threshold calibrated to 85% not plan's 90% to absorb one 20ms tick of quantization at the buffer-travel boundary
 - [Phase 13 P02]: Arm gate uses `sync_enabled` (SYNC_ACTIVE) not `g_sync_auto_started` as the plan's action text literally specified — the latter stays false for any directly-forced-active session (host SET:, manual toolhead-insert with auto_mode off, the sim's start_sync_active shortcut), which would have suppressed the pre-existing ms dwell trip in nearly every scenario, not just false positives (confirmed empirically: it silently changed 13-01's own sem_psf_relief_bound trajectory)
 - [Phase 13 P02]: sem_psf_ms_fallback isolates the ms path via tension_stop_mm_disabled rather than an organic demand-rate split — sync_type_p_relief_bound_sps floors every relief-zone target at this project's baseline_sps (10912 sps ~= 26.7mm/s), so distance crosses 32mm in ~1-1.5s regardless of demand/feed_gain once a multi-second dwell is sustained at all; see 13-02-SUMMARY.md Deviations
+- [Phase 13 P03]: sem_psf_probe_no_consumer forces the lane IN sensor clear (switch_script) for a settle window rather than using a straightforward feed_gain=0 recipe — a straightforward construction manufactures a false CONSUMER because the probe's window necessarily opens at the shallow zone-crossing tick of a still-falling dive, not the buffer's eventual resting depth; see 13-03-SUMMARY.md Deviations for the full investigation
+- [Phase 13 P03]: YS: status field tightened %d to %c (same technique as ARM: in 13-02) to free the budget PR: needed — even a bare unlabeled single-char addition could not fit inside 13-02's 1-char headroom
