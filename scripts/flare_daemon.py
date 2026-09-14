@@ -661,13 +661,23 @@ def build_moonraker_lane_payload(gate_idx):
     }
 
 def sync_moonraker_lane_data():
-    """Push lane_data for all active gates to Moonraker DB and prune orphans."""
+    """Push lane_data for all active gates to Moonraker DB and prune orphans.
+
+    Returns True only if every lane payload POSTed successfully. The caller
+    (_lane_sync_worker) uses this to retry: at daemon startup Moonraker or
+    klippy may not be ready yet, and the single boot-time trigger's POSTs
+    then fail silently -- with no retry the `lane_data` namespace was never
+    created for the rest of the daemon's life (rig 2026-09-14: 404 on a
+    daemon that had been up for hours). A bare except in _moonraker_db_post_item
+    still guarantees this never raises."""
     gm = _read_gate_map()
     num_gates = gm.get("num_gates", NUM_GATES)
+    all_ok = True
     for g in range(num_gates):
         payload = build_moonraker_lane_payload(g)
         if payload:
-            _moonraker_db_post_item("lane_data", f"lane{g}", payload)
+            if not _moonraker_db_post_item("lane_data", f"lane{g}", payload):
+                all_ok = False
 
     # Cleanup orphaned lanes
     existing = _moonraker_db_get_namespace("lane_data")
@@ -680,6 +690,7 @@ def sync_moonraker_lane_data():
                         _moonraker_db_delete_item("lane_data", k)
                 except ValueError:
                     pass
+    return all_ok
 
 def trigger_moonraker_lane_data_sync():
     """Queue a non-blocking lane_data synchronization."""
@@ -688,19 +699,41 @@ def trigger_moonraker_lane_data_sync():
     except (queue.Full, Exception):
         pass
 
+LANE_SYNC_RETRY_MIN_S = 2.0
+LANE_SYNC_RETRY_MAX_S = 60.0
+
 def _lane_sync_worker():
+    # backoff == 0 means "no retry pending": block indefinitely for the next
+    # trigger. When a sync fails (Moonraker/klippy not ready at boot, transient
+    # network), wake on the backoff timer and retry -- doubling to a cap -- so
+    # the namespace is eventually created without a gate edit or spoolman fetch
+    # to re-trigger it (rig 2026-09-14: the boot sync failed once and the
+    # namespace stayed 404 for the daemon's whole life). A real trigger arriving
+    # mid-backoff is serviced immediately and clears the backoff on success.
+    backoff = 0.0
     while True:
         try:
-            _lane_sync_queue.get()
+            try:
+                _lane_sync_queue.get(timeout=backoff if backoff else None)
+            except queue.Empty:
+                pass  # backoff elapsed with no new trigger -> retry the sync
             time.sleep(0.05)
             while not _lane_sync_queue.empty():
                 try:
                     _lane_sync_queue.get_nowait()
                 except queue.Empty:
                     break
-            sync_moonraker_lane_data()
+            if sync_moonraker_lane_data():
+                backoff = 0.0
+            else:
+                backoff = LANE_SYNC_RETRY_MIN_S if not backoff \
+                    else min(backoff * 2.0, LANE_SYNC_RETRY_MAX_S)
+                print(f"flare_daemon: lane_data sync incomplete, retry in {backoff:.0f}s",
+                      file=sys.stderr)
         except Exception as e:
             print(f"flare_daemon: lane_data sync worker error: {e}", file=sys.stderr)
+            backoff = LANE_SYNC_RETRY_MIN_S if not backoff \
+                else min(backoff * 2.0, LANE_SYNC_RETRY_MAX_S)
 
 # --- Filament usage tracking (consumption) ---
 FILAMENT_DIAMETER_MM = 1.75

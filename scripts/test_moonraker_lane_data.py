@@ -169,6 +169,39 @@ class TestMoonrakerLaneData(unittest.TestCase):
             server.shutdown()
             server.server_close()
 
+    def test_sync_reports_success_and_failure(self):
+        """sync_moonraker_lane_data returns True only when every POST lands.
+
+        Rig 2026-09-14 (E1): the boot-time sync's POSTs failed once (Moonraker
+        not ready), the return was never checked, and nothing re-triggered ->
+        `lane_data` stayed 404 for the daemon's whole life. The worker now
+        keys its retry off this return, so it must be truthful."""
+        orig_mr_url = fd.MOONRAKER_URL
+        orig_num_gates = fd.NUM_GATES
+        try:
+            fd.NUM_GATES = 2
+            # Unreachable Moonraker: every POST fails -> False.
+            fd.MOONRAKER_URL = "http://127.0.0.1:59999"
+            self.assertFalse(fd.sync_moonraker_lane_data(),
+                             "sync must report failure when POSTs cannot land")
+
+            # Reachable Moonraker: every POST succeeds -> True.
+            server = HTTPServer(("127.0.0.1", 0), FakeMoonrakerHandler)
+            port = server.server_address[1]
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            FakeMoonrakerHandler.existing_items = {}
+            FakeMoonrakerHandler.posted_items = []
+            try:
+                fd.MOONRAKER_URL = f"http://127.0.0.1:{port}"
+                self.assertTrue(fd.sync_moonraker_lane_data(),
+                                "sync must report success when every POST lands")
+            finally:
+                server.shutdown()
+                server.server_close()
+        finally:
+            fd.MOONRAKER_URL = orig_mr_url
+            fd.NUM_GATES = orig_num_gates
+
     def test_sync_moonraker_network_error_resilience(self):
         """Test that offline Moonraker endpoint does not throw or crash sync."""
         orig_mr_url = fd.MOONRAKER_URL
