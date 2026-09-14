@@ -5,6 +5,10 @@ what the rig has to be doing. Work a group top to bottom; each group's setup
 is shared by its items. Pairs with `scripts/verify_hw_open_items.py` (fires
 triggers, classifies events from the log — no eyeballing a UI for pass/fail).
 
+**Convention:** every item heading carries a box. `[ ]` open, `[x]` done —
+tick it here *and* in the owning plan/sheet (last section) when it passes,
+with the evidence timestamp. Nothing is ticked without real rig results.
+
 **Rig on hand is type-P.** Items that only exist on type-D are parked at the
 end, not deleted.
 
@@ -14,16 +18,14 @@ Last consolidated: 2026-09-14. Source phases: 1, 11, 12, 13, 14, 15, 16.
 
 ## Already closed — do not re-run
 
-| Old # | Item | Evidence |
-|---|---|---|
-| #1 | `CAL` during cut → `ER:PERSIST_BUSY` | 2026-09-12, `fire 1-cal-busy`, PASS |
-| #2 | `CP` during cut → `ER:BUSY:CUTTER` | 2026-09-12, `fire 2-cp-busy`, PASS |
-| #3 | `TC:` during toolchange → `ER:BUSY:TC` | 2026-09-12, `fire 3-tc-busy`, PASS |
-| #4 | `EV:BL:TIMEOUT` fires once, no storm | 2026-09-12, `watch`, two clean singles, PASS |
-| #13 | Phase 13 snap-to-max baseline capture | 2026-09-12 2 h print, `13-…/baseline-capture.md` |
-| #14 | FlowGuard `level` trend + UI meter | 2026-09-12, 975 pushes, `14-VERIFICATION.md` #1 |
-| #15 (7/9) | No-op command stubs register | 2026-09-12, `fire 15-command-stubs`, 7/7 PASS |
-| — | Type-P BL rail-relative break (`51bdca8`) | 2026-09-12, 4/4 swaps clean |
+- [x] **#1** `CAL` during cut → `ER:PERSIST_BUSY` — 2026-09-12, `fire 1-cal-busy`, PASS
+- [x] **#2** `CP` during cut → `ER:BUSY:CUTTER` — 2026-09-12, `fire 2-cp-busy`, PASS
+- [x] **#3** `TC:` during toolchange → `ER:BUSY:TC` — 2026-09-12, `fire 3-tc-busy`, PASS
+- [x] **#4** `EV:BL:TIMEOUT` fires once, no storm — 2026-09-12, `watch`, two clean singles, PASS
+- [x] **#13** Phase 13 snap-to-max baseline capture — 2026-09-12 2 h print, `13-…/baseline-capture.md`
+- [x] **#14** FlowGuard `level` trend + UI meter — 2026-09-12, 975 pushes, `14-VERIFICATION.md` #1
+- [x] **#15 (7/9)** No-op command stubs register — 2026-09-12, `fire 15-command-stubs`, 7/7 PASS (the other 2 are **A4**)
+- [x] Type-P BL rail-relative break (`51bdca8`) — 2026-09-12, 4/4 swaps clean
 
 ---
 
@@ -64,7 +66,7 @@ condition never occurred; re-run the trigger.
 
 Board powered, daemon up. Nothing moves.
 
-### A1 · Flash wear counter persists across reboots (old #5)
+### [ ] A1 · Flash wear counter persists across reboots (old #5)
 Owner: Phase 1 §3 · `01-01-PLAN.md` "Perform repeated settings saves…"
 
 1. `python3 scripts/flare_cmd.py "GET:FLASH_ERASE_COUNT"` → note `N`.
@@ -76,7 +78,7 @@ Owner: Phase 1 §3 · `01-01-PLAN.md` "Perform repeated settings saves…"
    `EV:FLASH:WEAR_WARNING` (threshold is 80 000 — if you see it, the counter
    is wrong, not the flash).
 
-### A2 · Watchdog reset leaves a readable crash log (old #7)
+### [ ] A2 · Watchdog reset leaves a readable crash log (old #7)
 Owner: Phase 11 · `11-01-PLAN.md` "HW: confirm `EV:CRASH:DETECTED:WATCHDOG`…"
 
 There is no bench command that forces a stall on purpose. Options, pick one:
@@ -95,7 +97,7 @@ There is no bench command that forces a stall on purpose. Options, pick one:
    the stall, then `OK:CRASH:END`. `CAL:CRASHLOG_CLEAR` and confirm
    `OK:NO_CRASH` afterwards.
 
-### A3 · TMC UART loss → exactly one fault, restored on replug (old #11)
+### [ ] A3 · TMC UART loss → exactly one fault, restored on replug (old #11)
 Owner: Phase 12 · `12-01-PLAN.md` HW bullet "TMC unplug → single `TMC:FAULT`"
 
 1. Printer fully idle. Watch monitor running.
@@ -104,7 +106,7 @@ Owner: Phase 12 · `12-01-PLAN.md` HW bullet "TMC unplug → single `TMC:FAULT`"
    `EV:TMC:FAULT:2:COMM_FAIL`, no repeat storm while unplugged, then one
    `EV:TMC:RESTORED:2` after replug. Health flag back to `1` in status.
 
-### A4 · `MMU_PRINT_START` / `MMU_PRINT_END` register (remainder of old #15)
+### [ ] A4 · `MMU_PRINT_START` / `MMU_PRINT_END` register (remainder of old #15)
 Owner: Phase 14 · `14-VERIFICATION.md` "Human Verification Required" #2 (7/9 done)
 
 These two are **not** no-ops — they run `_FLARE_SYNC_TOOLHEAD` (a synchronous
@@ -127,7 +129,7 @@ Filament loaded both lanes. The script fires the firmware command itself
 immediately before the check; the busy window is hundreds of ms and you
 never have to time anything by hand.
 
-### B1 · Cutter abort mid-stroke returns the blade to block (old #9)
+### [ ] B1 · Cutter abort mid-stroke returns the blade to block (old #9)
 Owner: Phase 12 · `12-01-PLAN.md` HW bullet "cutter abort mid-stroke…"
 
 ```bash
@@ -136,7 +138,7 @@ python3 scripts/verify_hw_open_items.py fire 9-cutter-abort
 Pass: `EV:CUT:ERROR:ABORTED`, blade physically back at the block, no
 `CUT_TIMEOUT` follow-up, next `CU` works normally.
 
-### B2 · Bare `BL:T` is passive; argumented `BL:T` breaks and follows (old #10, re-run)
+### [ ] B2 · Bare `BL:T` is passive; argumented `BL:T` breaks and follows (old #10, re-run)
 Owner: Phase 12 · `12-SPEC.md` bullet marked **NOT YET CONFIRMED** — the
 2026-09-12 attempt hit a script timing bug, fixed in `b28b40f`; this is the
 re-run.
@@ -158,7 +160,7 @@ supposed to prevent that; if it still happens, record the `BP` at arm time.
 
 Filament loaded. No queued print job — just the Klipper console.
 
-### C1 · Genuine runout escalates to RELOAD without a race stall (old #6)
+### [ ] C1 · Genuine runout escalates to RELOAD without a race stall (old #6)
 Owner: Phase 1 §3 · `01-01-PLAN.md` "Verify genuine complete runout…"
 
 1. Load a short remnant (~30 cm) on the active lane; the other lane full.
@@ -167,7 +169,7 @@ Owner: Phase 1 §3 · `01-01-PLAN.md` "Verify genuine complete runout…"
 3. Pass (monitor classifies): clean `EV:RUNOUT` → `RELOAD:SWITCHING` →
    `EV:RELOAD:LOADED`, no stall between them, no `FOLLOW_JAM`.
 
-### C2 · Type-P RELOAD set — four cases (Phase 1 §2, H4 fix `audit-reliability-fixes`)
+### [ ] C2 · Type-P RELOAD set — four cases (Phase 1 §2, H4 fix `audit-reliability-fixes`)
 Owner: Phase 1 §2 · `01-01-PLAN.md` all four unchecked boxes. Background:
 `.planning/backlog/audit-reliability-fixes/` H4 — the fix is consumer-aware
 staged-compression completion + `RL:` state-aware resume; build-green,
@@ -177,12 +179,12 @@ All four use the same setup as C1 (remnant on active lane, full standby).
 Watch `BP`, `TC`, and `RELOAD:*` events; the ambiguity these tests resolve is
 "did it complete on compression contact vs. wait for a tension grab".
 
-| # | Case | Steps | Pass |
-|---|---|---|---|
-| C2a | Runout → auto RELOAD with **consumer active** | As C1, but keep extruding (`G1 E200 F300`) through the reload | Contact seen on compression side, then success on the extruder's grab; `RELOAD:LOADED`, no `FOLLOW_JAM` |
-| C2b | No false `RELOAD:LOADED` without motion | Fresh state, both lanes loaded, extruder **idle**. `python3 scripts/flare_cmd.py RL:` | `RL:` is a no-op that re-emits `RELOAD:LOADED` with **no motor motion** (toolhead already confirms filament). Any motion or `RELOAD:JOINING` = FAIL |
-| C2c | Paused / no-consumer `RL:` completes on staged compression | After a real runout (C1), do **not** extrude; `RL:` with extruder idle | Follow completes with filament parked at the extruder mouth (staged compression), `RELOAD:LOADED`, **no `FOLLOW_JAM`**, no wait for a tension grab that can't come |
-| C2d | `RL:` re-issued right after a completed reload, consumer active | Complete C2a, keep extruding, immediately `RL:` again | `RELOAD:LOADED` re-emitted, zero motion, no `FOLLOW_JAM` |
+| | # | Case | Steps | Pass |
+|---|---|---|---|---|
+| [ ] | C2a | Runout → auto RELOAD with **consumer active** | As C1, but keep extruding (`G1 E200 F300`) through the reload | Contact seen on compression side, then success on the extruder's grab; `RELOAD:LOADED`, no `FOLLOW_JAM` |
+| [ ] | C2b | No false `RELOAD:LOADED` without motion | Fresh state, both lanes loaded, extruder **idle**. `python3 scripts/flare_cmd.py RL:` | `RL:` is a no-op that re-emits `RELOAD:LOADED` with **no motor motion** (toolhead already confirms filament). Any motion or `RELOAD:JOINING` = FAIL |
+| [ ] | C2c | Paused / no-consumer `RL:` completes on staged compression | After a real runout (C1), do **not** extrude; `RL:` with extruder idle | Follow completes with filament parked at the extruder mouth (staged compression), `RELOAD:LOADED`, **no `FOLLOW_JAM`**, no wait for a tension grab that can't come |
+| [ ] | C2d | `RL:` re-issued right after a completed reload, consumer active | Complete C2a, keep extruding, immediately `RL:` again | `RELOAD:LOADED` re-emitted, zero motion, no `FOLLOW_JAM` |
 
 ---
 
@@ -216,7 +218,7 @@ python3 scripts/flare_cmd.py "GET:SYNC_TENSION_BOOST_ON"     # -0.50
 python3 scripts/flare_cmd.py "GET:SYNC_TENSION_BOOST_OFF"    # -0.30
 ```
 
-### D1 · Boost engages at the ON threshold, releases at OFF (R1, R2)
+### [ ] D1 · Boost engages at the ON threshold, releases at OFF (R1, R2)
 1. Klipper connected, sync active (a slow continuous `G1 E…` at a rate the
    MMU can't quite keep up with pulls the buffer toward tension; or use the
    Phase 13 print in Group F and watch there).
@@ -226,7 +228,7 @@ python3 scripts/flare_cmd.py "GET:SYNC_TENSION_BOOST_OFF"    # -0.30
    and `TB:0` only once `BP ≥ −0.30` (hysteresis — a bounce between −0.50 and
    −0.30 must not toggle it).
 
-### D2 · Boost is unconditionally released on every exit path (R3)
+### [ ] D2 · Boost is unconditionally released on every exit path (R3)
 For each exit, get boost engaged (D1) then trigger the exit; expect
 `TMC:NORMAL` + `TB:0` immediately:
 - sync ends normally (stop extruding, wait for `SYNC:AUTO_STOP`)
@@ -236,14 +238,14 @@ For each exit, get boost engaged (D1) then trigger the exit; expect
 - `TC:` toolchange away from the boosted lane
 Pass: 4/4 release. A `TB:1` surviving any of these is a FAIL.
 
-### D3 · Heartbeat re-apply restores the *current* value, not a stale one (R6)
+### [ ] D3 · Heartbeat re-apply restores the *current* value, not a stale one (R6)
 With boost engaged (`TB:1`), do the A3 unplug/replug on the **active** lane's
 TMC. On `EV:TMC:RESTORED:1`, the re-applied IRUN must be the boosted 1000,
 not the base 800 (readback goes through `g_shadow_ihold_irun[]`). Then
 release boost and repeat: re-apply must now give 800.
 Pass: readback matches the shadow state both times.
 
-### D4 · Thermal margin under sustained boost (R1, R4) — **gates default-on**
+### [ ] D4 · Thermal margin under sustained boost (R1, R4) — **gates default-on**
 1. Boost engaged and *held* for **10 min** (a print stretch that keeps the
    buffer in tension, or the D1 bench pull).
 2. Probe the gear-motor case temperature at the end (IR thermometer or
@@ -273,7 +275,7 @@ sudo systemctl restart klipper           # picks up the new mmu.py
 journalctl -u flare_daemon.service -f    # leave open; any lane_data sync error prints here
 ```
 
-### E1 · `lane_data` namespace is populated (REQ-moonraker-lane-data-push)
+### [ ] E1 · `lane_data` namespace is populated (REQ-moonraker-lane-data-push)
 ```bash
 curl -s "http://192.168.8.144:7125/server/database/item?namespace=lane_data" | python3 -m json.tool
 ```
@@ -282,14 +284,14 @@ bed_temp, nozzle_temp, scan_time, td, lane, spool_id, filament_id`. Gates
 with a Spoolman spool show vendor/temps; gates without fall back to the gate
 map (`vendor_name: ""`, temps 0).
 
-### E2 · Sync is event-driven and non-blocking (REQ-…-sync-lifecycle)
+### [ ] E2 · Sync is event-driven and non-blocking (REQ-…-sync-lifecycle)
 1. In the WebUI change gate 0's color (or `POST /gatemap`).
 2. Re-run the E1 curl within ~1 s.
 Pass: `lane0.color` updated; daemon `/status` kept answering during the
 write (no multi-second stall). In the journal, **exactly one** sync per
 edit — a second sync ~immediately after is the re-entrancy bug returning.
 
-### E3 · Orphan cleanup (REQ-…-cleanup)
+### [ ] E3 · Orphan cleanup (REQ-…-cleanup)
 Manually plant a stale key, then trigger any sync:
 ```bash
 curl -s -X POST http://192.168.8.144:7125/server/database/item \
@@ -298,12 +300,12 @@ curl -s -X POST http://192.168.8.144:7125/server/database/item \
 ```
 Pass: `lane7` gone from the namespace after the next sync.
 
-### E4 · OrcaSlicer discovers the lanes (the point of E1)
+### [ ] E4 · OrcaSlicer discovers the lanes (the point of E1)
 In OrcaSlicer → device → sync filaments from printer. Pass: both lanes
 appear with the names/colors/temps from E1. This is the only step that
 needs the slicer; do it last.
 
-### E5 · Maintenance counters, thresholds, PAUSE (REQ-maintenance-*)
+### [ ] E5 · Maintenance counters, thresholds, PAUSE (REQ-maintenance-*)
 1. `GET /maintenance` on the daemon (`:8088/maintenance`) → counters
    `cutter_cuts`, `swaps`, `reload_failovers` present.
 2. Do one `CU` and one `TC:` on the rig → `cutter_cuts` and `swaps` each +1;
@@ -314,7 +316,7 @@ needs the slicer; do it last.
    `MMU_STATS COUNTER=cutter_cuts RESET=1` → count 0, `last_reset` set.
 4. Bare `MMU_STATS` / `SHOWCOUNTS=1` lists the counters.
 
-### E6 · WebUI Maintenance card
+### [ ] E6 · WebUI Maintenance card
 Open the WebUI. Pass: card shows each counter, count-vs-limit bar, a warning
 indicator once over limit (use the E5 state), and Reset per counter works.
 
@@ -322,6 +324,7 @@ indicator once over limit (use the E5 state), and Reset per counter works.
 
 ## Group F — Real print (Phase 13 A/B, with Group D riding along)
 
+### [ ] F1 · Phase 13 A/B print passes the four-item bar (D-31)
 Owner: Phase 13 · `13-HW-VALIDATION.md` (the full sheet — pre-flight, capture,
 pass bar, results table all live there; **this section only tells you where
 it fits in the session**). Also closes the `typep-feed-hunting-open` decision.
