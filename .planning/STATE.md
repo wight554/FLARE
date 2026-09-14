@@ -1,16 +1,16 @@
 ---
 gsd_state_version: "1.0"
-status: complete
-stopped_at: Phase 16 context gathered
-last_updated: "2026-09-13T20:51:59.780Z"
-state_head: 6008fcbb8573ad5f4e7f3dbcdf9e4e5d7ff51993
+status: in_progress
+stopped_at: Phase 16 planned (2 plans verified)
+last_updated: "2026-09-14T08:08:00.000Z"
+state_head: b20e69b
 progress:
   total_phases: 16
   completed_phases: 0
-  total_plans: 22
+  total_plans: 24
   completed_plans: 7
   percent: 0
-current_phase_name: Daemon Moonraker Lane Data & Maintenance Counters
+current_phase_name: TMC Tension Current Boost
 ---
 
 # Project State: FLARE
@@ -20,14 +20,14 @@ current_phase_name: Daemon Moonraker Lane Data & Maintenance Counters
 See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 15 complete; awaiting Phase 13 HW validation or Phase 16 planning
+**Current focus:** Phase 16 ready for execution; awaiting Phase 13 HW validation or Phase 16-01 execution
 
 ## Current Position
 
-- **Phase**: 15 - Daemon Moonraker Lane Data & Maintenance Counters (`.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/`)
-- **Active Feature in Progress**: Complete (2/2 plans) — 15-01 (Moonraker lane_data DB sync + Spoolman enrichment) and 15-02 (maintenance counters, MMU_STATS command parity, WebUI dashboard card, unit tests). Phase 13 HW validation pending on physical test rig.
-- **Status**: Complete (2/2 plans complete)
-- **Progress**: [====================] 100% complete (2/2 plans)
+- **Phase**: 16 - TMC Tension Current Boost (`.planning/phases/16-tmc-tension-current-boost/`)
+- **Active Feature in Progress**: Ready for execution (0/2 plans) — 16-01 (Firmware boost actuation & host unit test suite) and 16-02 (Telemetry status token, config parity, sim plant scenario, doc sync). Phase 13 HW validation pending on physical test rig.
+- **Status**: Planned (2 plans verified)
+- **Progress**: [                    ] 0% complete (0/2 plans)
 
 ## Accumulated Context
 
@@ -76,9 +76,9 @@ See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 ## Session
 
-**Last session:** 2026-09-13T20:51:59.680Z
-**Stopped at:** Phase 16 context gathered
-**Resume file:** .planning/phases/16-tmc-tension-current-boost/16-CONTEXT.md
+**Last session:** 2026-09-14T08:08:00.000Z
+**Stopped at:** Phase 16 planned (2 plans verified)
+**Resume file:** .planning/phases/16-tmc-tension-current-boost/16-01-PLAN.md
 
 ## Performance Metrics
 

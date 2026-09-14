@@ -281,7 +281,10 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
   2. Boost writes go through `g_shadow_ihold_irun[]` so heartbeat re-apply restores the current (boosted or base) value, never a stale one
   3. Knobs in config.ini / SET / GET / `--dump` / MANUAL.md; `flare_sim` asserts restore on every exit path; `HW:` thermal check on rig before default-on
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+  - **Wave 1**: 16-01-PLAN.md — Firmware boost actuation, edge detection, hysteresis release, and host unit test suite
+  - **Wave 2** *(blocked on Wave 1)*: 16-02-PLAN.md — Telemetry status token, config parity, daemon/CLI integration, sim plant scenario, and doc sync
 
 ## Progress
 
@@ -302,4 +305,4 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 13. Type-P Sync Relief & Fault Trip | 3/4 | In Progress|  |
 | 14. Klipper MMU Status Parity | 2/2 | Complete | 2026-09-12 |
 | 15. Daemon Moonraker Lane Data & Maintenance Counters | 2/2 | Complete | 2026-09-13 |
-| 16. TMC Tension Current Boost | 0/? | Not planned | - |
+| 16. TMC Tension Current Boost | 0/2 | Planned | - |
