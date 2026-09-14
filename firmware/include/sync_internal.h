@@ -48,11 +48,26 @@
 /// before the rail does instead of after.
 #define SYNC_RELIEF_FILTER_DIV 4.0f
 /// @brief How many BL_BREAK_DELTA_NORM above the recorded tension extreme the
-/// buffer must be observed before the extreme re-seeds (REVIEW-07). Deliberately
-/// greater than 1.0 so the relaxation threshold sits strictly above 13-03's
-/// probe CONSUMER threshold -- the extreme can never relax without the probe
-/// already having grounds to call CONSUMER, so the two rules cannot disagree.
+/// buffer must be observed before the extreme is FORGOTTEN (REVIEW-07; rig
+/// 2026-09-14 changed this from re-seed-to-current-reading to invalidate, so a
+/// compression-side reading can never become "the tension rail"). Greater than
+/// 1.0 keeps the relaxation threshold strictly above the probe's movement band
+/// below, so the extreme cannot relax without the probe already having grounds
+/// to call CONSUMER.
 #define SYNC_EXTREME_RELAX_MULT 2.0f
+/// @brief Type-P feed probe verdict band (rig 2026-09-14): NO_CONSUMER only if
+/// the buffer's total movement (window max - window min, either direction)
+/// across one probe distance of feed stays inside this band -- pinned, as a jam
+/// or an empty spool leaves it. Anything that moves is being consumed; a
+/// FALLING buffer (consumer out-pulling a relief feed the estimator has not
+/// caught up with, the purge-from-idle case) is the strongest consumer evidence
+/// there is and must never read as "nothing moved". Sensor-noise scale, NOT
+/// relief-margin scale: reuses BL_FOLLOW_GATE_MARGIN_NORM, the hardware-validated
+/// "still at the deepest rail reading" tolerance the BL follow gate already
+/// trusts. A wider band (SOFT_WALL_MARGIN_NORM was tried) mis-reads a plainly
+/// descending 64 mm buffer as pinned, because the same physical travel is a
+/// smaller normalized fraction of a bigger buffer.
+#define SYNC_PROBE_PINNED_BAND_NORM BL_FOLLOW_GATE_MARGIN_NORM
 /// @brief Type-P feed probe (Phase 13 Plan 03, D-15/D-16/D-29): geometry alias
 /// over the RUNTIME buffer travel (g_buf_max_travel_mm), implementing D-29's
 /// PROBE_MM. Deliberately derived from buffer geometry rather than being a
@@ -259,6 +274,16 @@ int sync_apply_scaling(int base_sps, float target_norm, float pos_norm);
 void history_push(buf_state_t zone, uint32_t dwell_ms);
 bool predict_tension_coming(void);
 float psf_goal_norm(void);
+/// @brief Type-P zone deadband around the goal (sync_buf.c buf_state_raw):
+/// BUF_TENSION is pos < goal - deadband, BUF_COMPRESSION is pos > goal + deadband.
+#define PSF_ZONE_DEADBAND_NORM 0.1f
+/// @brief Lower edge of the type-P NEUTRAL band -- the position at which the
+/// debounced state crosses into BUF_TENSION. Goal-relative like the zones
+/// themselves; the reference the feed probe's and mm trip's "genuinely
+/// starved" gate measures from (rig 2026-09-14).
+static inline float psf_tension_zone_edge_norm(void) {
+    return psf_goal_norm() - PSF_ZONE_DEADBAND_NORM;
+}
 float buf_pos_norm(void);
 float buf_target_norm(void);
 buf_state_t buf_read_stable(uint32_t now_ms);

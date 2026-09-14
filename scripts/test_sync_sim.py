@@ -1220,6 +1220,32 @@ class TypePReliefBoundTests(unittest.TestCase):
                          "sync fault-held during a purge with a real consumer present")
         self.assertIn("RELIEF_ON", text, "relief never engaged at all -- scenario shape broke")
 
+    def test_purge_from_idle_is_never_held(self):
+        # Rig 2026-09-14, second layer (after the relaxation fix): a purge
+        # from an idle, compression-side rest. The estimator-bounded relief
+        # feed lags the extruder, the buffer FALLS through the whole probe
+        # window, and the old rise-off-the-extreme verdict read that as
+        # NO_CONSUMER -> FAULT_HOLD under a live purge -- twice, on two
+        # firmware builds. Then, with the probe corrected, the 32 mm trip
+        # fired on the same purge while the buffer was climbing back through
+        # +1 mm. Neither may hold a buffer that is being consumed: the probe
+        # opens only when genuinely starved and reads movement (either
+        # direction) as CONSUMER; the trip counts feed only while pinned or
+        # still falling. Consumer present throughout; sync must simply run.
+        run = run_scenario("sem_psf_probe_purge_from_idle", sensor_type="p", ticks=500)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        text = run.events_text()
+        for forbidden in ("PROBE:NO_CONSUMER", "FAULT_HOLD", "TENSION_STOP:MM", "TENSION_STOP:MS"):
+            self.assertNotIn(forbidden, text, f"{forbidden} fired during a purge with a real consumer")
+        resume = [r for r in run.rows if int(r["ts_ms"]) >= 6000]
+        self.assertTrue(resume, "scenario shape broke: no rows after the resume")
+        self.assertTrue(all(r["sync_state"] == "ACTIVE" for r in resume),
+                        "sync left ACTIVE during the purge")
+        # And the gate really is closed while regulating: no probe activity
+        # at all during the 3 s of ordinary 10 mm/s sync before the pause.
+        early = [r for r in run.rows if int(r["ts_ms"]) < 3000 and "PROBE" in r["events"]]
+        self.assertEqual(early, [], "probe ran on a regulated below-goal buffer")
+
 
 @unittest.skipIf(_skip_reason(), _skip_reason())
 class TensionStopMmTripTests(unittest.TestCase):

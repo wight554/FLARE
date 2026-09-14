@@ -186,6 +186,35 @@ static bool g_sync_probe_decided = false;
    previous episode reads as motion that never happened in this one and
    manufactures the mirror-image false CONSUMER. */
 static float g_sync_probe_peak_pos = 0.0f;
+/* Rig 2026-09-14 (two swap-and-purge traces, see sem_psf_probe_* scenarios):
+   the window MINIMUM and the shared accumulator's value when the window
+   opened.
+
+   The probe's premise (D-15) is a buffer PINNED at the tension rail with
+   the lane still reporting filament. BUF_TENSION is not that -- with
+   CONF_BUF_GOAL on the compression side it just means "below goal", the
+   normal operating band a regulated loop lives in -- so gated on the state
+   alone the probe ran every second of ordinary sync, and its verdict was
+   whatever g_sync_tension_extreme's history happened to be. Two gates fix
+   the premise, goal-relative like the zones themselves, no absolute literal
+   (the 51bdca8 caveat): the buffer must sit at least SOFT_WALL_MARGIN_NORM
+   below the tension-zone edge (psf_tension_zone_edge_norm), i.e. genuinely
+   pulled down rather than regulating inside the deadband, and the
+   accumulator is measured from window open, not zone entry, so a window
+   that opens after a long descent cannot decide on its very next tick with
+   nothing observed. Reset alongside the peak everywhere. */
+static float g_sync_probe_min_pos = 0.0f;
+static float g_sync_probe_effort_base_mm = 0.0f;
+/* Deepest reading since the mm trip's accumulator last reset: the trip counts
+   feed only while the buffer is pinned or still falling. Once it has risen
+   more than SYNC_PROBE_PINNED_BAND_NORM off that reading it is being refilled
+   faster than it is consumed -- recovering, not starving -- and the feed that
+   got it there must not count toward a starvation trip (sim
+   sem_psf_probe_purge_from_idle: a 30 mm/s purge climbing out of a -8 mm dive
+   tripped at +1 mm). A jam or an over-capacity consumer never rises off the
+   rail by more than noise, so a real starvation still accrues exactly as
+   before. */
+static float g_sync_trip_min_pos = 0.0f;
 
 bool g_boot_stabilizing = false;
 uint32_t g_boot_stabilize_deadline_ms = 0;
@@ -1247,6 +1276,7 @@ void sync_disable(bool reset_estimator) {
     g_sync_probe_state = SYNC_PROBE_NONE;
     g_sync_probe_decided = false;
     g_sync_probe_peak_pos = g_buf_pos;
+    g_sync_probe_min_pos = g_buf_pos;
     type_d_neutral_feed_reset();
 
     if (reset_estimator) {
@@ -1271,6 +1301,7 @@ void sync_rearm_active(lane_t *lane, uint32_t now_ms) {
     g_sync_probe_state = SYNC_PROBE_NONE;
     g_sync_probe_decided = false;
     g_sync_probe_peak_pos = g_buf_pos;
+    g_sync_probe_min_pos = g_buf_pos;
     sync_set_state(SYNC_ACTIVE);
     g_sync_auto_started = true;
     g_sync_tail_assist_active = lane && !lane_in_present(lane) && lane_out_present(lane);
@@ -1395,7 +1426,6 @@ void sync_on_transition(buf_state_t prev, buf_state_t now_state, uint32_t now_ms
     if (sync_enabled) {
         g_sync_trip_armed = true;
     }
-
     if (prev == BUF_TENSION && now_state == BUF_COMPRESSION) {
         g_sync_fast_brake_until_ms = now_ms + SYNC_FAST_BRAKE_MS;
     }
@@ -1481,6 +1511,7 @@ static void sync_trip_track_hold_edge(void) {
             g_sync_probe_state = SYNC_PROBE_NONE;
             g_sync_probe_decided = false;
             g_sync_probe_peak_pos = g_buf_pos;
+            g_sync_probe_min_pos = g_buf_pos;
         }
     }
     g_sync_prev_hold_active = hold_now;
@@ -1676,6 +1707,7 @@ static bool sync_tick_auto_start_stop(lane_t *lane, uint32_t now_ms, buf_state_t
         g_sync_probe_state = SYNC_PROBE_NONE;
         g_sync_probe_decided = false;
         g_sync_probe_peak_pos = g_buf_pos;
+        g_sync_probe_min_pos = g_buf_pos;
         sync_set_state(SYNC_ACTIVE);
         g_sync_auto_started = true;
         g_sync_tail_assist_active = tail_assist;
@@ -1904,28 +1936,80 @@ static int sync_check_tension_dwell_and_ramp(lane_t *lane, buf_state_t s, int ta
            reached -- the verdict at the threshold-crossing tick must read
            the BEST deflection observed across the whole window (REVIEW-02),
            not the sample at that one tick. */
+        /* Starvation gate (rig 2026-09-14): the window may only open while
+           the buffer sits at least the relief margin below the tension-zone
+           edge -- genuinely pulled down, not regulating inside the deadband
+           of goal. Without it the probe ran on every below-goal buffer (see
+           g_sync_probe_min_pos above). Goal-relative, never a position
+           literal (the 51bdca8 caveat), and independent of
+           g_sync_tension_extreme and its relaxation timing. Snapshot the
+           trip-deferral flag BEFORE this block so the tick a verdict lands
+           on never also fires the mm trip (D-16: probe precedes trip). */
+        bool probe_pending = g_sync_probe_state == SYNC_PROBE_RUNNING && !g_sync_probe_decided;
+        bool descended_from_entry =
+            g_buf_pos <= psf_tension_zone_edge_norm() - SOFT_WALL_MARGIN_NORM;
+        /* The mm trip (D-07) shares this premise: "fed X mm while STARVED",
+           not "while below goal". A buffer that has climbed back to within
+           the margin of the zone edge is regulating, not starving, and the
+           feed it took to get there is not starvation effort -- a purge from
+           idle recovered to +1 mm and still tripped at 32 mm (sim
+           sem_psf_probe_purge_from_idle). Zero the shared accumulator while
+           not descended so only feed spent genuinely below the edge counts;
+           a pinned buffer never climbs back, so a real jam still accrues to
+           the trip exactly as before. */
+        if (!descended_from_entry) {
+            g_sync_refill_effort_mm = 0.0f;
+            g_sync_trip_min_pos = g_buf_pos;
+            /* A window opened during a dip that has since recovered has
+               nothing left to decide; close it so it neither lingers as
+               "pending" (which defers the mm trip) nor carries a stale
+               min/peak into the next dip. */
+            if (g_sync_probe_state == SYNC_PROBE_RUNNING && !g_sync_probe_decided) {
+                g_sync_probe_state = SYNC_PROBE_NONE;
+                g_sync_probe_peak_pos = g_buf_pos;
+                g_sync_probe_min_pos = g_buf_pos;
+            }
+        }
+        if (g_buf_pos < g_sync_trip_min_pos)
+            g_sync_trip_min_pos = g_buf_pos;
+        if (g_buf_pos >= g_sync_trip_min_pos + SYNC_PROBE_PINNED_BAND_NORM) {
+            g_sync_refill_effort_mm = 0.0f;
+            g_sync_trip_min_pos = g_buf_pos;
+        }
         if (g_buf_sensor_type != BUF_SENSOR_TYPE_D && g_sync_trip_armed &&
-            !sync_type_p_hold_in_progress() && lane_in_present(lane)) {
+            !sync_type_p_hold_in_progress() && lane_in_present(lane) &&
+            (g_sync_probe_state == SYNC_PROBE_RUNNING || descended_from_entry)) {
             if (g_sync_probe_state == SYNC_PROBE_NONE) {
                 g_sync_probe_state = SYNC_PROBE_RUNNING;
                 g_sync_probe_peak_pos = g_buf_pos;
+                g_sync_probe_min_pos = g_buf_pos;
+                g_sync_probe_effort_base_mm = g_sync_refill_effort_mm;
             }
             if (g_sync_probe_state == SYNC_PROBE_RUNNING) {
                 g_sync_probe_peak_pos = fmaxf(g_sync_probe_peak_pos, g_buf_pos);
+                g_sync_probe_min_pos = fminf(g_sync_probe_min_pos, g_buf_pos);
+                /* The shared accumulator resets on every buffer-state
+                   transition (sync_buf.c); if it has wrapped below our
+                   base, measure from zero again rather than never deciding. */
+                if (g_sync_refill_effort_mm < g_sync_probe_effort_base_mm)
+                    g_sync_probe_effort_base_mm = 0.0f;
                 if (!g_sync_probe_decided &&
-                    g_sync_refill_effort_mm >= sync_type_p_probe_mm()) {
+                    g_sync_refill_effort_mm - g_sync_probe_effort_base_mm >=
+                        sync_type_p_probe_mm()) {
                     g_sync_probe_decided = true;
-                    /* CONSUMER: the best deflection observed this window
-                       moved at least BL_BREAK_DELTA_NORM back off the
-                       tracked tension extreme (D-23 -- the one
-                       hardware-validated "moved off a rail" delta, reused
-                       verbatim, no new magic number). NO_CONSUMER
-                       otherwise, including when the extreme was never
-                       tracked valid (no baseline to compare against yet --
-                       treat as "never observed to move"). */
-                    bool moved_off_rail = g_sync_tension_extreme_valid &&
-                        (g_sync_probe_peak_pos >=
-                         g_sync_tension_extreme + BL_BREAK_DELTA_NORM);
+                    /* Verdict = window MOVEMENT in either direction. A jam or
+                       an empty spool leaves the buffer pinned inside
+                       SYNC_PROBE_PINNED_BAND_NORM for the whole window no
+                       matter what is fed; anything that moves is being
+                       consumed. In particular a FALLING buffer -- the
+                       consumer out-pulling a relief feed the estimator has
+                       not caught up with yet, which is what a purge from
+                       idle looks like -- is the strongest consumer evidence
+                       there is, and the old "rose off the extreme" test read
+                       it as the opposite (rig 2026-09-14, twice). */
+                    bool moved_off_rail =
+                        (g_sync_probe_peak_pos - g_sync_probe_min_pos) >=
+                        SYNC_PROBE_PINNED_BAND_NORM;
                     if (moved_off_rail) {
                         g_sync_probe_state = SYNC_PROBE_CONSUMER;
                         cmd_event("SYNC", "PROBE:CONSUMER");
@@ -1946,8 +2030,16 @@ static int sync_check_tension_dwell_and_ramp(lane_t *lane, buf_state_t s, int ta
             }
         }
 
+        /* D-16's ordering ("the probe evaluates before the trip") used to be
+           structural because both read the same accumulator from zone entry
+           and the probe's threshold was the smaller. Now that the probe
+           measures its distance from window OPEN (which can be well after
+           zone entry -- the pinned gate), the trip defers while a window is
+           open and undecided. Bounded: the probe decides within one probe
+           distance (< 16 mm, ~1 s) of opening; the ms fallback and the rail
+           guard are unaffected. */
         if (g_buf_sensor_type != BUF_SENSOR_TYPE_D && g_sync_trip_armed &&
-            !sync_type_p_hold_in_progress() && lane_in_present(lane) &&
+            !sync_type_p_hold_in_progress() && lane_in_present(lane) && !probe_pending &&
             g_sync_tension_stop_mm > 0.0f && g_sync_refill_effort_mm >= g_sync_tension_stop_mm) {
             cmd_event("SYNC", "TENSION_STOP:MM");
             return sync_tension_trip_fire(lane, now_ms);
@@ -2613,6 +2705,7 @@ void sync_type_p_probe_force_start(void) {
     g_sync_probe_state = SYNC_PROBE_RUNNING;
     g_sync_probe_decided = false;
     g_sync_probe_peak_pos = g_buf_pos;
+    g_sync_probe_min_pos = g_buf_pos;
 }
 
 uint32_t sync_est_age_ms(uint32_t now_ms) {

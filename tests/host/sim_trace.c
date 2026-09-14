@@ -37,6 +37,7 @@ static sync_state_t s_prev_state = SYNC_OFF;
 static uint32_t s_state_entered_ms = 0;
 static int s_state_entry_count[5] = {0};
 static uint32_t s_saturation_since_ms = 0;
+static sync_state_t s_saturation_state = SYNC_OFF;
 static bool s_first_tick = true;
 static char s_diag[256];
 
@@ -128,9 +129,19 @@ const char *sim_trace_tick(uint32_t t_ms, const sim_plant_t *plant, int active_l
     }
 
     // ---- Invariant 6: saturation bound ----
+    // "The controller must not leave the plant pinned at a rail for 20 s
+    // without reacting." A sync-state change IS the reaction: a demand
+    // beyond hardware capacity legitimately loops FAULT_HOLD -> recovery ->
+    // relief -> FAULT_HOLD at the rail forever (the rail-scale twins), and
+    // that loop only ever cleared this bound by luck -- a false probe
+    // CONSUMER fed 16 mm more and nudged the plant off the rail by 1.4 um.
+    // Count continuous saturation within one sync state, so a controller
+    // sitting in ACTIVE with the plant pinned is still caught.
     if (plant->sat_compression || plant->sat_tension) {
-        if (s_saturation_since_ms == 0)
+        if (s_saturation_since_ms == 0 || g_sync_state != s_saturation_state) {
             s_saturation_since_ms = t_ms;
+            s_saturation_state = g_sync_state;
+        }
         if ((t_ms - s_saturation_since_ms) > SIM_MAX_SATURATION_MS) {
             snprintf(s_diag, sizeof(s_diag),
                      "invariant 6 (saturation bound) violated at t=%u: saturated since t=%u", t_ms,

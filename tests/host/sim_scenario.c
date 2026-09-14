@@ -1169,6 +1169,26 @@ const sim_scenario_t g_sim_scenarios[] = {
                                "relaxation threshold, then ~5s of the consumer pulling the "
                                "buffer back down through the tension zone",
     },
+    // Rig 2026-09-14, second layer of the same swap-and-purge failure (after
+    // the relaxation fix above): the post-load purge started sync from an
+    // idle, compression-side rest. The estimator-bounded relief feed lagged
+    // the extruder, the buffer FELL through the whole probe window, and the
+    // old rise-off-the-extreme verdict read that as NO_CONSUMER -> FAULT_HOLD
+    // under a live purge. Shape: regulated 10 mm/s, a 3 s pause (buffer
+    // fills toward compression, estimator decays), then a 30 mm/s resume --
+    // the purge. Consumer present throughout; the probe must open only once
+    // the buffer is genuinely below the tension-zone edge, must read the
+    // descent as CONSUMER, and neither the probe nor the mm trip may hold.
+    {
+        .name = "sem_psf_probe_purge_from_idle",
+        .demand = {.kind = DEMAND_PAUSE_RESUME, .level_mm_s = 10.0f, .level2_mm_s = 30.0f,
+                   .t1_ms = 3000, .t2_ms = 6000},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+        .tick_ceiling = 500,
+        .tick_ceiling_reason = "3s regulated, 3s paused, then 4s of the 30 mm/s resume -- the "
+                               "dive, the probe window and the recovery all land inside 6-8s",
+    },
 };
 // clang-format on
 

@@ -484,7 +484,7 @@ float buf_target_norm(void) {
 buf_state_t buf_state_raw(void) {
     if (g_buf_sensor_type == BUF_SENSOR_TYPE_P) {
         float goal_norm = psf_goal_norm();
-        const float deadband = 0.1f;
+        const float deadband = PSF_ZONE_DEADBAND_NORM;
         if (g_buf_pos < goal_norm - deadband)
             return BUF_TENSION;
         if (g_buf_pos > goal_norm + deadband)
