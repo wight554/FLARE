@@ -100,3 +100,10 @@ void sync_type_p_probe_force_start(void);
    (protocol.c) reads this to refuse with ER:HOLD_ACTIVE rather than force-
    start a probe window mid-hold. */
 bool sync_type_p_hold_active(void);
+
+/* Phase 16 Plan 01 (D-01/D-02/D-03/D-04/D-05): TMC tension current boost. */
+void sync_check_tension_boost(uint32_t now_ms);
+bool sync_is_tension_boost_active(int lane_num);
+int sync_get_active_run_current_ma(int lane_num);
+void sync_tension_boost_reset_lane(int lane_num);
+void sync_tension_boost_reset_all(void);

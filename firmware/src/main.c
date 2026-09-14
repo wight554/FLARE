@@ -267,6 +267,23 @@ uint32_t g_shadow_ihold_irun[NUM_LANES] = {0, 0};
 bool g_shadow_ihold_irun_valid[NUM_LANES] = {false, false};
 bool g_shadow_vsense[NUM_LANES] = {true, true};
 
+#ifndef CONF_SYNC_TENSION_BOOST_ON
+#define CONF_SYNC_TENSION_BOOST_ON (-0.50f)
+#endif
+#ifndef CONF_SYNC_TENSION_BOOST_OFF
+#define CONF_SYNC_TENSION_BOOST_OFF (-0.30f)
+#endif
+#ifndef CONF_L1_SYNC_TENSION_BOOST_IRUN
+#define CONF_L1_SYNC_TENSION_BOOST_IRUN 0
+#endif
+#ifndef CONF_L2_SYNC_TENSION_BOOST_IRUN
+#define CONF_L2_SYNC_TENSION_BOOST_IRUN 0
+#endif
+bool g_sync_tension_boost_active[NUM_LANES] = {false, false};
+int g_sync_tension_boost_irun[NUM_LANES] = {CONF_L1_SYNC_TENSION_BOOST_IRUN, CONF_L2_SYNC_TENSION_BOOST_IRUN};
+float g_sync_tension_boost_on = CONF_SYNC_TENSION_BOOST_ON;
+float g_sync_tension_boost_off = CONF_SYNC_TENSION_BOOST_OFF;
+
 // ===================== Helpers =====================
 int clamp_i(int value, int lo, int hi) {
     if (value < lo)

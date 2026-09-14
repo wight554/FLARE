@@ -635,6 +635,29 @@ void lane_tick(lane_t *lane, uint32_t now_ms) {
 void stop_all(void) {
     lane_stop(&g_lane_l1);
     lane_stop(&g_lane_l2);
+    sync_tension_boost_reset_all();
+}
+
+enum {
+    TMC_HEARTBEAT_PERIOD_MS = 1000,
+    TMC_RECOVERY_RETRIES = 3,
+    TMC_RECOVERY_BACKOFF_MS = 50,
+    TMC_FAULT_MSG_MAX = 32,
+    TMC_VSENSE_THRESHOLD_MA = 980,
+};
+
+void tmc_apply_active_run_current(int lane_num, int current_ma) {
+    if (lane_num < 1 || lane_num > NUM_LANES)
+        return;
+    int idx = lane_to_idx(lane_num);
+    lane_t *lane = lane_ptr(lane_num);
+    if (!lane || !lane->tmc)
+        return;
+    int clamped_ma = clamp_i(current_ma, 0, 1200);
+    tmc_set_run_current_ma(lane->tmc, clamped_ma, g_tmc_hold_current_ma[idx]);
+    g_shadow_vsense[idx] = (clamped_ma <= TMC_VSENSE_THRESHOLD_MA);
+    g_shadow_ihold_irun[idx] = build_ihold_irun_reg(clamped_ma, g_tmc_hold_current_ma[idx], g_shadow_vsense[idx]);
+    g_shadow_ihold_irun_valid[idx] = true;
 }
 
 void lane_fault(lane_t *lane, fault_t f) {
@@ -644,13 +667,6 @@ void lane_fault(lane_t *lane, fault_t f) {
     lane->target_sps = 0;
     lane->fault = f;
 }
-
-enum {
-    TMC_HEARTBEAT_PERIOD_MS = 1000,
-    TMC_RECOVERY_RETRIES = 3,
-    TMC_RECOVERY_BACKOFF_MS = 50,
-    TMC_FAULT_MSG_MAX = 32,
-};
 
 static uint32_t g_tmc_heartbeat_last_ms = 0;
 static int g_tmc_heartbeat_lane = 1;

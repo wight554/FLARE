@@ -749,6 +749,9 @@ int sync_clamp_max_sps(int requested_sps) {
 void sync_set_state(sync_state_t new_state) {
     if (g_sync_state == new_state)
         return;
+    if (g_sync_state == SYNC_ACTIVE && new_state != SYNC_ACTIVE) {
+        sync_tension_boost_reset_all();
+    }
     if (new_state == SYNC_OFF) {
         for (int i = 0; i < CONF_FLOW_SCHED_CAP; i++) {
             g_flow_sched_live_delta[i] = 0;
@@ -1204,6 +1207,7 @@ void sync_fault_hold(void) {
 }
 
 void sync_disable(bool reset_estimator) {
+    sync_tension_boost_reset_all();
     sync_set_state(SYNC_OFF);
     g_sync_auto_started = false;
     g_sync_tail_assist_active = false;
@@ -2487,6 +2491,8 @@ void sync_tick(uint32_t now_ms) {
     if (sync_tick_auto_start_stop(lane, now_ms, s))
         return;
 
+    sync_check_tension_boost(now_ms);
+
     if ((now_ms - g_sync_last_tick_ms) < (uint32_t)g_sync_tick_ms)
         return;
 
@@ -2600,3 +2606,69 @@ uint32_t sync_est_age_ms(uint32_t now_ms) {
         return 0;
     return now_ms - g_extruder_est_last_update_ms;
 }
+
+bool sync_is_tension_boost_active(int lane_num) {
+    if (lane_num < 1 || lane_num > NUM_LANES)
+        return false;
+    return g_sync_tension_boost_active[lane_to_idx(lane_num)];
+}
+
+int sync_get_active_run_current_ma(int lane_num) {
+    if (lane_num < 1 || lane_num > NUM_LANES)
+        return 0;
+    int idx = lane_to_idx(lane_num);
+    if (g_sync_tension_boost_active[idx] && g_sync_tension_boost_irun[idx] > g_tmc_run_current_ma[idx]) {
+        return clamp_i(g_sync_tension_boost_irun[idx], 0, 1200);
+    }
+    return g_tmc_run_current_ma[idx];
+}
+
+void sync_tension_boost_reset_lane(int lane_num) {
+    if (lane_num < 1 || lane_num > NUM_LANES)
+        return;
+    int idx = lane_to_idx(lane_num);
+    if (g_sync_tension_boost_active[idx]) {
+        g_sync_tension_boost_active[idx] = false;
+        tmc_apply_active_run_current(lane_num, g_tmc_run_current_ma[idx]);
+        char lane_str[16];
+        snprintf(lane_str, sizeof(lane_str), "%d", lane_num);
+        cmd_event("TMC:NORMAL", lane_str);
+    }
+}
+
+void sync_tension_boost_reset_all(void) {
+    for (int l = 1; l <= NUM_LANES; l++) {
+        sync_tension_boost_reset_lane(l);
+    }
+}
+
+void sync_check_tension_boost(uint32_t now_ms) {
+    (void)now_ms;
+    if (g_sync_state != SYNC_ACTIVE || g_buf_sensor_type != BUF_SENSOR_TYPE_P)
+        return;
+    lane_t *lane = lane_ptr(g_active_lane);
+    if (!lane)
+        return;
+    int idx = lane_to_idx(g_active_lane);
+    int boost_ma = g_sync_tension_boost_irun[idx];
+    if (boost_ma <= 0 || boost_ma <= g_tmc_run_current_ma[idx]) {
+        if (g_sync_tension_boost_active[idx])
+            sync_tension_boost_reset_lane(g_active_lane);
+        return;
+    }
+
+    if (!g_sync_tension_boost_active[idx] && g_buf_pos <= g_sync_tension_boost_on) {
+        g_sync_tension_boost_active[idx] = true;
+        tmc_apply_active_run_current(g_active_lane, boost_ma);
+        char lane_str[16];
+        snprintf(lane_str, sizeof(lane_str), "%d", g_active_lane);
+        cmd_event("TMC:BOOST", lane_str);
+    } else if (g_sync_tension_boost_active[idx] && g_buf_pos >= g_sync_tension_boost_off) {
+        g_sync_tension_boost_active[idx] = false;
+        tmc_apply_active_run_current(g_active_lane, g_tmc_run_current_ma[idx]);
+        char lane_str[16];
+        snprintf(lane_str, sizeof(lane_str), "%d", g_active_lane);
+        cmd_event("TMC:NORMAL", lane_str);
+    }
+}
+

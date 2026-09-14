@@ -33,4 +33,5 @@ void sim_tmc_inject_brownout(int lane);
 void sim_tmc_set_comm_fail(int lane, bool fail);
 int sim_tmc_get_read_count(int lane);
 int sim_tmc_get_write_count(int lane);
+int sim_tmc_get_run_current_ma(int lane);
 void sim_tmc_reset_counts(void);

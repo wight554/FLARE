@@ -320,6 +320,22 @@ extern float g_mm_per_step[NUM_LANES];
 extern uint32_t g_shadow_ihold_irun[NUM_LANES];
 extern bool g_shadow_ihold_irun_valid[NUM_LANES];
 extern bool g_shadow_vsense[NUM_LANES];
+#ifndef CONF_SYNC_TENSION_BOOST_ON
+#define CONF_SYNC_TENSION_BOOST_ON (-0.50f)
+#endif
+#ifndef CONF_SYNC_TENSION_BOOST_OFF
+#define CONF_SYNC_TENSION_BOOST_OFF (-0.30f)
+#endif
+#ifndef CONF_L1_SYNC_TENSION_BOOST_IRUN
+#define CONF_L1_SYNC_TENSION_BOOST_IRUN 0
+#endif
+#ifndef CONF_L2_SYNC_TENSION_BOOST_IRUN
+#define CONF_L2_SYNC_TENSION_BOOST_IRUN 0
+#endif
+extern bool g_sync_tension_boost_active[NUM_LANES];
+extern int g_sync_tension_boost_irun[NUM_LANES];
+extern float g_sync_tension_boost_on;
+extern float g_sync_tension_boost_off;
 extern lane_t g_lane_l1;
 extern lane_t g_lane_l2;
 extern debounced_input_t g_y_split;

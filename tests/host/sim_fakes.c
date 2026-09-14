@@ -235,11 +235,13 @@ static uint32_t s_mock_chopconf[NUM_LANES] = {0, 0};
 static bool s_mock_comm_fail[NUM_LANES] = {false, false};
 static int s_mock_read_count[NUM_LANES] = {0, 0};
 static int s_mock_write_count[NUM_LANES] = {0, 0};
+static int s_mock_run_current_ma[NUM_LANES] = {0, 0};
 
 bool tmc_set_run_current_ma(tmc_t *tmc, int run_ma, int hold_ma) {
-    (void)tmc;
-    (void)run_ma;
     (void)hold_ma;
+    int idx = (tmc == &g_tmc_l2) ? 1 : 0;
+    s_mock_write_count[idx]++;
+    s_mock_run_current_ma[idx] = run_ma;
     return true;
 }
 
@@ -306,6 +308,11 @@ int sim_tmc_get_write_count(int lane) {
     return s_mock_write_count[idx];
 }
 
+int sim_tmc_get_run_current_ma(int lane) {
+    int idx = lane_to_idx(lane);
+    return s_mock_run_current_ma[idx];
+}
+
 void sim_tmc_reset_counts(void) {
     s_mock_read_count[0] = s_mock_read_count[1] = 0;
     s_mock_write_count[0] = s_mock_write_count[1] = 0;
@@ -359,10 +366,8 @@ int mm_per_min_to_sps(float mm_per_min) {
 }
 
 uint32_t build_ihold_irun_reg(int run_ma, int hold_ma, bool vsense) {
-    (void)run_ma;
-    (void)hold_ma;
     (void)vsense;
-    return 0;
+    return ((uint32_t)(run_ma & 0xFFFF) << 16) | (uint32_t)(hold_ma & 0xFFFF);
 }
 
 // ===================== main.c callbacks =====================

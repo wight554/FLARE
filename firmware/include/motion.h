@@ -19,3 +19,4 @@ void lane_stop(lane_t *lane);
 void lane_tick(lane_t *lane, uint32_t now_ms);
 void lane_fault(lane_t *lane, fault_t f);
 void stop_all(void);
+void tmc_apply_active_run_current(int lane_num, int current_ma);

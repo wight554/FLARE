@@ -531,12 +531,13 @@ void sync_tmc_settings(int lane) {
     tmc_setup_chopconf(tmc, g_tmc_microsteps[idx], g_tmc_toff[idx], g_tmc_tbl[idx],
                        g_tmc_hstrt[idx], g_tmc_hend[idx], g_tmc_interpolate[idx]);
     tmc_set_stealthchop_sps(tmc, g_tmc_stealthchop_sps[idx], g_tmc_microsteps[idx]);
-    tmc_set_run_current_ma(tmc, g_tmc_run_current_ma[idx], g_tmc_hold_current_ma[idx]);
+    int active_run_ma = sync_get_active_run_current_ma(lane);
+    tmc_set_run_current_ma(tmc, active_run_ma, g_tmc_hold_current_ma[idx]);
 
     // Synchronize shadow state for protocol reporting
-    g_shadow_vsense[idx] = (g_tmc_run_current_ma[idx] <= TMC_VSENSE_THRESHOLD_MA);
+    g_shadow_vsense[idx] = (active_run_ma <= TMC_VSENSE_THRESHOLD_MA);
     g_shadow_ihold_irun[idx] = build_ihold_irun_reg(
-        g_tmc_run_current_ma[idx], g_tmc_hold_current_ma[idx], g_shadow_vsense[idx]);
+        active_run_ma, g_tmc_hold_current_ma[idx], g_shadow_vsense[idx]);
     g_shadow_ihold_irun_valid[idx] = true;
 }
 
