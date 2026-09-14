@@ -22,6 +22,8 @@ Last consolidated: 2026-09-14. Source phases: 1, 11, 12, 13, 14, 15, 16.
 - [x] **#2** `CP` during cut → `ER:BUSY:CUTTER` — 2026-09-12, `fire 2-cp-busy`, PASS
 - [x] **#3** `TC:` during toolchange → `ER:BUSY:TC` — 2026-09-12, `fire 3-tc-busy`, PASS
 - [x] **#4** `EV:BL:TIMEOUT` fires once, no storm — 2026-09-12, `watch`, two clean singles, PASS
+- [x] **#8** Toolchange (default `TC_TS_PARK_MM`) → no `FAULT:MOVE_COMPRESSION`, `SYNC:AUTO_START` after `TC:DONE` — 2026-09-12, `watch`, two organic toolchanges, `12-SPEC.md`
+- [x] **#9** Cutter abort mid-stroke → `EV:CUT:ERROR:ABORTED`, blade back at block — 2026-09-12, `fire 9-cutter-abort`, `12-SPEC.md`
 - [x] **#13** Phase 13 snap-to-max baseline capture — 2026-09-12 2 h print, `13-…/baseline-capture.md`
 - [x] **#14** FlowGuard `level` trend + UI meter — 2026-09-12, 975 pushes, `14-VERIFICATION.md` #1
 - [x] **#15 (7/9)** No-op command stubs register — 2026-09-12, `fire 15-command-stubs`, 7/7 PASS (the other 2 are **A4**)
@@ -44,8 +46,8 @@ Last consolidated: 2026-09-14. Source phases: 1, 11, 12, 13, 14, 15, 16.
    value differs from what was `SET:`, stop — re-flash, re-check, then
    continue. Never measure a configuration the board isn't actually running.
 4. **Start the passive monitor in a second terminal and leave it running for
-   the whole session.** It classifies B4, C1, D-group and TMC events as they
-   happen and logs everything.
+   the whole session.** It classifies A3, C1 and every `TMC:*`/`SYNC:*` event (Group D)
+   passively as they happen, and logs everything.
    ```bash
    python3 scripts/verify_hw_open_items.py watch --log hw_$(date +%Y%m%d_%H%M).jsonl
    ```
@@ -126,17 +128,8 @@ symptom during earlier bench work.
 ## Group B — Bench, firmware self-triggers the motion
 
 Filament loaded both lanes. The script fires the firmware command itself
-immediately before the check; the busy window is hundreds of ms and you
-never have to time anything by hand.
-
-### [ ] B1 · Cutter abort mid-stroke returns the blade to block (old #9)
-Owner: Phase 12 · `12-01-PLAN.md` HW bullet "cutter abort mid-stroke…"
-
-```bash
-python3 scripts/verify_hw_open_items.py fire 9-cutter-abort
-```
-Pass: `EV:CUT:ERROR:ABORTED`, blade physically back at the block, no
-`CUT_TIMEOUT` follow-up, next `CU` works normally.
+immediately before the check, so there's nothing to time by hand. Only one
+item left here — #9 (cutter abort) closed on 2026-09-12.
 
 ### [ ] B2 · Bare `BL:T` is passive; argumented `BL:T` breaks and follows (old #10, re-run)
 Owner: Phase 12 · `12-SPEC.md` bullet marked **NOT YET CONFIRMED** — the
@@ -375,7 +368,7 @@ Neither capture file is committed — only the parser output.
 
 | Old # | Item | Why parked |
 |---|---|---|
-| #8 | Toolchange with `TC_TS_PARK_MM > 0` → no `FAULT:MOVE_COMPRESSION`, sync auto-resumes on next extrude | `TC_TS_PARK_MM` is **type-D only** (MANUAL.md: "skipped on type-P"). Owner `12-01-PLAN.md`. |
+| #8 (`>0` variant) | Toolchange with `TC_TS_PARK_MM > 0` → no `FAULT:MOVE_COMPRESSION` | The default-config case is **closed** (see top). The firmware-side park itself is **type-D only** (MANUAL.md: "skipped on type-P"), so the `>0` path can't run on this rig. Owner `12-01-PLAN.md`. |
 | — | Bare `BL:T` on type-D **during retract guard** stays passive | `12-SPEC.md` calls this out as type-D-specific; B2 covers the generic case only. |
 | #12 | Buffer-state-lock D2 question | A design decision, not a pass/fail check. |
 | #16 | TMC thermal margin (generic) | Superseded by **D4**, which is the concrete version. |
@@ -389,7 +382,7 @@ Neither capture file is committed — only the parser output.
 | A1, C1 | `.planning/phases/01-hardware-validation-and-audit-closeout/01-01-PLAN.md` §3 |
 | C2a–d | same file, §2 |
 | A2 | `.planning/phases/11-firmware-forensics-jitter/11-01-PLAN.md` HW line |
-| A3, B1, B2 | `.planning/phases/12-post-phase-2-10-regression-fixes/12-01-PLAN.md` HW bullet (B2 also clears the **NOT YET CONFIRMED** in `12-SPEC.md`) |
+| A3, B2 | `.planning/phases/12-post-phase-2-10-regression-fixes/12-SPEC.md` HW bullets (the spec of record — `12-01-PLAN.md`'s summary bullet mirrors it); B2 clears the **NOT YET CONFIRMED** line |
 | A4 | `.planning/phases/14-klipper-mmu-status-parity/14-VERIFICATION.md` human item #2 |
 | D1–D4 | `.planning/phases/16-tmc-tension-current-boost/16-VALIDATION.md`; ROADMAP Phase 16 SC3 `HW:` |
 | E1–E6 | `.planning/phases/15-…/15-SPEC.md` acceptance lines; ROADMAP Phase 15 row |
