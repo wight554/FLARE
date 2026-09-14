@@ -4,7 +4,7 @@ slug: "tmc-tension-current-boost"
 # status lifecycle: draft (seeded by plan-phase) → validated (set by validate-phase §6)
 # audit-milestone §5.5 distinguishes NOT-VALIDATED (draft) from PARTIAL (validated + nyquist_compliant: false) (#2117)
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: "2026-09-14"
 ---
@@ -22,7 +22,7 @@ created: "2026-09-14"
 | **Framework** | Custom C Host Test Suite (`tests/host/`) & Python `unittest` |
 | **Config file** | `tests/host/CMakeLists.txt` |
 | **Quick run command** | `python3 scripts/test_status_line_budget.py && python3 scripts/test_settings_parity.py` |
-| **Full suite command** | `cmake --build build_clang --target test_tmc_boost && ./build_clang/tests/host/test_tmc_boost && ./build_clang/tests/host/flare_sim --scenario sem_psf_tension_boost` |
+| **Full suite command** | `cmake --build build_sim --target test_tmc_boost && ./build_sim/test_tmc_boost && ./build_sim/flare_sim --scenario sem_psf_tension_boost` |
 | **Estimated runtime** | ~15 seconds |
 
 ---
@@ -30,7 +30,7 @@ created: "2026-09-14"
 ## Sampling Rate
 
 - **After every task commit:** Run `python3 scripts/test_status_line_budget.py && python3 scripts/test_settings_parity.py`
-- **After every plan wave:** Run `cmake --build build_clang --target test_tmc_boost && ./build_clang/tests/host/test_tmc_boost && ./build_clang/tests/host/flare_sim --scenario sem_psf_tension_boost`
+- **After every plan wave:** Run `cmake --build build_sim --target test_tmc_boost && ./build_sim/test_tmc_boost && ./build_sim/flare_sim --scenario sem_psf_tension_boost`
 - **Before `/gsd-verify-work`:** Full test runner green and `python3 scripts/validate_regression.py` passes
 - **Max feedback latency:** 15 seconds
 
@@ -40,12 +40,12 @@ created: "2026-09-14"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 16-01-01 | 01 | 1 | R1, R2, R3, R6 | T-16-01 | Hardware current clamp (<= 1200 mA), shadow sync | unit | `./build_clang/tests/host/test_tmc_boost` | ❌ W0 | ⬜ pending |
-| 16-01-02 | 01 | 1 | R1, R2, R3, R6 | T-16-01 | Edge-triggered boost, hysteresis release, state unwind | unit | `./build_clang/tests/host/test_tmc_boost` | ❌ W0 | ⬜ pending |
-| 16-01-03 | 01 | 1 | R4 | T-16-04 | Tangle escalation to Phase 13 fault trips without boost lockup | integration | `./build_clang/tests/host/flare_sim --scenario sem_psf_tension_boost` | ❌ W0 | ⬜ pending |
-| 16-02-01 | 02 | 2 | R5 | T-16-02 | Fixed status line budget <= STATUS_LINE_MAX | unit | `python3 scripts/test_status_line_budget.py` | ✅ | ⬜ pending |
-| 16-02-02 | 02 | 2 | R7 | T-16-03 | Parameter bounds (BOOST_ON < BOOST_OFF, <= 1200 mA), SET/GET parity | parity | `python3 scripts/test_settings_parity.py` | ✅ | ⬜ pending |
-| 16-02-03 | 02 | 2 | R5, R7 | — | Host daemon/CLI dump parity & docs update | regression | `python3 scripts/validate_regression.py` | ✅ | ⬜ pending |
+| 16-01-01 | 01 | 1 | R1, R6 | T-16-01 | Hardware current clamp (<= 1200 mA), shadow sync | unit | `python3 scripts/test_settings_parity.py` | ✅ | ⬜ pending |
+| 16-01-02 | 01 | 1 | R1, R2, R3 | T-16-02, T-16-03 | Edge-triggered boost, hysteresis release, state unwind | unit | `python3 scripts/test_settings_parity.py` | ✅ | ⬜ pending |
+| 16-01-03 | 01 | 1 | R1, R2, R3, R4, R6 | T-16-01..04 | Comprehensive unit tests for activation, hysteresis, unwind, heartbeat, and clamps | unit | `cmake --build build_sim --target test_tmc_boost && ./build_sim/test_tmc_boost` | ❌ W0 | ⬜ pending |
+| 16-02-01 | 02 | 2 | R5 | T-16-05 | Fixed status line budget <= STATUS_LINE_MAX | unit | `python3 scripts/test_status_line_budget.py` | ✅ | ⬜ pending |
+| 16-02-02 | 02 | 2 | R7 | T-16-06, T-16-07 | Parameter bounds (BOOST_ON < BOOST_OFF, <= 1200 mA), SET/GET parity | parity | `python3 scripts/test_settings_parity.py` | ✅ | ⬜ pending |
+| 16-02-03 | 02 | 2 | R4, R5, R7 | — | Host daemon/CLI dump parity, plant simulation scenario & doc sync | regression | `python3 scripts/validate_regression.py` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
