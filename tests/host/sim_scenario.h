@@ -162,6 +162,7 @@ typedef struct {
     // that one scenario only -- mirrors tension_ramp_delay_ms_override's
     // "exercise/suppress a knob the sim never SET:s" pattern.
     bool tension_stop_mm_disabled;
+    int sync_tension_boost_irun_override; // 0 = default (disabled); else overrides g_sync_tension_boost_irun
 } sim_scenario_t;
 
 extern const sim_scenario_t g_sim_scenarios[];

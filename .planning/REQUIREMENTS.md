@@ -718,6 +718,34 @@ tracked maintenance counters in bare `MMU_STATS` / `SHOWCOUNTS=1` output.
 - **Description**: The FLARE WebUI dashboard SHALL render a dedicated Maintenance & Consumables card showing
 all active counters, current usage vs limit progress bars, status alerts, and an interactive Reset button.
 
+### REQ-tmc-tension-boost-activation
+- **Source**: `.planning/phases/16-tmc-tension-current-boost/16-SPEC.md`
+- **Description**: In `SYNC_ACTIVE` with a Type-P buffer, when buffer position reaches `g_buf_pos <= SYNC_TENSION_BOOST_ON` and `SYNC_TENSION_BOOST_IRUN` is non-zero and greater than base run current, the active lane TMC run current SHALL be raised to `SYNC_TENSION_BOOST_IRUN` (clamped <= 1200 mA).
+
+### REQ-tmc-tension-boost-hysteresis-release
+- **Source**: `.planning/phases/16-tmc-tension-current-boost/16-SPEC.md`
+- **Description**: When tension boost is active, when the Type-P buffer position relaxes to `g_buf_pos >= SYNC_TENSION_BOOST_OFF`, the active lane TMC run current SHALL be restored to baseline `g_tmc_run_current_ma[lane]`.
+
+### REQ-tmc-tension-boost-unconditional-reset
+- **Source**: `.planning/phases/16-tmc-tension-current-boost/16-SPEC.md`
+- **Description**: Any exit from `SYNC_ACTIVE` (`STOP`, `PA`, `sync_disable()`, fault trip, toolchange `TC:`, lane switch) SHALL immediately reset the boost flag and restore base run current to prevent driver overheating while stationary.
+
+### REQ-tmc-tension-boost-persistent-tangle-escalation
+- **Source**: `.planning/phases/16-tmc-tension-current-boost/16-SPEC.md`
+- **Description**: Sustained unrecoverable spool drag SHALL escalate to Phase 13 distance (`SYNC_TENSION_STOP_MM`) or dwell (`SYNC_TENSION_DWELL_STOP_MS`) fault trips, halting motion cleanly via `stop_all()` and restoring base current without indefinite boost lockup.
+
+### REQ-tmc-tension-boost-telemetry-visibility
+- **Source**: `.planning/phases/16-tmc-tension-current-boost/16-SPEC.md`
+- **Description**: Status `ST:` line SHALL report `TB:0` or `TB:1` within character budget; edge transitions SHALL emit `EV:TMC:BOOST:<lane>` and `EV:TMC:NORMAL:<lane>`.
+
+### REQ-tmc-tension-boost-shadow-register-integrity
+- **Source**: `.planning/phases/16-tmc-tension-current-boost/16-SPEC.md`
+- **Description**: TMC heartbeat recovery and register shadow state SHALL stay synchronized with the active boost current so brownout recovery re-applies the true active current without clobbering boost.
+
+### REQ-tmc-tension-boost-config-parity
+- **Source**: `.planning/phases/16-tmc-tension-current-boost/16-SPEC.md`
+- **Description**: Parameters `SYNC_TENSION_BOOST_IRUN`, `SYNC_TENSION_BOOST_ON`, `SYNC_TENSION_BOOST_OFF` SHALL be supported across `config.ini`, flash TLV storage, `SET:` / `GET:`, and `flare_cmd.py --dump` with strict ordering validation (`BOOST_ON < BOOST_OFF`).
+
 ### REQ-daemon-maintenance-unit-tests
 - **Source**: `.planning/phases/15-daemon-moonraker-lane-data-maintenance-counters/15-SPEC.md`
 - **Description**: Comprehensive unit test suites (`scripts/test_moonraker_lane_data.py` and
@@ -2175,3 +2203,10 @@ validation.
 | REQ-toolchange-orchestration-reload-bang-ban | Phase 2 | Pending |
 | REQ-type-d-dynamic-flow-a-tension-touch-slam | Phase 3 | Pending |
 | REQ-type-d-dynamic-flow-slow-drift-protectio | Phase 4 | Pending |
+| REQ-tmc-tension-boost-activation | Phase 16 | Complete |
+| REQ-tmc-tension-boost-hysteresis-release | Phase 16 | Complete |
+| REQ-tmc-tension-boost-unconditional-reset | Phase 16 | Complete |
+| REQ-tmc-tension-boost-persistent-tangle-escalation | Phase 16 | Complete |
+| REQ-tmc-tension-boost-telemetry-visibility | Phase 16 | Complete |
+| REQ-tmc-tension-boost-shadow-register-integrity | Phase 16 | Complete |
+| REQ-tmc-tension-boost-config-parity | Phase 16 | Complete |

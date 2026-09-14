@@ -115,6 +115,9 @@ DUMP_PARAMS = [
     ("POST_PRINT_STAB_MS", "post_print_stab_delay_ms", False),
     ("SYNC_PSF_RELIEF_MULT", "sync_psf_relief_mult", False),
     ("SYNC_TENSION_STOP_MM", "sync_tension_stop_mm", False),
+    ("SYNC_TENSION_BOOST_IRUN", "sync_tension_boost_irun", True),
+    ("SYNC_TENSION_BOOST_ON", "sync_tension_boost_on", False),
+    ("SYNC_TENSION_BOOST_OFF", "sync_tension_boost_off", False),
     # --- Tension Hardening ---
     ("SYNC_TENSION_STOP_MS",  "sync_tension_dwell_stop_ms", False),
     ("SYNC_TENSION_RAMP_MS",  "sync_tension_ramp_delay_ms", False),
@@ -475,6 +478,7 @@ def run_poll_daemon(args):
                 line_parts.append(f"TH:{status.get('toolhead', 0)}")
                 line_parts.append(f"YS:{status.get('y_split', 0)}")
                 line_parts.append(f"RELOAD:{status.get('reload_mode', 0)}")
+                line_parts.append("TB:1" if status.get("tension_boost") else "TB:0")
                 print(f"OK:{','.join(line_parts)}", flush=True)
             else:
                 print("ER:DAEMON_OFFLINE", flush=True)

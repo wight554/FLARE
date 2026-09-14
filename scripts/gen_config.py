@@ -123,6 +123,9 @@ DEFAULTS = {
                                       # FAULT_HOLD once armed by a real buffer transition. 0 disables.
                                       # Clamped 0.0-500.0 in settings_defaults_sync()/
                                       # settings_apply_clamps() and the SET: handler
+    "sync_tension_boost_irun": "0",   # mA gear motor boost during deep tension (0 = disabled, max 1200)
+    "sync_tension_boost_on": "-0.50", # Type-P buffer position to engage boost (must be < boost_off)
+    "sync_tension_boost_off": "-0.30",# Type-P buffer position to release boost via hysteresis
     "psf_stab_stagnant_ms": "600",    # type-P BS dry-spin window after leaving a saturated rail
     "psf_stab_stagnant_norm": "0.03", # type-P BS min normalized motion inside the dry-spin window
     "psf_stab_rail_break_ms": "3000", # type-P BS max drive time while still saturated at a rail
@@ -382,6 +385,7 @@ def main():
         # Direction
         dir_invert = int(gm("dir_invert", "0"))
         follow_timeout_ms = int(gm("follow_timeout_ms", "10000"))
+        sync_tension_boost_irun = int(gm("sync_tension_boost_irun", "0"))
 
         run_ma = int(round(run_current * 1000))
         hold_ma = int(round(hold_current * 1000))
@@ -401,7 +405,8 @@ def main():
             "mm_per_step": mm_per_step,
             "stealthchop_sps": stealthchop_sps,
             "dir_invert": dir_invert,
-            "follow_timeout_ms": follow_timeout_ms
+            "follow_timeout_ms": follow_timeout_ms,
+            "sync_tension_boost_irun": sync_tension_boost_irun
         }
 
     # Generate for 2 lanes
@@ -503,6 +508,7 @@ def main():
         f"#define CONF_L1_INTPOL             {'true' if l1['interpolate'] else 'false'}",
         f"#define CONF_L1_STEALTHCHOP_THRESHOLD {l1['stealthchop_sps']}",
         f"#define CONF_L1_FOLLOW_TIMEOUT_MS  {l1['follow_timeout_ms']}",
+        f"#define CONF_L1_SYNC_TENSION_BOOST_IRUN {l1['sync_tension_boost_irun']}",
         "",
         "// --- Lane 2 parameters ---",
         f"#define CONF_L2_RUN_CURRENT_MA     {l2['run_ma']}",
@@ -519,6 +525,7 @@ def main():
         f"#define CONF_L2_INTPOL             {'true' if l2['interpolate'] else 'false'}",
         f"#define CONF_L2_STEALTHCHOP_THRESHOLD {l2['stealthchop_sps']}",
         f"#define CONF_L2_FOLLOW_TIMEOUT_MS  {l2['follow_timeout_ms']}",
+        f"#define CONF_L2_SYNC_TENSION_BOOST_IRUN {l2['sync_tension_boost_irun']}",
         "",
         "// --- Direction Inverts ---",
         f"#define CONF_L1_DIR_INVERT      {l1['dir_invert']}",
@@ -546,6 +553,8 @@ def main():
         f"#define CONF_SYNC_PSF_FILTER_MM {get_float('sync_psf_filter_mm')}f",
         f"#define CONF_SYNC_PSF_RELIEF_MULT {get_float('sync_psf_relief_mult')}f",
         f"#define CONF_SYNC_TENSION_STOP_MM {get_float('sync_tension_stop_mm')}f",
+        f"#define CONF_SYNC_TENSION_BOOST_ON {get_float('sync_tension_boost_on')}f",
+        f"#define CONF_SYNC_TENSION_BOOST_OFF {get_float('sync_tension_boost_off')}f",
         f"#define CONF_PSF_STAB_STAGNANT_MS {get('psf_stab_stagnant_ms')}",
         f"#define CONF_PSF_STAB_STAGNANT_NORM {get_float('psf_stab_stagnant_norm')}f",
         f"#define CONF_PSF_STAB_RAIL_BREAK_MS {get('psf_stab_rail_break_ms')}",

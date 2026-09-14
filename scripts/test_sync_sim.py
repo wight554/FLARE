@@ -1489,6 +1489,20 @@ class DeterminismTests(unittest.TestCase):
 
 
 @unittest.skipIf(_skip_reason(), _skip_reason())
+class TmcTensionBoostSimTests(unittest.TestCase):
+    """Phase 16 Plan 02: Dynamic TMC tension current boost activation and reset."""
+
+    def test_tension_boost_activates_and_resets_on_fault_hold(self):
+        run = run_scenario("sem_psf_tension_boost", sensor_type="p", ticks=None)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        events = run.events_text()
+        self.assertIn("TMC:BOOST,1", events, "TMC:BOOST must fire on deep tension")
+        self.assertIn("SYNC,TENSION_STOP:MM", events, "Distance trip must fire under persistent drag")
+        self.assertIn("TMC:NORMAL,1", events, "TMC:NORMAL must fire when resetting on FAULT_HOLD")
+        self.assertIn("SYNC,FAULT_HOLD", events, "SYNC,FAULT_HOLD must engage")
+
+
+@unittest.skipIf(_skip_reason(), _skip_reason())
 class StressSweepTests(unittest.TestCase):
     """Reports a per-scenario transport-lag margin — not a pass/fail against
     one constant (design.md "Stress Mode": lag is swept, not chosen)."""

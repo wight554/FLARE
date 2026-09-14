@@ -944,6 +944,8 @@ def parse_status_line(line):
                 new_data["tension_dwell_ms"] = int(val)
             elif key == "CT":
                 new_data["compression_dwell_ms"] = int(val)
+            elif key == "TB":
+                new_data["tension_boost"] = bool(int(val))
         except ValueError:
             pass # ignore malformed metrics
 

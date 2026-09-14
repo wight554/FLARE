@@ -101,12 +101,13 @@ void cmd_handle_status_dump(void) {
            of the blanket 11-char %d/%u budget every other integer field
            carries. This project's headroom was exactly 1 char before this
            field (13-02); a plain %d here would blow the budget outright. */
+        char tb_char = sync_is_tension_boost_active(g_active_lane) ? '1' : '0';
         int tail_len = snprintf(
             b + blen, sizeof(b) - (size_t)blen,
             ",RT:%.2f,TT:%u,TM:%d,ARM:%c,CT:%u,SK:%u,CF:%.2f,ES:%.2f"
             ",TPX:%d,CB:%d,BPV:%d,MK:%u:%s"
             ",SYNC_REFILL_MM:%d,SYNC_RELIEVE_MM:%d,TF:%.1f,FL_RATE:%.1f,UL_RATE:%.1f"
-            ",PR:%c",
+            ",PR:%c,TB:%c",
             (double)sync_reserve_target_mm(), (unsigned)ad_ms, (int)sync_tension_stop_trip_mm(),
             g_sync_trip_armed ? '1' : '0', (unsigned)td_ms, (unsigned)g_buf_signal.kind,
             (double)g_buf_signal.confidence, (double)sync_buf_sigma_mm(),
@@ -117,7 +118,8 @@ void cmd_handle_status_dump(void) {
             (int)g_sync_refill_effort_mm, (int)g_sync_relieve_effort_mm,
             (double)g_sync_mmu_total_mm, (double)sps_to_mm_per_min_idx(g_feed_sps, idx),
             (double)sps_to_mm_per_min_idx(g_rev_sps, idx),
-            (char)('0' + sync_type_p_probe_state()));
+            (char)('0' + sync_type_p_probe_state()),
+            tb_char);
         if (tail_len < 0 || tail_len >= (int)(sizeof(b) - (size_t)blen)) {
             static bool st_trunc_latched = false;
             if (!st_trunc_latched) {

@@ -226,6 +226,9 @@ The asymmetric analyzer is read-only and uses existing `OK:` fields `BP`, `BUF`,
 | `SYNC_AUTO_STOP` | `sync_auto_stop_ms` | Auto-mode only: tail-assist stop after sustained `COMPRESSION`; in normal print sync, stops if continuous `COMPRESSION` dwell exceeds the timeout and recovery speed has collapsed to the minimum sync floor. | 5000 |
 | `SYNC_TENSION_STOP_MS` | `sync_tension_dwell_stop_ms` | Hard stop if continuously pinned at tension endstop for this many ms. 0 = disable. | 6000 |
 | `SYNC_TENSION_STOP_MM` | `sync_tension_stop_mm` | Type-P distance-based tension fault trip (Phase 13 SC#2): accumulates raw lane feed travel while the buffer is pinned in `TENSION` (the same accumulator reported by `SYNC_REFILL_MM`), trips `FAULT_HOLD` once it reaches this threshold — evaluated *before* `SYNC_TENSION_STOP_MS`, so distance is the primary trip and the ms dwell timer is the slow-flow fallback. Arms only after the first buffer-state transition observed in the active-sync window, and is suppressed while a deliberate rail hold (`BL:`, tail-assist, buffer-stabilize, RELOAD follow) is in progress. 0 = disable. Live and flash-persisted. | 32.0 |
+| `SYNC_TENSION_BOOST_IRUN` | `sync_tension_boost_irun` | Extra gear motor run current in mA applied during active sync Type-P tension boost (Happy-Hare tangle prevention). 0 = disabled (default). Hardware clamped at 1200 mA max. | 0 |
+| `SYNC_TENSION_BOOST_ON` | `sync_tension_boost_on` | Type-P buffer position threshold to activate tension current boost (negative travel; must be strictly < `SYNC_TENSION_BOOST_OFF`). | -0.50 |
+| `SYNC_TENSION_BOOST_OFF` | `sync_tension_boost_off` | Type-P buffer position threshold to release tension current boost back to baseline run current via hysteresis (must be strictly > `SYNC_TENSION_BOOST_ON`). | -0.30 |
 | `SYNC_TENSION_RAMP_MS` | `sync_tension_ramp_delay_ms` | Grace window before refill-assist overrides target to `SYNC_MAX_RATE`, bypassing the estimator ceiling. 0 = disable. | 0 |
 | `SYNC_INT_GAIN` | `sync_reserve_integral_gain` | Integral reserve-centering gain (mm of target bias per mm·s of reserve error). **0.0 = disabled** by default. Enable with a small value (e.g. 0.005) after reviewing long-run soak logs. | 0.0 |
 | `SYNC_INT_CLAMP` | `sync_reserve_integral_clamp_mm` | Maximum integral correction magnitude in mm. The integral cannot shift the effective reserve target by more than this amount. | 0.6 |
@@ -334,6 +337,7 @@ These extra diagnostic fields are returned in the second part of the `?:` status
 | `TM`  | mm   | What the `SYNC_TENSION_STOP_MM` trip sees: `0` while unarmed or while a deliberate rail hold is in progress, otherwise the accumulated tension travel (same accumulator as `SYNC_REFILL_MM`, but zeroed by the trip's arming/hold-suppression rules rather than reported raw). |
 | `ARM` | 0/1  | Whether the `SYNC_TENSION_STOP_MM`/`SYNC_TENSION_STOP_MS` trip is armed (`1`) — a real buffer-state transition has been observed since the last re-entry/hold release — or not (`0`). |
 | `PR`  | 0-3  | Type-P feed probe state (Phase 13 SC#3), latched for the pinned episode: `0` = none (not running), `1` = running (window open, not yet decided), `2` = CONSUMER (the buffer moved measurably off its deepest reading within one probe distance — relief is working, the mm/ms trips keep running), `3` = NO_CONSUMER (it never moved — the lane escalates immediately via the same escalate-then-fault-hold path the trips use). Type-D always reads `0`. |
+| `TB`  | 0/1  | Active lane Type-P tension boost state: `1` = motor run current boosted to `SYNC_TENSION_BOOST_IRUN`, `0` = running at baseline current. |
 | `CT`  | ms   | Time the buffer arm has been continuously pinned at the compression-side switch. |
 | `SK`  | 0/1  | Active buffer sensor kind (`0` = virtual endstop, `1` = analog). |
 | `CF`  | 0.0–1.0 | Signal confidence from the active source. |
@@ -381,6 +385,8 @@ Not returned in `?:` (read via `GET:FLASH_ERASE_COUNT`, not persisted like the t
 | `RELOAD:*` | Phase-specific | RELOAD progress and fault events such as `RELOAD:SWITCHING`, `RELOAD:JOINING`, `RELOAD:LOADED`, `RELOAD:FAULT`. |
 | `CUT` | `FEEDING\|DONE\|ERROR` | Cutter execution events. `FEEDING` on feed start; `DONE` on successful cut; `ERROR` on cutter failure. |
 | `FLASH` | `WEAR_WARNING` | Fires once, on the settings save where `FLASH_ERASE_COUNT` first crosses `FLASH_WEAR_WARN_THRESHOLD`. |
+| `TMC:BOOST` | `lane` | Tension boost engaged on specified lane: motor run current raised to `SYNC_TENSION_BOOST_IRUN`. |
+| `TMC:NORMAL` | `lane` | Tension boost released / disengaged on specified lane: motor run current restored to baseline `g_tmc_run_current_ma`. |
 | `TMC:RESTORED` | `lane` | TMC2209 register brownout detected and configuration restored/verified. |
 | `TMC:FAULT` | `lane:COMM_FAIL` | Persistent TMC2209 communication failure; all motion halted. |
 | `CRASH:DETECTED` | `WATCHDOG` | Emitted ~2 s after boot (with `SYSTEM:WATCHDOG_RESET`) when the previous run ended in a watchdog reset and the retention-RAM blackbox is intact. Read it with `GET:CRASHLOG`. |

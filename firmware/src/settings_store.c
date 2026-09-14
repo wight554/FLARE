@@ -142,6 +142,7 @@ typedef enum {
     SECTOR_INVALID = 0,
     SECTOR_V63 = 63,
     SECTOR_V64 = 64,
+    SECTOR_V65 = 65,
 } sector_version_t;
 
 static uint32_t crc32_buf(const uint8_t *data, size_t len) {
@@ -242,6 +243,15 @@ static void settings_defaults_sync(void) {
     g_sync_compression_bias_frac =
         clamp_f(CONF_SYNC_COMPRESSION_BIAS_FRAC, 0.0f, COMPRESSION_BIAS_MAX_FRAC);
     flow_schedule_reset_runtime();
+
+    g_sync_tension_boost_irun[0] = clamp_i(CONF_L1_SYNC_TENSION_BOOST_IRUN, 0, 1200);
+    g_sync_tension_boost_irun[1] = clamp_i(CONF_L2_SYNC_TENSION_BOOST_IRUN, 0, 1200);
+    g_sync_tension_boost_on = clamp_f(CONF_SYNC_TENSION_BOOST_ON, -1.0f, -0.05f);
+    g_sync_tension_boost_off = clamp_f(CONF_SYNC_TENSION_BOOST_OFF, -0.95f, 0.0f);
+    if (g_sync_tension_boost_on >= g_sync_tension_boost_off) {
+        g_sync_tension_boost_on = -0.50f;
+        g_sync_tension_boost_off = -0.30f;
+    }
 
     g_buf_stab_sps = clamp_i(CONF_BUF_STAB_SPS, BUF_STAB_MIN_SPS, BUF_STAB_MAX_SPS);
     g_join_sps = CONF_JOIN_SPS;
@@ -361,7 +371,24 @@ static sector_version_t settings_validate_sector(const uint8_t *sector_base, uin
         return SECTOR_INVALID;
     }
 
-    if (hdr->version == SETTINGS_VERSION) { // 64
+    if (hdr->version == SETTINGS_VERSION) { // 65
+        if (hdr->payload_len + sizeof(settings_header_t) + sizeof(uint32_t) >
+            SETTINGS_FLASH_BUFFER_BYTES) {
+            return SECTOR_INVALID;
+        }
+        size_t total_payload = sizeof(settings_header_t) + hdr->payload_len;
+        uint32_t stored_crc;
+        memcpy(&stored_crc, sector_base + total_payload, sizeof(uint32_t));
+        uint32_t computed_crc = crc32_buf(sector_base, total_payload);
+        if (computed_crc != stored_crc) {
+            return SECTOR_INVALID;
+        }
+        if (out_seq)
+            *out_seq = hdr->seq;
+        return SECTOR_V65;
+    }
+
+    if (hdr->version == SETTINGS_VERSION_V64) { // 64
         if (hdr->payload_len + sizeof(settings_header_t) + sizeof(uint32_t) >
             SETTINGS_FLASH_BUFFER_BYTES) {
             return SECTOR_INVALID;
@@ -489,6 +516,10 @@ void settings_save(void) {
     tlv_emit_f32(&w, TAG_SYNC_COMPRESSION_BIAS_FRAC, g_sync_compression_bias_frac);
     tlv_emit_f32(&w, TAG_SYNC_PSF_RELIEF_MULT, g_sync_psf_relief_mult);
     tlv_emit_f32(&w, TAG_SYNC_TENSION_STOP_MM, g_sync_tension_stop_mm);
+    tlv_emit(&w, TAG_SYNC_TENSION_BOOST_IRUN, sizeof(g_sync_tension_boost_irun),
+             g_sync_tension_boost_irun);
+    tlv_emit_f32(&w, TAG_SYNC_TENSION_BOOST_ON, g_sync_tension_boost_on);
+    tlv_emit_f32(&w, TAG_SYNC_TENSION_BOOST_OFF, g_sync_tension_boost_off);
 
     tlv_emit_u32(&w, TAG_FLASH_ERASE_COUNT, g_flash_erase_count);
 
@@ -513,7 +544,7 @@ void settings_save(void) {
     // Verify readback before flipping active sector pointer
     uint32_t readback_seq = 0;
     const uint8_t *target_base = (const uint8_t *)(XIP_BASE + target_offset);
-    if (settings_validate_sector(target_base, &readback_seq) == SECTOR_V64 &&
+    if (settings_validate_sector(target_base, &readback_seq) == SECTOR_V65 &&
         readback_seq == hdr->seq) {
         g_active_sector = target;
     }
@@ -642,6 +673,16 @@ static void settings_apply_clamps(float buf_switch_span_mm) {
     g_sync_compression_bias_frac =
         clamp_f(g_sync_compression_bias_frac, 0.0f, COMPRESSION_BIAS_MAX_FRAC);
     flow_schedule_reset_runtime();
+
+    for (int i = 0; i < 2; i++) {
+        g_sync_tension_boost_irun[i] = clamp_i(g_sync_tension_boost_irun[i], 0, 1200);
+    }
+    g_sync_tension_boost_on = clamp_f(g_sync_tension_boost_on, -1.0f, -0.05f);
+    g_sync_tension_boost_off = clamp_f(g_sync_tension_boost_off, -0.95f, 0.0f);
+    if (g_sync_tension_boost_on >= g_sync_tension_boost_off) {
+        g_sync_tension_boost_on = -0.50f;
+        g_sync_tension_boost_off = -0.30f;
+    }
 
     motion_limit_runtime_rates(false);
 }
@@ -926,6 +967,18 @@ static void settings_load_tlv_tag(uint8_t tag, uint8_t len, const uint8_t *val,
         if (len == sizeof(float))
             memcpy(&g_sync_tension_stop_mm, val, sizeof(float));
         break;
+    case TAG_SYNC_TENSION_BOOST_IRUN:
+        if (len == sizeof(g_sync_tension_boost_irun))
+            memcpy(g_sync_tension_boost_irun, val, sizeof(g_sync_tension_boost_irun));
+        break;
+    case TAG_SYNC_TENSION_BOOST_ON:
+        if (len == sizeof(float))
+            memcpy(&g_sync_tension_boost_on, val, sizeof(float));
+        break;
+    case TAG_SYNC_TENSION_BOOST_OFF:
+        if (len == sizeof(float))
+            memcpy(&g_sync_tension_boost_off, val, sizeof(float));
+        break;
     case TAG_FLASH_ERASE_COUNT:
         if (len == sizeof(uint32_t))
             memcpy(&g_flash_erase_count, val, sizeof(uint32_t));
@@ -1081,7 +1134,7 @@ void settings_load(void) {
     g_active_sector = chosen_sector;
     g_seq = chosen_seq;
 
-    if (chosen_ver == SECTOR_V64) {
+    if (chosen_ver == SECTOR_V65 || chosen_ver == SECTOR_V64) {
         const settings_header_t *hdr = (const settings_header_t *)chosen;
         settings_load_tlv(chosen + sizeof(settings_header_t), hdr->payload_len);
     } else if (chosen_ver == SECTOR_V63) {

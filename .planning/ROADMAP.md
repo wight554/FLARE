@@ -273,7 +273,7 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 
 **Goal**: Add Happy-Hare tangle prevention — extra gear-motor torque only while the type-P buffer is pegged in tension during active sync — without breaking the Phase 10 heartbeat/recovery contract
 **Depends on**: Phase 13 (probe/fault semantics decide when boost is legitimate); Phase 10 shadow-register contract
-**Requirements**: TBD (derive from research §1.5)
+**Requirements**: R1, R2, R3, R4, R5, R6, R7 (REQ-tmc-tension-boost-activation, REQ-tmc-tension-boost-hysteresis-release, REQ-tmc-tension-boost-unconditional-reset, REQ-tmc-tension-boost-persistent-tangle-escalation, REQ-tmc-tension-boost-telemetry-visibility, REQ-tmc-tension-boost-shadow-register-integrity, REQ-tmc-tension-boost-config-parity)
 **Research**: `.planning/research/2026-09-11-happy-hare-borrow-scan.md`
 **Success Criteria** (what must be TRUE):
 
@@ -283,6 +283,8 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 
 **Plans**: 2 plans
 
+  - [x] 16-01-PLAN.md
+  - [x] 16-02-PLAN.md
   - **Wave 1**: 16-01-PLAN.md — Firmware boost actuation, edge detection, hysteresis release, and host unit test suite
   - **Wave 2** *(blocked on Wave 1)*: 16-02-PLAN.md — Telemetry status token, config parity, daemon/CLI integration, sim plant scenario, and doc sync
 
@@ -305,4 +307,4 @@ Development roadmap for FLARE firmware, sync buffer controls, and host tooling, 
 | 13. Type-P Sync Relief & Fault Trip | 3/4 | In Progress|  |
 | 14. Klipper MMU Status Parity | 2/2 | Complete | 2026-09-12 |
 | 15. Daemon Moonraker Lane Data & Maintenance Counters | 2/2 | Complete | 2026-09-13 |
-| 16. TMC Tension Current Boost | 0/2 | Planned | - |
+| 16. TMC Tension Current Boost | 2/2 | Complete (HW pending) | 2026-09-14 |

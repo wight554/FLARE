@@ -1,14 +1,14 @@
 ---
 gsd_state_version: "1.0"
 status: in_progress
-stopped_at: Phase 16 planned (2 plans verified)
-last_updated: "2026-09-14T08:08:00.000Z"
-state_head: b20e69b
+stopped_at: Phase 16 executed (2/2 plans complete, HW pending)
+last_updated: "2026-09-14T08:35:00.000Z"
+state_head: main
 progress:
   total_phases: 16
   completed_phases: 0
   total_plans: 24
-  completed_plans: 7
+  completed_plans: 9
   percent: 0
 current_phase_name: TMC Tension Current Boost
 ---
@@ -20,14 +20,14 @@ current_phase_name: TMC Tension Current Boost
 See: `.planning/PROJECT.md` (updated 2026-09-11)
 
 **Core value:** Autonomous, reliable dual-lane filament switching and reloading on runout with real-time sync-feedback buffer control.
-**Current focus:** Phase 16 ready for execution; awaiting Phase 13 HW validation or Phase 16-01 execution
+**Current focus:** Phase 16 complete (firmware + host + tests + docs); awaiting physical rig session for Phase 13 & 16 HW validation
 
 ## Current Position
 
 - **Phase**: 16 - TMC Tension Current Boost (`.planning/phases/16-tmc-tension-current-boost/`)
-- **Active Feature in Progress**: Ready for execution (0/2 plans) — 16-01 (Firmware boost actuation & host unit test suite) and 16-02 (Telemetry status token, config parity, sim plant scenario, doc sync). Phase 13 HW validation pending on physical test rig.
-- **Status**: Planned (2 plans verified)
-- **Progress**: [                    ] 0% complete (0/2 plans)
+- **Active Feature in Progress**: Complete (2/2 plans complete, HW pending) — 16-01 (Firmware boost actuation & host unit test suite) and 16-02 (Telemetry status token, config parity, sim plant scenario, doc sync). Physical rig validation pending.
+- **Status**: Complete (HW pending)
+- **Progress**: [████████████████████] 100% complete (2/2 plans)
 
 ## Accumulated Context
 

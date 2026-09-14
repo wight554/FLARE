@@ -462,6 +462,8 @@ static bool cmd_get_tmc_params(const char *param, int idx, char *out, size_t out
         snprintf(out, out_len, "RUN_CURRENT_MA:%d", g_tmc_run_current_ma[idx]);
     else if (!strcmp(param, "HOLD_CURRENT_MA"))
         snprintf(out, out_len, "HOLD_CURRENT_MA:%d", g_tmc_hold_current_ma[idx]);
+    else if (!strcmp(param, "SYNC_TENSION_BOOST_IRUN"))
+        snprintf(out, out_len, "SYNC_TENSION_BOOST_IRUN:%d", g_sync_tension_boost_irun[idx]);
     else
         return false;
     return true;
@@ -552,6 +554,10 @@ static bool cmd_get_sync_control_params(const char *param, int idx, char *out, s
         snprintf(out, out_len, "SYNC_PSF_RELIEF_MULT:%.3f", (double)g_sync_psf_relief_mult);
     else if (!strcmp(param, "SYNC_TENSION_STOP_MM"))
         snprintf(out, out_len, "SYNC_TENSION_STOP_MM:%.1f", (double)g_sync_tension_stop_mm);
+    else if (!strcmp(param, "SYNC_TENSION_BOOST_ON"))
+        snprintf(out, out_len, "SYNC_TENSION_BOOST_ON:%.2f", (double)g_sync_tension_boost_on);
+    else if (!strcmp(param, "SYNC_TENSION_BOOST_OFF"))
+        snprintf(out, out_len, "SYNC_TENSION_BOOST_OFF:%.2f", (double)g_sync_tension_boost_off);
     else if (!strcmp(param, "SYNC_PSF_DECAY_SPS_PER_S"))
         snprintf(out, out_len, "SYNC_PSF_DECAY_SPS_PER_S:%.1f", (double)g_sync_psf_decay_sps_per_s);
     else if (!strcmp(param, "PSF_STAB_STAGNANT_MS"))
@@ -1089,6 +1095,19 @@ static cmd_set_result_t cmd_set_buffer_params(const char *base_param, int iv, fl
         g_sync_psf_relief_mult = clamp_f(fv, SYNC_RELIEF_MULT_MIN, SYNC_RELIEF_MULT_MAX);
     else if (!strcmp(base_param, "SYNC_TENSION_STOP_MM"))
         g_sync_tension_stop_mm = clamp_f(fv, SYNC_TENSION_STOP_MIN_MM, SYNC_TENSION_STOP_MAX_MM);
+    else if (!strcmp(base_param, "SYNC_TENSION_BOOST_ON")) {
+        if (fv >= g_sync_tension_boost_off) {
+            cmd_reply("ER", "INVALID_PARAM");
+            return CMD_SET_REPLIED;
+        }
+        g_sync_tension_boost_on = clamp_f(fv, -1.0f, -0.05f);
+    } else if (!strcmp(base_param, "SYNC_TENSION_BOOST_OFF")) {
+        if (fv <= g_sync_tension_boost_on) {
+            cmd_reply("ER", "INVALID_PARAM");
+            return CMD_SET_REPLIED;
+        }
+        g_sync_tension_boost_off = clamp_f(fv, -0.95f, 0.0f);
+    }
     else if (!strcmp(base_param, "SYNC_PSF_DECAY_SPS_PER_S"))
         g_sync_psf_decay_sps_per_s = clamp_f(fv, 0.0f, SYNC_PSF_DECAY_MAX_SPS_PER_S);
     else if (!strcmp(base_param, "PSF_STAB_STAGNANT_MS"))
@@ -1264,6 +1283,20 @@ static bool cmd_set_cutter_params(const char *base_param, int iv, float fv) {
 
 static cmd_set_result_t cmd_apply_set_param(const char *base_param, int lane_mask, int iv,
                                             float fv) {
+    if (!strcmp(base_param, "SYNC_TENSION_BOOST_IRUN")) {
+        if (iv < 0) {
+            cmd_reply("ER", "INVALID_PARAM");
+            return CMD_SET_REPLIED;
+        }
+        int clamped = clamp_i(iv, 0, 1200);
+        for (int l = 1; l <= NUM_LANES; l++) {
+            if (lane_mask & (1 << (l - 1))) {
+                g_sync_tension_boost_irun[l - 1] = clamped;
+            }
+        }
+        return CMD_SET_HANDLED;
+    }
+
     if (cmd_set_motion_params(base_param, iv, fv) ||
         cmd_set_reload_motion_params(base_param, iv, fv) ||
         cmd_set_lane_params(base_param, lane_mask, iv, fv)) {

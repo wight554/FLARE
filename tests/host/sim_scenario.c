@@ -1116,6 +1116,25 @@ const sim_scenario_t g_sim_scenarios[] = {
         .tick_ceiling_reason = "identical recipe to sem_psf_probe_consumer at a 10mm buffer -- "
                                "the probe distance clamps to 10mm here instead of 16mm",
     },
+
+    // Phase 16 Plan 02: sem_psf_tension_boost exercises dynamic Type-P tension boost.
+    // At t=3000ms, demand steps up to 36mm/s and spool drag / underfeed (feed_gain=0.7)
+    // pulls the Type-P buffer position into deep tension (<= -0.50), triggering
+    // EV:TMC:BOOST:1 and TB:1 telemetry. Under persistent unrecoverable drag,
+    // Phase 13 distance trip (SYNC_TENSION_STOP_MM) halts motion via SYNC_FAULT_HOLD,
+    // which unconditionally restores baseline motor run current (Requirement R4).
+    {
+        .name = "sem_psf_tension_boost",
+        .demand = {.kind = DEMAND_STEP_UP, .level_mm_s = 10.0f, .level2_mm_s = 36.0f,
+                   .t1_ms = 3000},
+        .feed_gain = {.bp = {{3000, 0.7f}}, .count = 1},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+        .sync_tension_boost_irun_override = 1000,
+        .tick_ceiling = 400,
+        .tick_ceiling_reason = "tension boost activates around t=3500ms, followed by "
+                               "Phase 13 distance trip and clean baseline reset",
+    },
 };
 // clang-format on
 

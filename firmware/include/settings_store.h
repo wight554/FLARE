@@ -6,7 +6,8 @@
 
 #define SETTINGS_MAGIC 0x4e4f5346u
 #define SETTINGS_VERSION_V63 63u
-#define SETTINGS_VERSION 64u
+#define SETTINGS_VERSION_V64 64u
+#define SETTINGS_VERSION 65u
 #define SETTINGS_FLASH_BUFFER_BYTES 1024
 
 typedef struct {
@@ -84,6 +85,9 @@ typedef enum {
     TAG_FLASH_ERASE_COUNT = 64,
     TAG_SYNC_PSF_RELIEF_MULT = 65,
     TAG_SYNC_TENSION_STOP_MM = 66,
+    TAG_SYNC_TENSION_BOOST_IRUN = 67,
+    TAG_SYNC_TENSION_BOOST_ON = 68,
+    TAG_SYNC_TENSION_BOOST_OFF = 69,
 } settings_tag_t;
 
 extern int g_active_sector;

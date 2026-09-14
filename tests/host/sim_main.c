@@ -149,6 +149,10 @@ int main(int argc, char **argv) {
         g_sync_tension_ramp_delay_ms = scn->tension_ramp_delay_ms_override;
     if (scn->tension_stop_mm_disabled)
         g_sync_tension_stop_mm = 0.0f;
+    if (scn->sync_tension_boost_irun_override) {
+        g_sync_tension_boost_irun[0] = scn->sync_tension_boost_irun_override;
+        g_sync_tension_boost_irun[1] = scn->sync_tension_boost_irun_override;
+    }
 
     // lane_id is set by lane_setup() in real firmware boot (main.c), which we
     // never call (motor/GPIO init is meaningless over the fakes) — but
