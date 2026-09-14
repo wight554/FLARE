@@ -253,13 +253,18 @@ def record_event_stats(evt_type, evt_data):
     if changed:
         save_mmu_stats()
 
-    # Maintenance counter event hooks
+    # Maintenance counter event hooks. evt_type arrives with the "EV:" prefix
+    # already stripped by the serial parser ("CUT:DONE", "TC:DONE",
+    # "RELOAD:SWITCHING") -- rig 2026-09-14: six real cuts left cutter_cuts at 0
+    # because this compared against "EV:CUT:DONE". A failover is specifically
+    # RELOAD:SWITCHING (the lane ran out and the standby took over); the other
+    # RELOAD:* events (JOINING, LOADED -- including a no-op RL: re-emit) are not.
     try:
-        if evt_type == "EV:CUT:DONE":
+        if evt_type == "CUT:DONE":
             update_maintenance_counter("cutter_cuts", incr=1)
         elif evt_type == "TC:DONE":
             update_maintenance_counter("swaps", incr=1)
-        elif evt_type.startswith("EV:RELOAD:") or evt_type == "EV:RELOAD":
+        elif evt_type == "RELOAD:SWITCHING":
             update_maintenance_counter("reload_failovers", incr=1)
     except Exception as e:
         print(f"flare_daemon: error updating maintenance counter for event {evt_type}: {e}", file=sys.stderr)

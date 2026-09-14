@@ -409,7 +409,7 @@ class MMUMock:
     def _query_daemon_maintenance(self, payload=None):
         import json
         import urllib.request
-        url = "http://127.0.0.1:4111/maintenance"
+        url = "http://127.0.0.1:8088/maintenance"  # daemon port -- was 4111, a typo; every other call here uses 8088
         try:
             if payload:
                 data = json.dumps(payload).encode("utf-8")

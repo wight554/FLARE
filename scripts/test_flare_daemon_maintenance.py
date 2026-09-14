@@ -3,7 +3,7 @@
 
 Tests:
   - SQLite persistence across restarts with default counter auto-seeding
-  - Increment hooks for EV:CUT:DONE, TC:DONE, and RELOAD events
+  - Increment hooks for CUT:DONE, TC:DONE, and RELOAD:SWITCHING events
   - Threshold warning generation and optional PAUSE escalation
   - Counter reset and deletion
   - klipper/mmu.py cmd_MMU_STATS COUNTER=... handling
@@ -125,13 +125,22 @@ class TestFlareDaemonMaintenance(unittest.TestCase):
         initial_swaps = fd.get_maintenance_counters()["swaps"]["count"]
         initial_reload = fd.get_maintenance_counters()["reload_failovers"]["count"]
 
-        fd.record_event_stats("EV:CUT:DONE", "")
+        # Event types exactly as the serial parser hands them to
+        # record_event_stats: "EV:" already stripped (rig 2026-09-14 -- the
+        # old test fed "EV:CUT:DONE", which the parser never produces, and
+        # masked six real cuts counting as zero).
+        fd.record_event_stats("CUT:DONE", "")
         self.assertEqual(fd.get_maintenance_counters()["cutter_cuts"]["count"], initial_cuts + 1)
 
         fd.record_event_stats("TC:DONE", "LANE=1")
         self.assertEqual(fd.get_maintenance_counters()["swaps"]["count"], initial_swaps + 1)
 
-        fd.record_event_stats("EV:RELOAD:APPROACH", "")
+        # Only a genuine failover counts; a no-op RL: re-emitting
+        # RELOAD:LOADED, or RELOAD:JOINING, must not.
+        fd.record_event_stats("RELOAD:LOADED", "1")
+        fd.record_event_stats("RELOAD:JOINING", "1")
+        self.assertEqual(fd.get_maintenance_counters()["reload_failovers"]["count"], initial_reload)
+        fd.record_event_stats("RELOAD:SWITCHING", "1->2")
         self.assertEqual(fd.get_maintenance_counters()["reload_failovers"]["count"], initial_reload + 1)
 
     def test_threshold_limit_warning_and_pause_escalation(self):
