@@ -13,6 +13,7 @@ with the evidence timestamp. Nothing is ticked without real rig results.
 end, not deleted.
 
 Last consolidated: 2026-09-14. Source phases: 1, 11, 12, 13, 14, 15, 16.
+Last rig session: 2026-09-14 (see the session log below the closed list).
 
 ---
 
@@ -28,6 +29,56 @@ Last consolidated: 2026-09-14. Source phases: 1, 11, 12, 13, 14, 15, 16.
 - [x] **#14** FlowGuard `level` trend + UI meter — 2026-09-12, 975 pushes, `14-VERIFICATION.md` #1
 - [x] **#15 (7/9)** No-op command stubs register — 2026-09-12, `fire 15-command-stubs`, 7/7 PASS (the other 2 are **A4**)
 - [x] Type-P BL rail-relative break (`51bdca8`) — 2026-09-12, 4/4 swaps clean
+- [x] **A4** `MMU_PRINT_START`/`MMU_PRINT_END` — 2026-09-14, two print starts + one print end ran the real macros organically, no gcode-queue hang (closes old #15 at 9/9)
+- [x] **C2b** `RL:` no-op with toolhead filament confirmed — 2026-09-14, `OK` + single `EV:RELOAD:LOADED:1`, no lane task, buffer unchanged, no `FOLLOW_JAM`
+- [x] **E5 (counting half)** `swaps`/`cutter_cuts` increment per swap/cut and survive daemon restart — 2026-09-14 after `41481c4`: 10→20 swaps, 4→14 cuts across a print (LIMIT/PAUSE half still open, see E5)
+- [x] Purge-start false `FAULT_HOLD` (found this session, not on the list) — `4fa569a` + `a5c4fc9`, 18/18 purges clean on the rig (8 bench, 10 in-print) after 2/2 failed on the previous firmware
+- [x] `cutter_cuts` never counted / `MMU_STATS` wrong port (found this session) — `41481c4`, counting verified on the rig; `MMU_STATS COUNTER=… LIMIT=` round-trip not yet re-tried
+
+## Session log — 2026-09-14 (extruder hot, 6 bench swaps, 1 cancelled print, 1 full print)
+
+Firmware flashed twice during the session; the rig ended on **`a5c4fc9`**,
+daemon + `mmu.py` on **`41481c4`**. Event log and a `BP`/`SM` position CSV
+captured from the dev machine for the whole session (not committed).
+
+**Found and fixed (three commits, all CI green):**
+- `4fa569a` — extreme relaxation re-seeded the tension extreme to a
+  compression-side reading after a purge-start relief overshoot →
+  `RELIEF_ON` at +0.44 on the compression side.
+- `a5c4fc9` — `BUF_TENSION` means "below goal", not "starving"; the 13-03
+  probe and the 13-02 mm trip were gated on it alone, so the probe ran on
+  every regulated buffer and read a *falling* buffer (purge from idle,
+  estimator-bounded relief lagging the extruder) as `NO_CONSUMER` →
+  `FAULT_HOLD` 3 s into every purge. Now: probe opens only ≥ 0.15 below the
+  tension-zone edge, distance from window open, verdict = movement in either
+  direction ≥ 0.05; trip counts feed only while pinned or falling. Sim
+  scenarios `sem_psf_relief_purge_overshoot`, `sem_psf_probe_purge_from_idle`.
+- `41481c4` — daemon counter hooks compared against `EV:CUT:DONE` but the
+  parser strips `EV:`; `mmu.py` posted `MMU_STATS` to port 4111 (daemon is
+  8088); the unit test fed the impossible string and masked both.
+
+**Informal print data (Box_klein_PYD_PETG_1h7m — same model as the 09-12
+baseline, different slice, so NOT the D-30 A/B; 74 min, 10 swaps):**
+`verify_phase13_hw_log.py` on the print window: item 1 relief-pause rate
+**0.80/60 s PASS** (baseline: one every 2.4–3.4 s); item 2
+`TENSION_RISK_HIGH` **21 vs <13 FAIL** (warn-only, no action taken on any);
+item 3 false stops **0/0/0/0 PASS**; item 4 rail hits 2107 **FAIL** — 997/1005 are the +1.0 compression rail (low-flow limit cycle), only 8 tension; tension side essentially never hit. Both fails = the open compression-side hunting question, not the starvation domain today's fixes target.
+`RELIEF_ON` 509 (~9.5/min of sync) and 76 `AUTO_START`/59 `RELIEF_PAUSE`
+cycles say the hunting question (`typep-feed-hunting`) is still open.
+
+**Observed, not acted on (belong to Group F / tuning):**
+- Rail guard (`CONF_PSF_WALL_SAT_MS`, absolute rail) fault-held 3× on fast
+  manual extrudes from a full buffer before the print (~40 mm/s from idle
+  outruns the estimator-bounded relief). Probe said `CONSUMER` correctly
+  each time; this is the next net down.
+- Compression-rail limit cycle at low flow: `AUTO_START → 1.5 s →
+  RELIEF_PAUSE` every ~3.3 s (45× in the cancelled print's first 2.5 min).
+- `BL:FOLLOW_GATED` on 6/10 in-print tip-forms and 2/6 bench ones with a
+  normal purge after every one — **no correlation with tip quality** (the
+  one bad tip, bench swap 4, was a `FOLLOW_GATED` swap, but so were seven
+  good ones). Near-slip note stays a tuning item only.
+- Cancel mid-print misbehaves in the retract helper — out of scope, user
+  call.
 
 ---
 
@@ -108,7 +159,7 @@ Owner: Phase 12 · `12-01-PLAN.md` HW bullet "TMC unplug → single `TMC:FAULT`"
    `EV:TMC:FAULT:2:COMM_FAIL`, no repeat storm while unplugged, then one
    `EV:TMC:RESTORED:2` after replug. Health flag back to `1` in status.
 
-### [ ] A4 · `MMU_PRINT_START` / `MMU_PRINT_END` register (remainder of old #15)
+### [x] A4 · `MMU_PRINT_START` / `MMU_PRINT_END` register (remainder of old #15) — closed 2026-09-14, see top
 Owner: Phase 14 · `14-VERIFICATION.md` "Human Verification Required" #2 (7/9 done)
 
 These two are **not** no-ops — they run `_FLARE_SYNC_TOOLHEAD` (a synchronous
@@ -175,7 +226,7 @@ Watch `BP`, `TC`, and `RELOAD:*` events; the ambiguity these tests resolve is
 | | # | Case | Steps | Pass |
 |---|---|---|---|---|
 | [ ] | C2a | Runout → auto RELOAD with **consumer active** | As C1, but keep extruding (`G1 E200 F300`) through the reload | Contact seen on compression side, then success on the extruder's grab; `RELOAD:LOADED`, no `FOLLOW_JAM` |
-| [ ] | C2b | No false `RELOAD:LOADED` without motion | Fresh state, both lanes loaded, extruder **idle**. `python3 scripts/flare_cmd.py RL:` | `RL:` is a no-op that re-emits `RELOAD:LOADED` with **no motor motion** (toolhead already confirms filament). Any motion or `RELOAD:JOINING` = FAIL |
+| [x] | C2b | No false `RELOAD:LOADED` without motion — **PASS 2026-09-14** | Fresh state, both lanes loaded, extruder **idle**. `python3 scripts/flare_cmd.py RL:` | `RL:` is a no-op that re-emits `RELOAD:LOADED` with **no motor motion** (toolhead already confirms filament). Any motion or `RELOAD:JOINING` = FAIL |
 | [ ] | C2c | Paused / no-consumer `RL:` completes on staged compression | After a real runout (C1), do **not** extrude; `RL:` with extruder idle | Follow completes with filament parked at the extruder mouth (staged compression), `RELOAD:LOADED`, **no `FOLLOW_JAM`**, no wait for a tension grab that can't come |
 | [ ] | C2d | `RL:` re-issued right after a completed reload, consumer active | Complete C2a, keep extruding, immediately `RL:` again | `RELOAD:LOADED` re-emitted, zero motion, no `FOLLOW_JAM` |
 
@@ -299,10 +350,12 @@ appear with the names/colors/temps from E1. This is the only step that
 needs the slicer; do it last.
 
 ### [ ] E5 · Maintenance counters, thresholds, PAUSE (REQ-maintenance-*)
-1. `GET /maintenance` on the daemon (`:8088/maintenance`) → counters
-   `cutter_cuts`, `swaps`, `reload_failovers` present.
-2. Do one `CU` and one `TC:` on the rig → `cutter_cuts` and `swaps` each +1;
-   survives `systemctl restart flare_daemon.service` (SQLite-backed).
+Steps 1–2 **closed 2026-09-14** (after `41481c4`; before it `cutter_cuts`
+stayed at 0 through six real cuts). Steps 3–4 still open — the first attempt
+(`MMU_STATS COUNTER=swaps LIMIT=7 PAUSE=1`) never reached the daemon because
+of the port typo `41481c4` fixed; not re-tried since.
+1. ~~`GET /maintenance` → counters present~~ ✓
+2. ~~one `CU` + one `TC:` → each +1, survives daemon restart~~ ✓
 3. Klipper console: `MMU_STATS COUNTER=cutter_cuts LIMIT=<current+1> PAUSE=1`
    then one more `CU`.
    Pass: warning emitted **and** Klipper enters `PAUSE`. `RESUME`, then
@@ -318,6 +371,18 @@ indicator once over limit (use the E5 state), and Reset per counter works.
 ## Group F — Real print (Phase 13 A/B, with Group D riding along)
 
 ### [ ] F1 · Phase 13 A/B print passes the four-item bar (D-31)
+*2026-09-14, informal run of a DIFFERENT slice (`Box_klein_PYD_PETG_1h7m`),
+so NOT the D-30 A/B and NOT a Phase 13 verdict. `verify_phase13_hw_log.py`
+on the print window: item 1 relief-pause 0.80/60 s **PASS**; item 2
+`TENSION_RISK_HIGH` 21 vs <13 **FAIL**; item 3 false stops 0/0/0/0 **PASS**;
+item 4 rail hits 2107 across 33 433 sync-active samples **FAIL**. Both fails
+are the SAME compression-side low-flow limit cycle: of 1005 strict (±0.999)
+hits, 997 are the +1.0 compression rail (buffer full → RELIEF_PAUSE → drain,
+128 episodes ~0.8 s each), only 8 touch the −1.0 tension rail (0.02%). The
+buffer sits at goal (+0.50) 76% of sync time. The tension/starvation domain
+today's purge fixes target is essentially never hit; the residual is the
+open `typep-feed-hunting` compression-side question. The formal A/B still
+needs the 09-12 job itself (`Box_klein_PYD_PETG_1h44m`).*
 Owner: Phase 13 · `13-HW-VALIDATION.md` (the full sheet — pre-flight, capture,
 pass bar, results table all live there; **this section only tells you where
 it fits in the session**). Also closes the `typep-feed-hunting-open` decision.
