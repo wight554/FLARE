@@ -1135,6 +1135,40 @@ const sim_scenario_t g_sim_scenarios[] = {
         .tick_ceiling_reason = "tension boost activates around t=3500ms, followed by "
                                "Phase 13 distance trip and clean baseline reset",
     },
+    // Rig 2026-09-14, first manual swap of a bench session: the post-load
+    // purge started sync from a compression-side rest, the buffer dived to
+    // -0.92, bounded relief snapped to max and OVERSHOT to +0.68 on the
+    // compression side, and REVIEW-07's extreme relaxation re-seeded
+    // g_sync_tension_extreme to that +0.68. Everything rail-relative then
+    // read the compression side as "the tension rail": RELIEF_ON fired at
+    // +0.44 in COMPRESSION, and the 13-03 probe -- whose window had only
+    // just opened, since the trip arms on the first transition and at purge
+    // start that transition is the way UP -- called NO_CONSUMER against the
+    // same relaxed value and fault-held the MMU under a live purge.
+    //
+    // Shape: a steady consumer, a short 3x demand spike (the dive), a
+    // 0.4x lull long enough for relief to overshoot well past the
+    // relaxation threshold (extreme + 2*BL_BREAK_DELTA_NORM), then demand
+    // back to 1x (the purge continuing) so the buffer descends into the
+    // tension zone again with a real consumer present throughout. The
+    // assertions (test_sync_sim.py TypePReliefBoundTests) are the two rig
+    // symptoms: no RELIEF_ON with the debounced state on the compression
+    // side, and no NO_CONSUMER / FAULT_HOLD.
+    {
+        .name = "sem_psf_relief_purge_overshoot",
+        .demand = {.kind = DEMAND_STEADY, .level_mm_s = 20.0f},
+        .demand_gain = {.bp = {{.t_ms = 0, .value = 1.0f},
+                               {.t_ms = 3000, .value = 3.0f},
+                               {.t_ms = 3300, .value = 0.4f},
+                               {.t_ms = 4200, .value = 1.0f}},
+                        .count = 4},
+        .active_lane = 1, .start_sync_active = true,
+        .buf_max_travel_override = 16, .type_specific = true,
+        .tick_ceiling = 500,
+        .tick_ceiling_reason = "3s settle, 300ms dive, 900ms relief overshoot past the "
+                               "relaxation threshold, then ~5s of the consumer pulling the "
+                               "buffer back down through the tension zone",
+    },
 };
 // clang-format on
 

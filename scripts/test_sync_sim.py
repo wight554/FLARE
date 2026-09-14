@@ -1195,6 +1195,31 @@ class TypePReliefBoundTests(unittest.TestCase):
                 run = run_scenario(scenario, sensor_type="p", ticks=400)
                 self.assertEqual(run.returncode, 0, run.stderr)
 
+    def test_relaxed_extreme_never_puts_relief_on_the_compression_side(self):
+        # Rig 2026-09-14 (first manual swap of a bench session): a purge-start
+        # relief overshoot to +0.68 made REVIEW-07's relaxation re-seed the
+        # tension extreme to that compression-side reading, after which
+        # RELIEF_ON fired at +0.44 in COMPRESSION and the 13-03 probe, whose
+        # window opened only after the relaxation, called NO_CONSUMER into a
+        # live purge and fault-held the MMU under the extruder. Relaxation now
+        # forgets the extreme instead. Two rig symptoms, two assertions; both
+        # fail on the pre-fix firmware against this scenario (2 off-tension
+        # RELIEF_ON edges at +2.54mm/+2.49mm NEUTRAL).
+        run = run_scenario("sem_psf_relief_purge_overshoot", sensor_type="p", ticks=500)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        off_tension = [(r["ts_ms"], r["bp_mm"], r["zone"]) for r in run.rows
+                       if "RELIEF_ON" in r["events"] and r["zone"] != "TENSION"]
+        self.assertEqual(off_tension, [],
+                         f"RELIEF_ON fired with the buffer outside the tension zone: "
+                         f"{off_tension} -- the tension extreme has relaxed onto the "
+                         f"compression side again")
+        text = run.events_text()
+        self.assertNotIn("PROBE:NO_CONSUMER", text,
+                         "probe called NO_CONSUMER with a real consumer present throughout")
+        self.assertNotIn("FAULT_HOLD", text,
+                         "sync fault-held during a purge with a real consumer present")
+        self.assertIn("RELIEF_ON", text, "relief never engaged at all -- scenario shape broke")
+
 
 @unittest.skipIf(_skip_reason(), _skip_reason())
 class TensionStopMmTripTests(unittest.TestCase):

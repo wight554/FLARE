@@ -2322,9 +2322,23 @@ static void sync_type_p_track_tension_extreme(buf_state_t s) {
         }
     }
 
+    /* Relax by FORGETTING the extreme, not by re-seeding it to the current
+       reading. Re-seeding put a compression-side position (rig 2026-09-14:
+       +0.68 after a purge-start relief overshoot) into a variable every
+       consumer treats as "the tension rail": the relief zone
+       (pos <= extreme + margin) became the whole travel, so RELIEF_ON fired
+       at +0.44 on the compression side, and the 13-03 probe -- whose window
+       had only just opened, because the trip arms on the first transition
+       and at purge start that transition is the way UP -- compared its peak
+       against that same relaxed value and returned NO_CONSUMER into a live
+       purge, fault-holding the MMU under the extruder. Invalidating instead
+       drops sync_type_p_in_relief_zone() back to its documented no-extreme
+       fallback (the debounced BUF_TENSION state) until the next genuine
+       tension reading re-establishes a rail-side extreme. */
     if (g_sync_tension_extreme_valid &&
         g_buf_pos >= g_sync_tension_extreme + SYNC_EXTREME_RELAX_MULT * BL_BREAK_DELTA_NORM) {
-        g_sync_tension_extreme = g_buf_pos;
+        g_sync_tension_extreme = 0.0f;
+        g_sync_tension_extreme_valid = false;
     }
 }
 
