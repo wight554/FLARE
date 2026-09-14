@@ -201,7 +201,13 @@ def _skip_reason():
     return None
 
 
-TUNE_H = os.path.join(REPO_ROOT, "firmware", "include", "tune.h")
+# Read the constants out of the SAME tune.h the sim binary was compiled
+# against — the pinned one tests/host/CMakeLists.txt generates from
+# tests/host/sim_tuning.ini, not firmware/include/tune.h. Those two differ
+# whenever the developer's (gitignored) config.ini differs from the defaults,
+# which is how a rig-tuned working copy stayed green while CI failed 12
+# gain-dependent scenarios for 16 runs.
+TUNE_H = os.path.join(REPO_ROOT, "build_sim", "generated", "tune", "tune.h")
 SYNC_INTERNAL_H = os.path.join(REPO_ROOT, "firmware", "include", "sync_internal.h")
 SETTINGS_STORE_C = os.path.join(REPO_ROOT, "firmware", "src", "settings_store.c")
 
@@ -214,7 +220,9 @@ def _conf_int(name):
         text = f.read()
     m = re.search(r"#define\s+CONF_" + re.escape(name) + r"\s+(-?\d+)\b", text)
     if not m:
-        raise AssertionError(f"CONF_{name} not found in {TUNE_H} — run scripts/gen_config.py first")
+        raise AssertionError(f"CONF_{name} not found in {TUNE_H} — build the sim "
+                            f"('ninja -C build_sim') to regenerate it from "
+                            f"tests/host/sim_tuning.ini")
     return int(m.group(1))
 
 
@@ -224,7 +232,9 @@ def _conf_float(name):
         text = f.read()
     m = re.search(r"#define\s+CONF_" + re.escape(name) + r"\s+(-?[\d.]+)f\b", text)
     if not m:
-        raise AssertionError(f"CONF_{name} not found in {TUNE_H} — run scripts/gen_config.py first")
+        raise AssertionError(f"CONF_{name} not found in {TUNE_H} — build the sim "
+                            f"('ninja -C build_sim') to regenerate it from "
+                            f"tests/host/sim_tuning.ini")
     return float(m.group(1))
 
 

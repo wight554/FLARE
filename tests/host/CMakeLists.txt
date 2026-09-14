@@ -15,18 +15,28 @@ set(FIRMWARE_INCLUDE ${REPO_ROOT}/firmware/include)
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
-# tune.h is generated from config.ini the same way firmware/CMakeLists.txt
-# generates it — this is a standalone project so it cannot rely on that build
-# having already run.
+# tune.h is generated from sim_tuning.ini — NOT from the repo-root config.ini,
+# which is gitignored and therefore differs between a rig-tuned working copy
+# and CI. The scenario assertions are gain-dependent, so sourcing them from an
+# untracked file let CI fail 12 scenarios for 16 runs while every local build
+# stayed green. sim_tuning.ini is tracked: one binary, same behaviour
+# everywhere. It also means this build no longer overwrites the developer's
+# real firmware/include/tune.h as a side effect.
+#
+# The generated header lands in the build tree and its directory precedes
+# FIRMWARE_INCLUDE on the include path, so it shadows any firmware/include/
+# tune.h left behind by a firmware build.
 set(GEN_CONFIG_SCRIPT ${REPO_ROOT}/scripts/gen_config.py)
-set(USER_CONFIG_INI ${REPO_ROOT}/config.ini)
-set(TUNE_H ${FIRMWARE_INCLUDE}/tune.h)
+set(SIM_TUNING_INI ${CMAKE_CURRENT_LIST_DIR}/sim_tuning.ini)
+set(SIM_TUNE_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/tune)
+set(SIM_TUNE_H ${SIM_TUNE_DIR}/tune.h)
 
 add_custom_command(
-  OUTPUT ${TUNE_H}
-  COMMAND ${Python3_EXECUTABLE} ${GEN_CONFIG_SCRIPT} ${USER_CONFIG_INI} ${TUNE_H}
-  DEPENDS ${USER_CONFIG_INI} ${GEN_CONFIG_SCRIPT}
-  COMMENT "Generating tune.h from config.ini"
+  OUTPUT ${SIM_TUNE_H}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${SIM_TUNE_DIR}
+  COMMAND ${Python3_EXECUTABLE} ${GEN_CONFIG_SCRIPT} ${SIM_TUNING_INI} ${SIM_TUNE_H}
+  DEPENDS ${SIM_TUNING_INI} ${GEN_CONFIG_SCRIPT}
+  COMMENT "Generating pinned tune.h from tests/host/sim_tuning.ini"
 )
 
 # sim_globals.c is generated from the g_ definitions in firmware/src/main.c —
@@ -54,6 +64,7 @@ add_executable(flare_sim
   ${FIRMWARE_SRC}/settings_store.c
   ${FIRMWARE_SRC}/forensics.c
   ${SIM_GLOBALS_C}
+  ${SIM_TUNE_H}
   sim_fakes.c
   sim_plant.c
   sim_scenario.c
@@ -65,6 +76,7 @@ add_executable(flare_sim
 # resolve to the host shims, not the (absent) Pico SDK.
 target_include_directories(flare_sim PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/shims
+  ${SIM_TUNE_DIR}
   ${FIRMWARE_INCLUDE}
   ${CMAKE_CURRENT_LIST_DIR}
 )
@@ -94,12 +106,14 @@ add_executable(test_persistence
   ${FIRMWARE_SRC}/settings_store.c
   ${FIRMWARE_SRC}/forensics.c
   ${SIM_GLOBALS_C}
+  ${SIM_TUNE_H}
   sim_fakes.c
   test_persistence.c
 )
 
 target_include_directories(test_persistence PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/shims
+  ${SIM_TUNE_DIR}
   ${FIRMWARE_INCLUDE}
   ${CMAKE_CURRENT_LIST_DIR}
 )
@@ -117,12 +131,14 @@ add_executable(test_tmc_recovery
   ${FIRMWARE_SRC}/settings_store.c
   ${FIRMWARE_SRC}/forensics.c
   ${SIM_GLOBALS_C}
+  ${SIM_TUNE_H}
   sim_fakes.c
   test_tmc_recovery.c
 )
 
 target_include_directories(test_tmc_recovery PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/shims
+  ${SIM_TUNE_DIR}
   ${FIRMWARE_INCLUDE}
   ${CMAKE_CURRENT_LIST_DIR}
 )
@@ -140,12 +156,14 @@ add_executable(test_tmc_boost
   ${FIRMWARE_SRC}/settings_store.c
   ${FIRMWARE_SRC}/forensics.c
   ${SIM_GLOBALS_C}
+  ${SIM_TUNE_H}
   sim_fakes.c
   test_tmc_boost.c
 )
 
 target_include_directories(test_tmc_boost PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/shims
+  ${SIM_TUNE_DIR}
   ${FIRMWARE_INCLUDE}
   ${CMAKE_CURRENT_LIST_DIR}
 )
@@ -163,12 +181,14 @@ add_executable(test_forensics
   ${FIRMWARE_SRC}/settings_store.c
   ${FIRMWARE_SRC}/forensics.c
   ${SIM_GLOBALS_C}
+  ${SIM_TUNE_H}
   sim_fakes.c
   test_forensics.c
 )
 
 target_include_directories(test_forensics PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/shims
+  ${SIM_TUNE_DIR}
   ${FIRMWARE_INCLUDE}
   ${CMAKE_CURRENT_LIST_DIR}
 )
@@ -186,12 +206,14 @@ add_executable(test_toolchange
   ${FIRMWARE_SRC}/settings_store.c
   ${FIRMWARE_SRC}/forensics.c
   ${SIM_GLOBALS_C}
+  ${SIM_TUNE_H}
   sim_fakes.c
   test_toolchange.c
 )
 
 target_include_directories(test_toolchange PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/shims
+  ${SIM_TUNE_DIR}
   ${FIRMWARE_INCLUDE}
   ${CMAKE_CURRENT_LIST_DIR}
 )
@@ -209,12 +231,14 @@ add_executable(test_cutter
   ${FIRMWARE_SRC}/settings_store.c
   ${FIRMWARE_SRC}/forensics.c
   ${SIM_GLOBALS_C}
+  ${SIM_TUNE_H}
   sim_fakes.c
   test_cutter.c
 )
 
 target_include_directories(test_cutter PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/shims
+  ${SIM_TUNE_DIR}
   ${FIRMWARE_INCLUDE}
   ${CMAKE_CURRENT_LIST_DIR}
 )

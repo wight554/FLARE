@@ -138,7 +138,9 @@ DEFAULTS = {
     "sync_fault_hold_recovery_ms": "5000",
     "sync_cannot_refill_mm": "50.0",
     "sync_cannot_relieve_mm": "50.0",
-    "sync_kp_rate": "900",
+    "sync_kp_rate": "2025",       # rig-tuned 2026-05-28: kp is insensitive once accel is correct;
+                                  # 2025 is the practical ceiling. Superseded the 900 that was
+                                  # validated at accel=150. tests/host/sim_tuning.ini pins the same.
     "sync_reserve_pct": "65",     # type-D HW 2026-06-03: compression-side step headroom (cliffs ~70). Shared.
     "sync_auto_stop_ms": "5000",
     # Type-D Relay Fallback Law

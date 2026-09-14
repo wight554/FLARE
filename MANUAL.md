@@ -184,7 +184,7 @@ Operator-facing sync knobs only. Estimator/relay internals (`EST_ALPHA_*`,
 dev-build-only — see the note at the top of this section.
 | Parameter | `config.ini` Key | Description | Default |
 |-----------|------------------|-------------|---------|
-| `SYNC_KP_RATE` | `sync_kp_rate` | Proportional reserve-correction window around the virtual buffer target | 900 |
+| `SYNC_KP_RATE` | `sync_kp_rate` | Proportional reserve-correction window around the virtual buffer target | 2025 |
 | `SYNC_RESERVE_PCT` | `sync_reserve_pct` | Normal-sync reserve target as % of half `BUF_SWITCH_SPAN` toward compression | 65 |
 | `COMPRESSION_BIAS_FRAC` | `sync_compression_bias_frac` | Scalar fallback compression-side setpoint shift when no flow schedule is configured (0.0 to 0.7) | 0.45 |
 | `RELAY_CATCHUP_FRAC` | `relay_catchup_frac` | Type-D relay TENSION refill multiplier | 1.30 |

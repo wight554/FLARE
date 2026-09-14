@@ -76,7 +76,7 @@ run_current:
 # sync_tension_boost_off: -0.30 # Type-P buffer position to release boost via hysteresis
 # sync_cannot_relieve_mm: 50.0
 # global_max_rate: 5000         # absolute ceiling for every commanded motor rate (mm/min)
-# sync_kp_rate: 900             # rig-validated (2026-05-28): passes autotune at accel=150
+# sync_kp_rate: 2025            # rig-tuned (2026-05-28): kp insensitive once accel is correct; 2025 is the practical ceiling
 # sync_reserve_pct: 35           # Reserve target as % of half the BUF_SWITCH_SPAN toward compression
 # sync_auto_stop_ms: 5000          # Auto-mode only: tail-assist timeout in COMPRESSION,
                                    # or normal sync timeout only after COMPRESSION
