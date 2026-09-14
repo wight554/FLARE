@@ -545,7 +545,12 @@ def _spoolman_fetch_spool(spool_id):
         "td": extra.get("transmission_distance", 0.0) if isinstance(extra, dict) else 0.0,
     }
 
-def _spoolman_get_spool(spool_id):
+def _spoolman_get_spool(spool_id, notify=True):
+    """Cached Spoolman lookup. A cache miss refreshes the entry and, by
+    default, queues a Moonraker lane_data sync so fresh spool metadata reaches
+    OrcaSlicer. The sync worker itself passes notify=False: it calls this for
+    every gate while building payloads, and letting that miss re-queue a sync
+    made the worker re-enter itself (bounded only by SPOOL_CACHE_TTL)."""
     now = time.time()
     with _spool_cache_lock:
         ent = _spool_cache.get(spool_id)
@@ -554,7 +559,8 @@ def _spoolman_get_spool(spool_id):
     data = _spoolman_fetch_spool(spool_id)
     with _spool_cache_lock:
         _spool_cache[spool_id] = (now, data)
-    trigger_moonraker_lane_data_sync()
+    if notify:
+        trigger_moonraker_lane_data_sync()
     return data
 
 # --- Moonraker DB lane_data synchronization ---
@@ -607,7 +613,8 @@ def build_moonraker_lane_payload(gate_idx):
         return None
 
     sid = gm["gate_spool_id"][g] if g < len(gm["gate_spool_id"]) else -1
-    spool = _spoolman_get_spool(sid) if isinstance(sid, int) and sid >= 0 else None
+    # notify=False: this IS the sync — a cache miss here must not queue another one.
+    spool = _spoolman_get_spool(sid, notify=False) if isinstance(sid, int) and sid >= 0 else None
 
     default_name = gm["gate_name"][g] if g < len(gm["gate_name"]) else f"Gate {g}"
     default_mat = gm["gate_material"][g] if g < len(gm["gate_material"]) else ""

@@ -190,6 +190,58 @@ class TestMoonrakerLaneData(unittest.TestCase):
         item = fd._lane_sync_queue.get_nowait()
         self.assertTrue(item)
 
+    def test_sync_does_not_requeue_itself_on_spool_cache_miss(self):
+        """Regression: the sync worker builds a payload per gate, and each
+        build does a Spoolman lookup. A cache miss inside that lookup used to
+        queue ANOTHER sync, so every sync re-entered itself (bounded only by
+        SPOOL_CACHE_TTL). Now the sync path opts out of the notify, while an
+        ordinary cold lookup — e.g. from the status endpoint — still queues
+        one so fresh spool metadata reaches Moonraker."""
+        server = HTTPServer(("127.0.0.1", 0), FakeMoonrakerHandler)
+        port = server.server_address[1]
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+
+        orig_mr_url = fd.MOONRAKER_URL
+        orig_num_gates = fd.NUM_GATES
+        orig_fetch = fd._spoolman_fetch_spool
+        fetches = []
+        try:
+            fd.MOONRAKER_URL = f"http://127.0.0.1:{port}"
+            fd.NUM_GATES = 1
+            FakeMoonrakerHandler.existing_items = {}
+            FakeMoonrakerHandler.posted_items = []
+
+            # Cold cache + a fetch stub that records every miss.
+            with fd._spool_cache_lock:
+                fd._spool_cache.clear()
+            fd._spoolman_fetch_spool = lambda sid: (fetches.append(sid) or {"id": sid, "name": "S"})
+            fd._write_gate_map_db(0, {"spool_id": 7})  # queues one sync itself
+
+            while not fd._lane_sync_queue.empty():
+                fd._lane_sync_queue.get_nowait()
+
+            fd.sync_moonraker_lane_data()
+
+            self.assertEqual(fetches, [7], "sync should have fetched the cold spool once")
+            self.assertTrue(fd._lane_sync_queue.empty(),
+                            "sync_moonraker_lane_data must not queue another sync")
+
+            # The non-sync path keeps its notify: a cold lookup queues exactly one.
+            with fd._spool_cache_lock:
+                fd._spool_cache.clear()
+            fd._spoolman_get_spool(7)
+            self.assertFalse(fd._lane_sync_queue.empty(),
+                             "an ordinary cache miss must still queue a sync")
+            fd._lane_sync_queue.get_nowait()
+            self.assertTrue(fd._lane_sync_queue.empty())
+        finally:
+            fd.MOONRAKER_URL = orig_mr_url
+            fd.NUM_GATES = orig_num_gates
+            fd._spoolman_fetch_spool = orig_fetch
+            with fd._spool_cache_lock:
+                fd._spool_cache.clear()
+            server.shutdown()
+
 
 if __name__ == "__main__":
     unittest.main()
